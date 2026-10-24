@@ -31,6 +31,9 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     this.levelId = data?.levelId || 'level-1';
     this.level = getLevel(this.levelId);
+    // getLevel() falls back to level 1 for an unknown id; adopt the resolved id
+    // so a later restart / replay cannot carry the stale one forward.
+    this.levelId = this.level.id;
     this.theme = THEMES[this.level.theme] || THEMES.grassland;
     this.progress = window.gameProgress || new ProgressStore();
   }
