@@ -1794,7 +1794,7 @@ body.is-fullscreen::before {
   justify-content: space-between;
   gap: 10px;
   padding: 14px 22px;
-  border-bottom: 2px solid rgba(90, 66, 50, 0.35);
+  border-bottom: 2px solid rgba(198, 158, 88, 0.32);
 }
 
 .modal-title {
@@ -1828,7 +1828,7 @@ body.is-fullscreen::before {
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 22px;
-  border-top: 2px solid rgba(90, 66, 50, 0.35);
+  border-top: 2px solid rgba(198, 158, 88, 0.32);
 }
 
 .modal-list {
@@ -1855,8 +1855,8 @@ kbd {
   display: inline-block;
   padding: 0 5px;
   border-radius: 3px;
-  background: rgba(36, 18, 8, 0.12);
-  border: 1px solid rgba(36, 18, 8, 0.35);
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(198, 158, 88, 0.4);
   font-family: var(--font-body);
   font-size: 0.92em;
   font-weight: 700;
@@ -2330,7 +2330,7 @@ kbd {
 .game-table td {
   padding: 7px 10px;
   color: var(--ink-strong);
-  border-bottom: 1px solid rgba(36, 18, 8, 0.16);
+  border-bottom: 1px solid rgba(198, 158, 88, 0.16);
 }
 
 .game-table tbody tr:nth-child(even) td {
@@ -2726,7 +2726,7 @@ kbd {
 
 /* When the page owns the whole screen the decorative frame is unnecessary. */
 body.is-fullscreen #app {
-  box-shadow: 0 0 0 1px rgba(90, 66, 50, 0.55);
+  box-shadow: 0 0 0 1px rgba(198, 158, 88, 0.45);
 }
 
 body.is-fullscreen #app::after {
@@ -3402,8 +3402,8 @@ body.is-fullscreen #app::after {
     font-size: 22px;
   }
 
-  .menu-btn {
-    min-height: 32px;
+  .menu-tile {
+    min-height: 46px;
   }
 
   :root {
@@ -3950,10 +3950,6 @@ body.is-fullscreen #app::after {
    DAILY CHALLENGE + ACHIEVEMENTS (Sprint 2 retention layer)
    ========================================================================== */
 
-.menu-btn-daily {
-  position: relative;
-}
-
 .menu-badge {
   margin-left: 8px;
   padding: 1px 8px;
@@ -3970,10 +3966,8 @@ body.is-fullscreen #app::after {
   display: none;
 }
 
-/* A claimed daily stays visible (it is the streak reminder) but reads as spent. */
-.menu-btn.daily-claimed {
-  filter: saturate(0.55) brightness(0.92);
-}
+/* A claimed daily stays visible (it is the streak reminder) but reads as spent.
+   (The filter itself lives on .menu-daily.daily-claimed in the MAIN MENU block.) */
 
 .achievements-shell {
   width: min(1120px, 100%);
