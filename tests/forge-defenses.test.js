@@ -133,6 +133,23 @@ describe('Forge defences (the three extra lines)', () => {
     }
   });
 
+  it('declares frame geometry that matches the shipped weapon sheets', () => {
+    // A stale fw/fh/frames triple does not crash Phaser: it silently slices the
+    // strip at the wrong pitch and the tower animates with torn frames.
+    const pngSize = (file) => {
+      const buf = readFileSync(file);
+      return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+    };
+    for (const key of Object.keys(TOWER_TYPES)) {
+      for (const slot of SLOTS) {
+        const v = TOWER_VISUALS[key][slot];
+        const { width, height } = pngSize(join('public/assets/towers', v.weapon));
+        expect(width, `${key}.${slot} strip width`).toBe(v.fw * v.frames);
+        expect(height, `${key}.${slot} strip height`).toBe(v.fh);
+      }
+    }
+  });
+
   it('has a dock sprite rule for every build card', () => {
     const css = readFileSync('src/style.css', 'utf8');
     for (const key of BUILD_OPTIONS) {

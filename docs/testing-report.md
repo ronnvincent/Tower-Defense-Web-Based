@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 236 tests across 19 test suites.
-- **Pass Rate:** **100% (236 / 236 Passed)**
+- **Total Automated Unit Tests:** 237 tests across 19 test suites.
+- **Pass Rate:** **100% (237 / 237 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -97,15 +97,19 @@
      ✓ runs BFS from any road cell to the base and records the run
      ✓ records cumulative BFS statistics across runs
 
- ✓ tests/forge-defenses.test.js (15 tests)
+ ✓ tests/forge-defenses.test.js (17 tests)
      ✓ adds exactly three new tower lines to the build dock
      ✓ gives every dock entry a unique hotkey that matches its position
+     ✓ maps every specialisation to the right art slot through its branch field
      ✓ ships an icon, base and weapon sheet for every slot of every tower
+     ✓ declares frame geometry that matches the shipped weapon sheets
      ✓ starts the player with enough gold for two defences and 25 base HP
      ✓ gives every enemy a siege attack so no archetype can be walled off forever
 
- ✓ tests/barricade-siege.test.js (10 tests)
+ ✓ tests/barricade-siege.test.js (12 tests)
      ✓ stops the attacker outside the wall tile instead of letting it walk through
+     ✓ parks every queue lane in contact instead of hovering a hair outside
+     ✓ breaks a real wall down when the pack is simulated frame by frame
      ✓ a lone grunt cannot chew through a palisade in seconds, a pack can
      ✓ resolves a swing without ever over-killing the wall
 
@@ -114,7 +118,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  19 passed (19)
-Tests       236 passed (236)
+Tests       237 passed (237)
 Duration    6.7s
 ```
 

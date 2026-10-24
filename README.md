@@ -254,7 +254,7 @@ tower-defense-dsalgo/
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (236 tests / 19 suites)
+└── tests/                      # Automated Vitest test suites (237 tests / 19 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js
