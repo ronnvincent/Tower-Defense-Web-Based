@@ -163,6 +163,16 @@ than stacking scenes.
 Endless Siege. `GameScene.init()` re-reads `levelId` from the resolved level, so
 an unknown id can never be carried into a restart.
 
+### Pause, codex and leaving a battle
+`HUD.setPausedUI()` is the single owner of the paused state: it toggles the
+pause card (`#pause-overlay`) and the passive chip used by gate pauses, and it
+disarms the quit caution. The card holds RESUME, CODEX and LEAVE BATTLE —
+the two controls that used to clutter the top bar. LEAVE BATTLE requires a
+second tap within 4 s ("Leaving now discards this battle"); the confirmed call
+goes to `window.gameFlow.quitToMap()`, which stops `GameScene` and reopens the
+world map. Stars and rewards only come from a finished level, so an abandoned
+run banks nothing.
+
 ### Screen layers
 Campaign screens mount into `#screen-container` (z-index 250) and dialogs —
 leaderboard, codex — into `#modal-container` (z-index 300). Both containers are

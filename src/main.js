@@ -83,12 +83,28 @@ const menuOverlay = () => document.getElementById('main-menu-overlay');
 const hudLayer = () => document.getElementById('hud-container');
 
 /** World map. The main menu is its own overlay, so hide that first. */
-function openLevelSelect() {
-  audio.playClick();
+/** Reveal the world map and clear every other layer. */
+function showLevelSelect() {
   window.gameResultScreen?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.add('hidden');
   window.gameLevelSelect?.show();
+}
+
+function openLevelSelect() {
+  audio.playClick();
+  showLevelSelect();
+}
+
+/**
+ * Abandon a running battle and return to the world map. Nothing from the run is
+ * banked (stars and rewards only come from a finished level) — the pause card
+ * warns about exactly this before the second tap.
+ */
+function quitToMap() {
+  const gameScene = game.scene.getScene('GameScene');
+  if (gameScene?.scene?.isActive()) gameScene.scene.stop();
+  showLevelSelect();
 }
 
 /**
@@ -120,6 +136,7 @@ function openMainMenu() {
   window.gameResultScreen?.hide?.();
   window.gameLevelSelect?.hide?.();
   hudLayer()?.classList.add('hidden');
+  document.getElementById('pause-overlay')?.classList.add('hidden');
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
     gameScene.scene.start('MenuScene'); // stops the battle, then boots the menu
@@ -130,7 +147,7 @@ function openMainMenu() {
   // not needed because the menu was never torn down.
 }
 
-window.gameFlow = { openLevelSelect, startLevel, openMainMenu };
+window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap };
 
 window.gameLevelSelect = new LevelSelectUI(screenContainer, window.gameProgress, {
   onSelectLevel: (levelId) => startLevel(levelId),

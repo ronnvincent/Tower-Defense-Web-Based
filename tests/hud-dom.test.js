@@ -87,6 +87,35 @@ describe('HUD markup', () => {
     }
   });
 
+  it('keeps the destructive and secondary controls off the top bar', () => {
+    mountHud();
+    // Declutter: the bar carries only live battle controls now.
+    expect(document.querySelector('#hud-top-bar #btn-codex')).toBeNull();
+    expect(document.querySelector('#hud-top-bar #btn-menu')).toBeNull();
+    for (const id of ['btn-speed', 'btn-pause', 'btn-mute', 'btn-fullscreen']) {
+      expect(document.querySelector(`#hud-top-bar #${id}`), `missing #${id}`).toBeTruthy();
+    }
+    // They live on the pause card, which is closed until the player pauses.
+    const card = document.getElementById('pause-overlay');
+    expect(card.classList.contains('hidden')).toBe(true);
+    expect(card.querySelector('#btn-codex')).toBeTruthy();
+    expect(card.querySelector('#btn-menu')).toBeTruthy();
+    expect(card.querySelector('#btn-resume')).toBeTruthy();
+  });
+
+  it('opens the pause card with the pause and closes it with resume', () => {
+    const onTogglePause = vi.fn(() => true);
+    mountHud({ onTogglePause });
+
+    document.getElementById('btn-pause').click();
+    expect(document.getElementById('pause-overlay').classList.contains('hidden')).toBe(false);
+
+    onTogglePause.mockReturnValue(false);
+    document.getElementById('btn-resume').click();
+    expect(onTogglePause).toHaveBeenCalledTimes(2);
+    expect(document.getElementById('pause-overlay').classList.contains('hidden')).toBe(true);
+  });
+
   it('forwards the primary actions to the game scene', () => {
     const callbacks = {
       onStartWave: vi.fn(),
@@ -111,8 +140,15 @@ describe('HUD markup', () => {
     expect(document.getElementById('pause-chip').classList.contains('hidden')).toBe(false);
 
     document.getElementById('btn-codex').click();
-    document.getElementById('btn-menu').click();
     expect(callbacks.onOpenCodex).toHaveBeenCalledTimes(1);
+
+    // Leaving a battle is destructive: one tap only arms the caution.
+    const quit = document.getElementById('btn-menu');
+    quit.click();
+    expect(callbacks.onOpenMenu).not.toHaveBeenCalled();
+    expect(quit.classList.contains('armed')).toBe(true);
+    expect(document.getElementById('quit-warning').classList.contains('hidden')).toBe(false);
+    quit.click();
     expect(callbacks.onOpenMenu).toHaveBeenCalledTimes(1);
 
     // At 1× the "zoom out" control is correctly disabled by setZoomState.

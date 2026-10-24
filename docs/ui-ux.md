@@ -98,6 +98,9 @@ Phaser view (`UpgradeBadges`).
 | The inspector can be moved/hidden | Drag the header, collapse with ▾, close with ✕, double-click the header to re-anchor. Its content scrolls (`max-height: min(52vh, 430px)`) on short screens. |
 | The codex no longer steals the map | `StatisticsPanel` is now a right-hand drawer: the battlefield stays visible and the battle keeps running. Telemetry refreshes every 900 ms while open, and “SHOW BFS PATH” toggles the overlay **without** closing the panel. |
 | Modals are escapable | Backdrop click and <kbd>Esc</kbd> close the field manual, credits and leaderboard. |
+| The top bar is battle-only | It carries the three stat chips, the wave readout, START WAVE, speed, pause, mute and fullscreen. The codex and the way out of a battle moved to the pause card, which is the only place they are relevant. |
+| Leaving a run takes two taps | Pause → LEAVE BATTLE arms a crimson caution (“Leaving now discards this battle — tap again to confirm”) that disarms itself after 4 s. The second tap stops the scene and reopens the world map, so a mis-tap can never throw the player back to the title screen. |
+| The pause card replaces the paused pill | `#pause-overlay` (z-index 200) sits above the HUD and below `#modal-container`, so the codex and leaderboard still open on top of it. The old chip is hidden by CSS while the card is open. |
 | Portrait phones get guidance | The game is 20×12 tiles, so portrait shows a “rotate your device” card with a *Continue anyway* escape hatch. |
 
 ---
@@ -117,7 +120,7 @@ grows the panel upwards instead of covering a card.
 | ≤ 900 px | Top bar wraps: stats + icon-only controls on row 1, wave badge + START WAVE on row 2 |
 | ≤ 680 px | Score chip hidden, dock becomes a full-width strip without its title, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
 | ≤ 620 px height | Desktop labels hidden, 30 px dock icons, 40 vh inspector, camera hint suppressed |
-| ≤ 460 px height | Dock name labels hidden (icon + price only), compact menu, top bar collapses to one row (wave badge inline) |
+| ≤ 460 px height | Dock name labels hidden (icon + price only), top bar collapses to one row (wave badge inline, icon-only controls), pause card shrinks to two rows |
 | `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows, zoom pill reduced to its "reset view" button (pinch already zooms the battlefield) |
 
 Type and spacing use `clamp()` so the HUD scales with the window instead of jumping between sizes.
@@ -157,7 +160,7 @@ Bugs this caught and fixed:
 - the toast accents were cyan/crimson on cream (1.4:1) — now inked borders with ink text;
 - boss banner name (1.9:1) and ability line (3.0:1) on the red card;
 - “SELL” and danger buttons were white on red (3.2:1) — now dark ink (5.7:1);
-- wave/label text inside the cream wave badge;
+- wave/label text inside the cream wave badge — the readout is `white-space: nowrap` with a `ch`-based min-width and tabular numerals, so “12 / 20” never splits into two lines and the badge does not jump in width between waves;
 - codex telemetry descriptions on slate.
 
 ---
@@ -165,7 +168,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 323 tests / 26 suites (includes the UI + mobile-layout suites)
+npm test                # 331 tests / 26 suites (includes the UI + mobile-layout suites)
 npm run check:contrast  # WCAG audit — 36/36
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
@@ -206,6 +209,9 @@ Manual checklist for a human browser session:
 5. Resize the window down to ~600 px wide — the top bar wraps, the dock becomes a strip, the inspector
    stays inside the battlefield.
 6. On a phone, rotate to portrait — the rotate card appears with *Continue anyway*.
+7. Let the wave counter pass 10 (Endless mode) — the badge stays one line and keeps its width.
+8. Pause, tap LEAVE BATTLE once — the crimson caution appears; wait 4 s and it disarms; tap twice
+   and you land on the world map, not the title screen.
 
 ---
 
@@ -221,7 +227,7 @@ Manual checklist for a human browser session:
   comes from `THEMES[level.theme].accent` through a `--node-accent` custom
   property, so a new biome needs no new CSS.
 - The header is the campaign wallet (gold, gems, total stars). `Esc`-free: the
-  only ways out are a node or MAIN MENU.
+  only ways out are a node or MAIN MENU — the world map is also where a battle exits to.
 
 **Result screen** (`src/ui/ResultScreenUI.js`)
 - Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, a

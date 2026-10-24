@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 323 tests across 26 test suites.
-- **Pass Rate:** **100% (323 / 323 Passed)**
+- **Total Automated Unit Tests:** 331 tests across 26 test suites.
+- **Pass Rate:** **100% (331 / 331 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -128,7 +128,7 @@
      ✓ cancels the browser zoom keyboard shortcuts outside text fields
      ✓ detaches every listener on release
 
- ✓ tests/mobile-layout.test.js (18 tests)
+ ✓ tests/mobile-layout.test.js (24 tests)
      ✓ measures the gap between the dock top and the bottom of the screen
      ✓ publishes the measured heights as custom properties
      ✓ grows the clearance when the placement hint makes the dock taller
@@ -187,7 +187,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  24 passed (24)
-Tests       323 passed (323)
+Tests       331 passed (331)
 Duration    6.7s
 ```
 
@@ -200,7 +200,7 @@ Duration    6.7s
 | `tests/camera-math.test.js` | node | 15 | Wrong tile under the cursor at non-1× zoom / panned cameras; zoom drifting off the cursor; camera escaping the map bounds; broken pinch resolution |
 | `tests/upgrade-badge.test.js` | node | 9 | Badge label/price mismatches, unaffordable styling, badges drawn over the tower art at high zoom, badges blocking tile clicks |
 | `tests/panel-placement.test.js` | node | 7 | Inspector opening off-screen or on top of the selected tower |
-| `tests/hud-dom.test.js` | jsdom | 14 | HUD controls missing, buttons not forwarding callbacks, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
+| `tests/hud-dom.test.js` | jsdom | 16 | HUD controls missing, buttons not forwarding callbacks, destructive controls back on the top bar, a single tap leaving the battle, the pause card not opening/closing, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
 | `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
@@ -212,7 +212,7 @@ Duration    6.7s
 | `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
 | `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |
 | `tests/display-gate-dom.test.js` | jsdom | 14 | Real index.html gate markup, gates outside #app, inert/aria transitions, button callbacks, focus, HUD ⛶ mirroring |
-| `tests/mobile-layout.test.js` | jsdom | 18 | Placement hint covering the dock, floating HUD pinned to a stale dock height, stage leaving bands on a phone, missing viewport/touch-action lock |
+| `tests/mobile-layout.test.js` | jsdom | 24 | Placement hint covering the dock, floating HUD pinned to a stale dock height, stage leaving bands on a phone, missing viewport/touch-action lock, the wave readout splitting across lines, the pause card buried under a dialog |
 | `tests/viewport-lock.test.js` | jsdom | 9 | Page pinch-zoom on iOS, two-finger page scroll, ctrl+wheel and browser zoom shortcuts stealing the game's gestures |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against

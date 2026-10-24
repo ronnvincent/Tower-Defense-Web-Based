@@ -89,10 +89,6 @@ export class HUD {
           <button id="btn-pause" class="game-btn game-btn-icon" title="Pause / resume the battle" aria-label="Pause">
             <img id="img-pause" class="btn-icon-img" src="/assets/ui/icon_pause.png" alt="" />
           </button>
-          <button id="btn-codex" class="game-btn game-btn-gold btn-labelled" title="Algorithm codex (C)">
-            <img class="btn-icon-img" src="/assets/ui/icon_codex.png" alt="" />
-            <span>CODEX</span>
-          </button>
           <button id="btn-mute" class="game-btn game-btn-icon" title="Toggle sound" aria-label="Toggle sound">
             <img id="img-mute" class="btn-icon-img" src="/assets/ui/icon_audio_on.png" alt="" />
           </button>
@@ -107,15 +103,25 @@ export class HUD {
               <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>
           </button>
-          <button id="btn-menu" class="game-btn game-btn-icon" title="Return to menu">
-            <img class="btn-icon-img" src="/assets/ui/icon_gear.png" alt="" />
-            <span class="btn-label">MENU</span>
-          </button>
         </div>
       </div>
 
       <div id="hud-level-chip" class="hud-panel hud-level-chip" aria-live="polite">
         <span class="hud-level-name" id="hud-level-name">VERDANT MARCHES</span>
+      </div>
+
+      <div id="pause-overlay" class="pause-overlay hidden" role="dialog" aria-label="Battle paused">
+        <div class="pause-card">
+          <p class="pause-title">⏸ SIMULATION PAUSED</p>
+          <div class="pause-actions">
+            <button id="btn-resume" class="game-btn game-btn-primary">RESUME</button>
+            <button id="btn-codex" class="game-btn game-btn-gold" title="Algorithm codex (C)">CODEX</button>
+            <button id="btn-menu" class="game-btn game-btn-danger">LEAVE BATTLE</button>
+          </div>
+          <p id="quit-warning" class="pause-warning hidden">
+            Leaving now discards this battle — tap again to confirm.
+          </p>
+        </div>
       </div>
 
       <div id="pause-chip" class="pause-chip hidden">⏸ SIMULATION PAUSED</div>
@@ -270,7 +276,7 @@ export class HUD {
     inspector?.classList.remove('collapsed', 'dragging');
     document.getElementById('toast-banner')?.classList.add('hidden');
     document.getElementById('boss-banner')?.classList.add('hidden');
-    document.getElementById('pause-chip')?.classList.add('hidden');
+    this.setPausedUI(false);
     document.getElementById('placement-hint')?.classList.add('hidden');
 
     document.querySelectorAll('.build-card').forEach((card) => {
@@ -291,6 +297,24 @@ export class HUD {
 
   /* ================================================================ EVENTS */
 
+  /**
+   * Mirror the paused state on the pause chip and the pause card. The chip is
+   * hidden by CSS while the card is open, so a gate-driven pause still shows
+   * the passive pill without ever offering the quit button.
+   */
+  setPausedUI(isPaused) {
+    document.getElementById('pause-overlay')?.classList.toggle('hidden', !isPaused);
+    document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
+    if (!isPaused) this.disarmQuit();
+  }
+
+  /** Drop the "tap again" caution back to its safe state. */
+  disarmQuit() {
+    clearTimeout(this.quitDisarmTimer);
+    document.getElementById('btn-menu')?.classList.remove('armed');
+    document.getElementById('quit-warning')?.classList.add('hidden');
+  }
+
   bindEvents() {
     document.querySelectorAll('.build-card').forEach((card) => {
       card.addEventListener('click', () => this.toggleBuildSelection(card.dataset.key));
@@ -310,20 +334,50 @@ export class HUD {
       speedBtn.setAttribute('aria-label', `Simulation speed ${newSpeed}x`);
     });
 
-    const pauseBtn = document.getElementById('btn-pause');
-    const pauseImg = document.getElementById('img-pause');
-    pauseBtn?.addEventListener('click', () => {
-      audio.playClick();
-      const isPaused = this.callbacks.onTogglePause?.();
+    // Pause is reachable from the top bar and from the pause card itself, so
+    // both routes share one toggle that keeps every bit of UI in step.
+    const togglePause = () => {
+      const isPaused = Boolean(this.callbacks.onTogglePause?.());
+      const pauseBtn = document.getElementById('btn-pause');
+      const pauseImg = document.getElementById('img-pause');
       if (pauseImg) pauseImg.src = isPaused ? '/assets/ui/icon_speed.png' : '/assets/ui/icon_pause.png';
-      pauseBtn.classList.toggle('active', isPaused);
-      pauseBtn.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
-      document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
+      pauseBtn?.classList.toggle('active', isPaused);
+      pauseBtn?.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
+      this.setPausedUI(isPaused);
+      return isPaused;
+    };
+    this.togglePause = togglePause;
+
+    document.getElementById('btn-pause')?.addEventListener('click', () => {
+      audio.playClick();
+      togglePause();
+    });
+    document.getElementById('btn-resume')?.addEventListener('click', () => {
+      audio.playClick();
+      togglePause();
     });
 
     document.getElementById('btn-codex')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onOpenCodex?.();
+    });
+
+    // Leaving a battle is destructive (the run is not saved), so it takes a
+    // deliberate second tap. The armed state times out on its own.
+    const quitBtn = document.getElementById('btn-menu');
+    const quitWarning = document.getElementById('quit-warning');
+    quitBtn?.addEventListener('click', () => {
+      audio.playClick();
+      if (!quitBtn.classList.contains('armed')) {
+        quitBtn.classList.add('armed');
+        quitWarning?.classList.remove('hidden');
+        clearTimeout(this.quitDisarmTimer);
+        this.quitDisarmTimer = setTimeout(() => this.disarmQuit(), 4000);
+        return;
+      }
+      clearTimeout(this.quitDisarmTimer);
+      this.disarmQuit();
+      this.callbacks.onOpenMenu?.();
     });
 
     const muteBtn = document.getElementById('btn-mute');
@@ -340,11 +394,6 @@ export class HUD {
     document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
       audio.playClick();
       window.gameFullscreen?.toggle?.();
-    });
-
-    document.getElementById('btn-menu')?.addEventListener('click', () => {
-      audio.playClick();
-      this.callbacks.onOpenMenu?.();
     });
 
     // Camera controls
@@ -907,7 +956,7 @@ export class HUD {
     });
 
     if (isPaused !== undefined) {
-      document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
+      this.setPausedUI(isPaused);
     }
 
     if (this.inspectedTower) {

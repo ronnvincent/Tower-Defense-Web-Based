@@ -424,13 +424,23 @@ export class GameScene extends Phaser.Scene {
     return this.simSpeed;
   }
 
+  /**
+   * Pause / resume, from the HUD button or the space bar. The HUD is updated
+   * here rather than only through the next syncHUD() so a keyboard pause shows
+   * the pause card immediately — while paused, no simulation frame runs to
+   * deliver that update.
+   */
   handleTogglePause() {
+    if (this.gameState.isOver()) return this.gameState.isPaused();
     if (this.gameState.isPaused()) {
       this.gameState.resume();
     } else {
       this.gameState.pause();
     }
-    return this.gameState.isPaused();
+    const isPaused = this.gameState.isPaused();
+    this.hud?.setPausedUI?.(isPaused);
+    this.syncHUD();
+    return isPaused;
   }
 
   handleOpenCodex() {
@@ -439,7 +449,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Leave the battle. The pause card has already asked for confirmation; the
+   * world map is the destination so the player keeps their campaign context
+   * instead of being dropped back at the title screen.
+   */
   handleOpenMenu() {
+    if (window.gameFlow?.quitToMap) {
+      window.gameFlow.quitToMap();
+      return;
+    }
     this.scene.start('MenuScene');
   }
 

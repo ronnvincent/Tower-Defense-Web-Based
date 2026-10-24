@@ -197,3 +197,50 @@ describe('Viewport and stage sizing', () => {
     expect(css).not.toMatch(/#btn-zoom-fit\s*\{\s*display: none;/);
   });
 });
+
+describe('Wave readout never splits', () => {
+  it('keeps the wave number, label and subtitle on one line', () => {
+    expect(rule(css, '.hud-wave-number')).toMatch(/white-space:\s*nowrap/);
+    expect(rule(css, '.hud-wave-label')).toMatch(/white-space:\s*nowrap/);
+    expect(rule(css, '.hud-wave-sub')).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('reserves width for three digits so the badge does not jump between waves', () => {
+    // tabular-nums + a ch-based min-width = the same pill at wave 1 and wave 100
+    expect(rule(css, '.hud-wave-number')).toMatch(/font-variant-numeric:\s*tabular-nums/);
+    expect(rule(css, '.hud-wave-number')).toMatch(/min-width:\s*[\d.]+ch/);
+    expect(rule(css, '.hud-wave-number')).toMatch(/text-align:\s*center/);
+  });
+
+  it('refuses to shrink the badge in the short-landscape row layout', () => {
+    expect(rule(css, '.hud-wave-badge')).toMatch(/flex:\s*0 0 auto/);
+    // ...so the START WAVE button is the element that gives way instead.
+    const short = css.slice(css.indexOf('@media (max-height: 460px)'));
+    expect(short).toMatch(/#btn-start-wave\s*\{[^}]*flex: 0 1 auto/);
+  });
+});
+
+describe('Pause card', () => {
+  it('covers the battlefield above the HUD but below the modal dialogs', () => {
+    const overlay = rule(css, '.pause-overlay');
+    expect(overlay).toContain('inset: 0');
+    // Pausing is also how you inspect the field: only the card takes pointers.
+    expect(overlay).toContain('pointer-events: none');
+    expect(rule(css, '.pause-card')).toContain('pointer-events: auto');
+    const z = Number(/z-index:\s*(\d+)/.exec(overlay)[1]);
+    expect(z).toBeGreaterThan(150); // HUD controls
+    expect(z).toBeLessThan(300); // #modal-container (codex, leaderboard)
+  });
+
+  it('hides the redundant paused pill while the card is open', () => {
+    expect(css).toMatch(/#pause-overlay:not\(\.hidden\)\s*~\s*#pause-chip\s*\{\s*display: none;/);
+  });
+
+  it('offers its actions as real buttons the HUD can wire up', () => {
+    for (const id of ['pause-overlay', 'btn-resume', 'btn-codex', 'btn-menu', 'quit-warning']) {
+      expect(hudSource).toContain(`id="${id}"`);
+    }
+    // The caution copy must say what is at stake.
+    expect(hudSource).toMatch(/discards this battle/i);
+  });
+});
