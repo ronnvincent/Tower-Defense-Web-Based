@@ -3110,7 +3110,9 @@ body.is-fullscreen #app::after {
 .level-node {
   position: relative;
   flex: 1 1 0;
-  min-width: min(168px, 32vw);
+  /* Five nodes on one track: 150 px still fits four-up on a laptop and scrolls
+     cleanly in a phone's landscape track. */
+  min-width: min(150px, 30vw);
   display: flex;
   flex-direction: column;
   padding: 0;
