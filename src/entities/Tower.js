@@ -7,6 +7,7 @@ import {
   MUZZLE_OFFSET,
 } from '../data/towerVisuals.js';
 import { Projectile } from './Projectile.js';
+import { aimAngle, isAligned, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
 import { audio } from '../rendering/AudioSynth.js';
 
 let towerIdCounter = 1;
@@ -463,17 +464,21 @@ export class Tower {
     this.acquireTarget();
 
     if (this.currentTarget) {
-      const dx = this.currentTarget.x - this.x;
-      const dy = this.currentTarget.y - this.y;
-
-      // Turret faces the target (frost crystals float instead of tracking)
+      // Servo aiming: the barrel turns toward the target at a fixed rate instead
+      // of snapping, and only fires once it is on the line. The weapon art points
+      // up, so `aimAngle` already folds in the +90° art offset (see TurretAim).
+      const desired = aimAngle(this.x, this.y, this.currentTarget.x, this.currentTarget.y);
       if (!NON_ROTATING_TYPES.has(this.typeKey) && this.topSprite) {
-        this.turretAngle = Math.atan2(dy, dx);
+        this.turretAngle = stepAngle(this.turretAngle, desired, deltaMs);
         this.topSprite.rotation = this.turretAngle;
+      } else {
+        // Static crystals and banners keep a fixed pose but still use the aim
+        // angle for their launch point, so no shot fires backwards.
+        this.turretAngle = 0;
       }
 
-      // Attack if off cooldown
-      if (this.cooldownTimer <= 0) {
+      // Attack once the barrel is aligned and off cooldown.
+      if (this.cooldownTimer <= 0 && isAligned(this.turretAngle, desired)) {
         this.fire(this.currentTarget);
         this.cooldownTimer = this.attackCooldown;
       }
@@ -555,11 +560,13 @@ export class Tower {
       });
     }
 
-    // Recoil tween
+    // Recoil tween: kick straight back along the barrel. The art points up, so
+    // the barrel direction is the sprite rotation minus the 90° art offset.
     if (this.topSprite && !NON_ROTATING_TYPES.has(this.typeKey)) {
       const recoilDist = this.typeKey === 'cannon' ? -5 : -3;
-      const rx = Math.cos(this.turretAngle) * recoilDist;
-      const ry = Math.sin(this.turretAngle) * recoilDist;
+      const barrel = this.turretAngle - Math.PI / 2;
+      const rx = Math.cos(barrel) * recoilDist;
+      const ry = Math.sin(barrel) * recoilDist;
       this.scene.tweens.add({
         targets: this.topSprite,
         x: rx,
@@ -575,14 +582,13 @@ export class Tower {
     const projType = s.projectile || this.def.projectile;
     const projSpeed = s.projectileSpeed || this.def.projectileSpeed;
 
-    // Shots leave the actual weapon, not the tile centre.
+    // Shots leave the drawn barrel tip, carried around by the weapon's rotation.
+    // Static props (frost crystal, banner) use their unrotated art frame.
     const muzzle = MUZZLE_OFFSET[this.visual.file] || { x: 0, y: -24 };
-    const angle = this.turretAngle;
-    // Muzzle offsets are measured from the weapon's pivot; rotating weapons
-    // carry the offset around with them, static crystals just add it.
-    const aim = NON_ROTATING_TYPES.has(this.typeKey) ? -Math.PI / 2 : angle;
-    const originX = this.x + Math.cos(aim) * muzzle.x - Math.sin(aim) * muzzle.y;
-    const originY = this.y + this.visual.weaponY + Math.sin(aim) * muzzle.x + Math.cos(aim) * muzzle.y;
+    const aim = NON_ROTATING_TYPES.has(this.typeKey) ? 0 : this.turretAngle;
+    const muzzlePos = muzzlePoint(this.x, this.y + this.visual.weaponY, aim, muzzle);
+    const originX = muzzlePos.x;
+    const originY = muzzlePos.y;
 
     const proj = new Projectile(
       this.scene,

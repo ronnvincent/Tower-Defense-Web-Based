@@ -38,6 +38,12 @@ RAMPS = {
         "-volcanic",
         [(0x22, 0x18, 0x1B), (0x2C, 0x1F, 0x23), (0x38, 0x27, 0x2B), (0x46, 0x2E, 0x2E)],
     ),
+    # Prism Depths: indigo basalt shot through with amethyst, one of the darkest
+    # grounds in the game so the quartz lane and the glowing pools both carry.
+    "crystal": (
+        "-crystal",
+        [(0x24, 0x1B, 0x3C), (0x2E, 0x24, 0x4B), (0x3B, 0x2F, 0x5E), (0x4A, 0x3B, 0x74)],
+    ),
 }
 
 # Lane palettes are tuned against the biome ground so the lane is always the
@@ -51,6 +57,8 @@ ROAD_RAMPS = {
     # Cooled basalt, not sand: the caldera lane is ashen stone with ember
     # flecks, so it stays legible against black rock without changing biome.
     "volcanic": [(0x3A, 0x32, 0x33), (0x58, 0x4C, 0x4C), (0x6E, 0x5F, 0x5C), (0x8A, 0x78, 0x72)],
+    # Polished quartz: a pale violet causeway glowing out of the dark.
+    "crystal": [(0x58, 0x44, 0x7C), (0x7C, 0x63, 0xA6), (0x94, 0x79, 0xC0), (0xB4, 0x9A, 0xDC)],
 }
 
 WATER_RAMPS = {
@@ -58,6 +66,9 @@ WATER_RAMPS = {
     "desert": [(0x0C, 0x35, 0x3D), (0x13, 0x4E, 0x59), (0x22, 0x72, 0x74), (0x86, 0xD6, 0xC6)],
     "ice": [(0x0A, 0x1C, 0x36), (0x12, 0x2C, 0x4E), (0x1F, 0x46, 0x6E), (0x9A, 0xD2, 0xF2)],
     "volcanic": [(0x6E, 0x14, 0x06), (0xC0, 0x38, 0x10), (0xE8, 0x62, 0x18), (0xFF, 0xBE, 0x6C)],
+    # Mana pools: cyan-green against violet stone, so the water separates on hue
+    # and not only on brightness.
+    "crystal": [(0x08, 0x2A, 0x30), (0x10, 0x52, 0x58), (0x1C, 0x86, 0x8A), (0x9A, 0xFF, 0xE8)],
 }
 
 ROCK_RAMPS = {
@@ -65,6 +76,7 @@ ROCK_RAMPS = {
     "desert": [(0x4E, 0x3C, 0x2A), (0x6C, 0x55, 0x3B), (0x8B, 0x71, 0x51), (0xB0, 0x96, 0x72)],
     "ice": [(0x2E, 0x3F, 0x52), (0x48, 0x5D, 0x72), (0x64, 0x7F, 0x96), (0x9C, 0xBC, 0xD2)],
     "volcanic": [(0x1A, 0x13, 0x15), (0x2C, 0x22, 0x24), (0x43, 0x34, 0x35), (0x63, 0x4B, 0x46)],
+    "crystal": [(0x1C, 0x16, 0x30), (0x2E, 0x25, 0x4A), (0x44, 0x37, 0x68), (0x66, 0x55, 0x92)],
 }
 
 BIOMES = tuple(RAMPS)
@@ -215,7 +227,7 @@ def build_ground(theme, variant=0):
             _put(pix, cx, cy, (0xE6, 0xF4, 0xFF))
             _put(pix, cx + 1, cy, (0xCE, 0xE4, 0xF4))
 
-    else:  # volcanic
+    elif theme == "volcanic":
         for _ in range(5):
             x, y = rng.randrange(TILE), rng.randrange(TILE)
             for k in range(rng.randrange(5, 12)):
@@ -228,6 +240,25 @@ def build_ground(theme, variant=0):
         for _ in range(3):
             cx, cy = rng.randrange(6, TILE - 6), rng.randrange(6, TILE - 6)
             _put(pix, cx, cy, (0x60, 0x40, 0x3C))
+
+    elif theme == "crystal":
+        # Amethyst veins: short jagged runs with one lit pixel per bend, so the
+        # ground looks cracked open rather than speckled.
+        for _ in range(5):
+            x, y = rng.randrange(6, TILE - 8), rng.randrange(6, TILE - 8)
+            for k in range(rng.randrange(8, 16)):
+                _put(pix, x, y, (0x7A, 0x5A, 0xC0))
+                if k % 3 == 0:
+                    _put(pix, x, y, (0xD8, 0xBC, 0xFF))
+                x += rng.choice((1, 1, 0))
+                y += rng.choice((-1, 0, 0, 1))
+        for _ in range(9):
+            # Glitter: a lit facet pixel with a dim companion.
+            x, y = rng.randrange(TILE), rng.randrange(TILE)
+            _put(pix, x, y, (0xE0, 0xC8, 0xFF))
+            _put(pix, (x + 1) % TILE, y, (0x5B, 0x44, 0x8C))
+        for _ in range(2):
+            _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ROCK_RAMPS[theme])
 
     return pix
 
@@ -331,6 +362,21 @@ def build_road(theme, mask):
                 if inside(sx + k, sy):
                     _put(pix, sx + k, sy, (0xC8, 0x44, 0x12))
                     _put(pix, sx + k, sy + 1, (0x6A, 0x1D, 0x06))
+    elif theme == "crystal":
+        # Quartz inlay: lit seams and a few inlaid facets along the causeway.
+        for _ in range(2):
+            sx, sy = rng.randrange(6, TILE - 16), rng.randrange(6, TILE - 6)
+            for k in range(rng.randrange(8, 14)):
+                if inside(sx + k, sy):
+                    _put(pix, sx + k, sy, (0xE6, 0xD2, 0xFF))
+                    _put(pix, sx + k, sy + 1, (0x6A, 0x50, 0x9E))
+        for _ in range(3):
+            fx, fy = rng.randrange(8, TILE - 10), rng.randrange(8, TILE - 10)
+            if all(inside(fx + dx, fy + dy) for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1))):
+                _put(pix, fx, fy, (0xD8, 0xC0, 0xFF))
+                _put(pix, fx + 1, fy, (0xB0, 0x94, 0xE4))
+                _put(pix, fx, fy + 1, (0xB0, 0x94, 0xE4))
+                _put(pix, fx + 1, fy + 1, (0x8A, 0x6E, 0xBE))
     return pix
 
 
@@ -536,6 +582,20 @@ def build_decor(theme, kind):
                 y = rng.randint(16, DECOR - 6)
                 for k in range(rng.randint(3, 6)):
                     _put(pix, x, y - k, col, DECOR)
+        elif theme == "crystal":
+            # Glowing crystal sprouts: three faceted spikes with lit tips, wide
+            # enough to survive the in-game downscale.
+            body, lit, edge = (0x7A, 0x5C, 0xBA), (0xE6, 0xD4, 0xFF), (0x4A, 0x36, 0x7C)
+            for _ in range(3):
+                cx, base = rng.randint(8, DECOR - 9), DECOR - 5
+                h = rng.randint(7, 12)
+                for k in range(h):
+                    _put(pix, cx, base - k, lit if k == h - 1 else body, DECOR)
+                    _put(pix, cx + 1, base - k, edge, DECOR)
+                    if k >= h - 4:
+                        _put(pix, cx + 1, base - k, body, DECOR)
+            for _ in range(6):
+                _put(pix, rng.randint(6, DECOR - 7), rng.randint(DECOR - 6, DECOR - 2), lit, DECOR)
         else:  # charred brush with embers
             col, ember = (0x14, 0x0E, 0x10), (0xD8, 0x5A, 0x1E)
             for _ in range(4):
@@ -580,6 +640,16 @@ def build_decor(theme, kind):
                 _put(pix, cx, base - h, hi, DECOR)
                 _put(pix, cx - 1, base - h + 2, hi, DECOR)
                 _put(pix, cx + 1, base - h + 2, hi, DECOR)
+        elif theme == "crystal":
+            # Shard cluster: one tall prism with two satellites.
+            for cx, base, h, w in ((DECOR // 2, DECOR - 4, 13, 3), (DECOR // 2 - 7, DECOR - 4, 8, 2), (DECOR // 2 + 7, DECOR - 4, 6, 2)):
+                for k in range(h):
+                    taper = 1 if k > h - 4 else 0
+                    for dx in range(-w + taper, w + 1 - taper):
+                        edge = abs(dx) >= w - taper
+                        _put(pix, cx + dx, base - k, (0x4A, 0x36, 0x7C) if edge else (0x7A, 0x5C, 0xBA), DECOR)
+                _put(pix, cx, base - h, (0xF0, 0xE2, 0xFF), DECOR)
+                _put(pix, cx, base - h + 1, (0xC9, 0xA6, 0xFF), DECOR)
         else:  # magma crack
             glow, core = (0xC8, 0x44, 0x12), (0xFF, 0xB0, 0x54)
             x, y = 6, DECOR // 2
@@ -753,6 +823,48 @@ def _build_charred(rng):
     return pix
 
 
+def _build_crystal(rng):
+    """Crystal prism cluster: four faceted spires, lit tips, glowing base."""
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    edge, body, lit, core = (0x3E, 0x2C, 0x6C), (0x6E, 0x50, 0xAE), (0xB2, 0x92, 0xEE), (0xF2, 0xE6, 0xFF)
+    _shadow(pix, 32, 58, 17, 4, (10, 4, 26, 100))
+    spires = (
+        (24, 57, 7, 5),   # (cx, base, height, half-width)
+        (33, 57, 15, 6),
+        (42, 57, 9, 5),
+        (38, 57, 5, 3),
+    )
+    for cx, base, height, half in spires:
+        for step in range(height):
+            taper = 1 if step > height * 0.62 else 0
+            span = max(1, half - taper - step // 6)
+            for dx in range(-span, span + 1):
+                x = cx + dx
+                if not (0 <= x < FOLIAGE):
+                    continue
+                if abs(dx) == span:
+                    colour = edge
+                elif dx < 0:
+                    colour = lit
+                else:
+                    colour = body
+                _put(pix, x, base - step, colour, FOLIAGE)
+        # Lit tip.
+        _put(pix, cx, base - height, core, FOLIAGE)
+        if height > 8:
+            _put(pix, cx, base - height + 1, lit, FOLIAGE)
+        # A hot vein up the lit face.
+        for step in range(2, height - 1, 3):
+            _put(pix, cx - 1, base - step, core, FOLIAGE)
+    # Glow pooled at the base.
+    for _ in range(26):
+        x = rng.randint(14, 50)
+        y = rng.randint(50, 58)
+        if rng.random() < 0.5:
+            _put(pix, x, y, (0x6B, 0x4E, 0xA8) if rng.random() < 0.6 else (0xC9, 0xA6, 0xFF), FOLIAGE)
+    return pix
+
+
 def build_foliage(theme):
     """64x64 landmark prop for one battlefield."""
     rng = random.Random(seed_for(theme, "foliage"))
@@ -762,6 +874,8 @@ def build_foliage(theme):
         return _build_conifer(rng)
     if theme == "volcanic":
         return _build_charred(rng)
+    if theme == "crystal":
+        return _build_crystal(rng)
     return _build_conifer(rng)
 
 

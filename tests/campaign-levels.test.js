@@ -74,7 +74,7 @@ describe('campaign level wiring', () => {
     }
   });
 
-  it('keeps the four battlefields distinct (biome + layout)', () => {
+  it('keeps the five battlefields distinct (biome + layout)', () => {
     // Endless Siege reuses the grassland layout but repaints it volcanic, so
     // the pair — not the layout alone — is the identity of a battlefield.
     const shapes = LEVELS.concat(ENDLESS_LEVEL).map(

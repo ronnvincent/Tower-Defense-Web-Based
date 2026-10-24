@@ -12,7 +12,9 @@
  *   weapon  a horizontal animation sheet. It is drawn with its origin on the
  *           weapon's mechanical pivot (the mast foot of the ballista, the
  *           pedestal of the orb staff, the cradle of the ice crystal), which is
- *           also the point Phaser rotates the sprite around.
+ *           also the point Phaser rotates the sprite around. Every weapon is
+ *           drawn pointing **up**, so the sprite's rotation is the screen aim
+ *           angle + π/2 (see `src/systems/TurretAim.js`).
  *   mount   height of that pivot above the tile's bottom edge, in pixels. These
  *           values were calibrated by compositing each weapon onto its base (see
  *           docs/asset-design.md).
@@ -95,35 +97,43 @@ export const TOWER_VISUALS = {
  */
 export const NON_ROTATING_TYPES = new Set(['frost', 'banner']);
 
-/** Where each weapon's projectile leaves the art, relative to the pivot. */
+/**
+ * Where each weapon's projectile leaves the art, in the weapon's own frame.
+ *
+ * The art is drawn pointing up, so the muzzle of every rotating weapon sits
+ * straight above its pivot and `y` is negative. Values were measured from the
+ * first frame of each sheet (topmost ink rows, averaged) rather than eyeballed,
+ * so a shot leaves the drawn barrel tip instead of drifting to one side.
+ */
 export const MUZZLE_OFFSET = {
-  archer: { x: 26, y: -26 },
-  'archer-lvl2': { x: 26, y: -32 },
-  'archer-spec-a': { x: 24, y: -26 },
-  'archer-spec-b': { x: 28, y: -28 },
-  cannon: { x: 8, y: -34 },
-  'cannon-lvl2': { x: 10, y: -38 },
-  'cannon-spec-a': { x: 10, y: -42 },
-  'cannon-spec-b': { x: 6, y: -46 },
-  frost: { x: 0, y: -12 },
-  'frost-lvl2': { x: 0, y: -18 },
-  'frost-spec-a': { x: 0, y: -24 },
-  'frost-spec-b': { x: 0, y: -30 },
+  archer: { x: 0, y: -44 },
+  'archer-lvl2': { x: 0, y: -44 },
+  'archer-spec-a': { x: 0, y: -42 },
+  'archer-spec-b': { x: 0, y: -44 },
+  cannon: { x: 0, y: -36 },
+  'cannon-lvl2': { x: 0, y: -36 },
+  'cannon-spec-a': { x: 0, y: -41 },
+  'cannon-spec-b': { x: 0, y: -82 },
+  // The frost crystal never rotates, so its offset is used unrotated.
+  frost: { x: 0, y: -38 },
+  'frost-lvl2': { x: 0, y: -52 },
+  'frost-spec-a': { x: 0, y: -58 },
+  'frost-spec-b': { x: 0, y: -27 },
   // Hammer head sits at the top of the 128 px T04 sheets.
-  forge: { x: 8, y: -54 },
-  'forge-lvl2': { x: 8, y: -58 },
-  'forge-spec-a': { x: 6, y: -62 },
-  'forge-spec-b': { x: 6, y: -62 },
+  forge: { x: 0, y: -74 },
+  'forge-lvl2': { x: 0, y: -74 },
+  'forge-spec-a': { x: 0, y: -82 },
+  'forge-spec-b': { x: 0, y: -82 },
   // Orb floats just above the staff of the 96 px T05 sheets.
-  runes: { x: 0, y: -26 },
-  'runes-lvl2': { x: 0, y: -30 },
-  'runes-spec-a': { x: 0, y: -30 },
-  'runes-spec-b': { x: 0, y: -30 },
-  // Banners do not rotate: { x } is the height of the pennant above the pivot.
-  banner: { x: 30, y: 0 },
-  'banner-lvl2': { x: 38, y: 0 },
-  'banner-spec-a': { x: 42, y: 0 },
-  'banner-spec-b': { x: 42, y: 0 },
+  runes: { x: 0, y: -27 },
+  'runes-lvl2': { x: 0, y: -27 },
+  'runes-spec-a': { x: 0, y: -27 },
+  'runes-spec-b': { x: 0, y: -27 },
+  // Banners do not rotate: the pennant's height is the launch point.
+  banner: { x: 0, y: -32 },
+  'banner-lvl2': { x: 0, y: -41 },
+  'banner-spec-a': { x: 0, y: -42 },
+  'banner-spec-b': { x: 0, y: -42 },
 };
 
 /** Barricade art (level 1 fence bay, level 2 palisade gate). */

@@ -361,6 +361,61 @@ export const ENEMY_TYPES = {
       },
     ],
   },
+
+  /**
+   * Prism Depths boss — refracts fire into tower lockouts, then splits into a
+   * shielded, hasted second phase and a hard-light final phase.
+   */
+  prismlord: {
+    key: 'prismlord',
+    name: 'Prism Warden',
+    role: 'Prism Depths boss — Refraction locks every tower within 180 px, then raises a hard-light barrier below 60% HP and turns the horde faster still.',
+    health: 4800,
+    speed: 26,
+    armor: 28,
+    shield: 0,
+    reward: 300,
+    score: 950,
+    baseDamage: 16,
+    radius: 33,
+    siege: 92,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Refraction',
+        thresholdPct: 1.0,
+        ability: {
+          type: 'disableTowers',
+          radius: 180,
+          durationMs: 2400,
+          intervalMs: 8200,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Hard Light',
+        thresholdPct: 0.6,
+        grantShield: 700,
+        speedMultiplier: 1.12,
+        ability: {
+          type: 'summon',
+          enemyKey: 'swarm',
+          count: 4,
+          intervalMs: 6500,
+        },
+        onEnterText: 'PHASE 2: HARD LIGHT!',
+      },
+      {
+        phase: 3,
+        name: 'Total Internal Reflection',
+        thresholdPct: 0.28,
+        speedMultiplier: 1.45,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: TOTAL REFLECTION!',
+      },
+    ],
+  },
 };
 
 /**

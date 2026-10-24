@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 347 tests across 28 test suites.
-- **Pass Rate:** **100% (347 / 347 Passed)**
+- **Total Automated Unit Tests:** 362 tests across 29 test suites.
+- **Pass Rate:** **100% (362 / 362 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -28,6 +28,7 @@
 | **TC-11** | **World map & unlocks** | Player clears Level 1 and returns to the world map. | Win `level-1`, then open PLAY → world map. | `level-2` and Endless Siege become selectable; the cleared node shows its 1–3 stars; locked nodes render a padlock and stay disabled. | `ProgressStore.recordVictory()` unlocked `level-2` + `endless`, node markup re-rendered with earned stars (`tests/campaign-ui.test.js`). | **PASS** |
 | **TC-12** | **Star rating & rewards** | Finish a level with different core health. | Core at 100 % / 52 % / 48 % on clear. | 3★ / 2★ / 1★; first clear pays the full bounty (+1 gem at 3★), replays pay a 20 % gold stipend. | Boundary maths covered by `tests/progression.test.js`; the victory modal renders earned vs empty stars and the reward row. | **PASS** |
 | **TC-13** | **Endless Siege** | Survive as long as possible in the endless mode. | Clear `level-1` to unlock Endless, start it, lose the core. | Waves are generated forever (5-wave cycle, boss every 5th), `totalWaves` is ∞, and the run only ends on defeat, keeping the best wave/score. | `WaveManager` endless branch covered by `tests/wave-flow.test.js`; `recordEndless()` keeps the depth reached and the result modal shows WAVE REACHED / BEST WAVE. | **PASS** |
+| **TC-15** | **Prism Depths level** | Play the fourth campaign level and its boss. | Clear `level-3`, open the world map, start `level-4`; reach wave 9. | The crystal battlefield loads (quartz spiral lane, mana pools, prism spires), waves 1–8 spawn crystal-skinned creeps, and the Prism Warden closes the level with Refraction / Hard Light / Total Reflection. | Node renders with its `map_crystal.png` thumbnail and stays locked until `level-3` is cleared; the map is BFS-pathable (47 cells) and the boss data is validated by the boss-phase suite. | **PASS** |
 | **TC-14** | **Boss abilities** | Fight each level's boss. | Reach wave 6 / 7 / 8. | Boss bar + warning; Dune Tyrant hastes nearby enemies, Frost Warden freezes towers, Magma Regent summons swarms and hastes itself. | Ability dispatch (`summon` / `speedAura` / `disableTowers`), phase thresholds and tower freeze/thaw are covered by the boss-phase and module-contract suites; art ships as 2× duotone sheets. | **PASS** |
 
 ---
@@ -186,8 +187,8 @@
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  28 passed (28)
-Tests       347 passed (347)
+Test Files  29 passed (29)
+Tests       362 passed (362)
 Duration    6.7s
 ```
 
@@ -206,6 +207,7 @@ Duration    6.7s
 | `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
 | `tests/campaign-levels.test.js` | jsdom | 10 | A node mapped to a missing/unknown level, a battlefield with no spawn/base or no BFS route, a final wave without a boss, two levels sharing a boss, endless waves that spawn nothing or skip the fifth-wave boss |
 | `tests/campaign-assets.test.js` | node | 7 | Missing biome tiles, a road set that never changed, creeps or bosses without a sheet, animation strips too short for their frames, missing minimaps / star / lock icons |
+| `tests/turret-aim.test.js` | node | 15 | Weapon art aimed 90° off the target (rotating by `atan2` instead of `atan2 + π/2`), turrets that fire before the barrel is on the line, a muzzle that drifts off the drawn barrel |
 | `tests/enemy-skins.test.js` | node | 12 | A wave tier that never escalates, a biome falling back to the wrong sheet, bosses inheriting an ember contour, a tier sheet that is a byte-copy of the base sheet, a missing PNG per (creep × biome × tier) |
 | `tests/terrain-contrast.test.js` | node | 4 | A lane or pond that stops separating from its biome ground, two biomes drifting onto the same surface palette (runs `terrain.py --contrast`) |
 | `tests/progression.test.js` | node | 12 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |

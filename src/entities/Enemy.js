@@ -621,9 +621,24 @@ export class Enemy {
   createBroodGlow(strength) {
     const scene = this.scene;
     if (!scene?.add?.ellipse) return;
+    const accent = waveAccent(this.waveNumber ?? 1);
     const radius = this.radius * 1.9;
+
+    // Champions claim the ground: a static ring under the brood glow marks the
+    // wave tier even while the creep is off-screen mid-battle, and it survives
+    // the sprite being tinted by status effects.
+    if (this.tier >= 2 && scene.add.graphics) {
+      const ring = scene.add.graphics();
+      ring.lineStyle(2, accent, 0.55);
+      ring.strokeEllipse(0, 4, radius * 2.5, radius * 1.45);
+      ring.lineStyle(1, accent, 0.28);
+      ring.strokeEllipse(0, 4, radius * 2.1, radius * 1.2);
+      this.container.addAt(ring, 0);
+      this.broodRing = ring;
+    }
+
     const glow = scene.add
-      .ellipse(0, 2, radius * 2, radius * 1.2, waveAccent(this.waveNumber ?? 1), strength);
+      .ellipse(0, 2, radius * 2, radius * 1.2, accent, strength);
     this.container.addAt(glow, 0);
     // Champions pulse; elites breathe slowly. Both are cheap tweens on scale.
     if (scene.tweens?.add) {

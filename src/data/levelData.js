@@ -1,5 +1,5 @@
 /**
- * levelData.js — the campaign: three hand-built levels plus Endless Siege.
+ * levelData.js — the campaign: four hand-built levels plus Endless Siege.
  *
  * A level is a self-contained ruleset. GameScene reads it in init() and nothing
  * else in the game hard-codes "six waves" any more:
@@ -63,6 +63,16 @@ export const THEMES = {
     portalTint: 0xff5d3b,
     baseTint: 0xffd9c2,
     blurb: 'No end, no dawn — only the next wave and the next boss.',
+  },
+  crystal: {
+    id: 'crystal',
+    name: 'Prism Depths',
+    tileSuffix: '-crystal',
+    accent: '#c9a6ff',
+    fog: 'rgba(48, 22, 84, 0.3)',
+    portalTint: 0xc9a6ff,
+    baseTint: 0xece2ff,
+    blurb: 'A four-turn spiral cut through amethyst. The Prism Warden refracts everything you throw at it.',
   },
 };
 
@@ -229,12 +239,97 @@ export const LEVELS = [
       },
     ],
   },
+  {
+    id: 'level-4',
+    index: 4,
+    name: 'Prism Depths',
+    theme: 'crystal',
+    map: 'crystal',
+    blurb: THEMES.crystal.blurb,
+    startingCoins: 280,
+    baseHealth: 25,
+    enemyHealthScale: 1.45,
+    reward: { gold: 320, gems: 10 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'prismlord',
+    waves: [
+      {
+        name: 'First Facets',
+        groups: [{ type: 'grunt', count: 16, interval: 780 }],
+      },
+      {
+        name: 'Shard Sprint',
+        groups: [
+          { type: 'runner', count: 16, interval: 400 },
+          { type: 'swarm', count: 12, interval: 300, delay: 1200 },
+        ],
+      },
+      {
+        name: 'Glitter Tide',
+        groups: [
+          { type: 'swarm', count: 26, interval: 260 },
+          { type: 'shield', count: 4, interval: 1500, delay: 1400 },
+        ],
+      },
+      {
+        name: 'Obsidian Guard',
+        groups: [
+          { type: 'brute', count: 7, interval: 1300 },
+          { type: 'healer', count: 4, interval: 1800, delay: 1000 },
+        ],
+      },
+      {
+        name: 'The Fracture Colossus',
+        bossWave: true,
+        bossKey: 'colossus',
+        groups: [
+          { type: 'grunt', count: 12, interval: 650 },
+          { type: 'colossus', count: 1, interval: 0, delay: 2400 },
+        ],
+      },
+      {
+        name: 'Prism Wall',
+        groups: [
+          { type: 'shield', count: 9, interval: 1100 },
+          { type: 'brute', count: 6, interval: 1200, delay: 1200 },
+          { type: 'swarm', count: 18, interval: 240, delay: 1600 },
+        ],
+      },
+      {
+        name: 'Refraction',
+        groups: [
+          { type: 'healer', count: 5, interval: 1700 },
+          { type: 'runner', count: 18, interval: 320, delay: 900 },
+          { type: 'shield', count: 5, interval: 1300, delay: 1500 },
+        ],
+      },
+      {
+        name: 'Shatterpoint',
+        groups: [
+          { type: 'brute', count: 9, interval: 1100 },
+          { type: 'swarm', count: 24, interval: 220, delay: 800 },
+          { type: 'healer', count: 4, interval: 1700, delay: 1400 },
+        ],
+      },
+      {
+        name: 'The Prism Warden',
+        bossWave: true,
+        bossKey: 'prismlord',
+        groups: [
+          { type: 'shield', count: 7, interval: 1100 },
+          { type: 'brute', count: 6, interval: 1150, delay: 1000 },
+          { type: 'prismlord', count: 1, interval: 0, delay: 2600 },
+          { type: 'runner', count: 12, interval: 300, delay: 2000 },
+        ],
+      },
+    ],
+  },
 ];
 
-/** Endless Siege — the fourth node on the world map, unlocked with level 2. */
+/** Endless Siege — the last node on the world map, unlocked with level 2. */
 export const ENDLESS_LEVEL = {
   id: 'endless',
-  index: 4,
+  index: 5,
   name: 'Endless Siege',
   theme: 'volcanic',
   map: 'volcanic',
@@ -264,7 +359,7 @@ export function getNextLevel(id) {
 }
 
 /** Bosses rotate through the endless run, one every fifth wave. */
-export const ENDLESS_BOSSES = ['colossus', 'sandwyrm', 'frostwarden', 'magmalord'];
+export const ENDLESS_BOSSES = ['colossus', 'sandwyrm', 'frostwarden', 'magmalord', 'prismlord'];
 
 /**
  * Build wave `n` (1-based) of Endless Siege.

@@ -106,18 +106,20 @@ size plus the frame count of each animation band.
 | `boss-sandwyrm` | Scorpion, **2×** | `enemy-sandwyrm.png` (128×128 frames) | 8 / 8 / 8 |
 | `boss-frostwarden` | Magma Crab, **2×** | `enemy-frostwarden.png` (128×128 frames) | 8 / 8 / 10 |
 | `boss-magmalord` | Firewasp, **2×** | `enemy-magmalord.png` (192×192 frames) | 12 / 8 / 12 |
+| `boss-prismlord` | Void Butterfly, **3×** | `enemy-prismlord.png` (192×192 frames) | 6 / 4 / 12 |
 
 ### Boss sheets
-The three campaign bosses reuse the elite silhouettes, upscaled 2× with
+The campaign bosses reuse the elite silhouettes, upscaled 2–3× with
 nearest-neighbour (so the pixel grid survives) and **duotoned** onto a
 per-boss ramp — `duotone()` in the generator maps every pixel's luminance
 through four stops:
 
-| Boss | Ramp (dark → light) |
-|---|---|
-| Dune Tyrant | `#2A1A0C → #8A5A2A → #FFD98A → #FFF3D0` |
-| Frost Warden | `#10202E → #33607F → #9FD4EF → #F2FBFF` |
-| Magma Regent | `#1E0806 → #8C2A0E → #FFA23C → #FFE9B0` |
+| Boss | Source silhouette | Ramp (dark → light) |
+|---|---|---|
+| Dune Tyrant | Scorpion ×2 | `#2A1A0C → #8A5A2A → #FFD98A → #FFF3D0` |
+| Frost Warden | Magma Crab ×2 | `#10202E → #33607F → #9FD4EF → #F2FBFF` |
+| Magma Regent | Firewasp ×2 | `#1E0806 → #8C2A0E → #FFA23C → #FFE9B0` |
+| Prism Warden | Void Butterfly ×3 | `#140A2A → #4A2E8C → #B892F0 → #F4ECFF` |
 
 A hue rotation alone was not enough: the source sheets carry several hue
 families (carapace, eyes, highlights), so rotating them kept the original
@@ -208,6 +210,7 @@ palettes; `suffix()` maps a theme to its file suffix and `seed_for()` (crc32, no
 | desert | ochre sand, cracked shadows | trodden dark earth | deep oasis aqua | saguaro cactus |
 | ice | slate blue, wind streaks, frost needles | dark slate | frozen navy | snowy fir |
 | volcanic | near-black ash, ember flecks, magma cracks | ashen basalt + ember seams | bright magma | charred deadwood |
+| crystal | indigo basalt, amethyst veins, glitter | polished pale quartz | teal mana pool | crystal prism cluster |
 
 ### Readability audit
 `scripts/terrain.py --contrast` prints a JSON table of surface-vs-ground

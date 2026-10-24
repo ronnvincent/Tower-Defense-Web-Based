@@ -84,7 +84,7 @@ describe('enemy skins — wave escalation', () => {
   it('resolves a distinct texture for every (creep, map, tier) combination', () => {
     for (const key of Object.keys(ENEMY_SKINS)) {
       const seen = new Set();
-      for (const theme of ['grassland', 'desert', 'ice', 'volcanic']) {
+      for (const theme of ['grassland', 'desert', 'ice', 'volcanic', 'crystal']) {
         for (let tier = 0; tier < ENEMY_TIERS.length; tier += 1) {
           const texture = textureFor(key, theme, tier);
           expect(texture, `${key}/${theme}/tier ${tier}`).toBeTruthy();
@@ -128,7 +128,13 @@ describe('enemy skins — shipped files', () => {
     for (const key of Object.keys(ENEMY_SKINS)) {
       const skins = ENEMY_SKINS[key];
       expect(skins, `${key} missing from ENEMY_SKINS`).toBeTruthy();
-      expect(Object.keys(skins).sort()).toEqual(['desert', 'grassland', 'ice', 'volcanic']);
+      expect(Object.keys(skins).sort()).toEqual([
+        'crystal',
+        'desert',
+        'grassland',
+        'ice',
+        'volcanic',
+      ]);
       for (const [theme, tiers] of Object.entries(skins)) {
         expect(tiers, `${key}/${theme}`).toHaveLength(ENEMY_TIERS.length);
       }
@@ -154,7 +160,7 @@ describe('enemy skins — shipped files', () => {
   it('bakes an actual re-grade per tier instead of copying the base sheet', () => {
     for (const key of Object.keys(ENEMY_SKINS)) {
       const base = digest(join(ENEMIES, `${ENEMY_SKINS[key].grassland[0]}.png`));
-      for (const theme of ['grassland', 'desert', 'ice', 'volcanic']) {
+      for (const theme of ['grassland', 'desert', 'ice', 'volcanic', 'crystal']) {
         const signatures = ENEMY_SKINS[key][theme].map((texture) =>
           digest(join(ENEMIES, `${texture}.png`))
         );

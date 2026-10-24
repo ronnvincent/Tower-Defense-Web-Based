@@ -45,7 +45,7 @@
 ## 2. Battlefield Graph & Pathfinding System
 
 ### Map Representation
-The battlefield is defined in `src/data/mapData.js` as a $20 \times 12$ matrix of tiles (64×64 pixels each, total resolution $1280 \times 768$ px).
+Five battlefields are defined in `src/data/mapData.js`, each a $20 \times 12$ matrix of tiles (64×64 pixels each, total resolution $1280 \times 768$ px).
 - Road tiles (`#`), Spawn portal (`S`), and Base monolith (`B`) are flagged as **walkable**.
 - Grass (`.`) is buildable by towers.
 - Rock (`x`) and Water (`~`) are impassable barriers.
@@ -132,6 +132,7 @@ boss and first-clear bounty.
 | `level-1` Verdant Marches | grassland | 6 | 220 | 25 | 1.00× | Abyssal Warlord |
 | `level-2` Sunscorch Mesa | desert | 7 | 240 | 25 | 1.15× | Dune Tyrant |
 | `level-3` Frostbite Hollow | ice | 8 | 260 | 25 | 1.30× | Frost Warden |
+| `level-4` Prism Depths | crystal | 9 | 280 | 25 | 1.45× | Prism Warden |
 | `endless` Endless Siege | volcanic | ∞ | 260 | 25 | 1.20× | rotating every 5th wave |
 
 ### Stars, rewards and unlocks (`src/systems/Progression.js`)
@@ -242,7 +243,7 @@ Two properties matter for correctness:
   fixed at the source.
 
 Each biome also owns one landmark prop (`build_foliage`): Spire oak, saguaro,
-snow-laden fir, charred deadwood. A recoloured tree was tried first and read as
+snow-laden fir, charred deadwood, crystal prism cluster. A recoloured tree was tried first and read as
 "the same tree, tinted", which is exactly what the map pass was meant to remove.
 
 ### 7.2 Surface readability audit
@@ -251,7 +252,8 @@ surface and its biome ground, weighted 55/30/10/5 % across the ramp because the
 bright foam stop only covers a rim. `python3 scripts/terrain.py --contrast`
 prints the table; `tests/terrain-contrast.test.js` enforces a floor of 26 and
 fails if two biomes share a lane or water value. Current values (road / water):
-grassland 58.0 / 41.7, desert 43.9 / 77.9, ice 37.9 / 61.9, volcanic 36.2 / 73.8.
+grassland 58.0 / 41.7, desert 43.9 / 77.9, ice 37.9 / 61.9, volcanic 36.2 / 73.8,
+crystal 61.0 / 34.7.
 
 ### 7.3 Horde skins (`src/systems/EnemySkins.js`)
 Three pure lookups, all exported for the tests:
@@ -262,11 +264,12 @@ Three pure lookups, all exported for the tests:
 | escalation | `tierForWave(wave)` | waves 1–2 base, 3–4 elite, 5+ champion, then capped |
 | colour | `paletteForWave(wave)` | rows 0–2 / 3–5 / 6–8 of the strip, in two-wave blocks |
 
-The generator bakes **36 creep sheets** (8 creeps × 4 battlefields × 3 tiers).
+The generator bakes **45 creep sheets** (8 creeps × 5 battlefields × 3 tiers).
 Tier 1 adds saturation and a gold contour; tier 2 lays an ember ramp under the
 biome hue and grows an ember contour one pixel outwards, so the champion's
 *silhouette* is bigger, not just warmer. `Enemy` multiplies its base scale by
-`ENEMY_TIERS[tier].scale` and adds an additive brood glow ellipse from tier 1 up.
+`ENEMY_TIERS[tier].scale`, adds an additive brood glow ellipse from tier 1 up, and
+stakes a ground ring under champions so a wave tier reads even at a glance.
 Bosses are excluded on purpose and keep their single duotone sheet.
 
 ### 7.4 Adding a look

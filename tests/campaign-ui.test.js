@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { LevelSelectUI } from '../src/ui/LevelSelectUI.js';
 import { ResultScreenUI } from '../src/ui/ResultScreenUI.js';
 import { ProgressStore } from '../src/systems/Progression.js';
-import { getLevel, ENDLESS_LEVEL } from '../src/data/levelData.js';
+import { getLevel, LEVELS, ENDLESS_LEVEL } from '../src/data/levelData.js';
 
 function fakeStorage() {
   const map = new Map();
@@ -37,13 +37,19 @@ describe('LevelSelectUI', () => {
 
   it('renders one node per campaign level plus Endless Siege', () => {
     const nodes = [...document.querySelectorAll('.level-node')];
-    expect(nodes.map((n) => n.dataset.level)).toEqual(['level-1', 'level-2', 'level-3', 'endless']);
+    expect(nodes.map((n) => n.dataset.level)).toEqual([
+      'level-1',
+      'level-2',
+      'level-3',
+      'level-4',
+      'endless',
+    ]);
     expect(document.querySelector('.overlay-title').textContent).toBe('CHOOSE YOUR BATTLE');
   });
 
   it('locks every node that has not been unlocked and shows the padlock', () => {
     expect(document.querySelector('[data-level="level-1"]').disabled).toBe(false);
-    for (const id of ['level-2', 'level-3', 'endless']) {
+    for (const id of ['level-2', 'level-3', 'level-4', 'endless']) {
       const node = document.querySelector(`[data-level="${id}"]`);
       expect(node.disabled).toBe(true);
       expect(node.getAttribute('aria-disabled')).toBe('true');
@@ -60,6 +66,9 @@ describe('LevelSelectUI', () => {
     );
     expect(document.querySelector('[data-level="level-3"] .node-art').style.backgroundImage).toContain(
       'map_ice.png'
+    );
+    expect(document.querySelector('[data-level="level-4"] .node-art').style.backgroundImage).toContain(
+      'map_crystal.png'
     );
     expect(document.querySelector('[data-level="endless"] .node-art').style.backgroundImage).toContain(
       'map_volcanic.png'
@@ -286,7 +295,7 @@ describe('result screen announcements', () => {
   });
 
   it('celebrates a finished campaign on the last level and drops the NEXT button', () => {
-    showResult({ outcome: 'victory', level: getLevel('level-3') });
+    showResult({ outcome: 'victory', level: getLevel(LEVELS[LEVELS.length - 1].id) });
     expect(document.querySelector('#result-next')).toBeNull();
     expect(document.querySelector('#result-screen .result-unlock').textContent).toContain('CAMPAIGN COMPLETE');
   });

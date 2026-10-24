@@ -27,8 +27,14 @@ function contrastTable() {
 describe('terrain surface contrast', () => {
   const table = contrastTable();
 
-  it('audits all four battle maps', () => {
-    expect(Object.keys(table.themes).sort()).toEqual(['desert', 'grassland', 'ice', 'volcanic']);
+  it('audits every battle map', () => {
+    expect(Object.keys(table.themes).sort()).toEqual([
+      'crystal',
+      'desert',
+      'grassland',
+      'ice',
+      'volcanic',
+    ]);
   });
 
   it('keeps every lane readable against its own ground', () => {

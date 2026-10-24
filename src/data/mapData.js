@@ -81,6 +81,23 @@ export const MAPS = {
     '..x...x....~~...#...', // 10
     '....x..........~###B', // 11
   ],
+  // Prism Depths: a four-turn spiral. Every switchback has one water pool and one
+  // boulder field beside it, so the long straight runs are the only open build
+  // space — the level plays as a corridor fight rather than a wide field.
+  crystal: [
+    'S###....x...........', // 0
+    '...#..x.....~~......', // 1
+    '...#....~~....x.....', // 2
+    '...############.....', // 3
+    '..x...........#.....', // 4
+    '.......x......#..x..', // 5
+    '..x...........#.....', // 6
+    '..#############.....', // 7
+    '..#.....x...........', // 8
+    '..#......~~....x....', // 9
+    '..##########........', // 10
+    '.....x.....B....x...', // 11
+  ],
 };
 
 export const TILE = {

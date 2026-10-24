@@ -1,6 +1,7 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
 import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_PALETTES, IMPACT_SHEETS } from '../data/spireManifest.js';
+import { THEMES } from '../data/levelData.js';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
 const GROUND_VARIANTS = ['', '_2', '_3'];
@@ -52,7 +53,9 @@ export class BootScene extends Phaser.Scene {
     // shoreline autotile, boulder clusters and scatter props. Every key exists
     // both bare (grassland) and with its biome suffix; tileTexture() asks for
     // `<key><tileSuffix>` and falls back to the bare art.
-    for (const suffix of ['', '-desert', '-ice', '-volcanic']) {
+    // Suffixes come from the campaign themes, so a new battlefield is a data edit.
+    const suffixes = [...new Set(Object.values(THEMES).map((theme) => theme.tileSuffix))];
+    for (const suffix of suffixes) {
       for (const variant of GROUND_VARIANTS) {
         this.load.image(`tile-grass${variant}${suffix}`, `assets/tiles/grass${variant}${suffix}.png`);
       }

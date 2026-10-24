@@ -35,7 +35,7 @@ function pngSize(path) {
 describe('campaign tiles', () => {
   it('ships a full tile set (grass, rock, water, foliage, 16 road masks) per theme', () => {
     const themes = Object.values(THEMES);
-    expect(themes).toHaveLength(4);
+    expect(themes).toHaveLength(5);
 
     for (const theme of themes) {
       const suffix = theme.tileSuffix;

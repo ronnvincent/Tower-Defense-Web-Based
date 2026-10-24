@@ -327,6 +327,7 @@ ENEMY_THEME_RAMPS = {
     "desert": ["#3A2A17", "#9A7338", "#F0D79A"],
     "ice": ["#16303F", "#5E93AE", "#E6F8FF"],
     "volcanic": ["#160A0A", "#6E2A16", "#FF9A4A"],
+    "crystal": ["#140E24", "#4B3585", "#D9C6FF"],
 }
 
 # Per-wave escalation, in three discrete broods. Wave 1-2 spawns the base
@@ -913,6 +914,9 @@ BOSS_SOURCES = {
     "sandwyrm": ("scorpion", 64, 9, 2, (0x2A1A0C, 0x8A5A2A, 0xFFD98A, 0xFFF3D0)),
     "frostwarden": ("magma_crab", 64, 9, 2, (0x10202E, 0x33607F, 0x9FD4EF, 0xF2FBFF)),
     "magmalord": ("firewasp", 96, 9, 2, (0x1E0806, 0x8C2A0E, 0xFFA23C, 0xFFE9B0)),
+    # Prism Depths boss: the butterfly silhouette reads as a hovering prism
+    # warden once it is duotoned into indigo/amethyst.
+    "prismlord": ("voidbutterfly", 64, 9, 3, (0x140A2A, 0x4A2E8C, 0xB892F0, 0xF4ECFF)),
 }
 
 
@@ -1002,7 +1006,7 @@ def build_ui_icons():
     print("map thumbnails")
     layouts = read_map_layouts()
     cell = 6
-    for theme in ("grassland", "desert", "ice", "volcanic"):
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal"):
         layout = layouts.get(theme) or layouts["grassland"]
         suffix = "" if theme == "grassland" else f"-{theme}"
 
@@ -1013,7 +1017,7 @@ def build_ui_icons():
         grass = tile_colour("grass", 24, 24)
         # The horde's lane has to read as a lane at thumbnail size; the volcanic
         # road is nearly as dark as its ash ground, so lift it harder there.
-        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.45, "volcanic": 1.85}[theme]
+        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.45, "volcanic": 1.85, "crystal": 1.35}[theme]
         road = tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24))
         water = tile_colour("water", 24, 24)
         rock = tile_colour("rock", 24, 24)
