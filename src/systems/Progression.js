@@ -12,6 +12,7 @@
  */
 
 import { LEVELS, getNextLevel } from '../data/levelData.js';
+import { DEFAULT_STATS, evaluateAchievements } from './Achievements.js';
 
 export const STORAGE_KEY = 'td-dsalgo:progress:v1';
 export const STAR_MAX = 3;
@@ -83,6 +84,9 @@ export function createProfile() {
     endlessBestWave: 0,
     endlessBestScore: 0,
     campaignComplete: false,
+    achievements: [], // ids already paid out
+    stats: { ...DEFAULT_STATS },
+    relics: [], // forge purchases (Sprint 3)
   };
 }
 
@@ -108,6 +112,9 @@ export class ProgressStore {
       profile.unlocked = Array.isArray(parsed.unlocked) && parsed.unlocked.length
         ? Array.from(new Set(['level-1', ...parsed.unlocked]))
         : ['level-1'];
+      profile.achievements = Array.isArray(parsed.achievements) ? [...parsed.achievements] : [];
+      profile.relics = Array.isArray(parsed.relics) ? [...parsed.relics] : [];
+      profile.stats = { ...DEFAULT_STATS, ...(parsed.stats || {}) };
       return profile;
     } catch {
       return createProfile();
@@ -164,6 +171,60 @@ export class ProgressStore {
     return this.profile.gems;
   }
 
+  /* ------------------------------------------------------------- stats */
+
+  /**
+   * Fold an event into the lifetime stats.
+   *
+   * `max` metrics (peaks like the 20-kill chain or the deepest endless wave)
+   * only ever climb; everything else accumulates. No storage write here — the
+   * save happens on wave/run boundaries, so a busy wave is not hundreds of
+   * localStorage writes.
+   */
+  trackStats(patch = {}, { max = [] } = {}) {
+    const stats = this.profile.stats;
+    const peak = new Set(max);
+    for (const [key, raw] of Object.entries(patch)) {
+      const value = Number(raw);
+      if (!Number.isFinite(value)) continue;
+      if (peak.has(key)) stats[key] = Math.max(Number(stats[key]) || 0, value);
+      else stats[key] = (Number(stats[key]) || 0) + value;
+    }
+    stats.starsTotal = this.totalStars;
+    return stats;
+  }
+
+  /**
+   * Pay out every achievement the stats now satisfy.
+   * @returns {{ unlocked:object[], gems:number }} newly earned definitions
+   */
+  syncAchievements() {
+    const earned = evaluateAchievements(this.profile.stats, this.profile.achievements);
+    if (!earned.length) return { unlocked: [], gems: 0 };
+    const gems = earned.reduce((sum, def) => sum + def.gems, 0);
+    this.profile.achievements.push(...earned.map((def) => def.id));
+    this.profile.gems += gems;
+    this.save();
+    return { unlocked: earned, gems };
+  }
+
+  /** Bank gems from achievements / milestones / dailies. */
+  addGems(amount = 0) {
+    const n = Math.max(0, Math.round(Number(amount) || 0));
+    if (!n) return this.profile.gems;
+    this.profile.gems += n;
+    this.save();
+    return this.profile.gems;
+  }
+
+  get achievements() {
+    return [...this.profile.achievements];
+  }
+
+  get stats() {
+    return this.profile.stats;
+  }
+
   /**
    * Record a win: stars only improve, score only improves, rewards are banked,
    * and the next node unlocks on the first clear.
@@ -182,6 +243,17 @@ export class ProgressStore {
     this.profile.bestScore[level.id] = Math.max(this.bestScoreFor(level.id), score);
     this.profile.gold += rewards.gold;
     this.profile.gems += rewards.gems;
+
+    const stats = this.profile.stats;
+    stats.runs = (Number(stats.runs) || 0) + 1;
+    stats.victories = (Number(stats.victories) || 0) + 1;
+    if (stars >= STAR_MAX && previousStars < STAR_MAX) {
+      stats.threeStarVictories = (Number(stats.threeStarVictories) || 0) + 1;
+    }
+    if (baseHealth >= maxBaseHealth) {
+      stats.flawlessVictories = (Number(stats.flawlessVictories) || 0) + 1;
+    }
+    stats.starsTotal = this.totalStars;
 
     const newlyUnlocked = [];
     if (level.endless) {
@@ -202,8 +274,11 @@ export class ProgressStore {
       }
     }
 
+    const achievements = this.syncAchievements();
     this.save();
     return {
+      achievements: achievements.unlocked,
+      gemsFromAchievements: achievements.gems,
       stars,
       previousStars,
       improved: stars > previousStars,
@@ -227,8 +302,11 @@ export class ProgressStore {
     const isRecord = wave > this.profile.endlessBestWave || score > this.profile.endlessBestScore;
     this.profile.endlessBestWave = waveBest;
     this.profile.endlessBestScore = scoreBest;
+    this.profile.stats.endlessBestWave = Math.max(this.profile.stats.endlessBestWave || 0, wave);
+    this.profile.stats.runs = (Number(this.profile.stats.runs) || 0) + 1;
+    const achievements = this.syncAchievements();
     this.save();
-    return { waveBest, scoreBest, isRecord };
+    return { waveBest, scoreBest, isRecord, achievements: achievements.unlocked, gemsFromAchievements: achievements.gems };
   }
 
   /**
@@ -238,7 +316,16 @@ export class ProgressStore {
    */
   recordDefeat(level, { wave = 0, score = 0 } = {}) {
     if (level?.endless) return this.recordEndless({ wave, score });
-    return { waveBest: 0, scoreBest: this.bestScoreFor(level?.id || ''), isRecord: false };
+    this.profile.stats.runs = (Number(this.profile.stats.runs) || 0) + 1;
+    const achievements = this.syncAchievements();
+    this.save();
+    return {
+      waveBest: 0,
+      scoreBest: this.bestScoreFor(level?.id || ''),
+      isRecord: false,
+      achievements: achievements.unlocked,
+      gemsFromAchievements: achievements.gems,
+    };
   }
 }
 

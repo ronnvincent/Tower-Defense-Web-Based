@@ -23,6 +23,8 @@ import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { applyDailyModifiers } from '../systems/DailyChallenge.js';
+import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 import { ProgressStore } from '../systems/Progression.js';
@@ -45,12 +47,35 @@ export class GameScene extends Phaser.Scene {
    */
   init(data) {
     this.levelId = data?.levelId || 'level-1';
-    this.level = getLevel(this.levelId);
+    const baseLevel = getLevel(this.levelId);
+    this.levelId = baseLevel.id;
+    // A daily run is the same level with a rule twist layered on top. The
+    // modifier is applied to a copy, so the campaign data stays untouched.
+    this.dailyKey = data?.dailyKey || null;
+    this.dailyModifier = data?.dailyModifier || null;
+    this.level = this.dailyModifier
+      ? applyDailyModifiers(baseLevel, this.dailyModifier, this.dailyKey)
+      : baseLevel;
     // getLevel() falls back to level 1 for an unknown id; adopt the resolved id
     // so a later restart / replay cannot carry the stale one forward.
-    this.levelId = this.level.id;
     this.theme = THEMES[this.level.theme] || THEMES.grassland;
     this.progress = window.gameProgress || new ProgressStore();
+    this.lastMilestoneWave = 0;
+  }
+
+  /** Fold an event into the lifetime stats (no-op without a progress store). */
+  trackStats(patch, options) {
+    this.progress?.trackStats?.(patch, options);
+  }
+
+  /** Pay out any achievements the stats just satisfied, with a toast each. */
+  syncAchievements() {
+    const result = this.progress?.syncAchievements?.();
+    if (!result?.unlocked?.length) return [];
+    for (const def of result.unlocked) {
+      this.hud?.showToast(`${def.icon || '🏅'} ACHIEVEMENT: ${def.name} · +${def.gems}💎`, 'success');
+    }
+    return result.unlocked;
   }
 
   create() {
@@ -511,6 +536,9 @@ export class GameScene extends Phaser.Scene {
     this.economy.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
 
+    this.trackStats({ kills: 1, goldEarned: enemy.reward + comboGold, bestChain: kill.chain }, { max: ['bestChain'] });
+    if (enemy.isBoss) this.trackStats({ bossesKilled: 1 });
+
     this.spawnDeathBurst(enemy.x, enemy.y, kill.tier);
     if (kill.tier > 0) {
       this.hud?.showCombo({ chain: kill.chain, multiplier: kill.multiplier, tier: kill.tier, bonus: comboGold });
@@ -559,6 +587,7 @@ export class GameScene extends Phaser.Scene {
     this.economy.earn(payout);
     this.economy.addScore(clearScore);
 
+    this.trackStats({ earlyCalls: 1 });
     audio.playCallEarly();
     startNewWave(this.combo);
     this.hud?.hideCombo();
@@ -704,6 +733,7 @@ export class GameScene extends Phaser.Scene {
 
   handleUpgradeTower(tower, choiceKey = null) {
     if (tower.upgrade(choiceKey)) {
+      this.trackStats({ upgradesBought: 1 });
       if (this.selectedTower === tower) {
         this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
       }
@@ -967,9 +997,12 @@ export class GameScene extends Phaser.Scene {
 
     if (tower.isBarricade) {
       this.gameState.counters.barricadesPlaced++;
+      this.trackStats({ palisadesBuilt: 1 });
       this.hud?.showToast('Palisade raised! Enemies must break it down.', 'info');
     } else {
       this.gameState.counters.towersPlaced++;
+      const standing = this.activeTowers.filter((t) => !t.isBarricade).length;
+      this.trackStats({ towersBuilt: 1, maxTowersAtOnce: standing }, { max: ['maxTowersAtOnce'] });
     }
     audio.playPlace();
 
@@ -1097,6 +1130,7 @@ export class GameScene extends Phaser.Scene {
 
     this.showResult({
       outcome: 'defeat',
+      achievements: record?.achievements || [],
       level: this.level,
       score,
       waves: this.waveManager.wavesCompleted,
@@ -1122,6 +1156,27 @@ export class GameScene extends Phaser.Scene {
       maxBaseHealth: this.gameState.maxBaseHealth,
       score: this.economy.score,
     });
+    // A daily clear is worth its modifier's gems once per day — the store, not
+    // the scene, decides whether this is the first win of the day.
+    let dailyResult = null;
+    if (this.dailyKey && window.gameDaily) {
+      dailyResult = window.gameDaily.recordWin(this.dailyKey, {
+        score: this.economy.score,
+        gems: this.dailyModifier?.gems || 0,
+      });
+      if (dailyResult.gems > 0) this.progress.addGems(dailyResult.gems);
+      const stats = this.progress.profile.stats;
+      if (dailyResult.firstWin) stats.dailyWins = (Number(stats.dailyWins) || 0) + 1;
+      stats.dailyStreak = Math.max(Number(stats.dailyStreak) || 0, dailyResult.streak);
+    }
+
+    // `recordVictory` already paid the achievements it could see; this second
+    // pass catches the daily-only ones (first daily, 7-day streak).
+    const lateAchievements = this.syncAchievements();
+    const newAchievements = [...(record.achievements || [])];
+    for (const def of lateAchievements) {
+      if (!newAchievements.some((a) => a.id === def.id)) newAchievements.push(def);
+    }
 
     this.showResult({
       outcome: 'victory',
@@ -1130,6 +1185,10 @@ export class GameScene extends Phaser.Scene {
       previousStars: record.previousStars,
       improved: record.improved,
       rewards: record.rewards,
+      daily: this.dailyKey
+        ? { key: this.dailyKey, modifier: this.dailyModifier, gems: dailyResult?.gems || 0, streak: dailyResult?.streak || 0 }
+        : null,
+      achievements: newAchievements,
       unlocked: record.unlocked,
       unlockedAll: record.unlockedAll,
       firstClear: record.firstClear,
@@ -1157,6 +1216,31 @@ export class GameScene extends Phaser.Scene {
       timeMs: payload.timeMs,
     });
     return payload;
+  }
+
+  /**
+   * Pay the endless checkpoints crossed by the wave that just closed.
+   *
+   * `lastMilestoneWave` is the high-water mark already paid, so re-clearing a
+   * wave (possible after an early call) cannot double-pay.
+   */
+  payEndlessMilestones(wave) {
+    const crossed = milestonesBetween(this.lastMilestoneWave, wave);
+    if (!crossed.length) return [];
+    this.lastMilestoneWave = wave;
+    let gold = 0;
+    let gems = 0;
+    for (const milestone of crossed) {
+      gold += milestone.gold;
+      gems += milestone.gems;
+      this.hud?.showToast(`∞ MILESTONE · ${milestoneLabel(milestone)}`.replace(' ∞', ' ∞'), 'success');
+    }
+    this.economy.earn(gold);
+    this.progress?.addGems?.(gems);
+    this.progress?.trackStats?.({ endlessBestWave: wave }, { max: ['endlessBestWave'] });
+    this.progress?.save?.();
+    audio.playVictory();
+    return crossed;
   }
 
   /** Early-call availability + its gold bonus, or null when unavailable. */
@@ -1215,6 +1299,7 @@ export class GameScene extends Phaser.Scene {
       isPaused: this.gameState.isPaused(),
       earlyCall: this.earlyCallInfo(),
       nextWave: this.nextWavePreview(),
+      bestWave: this.level.endless ? this.progress?.profile?.endlessBestWave || 0 : 0,
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
   }
@@ -1283,6 +1368,7 @@ export class GameScene extends Phaser.Scene {
       const bonusCoins = WAVE_CLEAR_COINS.base + WAVE_CLEAR_COINS.perWave * waveEvent.waveNumber;
       const bonusScore = SCORE.waveClearBase * waveEvent.waveNumber;
       const comboPayout = waveComboPayout(this.combo.best);
+      this.trackStats({ wavesCleared: 1 });
       this.economy.earn(bonusCoins + comboPayout);
       this.economy.addScore(bonusScore);
       const comboNote = comboPayout > 0 ? ` · best chain ${this.combo.best} (+🪙${comboPayout})` : '';
@@ -1291,6 +1377,9 @@ export class GameScene extends Phaser.Scene {
         'info'
       );
       this.hud?.hideCombo();
+
+      if (this.level.endless) this.payEndlessMilestones(waveEvent.waveNumber);
+      this.syncAchievements();
 
       if (waveEvent.isFinal) {
         this.handleVictory();

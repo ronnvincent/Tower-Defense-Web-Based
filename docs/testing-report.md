@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 404 tests across 32 test suites.
-- **Pass Rate:** **100% (404 / 404 Passed)**
+- **Total Automated Unit Tests:** 452 tests across 36 test suites.
+- **Pass Rate:** **100% (452 / 452 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -187,8 +187,8 @@
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  32 passed (32)
-Tests       404 passed (404)
+Test Files  36 passed (36)
+Tests       452 passed (452)
 Duration    6.7s
 ```
 
@@ -204,6 +204,10 @@ Duration    6.7s
 | `tests/hud-dom.test.js` | jsdom | 16 | HUD controls missing, buttons not forwarding callbacks, destructive controls back on the top bar, a single tap leaving the battle, the pause card not opening/closing, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
+| `tests/daily-challenge.test.js` | node | 17 | A daily that rerolls on refresh, a streak that survives a missed day, win gems farmed by replaying, storage failures |
+| `tests/achievements.test.js` | node | 17 | Duplicate/unreachable achievements, gems paid twice, peak stats summed instead of maxed, saves losing the checklist |
+| `tests/achievements-ui.test.js` | jsdom | 5 | The checklist not rendering progress, claimed entries not marked, the result screen losing daily/achievement rows |
+| `tests/endless-milestones.test.js` | jsdom | 9 | Checkpoints double-paid or skipped, the payout curve drifting, the best-wave marker lying about a record |
 | `tests/combo-meter.test.js` | node | 15 | Chain window drifting, tiers skipping a step, a kill paying less than its base bounty, wave payouts uncapped |
 | `tests/early-call.test.js` | node | 13 | Calling early mid-spawn (drops queued spawns), calling on the final wave, the bonus curve uncapped, a settled wave not counting toward stars |
 | `tests/hud-juice.test.js` | jsdom | 13 | Wave preview missing/misordered, CALL EARLY not reachable from the button, combo chip not draining or never hiding |

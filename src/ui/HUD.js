@@ -89,6 +89,7 @@ export class HUD {
             <span class="hud-wave-label">WAVE</span>
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
             <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
+            <span class="hud-wave-best hidden" id="val-endless-best">BEST 0</span>
           </div>
           <div class="hud-wave-stack">
             <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
@@ -940,6 +941,7 @@ export class HUD {
       isPaused,
       earlyCall,
       nextWave,
+      bestWave,
     } = state;
 
     this.coins = coins;
@@ -955,6 +957,20 @@ export class HUD {
       'val-enemies-left',
       isSpawning ? `${enemiesRemaining} spawning…` : `${enemiesRemaining} left`
     );
+
+    // Endless only: the personal best sits under the wave number, and turns
+    // gold the moment the run passes it.
+    const bestEl = document.getElementById('val-endless-best');
+    if (bestEl) {
+      const best = Number(bestWave) || 0;
+      const show = Boolean(endless) && best > 0;
+      bestEl.classList.toggle('hidden', !show);
+      if (show) {
+        const passed = Number(waveNumber) > best;
+        bestEl.textContent = passed ? `NEW BEST · ${waveNumber}` : `BEST ${best}`;
+        bestEl.classList.toggle('record', passed);
+      }
+    }
 
     const hpStat = document.getElementById('stat-base-hp');
     if (hpStat) {

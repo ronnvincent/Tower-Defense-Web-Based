@@ -104,6 +104,17 @@ export class ResultScreenUI {
          </div>`
       : '';
 
+    // Daily runs and achievement payouts are meta progress, so they sit below
+    // the run numbers instead of competing with the star rating.
+    const dailyRow = result.daily
+      ? `<p class="result-daily">📅 DAILY · ${result.daily.modifier?.name || 'Challenge'}${
+          result.daily.streak ? ` · 🔥 ${result.daily.streak}-day streak` : ''
+        }${result.daily.gems ? ` · +${result.daily.gems}💎` : ''}</p>`
+      : '';
+    const achievementRow = Array.isArray(result.achievements) && result.achievements.length
+      ? `<p class="result-achievements">🏅 ${result.achievements.map((a) => a.name).join(' · ')}</p>`
+      : '';
+
     const unlockRow = unlockedIds.length
       ? unlockedIds
           .map((id) => `<p class="result-unlock">🔓 ${levelName(id).toUpperCase()} UNLOCKED</p>`)
@@ -133,6 +144,8 @@ export class ResultScreenUI {
           ${recordRun ? `<p class="result-record">NEW BEST ${result.previousStars}★ → ${stars}★</p>` : ''}
           <div class="result-stats">${statRows}</div>
           ${rewardRow}
+          ${dailyRow}
+          ${achievementRow}
           ${unlockRow}
           <div class="overlay-actions">${actions.join('')}</div>
         </div>

@@ -356,3 +356,81 @@ simulation loop.
   the player is chasing.
 - The wave button itself carries the early-call bonus, so the decision is priced
   on the control that makes it.
+
+---
+
+## 9. Retention Layer
+
+The second layer answers "why come back tomorrow?" — a date-seeded daily run,
+a checklist that pays gems, and depth markers for the mode that has no ending.
+
+### 9.1 Daily Challenge (`src/systems/DailyChallenge.js`)
+
+One run per local calendar day, identical for every player:
+
+- `dayKey(date)` → `YYYY-MM-DD` (local, so the reset happens at the player's
+  midnight, not UTC's).
+- `seedForDay(key)` → FNV-1a hash; `mulberry32(seed)` is the PRNG. The same day
+  therefore produces the same modifier and the same level, and a refresh cannot
+  reroll the challenge.
+- `dailyRun({ date, unlockedIds })` picks one of six modifiers and one level the
+  player has actually unlocked (Endless is excluded — it has no finish line).
+- `applyDailyModifiers(level, modifier, key)` returns a copy with the twist
+  applied, so the campaign data is never mutated.
+
+| Modifier | Twist | Gems |
+|---|---|:---:|
+| Standard Muster | no twist | 3 |
+| Midas Rush | +40 starting gold, horde +15% HP | 4 |
+| Glass Bastion | core 15 HP, +60 gold | 5 |
+| Lean Rations | 140 starting gold, kills pay +25% | 4 |
+| Siege Day | horde +30% HP, +80 gold | 6 |
+| Bounty Board | kills pay +40%, horde +10% HP | 4 |
+
+`DailyStore` owns the streak. Starting the run is enough to keep it alive; the
+win pays the modifier's gems exactly once per day. `currentStreak()` treats
+yesterday's run as still alive until midnight (so the menu is not scary at
+00:05), and a gap of two or more days resets the visible streak while
+`bestStreak` is kept.
+
+### 9.2 Achievements (`src/data/achievements.js`, `src/systems/Achievements.js`)
+
+24 entries across combat / defense / campaign / endurance / daily, worth
+**96 gems** in total. Each entry is data — `{ metric, target, gems }` against
+the lifetime stats in `ProfileStore.profile.stats` — so one evaluator covers
+all of them and the menu can render real progress bars ("612 / 1000 kills").
+
+`ProgressStore` folds gameplay into those stats:
+
+| Hook | Stats |
+|---|---|
+| kill | `kills`, `goldEarned`, `bestChain` (peak), `bossesKilled` |
+| early call | `earlyCalls` |
+| build | `towersBuilt` / `palisadesBuilt`, `maxTowersAtOnce` (peak) |
+| upgrade | `upgradesBought` |
+| wave clear | `wavesCleared` |
+| victory | `victories`, `threeStarVictories`, `flawlessVictories`, `starsTotal` |
+| endless record | `endlessBestWave` (peak) |
+| daily win | `dailyWins`, `dailyStreak` (peak) |
+
+Peak metrics use `trackStats(patch, { max: [...] })` so a 20-kill chain is a
+record, not 20 more kills. `syncAchievements()` pays every newly satisfied entry
+once and saves; the scene calls it on wave and run boundaries so a fight is not
+interrupted by a toast storm.
+
+### 9.3 Endless checkpoints (`src/systems/EndlessMilestones.js`)
+
+Checkpoints every 5 waves to 50, then every 10 to 100, paying `30 + 6·wave` gold
+and 1–5 gems. `milestonesBetween(lastPaid, wave)` makes the payout idempotent, so
+an early call or a replayed wave cannot double-pay. The HUD shows the personal
+best under the wave number in Endless and flips to `NEW BEST · N` the moment the
+run passes it — `isRecordWave()` is the single comparison behind that.
+
+### 9.4 Surfaces
+
+| Surface | Change |
+|---|---|
+| Main menu | `DAILY CHALLENGE` button: today's modifier, streak flame, "cleared" state |
+| Achievements overlay | grouped checklist with per-entry progress bars and gems |
+| HUD wave badge | `BEST N` / `NEW BEST · N` in Endless |
+| Result screen | daily modifier + streak + gems row, achievement names for the run |

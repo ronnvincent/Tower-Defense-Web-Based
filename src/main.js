@@ -10,6 +10,8 @@ import { Leaderboard } from './systems/Leaderboard.js';
 import { LevelSelectUI } from './ui/LevelSelectUI.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
 import { ProgressStore } from './systems/Progression.js';
+import { AchievementsUI } from './ui/AchievementsUI.js';
+import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
 import { getNextLevel } from './data/levelData.js';
 import { audio } from './rendering/AudioSynth.js';
 import { FullscreenController } from './system/FullscreenController.js';
@@ -47,6 +49,9 @@ const game = new Phaser.Game(phaserConfig);
 // Campaign progress outlives any single battle: GameScene.init() reads it for
 // the level definition, the unlock graph and the saved star ratings.
 window.gameProgress = new ProgressStore();
+// The daily is a second save file: it owns the calendar, the streak and which
+// days are already paid, so it stays independent of campaign progress.
+window.gameDaily = new DailyStore();
 
 // 3. Mount UI Layers into DOM
 const hudContainer = document.getElementById('hud-container');
@@ -92,6 +97,7 @@ function showLevelSelect() {
 }
 
 function openLevelSelect() {
+  refreshDailyButton();
   audio.playClick();
   showLevelSelect();
 }
@@ -111,28 +117,62 @@ function quitToMap() {
  * Enter a battle. `init()` receives `{ levelId }`, and a running battle is
  * restarted in place so Next / Replay never stack scenes.
  */
-function startLevel(levelId = 'level-1') {
+function startLevel(levelId = 'level-1', options = {}) {
   window.gameResultScreen?.hide?.();
   window.gameLevelSelect?.hide?.();
+  window.gameAchievements?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.remove('hidden');
 
   const gameScene = game.scene.getScene('GameScene');
   const menuScene = game.scene.getScene('MenuScene');
+  // A daily run rides on the same scene contract: `dailyKey` + `dailyModifier`
+  // (see GameScene.init). Everything else is the normal level boot.
+  const payload = { levelId, dailyKey: options.dailyKey || null, dailyModifier: options.dailyModifier || null };
 
   if (gameScene?.scene?.isActive()) {
     // Next / Replay / a new node picked after a battle: restart in place.
-    gameScene.scene.restart({ levelId });
+    gameScene.scene.restart(payload);
   } else if (menuScene?.scene?.isActive()) {
     // ScenePlugin.start() stops the menu first, so its backdrop and embers do
     // not keep rendering underneath the battlefield.
-    menuScene.scene.start('GameScene', { levelId });
+    menuScene.scene.start('GameScene', payload);
   } else {
-    game.scene.start('GameScene', { levelId });
+    game.scene.start('GameScene', payload);
   }
 }
 
+/**
+ * Refresh the Daily Challenge button: streak flame, today's modifier and
+ * whether the day is already claimed. Called on boot and whenever the menu is
+ * shown, because midnight can pass while the tab is open.
+ */
+function refreshDailyButton() {
+  const daily = window.gameDaily;
+  const btn = document.getElementById('menu-btn-daily');
+  if (!daily || !btn) return null;
+  const run = dailyRun({
+    unlockedIds: window.gameProgress ? window.gameProgress.profile.unlocked : ['level-1'],
+  });
+  const streak = daily.currentStreak(run.key);
+  const won = daily.isWon(run.key);
+  const label = document.getElementById('menu-daily-label');
+  const badge = document.getElementById('menu-daily-streak');
+  if (label) label.textContent = won ? 'DAILY CLEARED' : `DAILY: ${run.modifier.name.toUpperCase()}`;
+  if (badge) {
+    badge.textContent = streak > 0 ? `🔥 ${streak}` : '';
+    badge.classList.toggle('hidden', streak <= 0);
+  }
+  btn.classList.toggle('daily-claimed', won);
+  btn.title = won
+    ? `${run.modifier.name} — cleared today. Replays pay no extra gems.`
+    : `${run.modifier.name}: ${run.modifier.blurb}`;
+  btn.dataset.level = run.levelId;
+  return run;
+}
+
 function openMainMenu() {
+  refreshDailyButton();
   window.gameResultScreen?.hide?.();
   window.gameLevelSelect?.hide?.();
   hudLayer()?.classList.add('hidden');
@@ -148,6 +188,13 @@ function openMainMenu() {
 }
 
 window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap };
+
+window.gameAchievements = new AchievementsUI(screenContainer, window.gameProgress, {
+  onClose: () => {
+    menuOverlay()?.classList.remove('hidden');
+    hudLayer()?.classList.add('hidden');
+  },
+});
 
 window.gameLevelSelect = new LevelSelectUI(screenContainer, window.gameProgress, {
   onSelectLevel: (levelId) => startLevel(levelId),
@@ -344,6 +391,10 @@ function bindGateToGameScene() {
 bindGateToGameScene();
 game.events.once('ready', bindGateToGameScene);
 
+// Paint the daily button once at boot; the label depends on the calendar and
+// the unlock list, both of which are ready by now.
+refreshDailyButton();
+
 // 5. Bind Main Menu Actions
 document.getElementById('menu-btn-play')?.addEventListener('click', () => {
   // Must happen synchronously inside the click handler to count as a gesture.
@@ -355,6 +406,24 @@ document.getElementById('menu-btn-play')?.addEventListener('click', () => {
 document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => {
   audio.playClick();
   void fullscreen.toggle();
+});
+
+document.getElementById('menu-btn-daily')?.addEventListener('click', () => {
+  audio.playClick();
+  // Must happen inside the gesture, like PLAY.
+  void fullscreen.request();
+  const run = refreshDailyButton();
+  if (!run) return;
+  // Starting the run is what keeps the streak alive — winning pays the gems.
+  window.gameDaily?.recordPlay(run.key);
+  startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
+});
+
+document.getElementById('menu-btn-achievements')?.addEventListener('click', () => {
+  audio.playClick();
+  menuOverlay()?.classList.add('hidden');
+  hudLayer()?.classList.add('hidden');
+  window.gameAchievements?.show();
 });
 
 document.getElementById('menu-btn-how-to-play')?.addEventListener('click', () => {

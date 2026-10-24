@@ -114,7 +114,10 @@ describe('ProgressStore', () => {
   it('records endless depth without granting stars', () => {
     const store = new ProgressStore({ storage: fakeStorage() });
     const first = store.recordEndless({ wave: 7, score: 1200 });
-    expect(first).toEqual({ waveBest: 7, scoreBest: 1200, isRecord: true });
+    expect(first).toMatchObject({ waveBest: 7, scoreBest: 1200, isRecord: true });
+    // Reaching wave 7 clears no achievement yet, so nothing is paid out.
+    expect(first.achievements).toEqual([]);
+    expect(first.gemsFromAchievements).toBe(0);
     const worse = store.recordEndless({ wave: 4, score: 800 });
     expect(worse.isRecord).toBe(false);
     expect(store.profile.endlessBestWave).toBe(7);
