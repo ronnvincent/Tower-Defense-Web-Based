@@ -29,10 +29,13 @@ describe('terrain surface contrast', () => {
 
   it('audits every battle map', () => {
     expect(Object.keys(table.themes).sort()).toEqual([
+      'caldera',
       'crystal',
       'desert',
+      'glacier',
       'grassland',
       'ice',
+      'oasis',
       'volcanic',
     ]);
   });

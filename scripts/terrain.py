@@ -44,6 +44,25 @@ RAMPS = {
         "-crystal",
         [(0x24, 0x1B, 0x3C), (0x2E, 0x24, 0x4B), (0x3B, 0x2F, 0x5E), (0x4A, 0x3B, 0x74)],
     ),
+    # --- Mirrored duel arenas ------------------------------------------------
+    # Cinder Crown: cool ash basalt, deliberately greyer than the campaign's
+    # warm volcanic rock, with magma fissures as the only saturated colour.
+    "caldera": (
+        "-caldera",
+        [(0x24, 0x23, 0x27), (0x30, 0x2E, 0x34), (0x3D, 0x3A, 0x41), (0x50, 0x4C, 0x55)],
+    ),
+    # Frostspine: a bright glacial sheet, several stops lighter than Frostbite
+    # Hollow's slate snow, so the two ice battlefields never read as one map.
+    "glacier": (
+        "-glacier",
+        [(0x7B, 0x97, 0xA7), (0x92, 0xAE, 0xBD), (0xA9, 0xC5, 0xD2), (0xC9, 0xE2, 0xEB)],
+    ),
+    # Dust Meridian: bleached ivory dune sand around a turquoise oasis, the
+    # inverse of Sunscorch Mesa's mid-brown desert.
+    "oasis": (
+        "-oasis",
+        [(0x8A, 0x7B, 0x60), (0xA1, 0x92, 0x73), (0xB7, 0xA8, 0x88), (0xD1, 0xC4, 0xA6)],
+    ),
 }
 
 # Lane palettes are tuned against the biome ground so the lane is always the
@@ -59,6 +78,13 @@ ROAD_RAMPS = {
     "volcanic": [(0x3A, 0x32, 0x33), (0x58, 0x4C, 0x4C), (0x6E, 0x5F, 0x5C), (0x8A, 0x78, 0x72)],
     # Polished quartz: a pale violet causeway glowing out of the dark.
     "crystal": [(0x58, 0x44, 0x7C), (0x7C, 0x63, 0xA6), (0x94, 0x79, 0xC0), (0xB4, 0x9A, 0xDC)],
+    # Pale ash track over near-black basalt: the lane is the brightest thing on
+    # the map, which is exactly what a caldera rim should be.
+    "caldera": [(0x7A, 0x71, 0x6C), (0x96, 0x8C, 0x86), (0xAE, 0xA3, 0x9C), (0xC8, 0xBC, 0xB4)],
+    # Dark trodden ice: the inverse of the bright sheet, so the path cuts.
+    "glacier": [(0x27, 0x41, 0x4C), (0x38, 0x59, 0x66), (0x4A, 0x70, 0x7E), (0x66, 0x90, 0x9E)],
+    # Packed ochre caravan road across bleached dunes.
+    "oasis": [(0x62, 0x47, 0x2C), (0x83, 0x64, 0x3E), (0x9A, 0x7A, 0x4C), (0xB8, 0x98, 0x66)],
 }
 
 WATER_RAMPS = {
@@ -69,6 +95,12 @@ WATER_RAMPS = {
     # Mana pools: cyan-green against violet stone, so the water separates on hue
     # and not only on brightness.
     "crystal": [(0x08, 0x2A, 0x30), (0x10, 0x52, 0x58), (0x1C, 0x86, 0x8A), (0x9A, 0xFF, 0xE8)],
+    # A live caldera: the "water" in Cinder Crown is molten rock.
+    "caldera": [(0x7A, 0x1B, 0x05), (0xC2, 0x38, 0x0C), (0xEA, 0x63, 0x18), (0xFF, 0xC4, 0x74)],
+    # Meltwater holes in a glacier: deep navy with a cyan lip.
+    "glacier": [(0x08, 0x1C, 0x30), (0x10, 0x2E, 0x4C), (0x1B, 0x48, 0x6E), (0x8E, 0xD8, 0xF6)],
+    # The oasis itself: turquoise, the only cool hue for a hundred tiles.
+    "oasis": [(0x06, 0x3A, 0x42), (0x0C, 0x5A, 0x60), (0x18, 0x84, 0x84), (0x7C, 0xE8, 0xCE)],
 }
 
 ROCK_RAMPS = {
@@ -77,6 +109,9 @@ ROCK_RAMPS = {
     "ice": [(0x2E, 0x3F, 0x52), (0x48, 0x5D, 0x72), (0x64, 0x7F, 0x96), (0x9C, 0xBC, 0xD2)],
     "volcanic": [(0x1A, 0x13, 0x15), (0x2C, 0x22, 0x24), (0x43, 0x34, 0x35), (0x63, 0x4B, 0x46)],
     "crystal": [(0x1C, 0x16, 0x30), (0x2E, 0x25, 0x4A), (0x44, 0x37, 0x68), (0x66, 0x55, 0x92)],
+    "caldera": [(0x1B, 0x19, 0x1D), (0x2E, 0x2B, 0x31), (0x45, 0x40, 0x48), (0x66, 0x5F, 0x68)],
+    "glacier": [(0x33, 0x4A, 0x59), (0x4C, 0x67, 0x78), (0x67, 0x86, 0x98), (0x9E, 0xC0, 0xD0)],
+    "oasis": [(0x5A, 0x46, 0x30), (0x78, 0x60, 0x43), (0x96, 0x7C, 0x59), (0xBC, 0xA2, 0x7A)],
 }
 
 BIOMES = tuple(RAMPS)
@@ -257,6 +292,61 @@ def build_ground(theme, variant=0):
             x, y = rng.randrange(TILE), rng.randrange(TILE)
             _put(pix, x, y, (0xE0, 0xC8, 0xFF))
             _put(pix, (x + 1) % TILE, y, (0x5B, 0x44, 0x8C))
+        for _ in range(2):
+            _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ROCK_RAMPS[theme])
+
+    elif theme == "caldera":
+        # Magma fissures: a branching run of ember with a lit core every few
+        # pixels, so the ground reads as cracked rather than speckled.
+        for _ in range(3):
+            x, y = rng.randrange(6, TILE - 10), rng.randrange(6, TILE - 10)
+            hot = rng.random() < 0.5
+            for k in range(rng.randrange(9, 18)):
+                _put(pix, x, y, (0xE8, 0x63, 0x18) if hot else (0x8C, 0x33, 0x10))
+                if k % 4 == 0:
+                    _put(pix, x, y, (0xFF, 0xB8, 0x66))
+                x += rng.choice((1, 1, 0))
+                y += rng.choice((-1, 0, 0, 1))
+        for _ in range(12):
+            # Ash: pale, cool, deliberately desaturated next to the embers.
+            x, y = rng.randrange(TILE), rng.randrange(TILE)
+            _put(pix, x, y, (0x6A, 0x66, 0x70) if rng.random() < 0.6 else (0x86, 0x81, 0x8A))
+        for _ in range(2):
+            _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ROCK_RAMPS[theme])
+
+    elif theme == "glacier":
+        # Crevasses: long, straight, deep teal, each with a lit lip above it.
+        for _ in range(3):
+            x, y = rng.randrange(3, TILE - 26), rng.randrange(8, TILE - 8)
+            length = rng.randrange(12, 24)
+            for k in range(length):
+                _put(pix, x + k, y + (0 if k % 9 < 7 else 1), (0x33, 0x5C, 0x6E))
+                if rng.random() < 0.4:
+                    _put(pix, x + k, y - 1, (0xD8, 0xEE, 0xF6))
+        for _ in range(14):
+            _put(pix, rng.randrange(TILE), rng.randrange(TILE), (0xEC, 0xF9, 0xFF))
+        for _ in range(2):
+            cx, cy = rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8)
+            _put(pix, cx, cy, (0xF4, 0xFD, 0xFF))
+            _put(pix, cx + 1, cy, (0xB4, 0xD8, 0xE8))
+
+    elif theme == "oasis":
+        # Wind ripples: paired shadow/highlight arcs, the signature of loose sand.
+        for _ in range(4):
+            x, y = rng.randrange(4, TILE - 20), rng.randrange(6, TILE - 8)
+            length = rng.randrange(8, 16)
+            for k in range(length):
+                xx = x + k
+                yy = y + (k // 4) % 2
+                _put(pix, xx, yy, (0x7F, 0x70, 0x55))
+                _put(pix, xx, yy + 1, (0xD8, 0xCB, 0xAC))
+        for _ in range(3):
+            # Dry scrub: three green pixels, never a full tuft, so the dunes stay
+            # open and the oasis keeps its rarity.
+            x, y = rng.randrange(6, TILE - 6), rng.randrange(6, TILE - 6)
+            _put(pix, x, y, (0x4E, 0x7A, 0x3E))
+            _put(pix, x + 1, y, (0x64, 0x92, 0x4A))
+            _put(pix, x, y - 1, (0x74, 0xA6, 0x56))
         for _ in range(2):
             _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ROCK_RAMPS[theme])
 
@@ -865,6 +955,112 @@ def _build_crystal(rng):
     return pix
 
 
+def _build_obsidian(rng):
+    """Basalt obelisk with a live ember crack: Cinder Crown's landmark."""
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    edge, body, lit = (0x14, 0x13, 0x16), (0x2A, 0x27, 0x2D), (0x44, 0x40, 0x48)
+    ember, ember_lit = (0xD8, 0x52, 0x14), (0xFF, 0xB0, 0x5E)
+    _shadow(pix, 32, 58, 16, 4, (0, 0, 0, 120))
+    # Tapered shaft: 11 px at the base, 5 px at the tip.
+    for y in range(12, 59):
+        t = (y - 12) / 46
+        half = 2 + int(round(t * 3.5))
+        for x in range(32 - half, 32 + half + 1):
+            if x <= 32 - half + 1:
+                colour = lit
+            elif x >= 32 + half - 1:
+                colour = edge
+            else:
+                colour = body
+            _put(pix, x, y, colour, FOLIAGE)
+    # Broken crown: two uneven shards instead of a clean point.
+    _put(pix, 32, 11, edge, FOLIAGE)
+    _put(pix, 31, 12, lit, FOLIAGE)
+    _put(pix, 34, 14, body, FOLIAGE)
+    _put(pix, 35, 15, edge, FOLIAGE)
+    # The crack: a zigzag up the lit face, hottest where it bends.
+    y = 54
+    x = 30
+    while y > 20:
+        _put(pix, x, y, ember, FOLIAGE)
+        if y % 7 == 0:
+            _put(pix, x, y, ember_lit, FOLIAGE)
+            x += rng.choice((-1, 0, 1))
+        y -= 1
+        if rng.random() < 0.25:
+            x += rng.choice((-1, 0, 1))
+        x = max(27, min(34, x))
+    # Cooling flecks around the base.
+    for _ in range(18):
+        _put(pix, rng.randint(18, 46), rng.randint(52, 59), (0x8C, 0x33, 0x10) if rng.random() < 0.7 else ember, FOLIAGE)
+    return pix
+
+
+def _build_serac(rng):
+    """Cluster of broken ice shards over a snow drift: Frostspine's landmark."""
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    edge, body, lit, core = (0x2E, 0x5A, 0x72), (0x6E, 0xA6, 0xBC), (0xC2, 0xE8, 0xF4), (0xF2, 0xFD, 0xFF)
+    _shadow(pix, 32, 58, 18, 4, (8, 26, 40, 90))
+    shards = ((22, 57, 12, 4), (32, 57, 19, 6), (41, 57, 10, 4), (37, 57, 6, 3))
+    for cx, base, height, half in shards:
+        for step in range(height):
+            span = max(1, half - step // 5)
+            for dx in range(-span, span + 1):
+                x = cx + dx
+                if not (0 <= x < FOLIAGE):
+                    continue
+                if abs(dx) == span:
+                    colour = edge
+                elif dx < 0:
+                    colour = lit
+                else:
+                    colour = body
+                _put(pix, x, base - step, colour, FOLIAGE)
+        _put(pix, cx, base - height, core, FOLIAGE)
+        for step in range(2, height - 1, 4):
+            _put(pix, cx - 1, base - step, core, FOLIAGE)
+    # Wind-packed drift: a soft band of white across the base.
+    for x in range(12, 53):
+        h = 2 + int(2 * math.sin(x / 4.0))
+        for y in range(58 - h, 59):
+            _put(pix, x, y, (0xE4, 0xF4, 0xFA) if rng.random() < 0.75 else (0xC6, 0xDF, 0xEA), FOLIAGE)
+    return pix
+
+
+def _build_palm(rng):
+    """Date palm leaning over the water: Dust Meridian's landmark."""
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    trunk_dark, trunk, trunk_lit = (0x3A, 0x27, 0x18), (0x5A, 0x3E, 0x28), (0x82, 0x5E, 0x3C)
+    leaf_dark, leaf, leaf_lit = (0x1E, 0x46, 0x2A), (0x2F, 0x66, 0x3A), (0x62, 0x9E, 0x4E)
+    _shadow(pix, 34, 58, 15, 4, (40, 26, 12, 110))
+    # Curved trunk, 4 px wide, bending right.
+    for y in range(24, 59):
+        t = (58 - y) / 34
+        x = 30 + int(round(t * 6))
+        _put(pix, x, y, trunk_dark, FOLIAGE)
+        _put(pix, x + 1, y, trunk, FOLIAGE)
+        _put(pix, x + 2, y, trunk_lit, FOLIAGE)
+        if y % 6 == 0:
+            _put(pix, x + 3, y, trunk_dark, FOLIAGE)
+    crown = (36, 23)
+    # Six fronds radiating from the crown, each a drooping arc.
+    for angle in range(0, 360, 60):
+        rad = math.radians(angle - 20)
+        x, y = float(crown[0]), float(crown[1])
+        for step in range(13):
+            x += math.cos(rad) * 1.5
+            y += math.sin(rad) * 1.1 + 0.30 * step * 0.55
+            if 0 <= x < FOLIAGE and 0 <= y < FOLIAGE:
+                _put(pix, int(x), int(y), leaf, FOLIAGE)
+                _put(pix, int(x), int(y) + 1, leaf_dark, FOLIAGE)
+                if step % 4 == 1:
+                    _put(pix, int(x), int(y) - 1, leaf_lit, FOLIAGE)
+    # Dates under the crown.
+    for dx, dy in ((crown[0] - 1, crown[1] + 3), (crown[0] + 2, crown[1] + 4), (crown[0], crown[1] + 5)):
+        _put(pix, dx, dy, (0xC8, 0x8A, 0x2E), FOLIAGE)
+    return pix
+
+
 def build_foliage(theme):
     """64x64 landmark prop for one battlefield."""
     rng = random.Random(seed_for(theme, "foliage"))
@@ -876,6 +1072,12 @@ def build_foliage(theme):
         return _build_charred(rng)
     if theme == "crystal":
         return _build_crystal(rng)
+    if theme == "caldera":
+        return _build_obsidian(rng)
+    if theme == "glacier":
+        return _build_serac(rng)
+    if theme == "oasis":
+        return _build_palm(rng)
     return _build_conifer(rng)
 
 

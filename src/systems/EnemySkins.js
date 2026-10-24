@@ -43,11 +43,24 @@ export function tierForWave(waveNumber) {
  * one level, so they keep their single heroic sheet instead of inheriting an
  * ember contour that would fight their element.
  */
+/**
+ * Duel arenas re-use a biome's horde regrade rather than shipping a fourth
+ * enemy sheet per archetype: the *ground* is what makes an arena distinct, and
+ * an ember brood on black basalt reads better than a new set of sprites nobody
+ * can tell apart.
+ */
+export const ENEMY_THEME_ALIAS = Object.freeze({
+  caldera: 'volcanic',
+  glacier: 'ice',
+  oasis: 'desert',
+});
+
 export function textureFor(typeKey, theme, tier = 0) {
   const perTheme = ENEMY_SKINS[typeKey];
   if (!perTheme) return `enemy-${typeKey}`;
   const index = Math.max(0, Math.min(ENEMY_TIERS.length - 1, Math.floor(tier)));
-  const tiers = (theme && perTheme[theme]) || perTheme.grassland;
+  const key = ENEMY_THEME_ALIAS[theme] || theme;
+  const tiers = (key && perTheme[key]) || perTheme.grassland;
   return (tiers && tiers[index]) || `enemy-${typeKey}`;
 }
 

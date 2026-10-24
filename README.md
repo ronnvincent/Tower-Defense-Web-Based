@@ -103,9 +103,13 @@ switched off, so the arena is decided by play, not by unlocks.
 
 | Arena | Theme | Route | Final boss |
 |---|---|:-:|---|
-| **Cinder Crown** | Volcanic | 35 | **Magma Lord** — *The Caldera Regent* |
-| **Frostspine** | Ice | 37 | **Frost Warden** — *The Warden of the Pass* |
-| **Dust Meridian** | Desert | 43 | **Sand Wyrm** — *The Meridian Wyrm* |
+| **Cinder Crown** | Caldera | 35 | **Magma Lord** — *The Caldera Regent* |
+| **Frostspine** | Glacier | 37 | **Frost Warden** — *The Warden of the Pass* |
+| **Dust Meridian** | Oasis | 43 | **Sand Wyrm** — *The Meridian Wyrm* |
+
+Each arena ships its own generated tileset (ash basalt + lava, bright ice +
+crevasses, bleached dunes + turquoise pools), so nothing about a duel looks like
+a re-skinned campaign map.
 
 - **Win:** first core destroyed loses; if both sides clear all 8 waves, the higher
   score wins (ties break on core HP, then clear time).

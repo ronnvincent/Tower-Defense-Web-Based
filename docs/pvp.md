@@ -46,9 +46,23 @@ defend *is* the layout your rival defends, entered from the other gate.
 
 | Arena | Theme | Route length | Buildable tiles | Final boss |
 | --- | --- | --- | --- | --- |
-| Cinder Crown | volcanic | 35 cells | 178 | Magma Lord — *The Caldera Regent* |
-| Frostspine | ice | 37 cells | 218 | Frost Warden — *The Warden of the Pass* |
-| Dust Meridian | desert | 43 cells | 220 | Sand Wyrm — *The Meridian Wyrm* |
+| Cinder Crown | `caldera` | 35 cells | 178 | Magma Lord — *The Caldera Regent* |
+| Frostspine | `glacier` | 37 cells | 218 | Frost Warden — *The Warden of the Pass* |
+| Dust Meridian | `oasis` | 43 cells | 220 | Sand Wyrm — *The Meridian Wyrm* |
+
+Each arena ships **its own tileset** — `scripts/build_arena_tiles.py` generates
+`-caldera`, `-glacier` and `-oasis` from `terrain.py`'s palettes, so a duel never
+looks like a campaign map wearing a different name:
+
+| Theme | Ground | Lane | "Water" | Landmark |
+| --- | --- | --- | --- | --- |
+| `caldera` | cool ash basalt, magma fissures | pale ash track | molten lava | ember-lit obsidian obelisk |
+| `glacier` | bright ice sheet, crevasses | dark trodden ice | deep navy meltwater | serac cluster |
+| `oasis` | bleached dune sand, wind ripples | ochre caravan road | turquoise pool | date palm |
+
+Enemy art is *not* duplicated per arena: `EnemySkins.ENEMY_THEME_ALIAS` maps
+`caldera → volcanic`, `glacier → ice`, `oasis → desert`, so the horde keeps its
+elemental regrades while the ground carries the new identity.
 
 Every arena has:
 

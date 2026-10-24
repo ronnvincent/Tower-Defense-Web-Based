@@ -160,8 +160,8 @@ export const PVP_ARENAS = [
   {
     id: 'cinder-crown',
     name: 'Cinder Crown',
-    theme: 'volcanic',
-    blurb: 'A dead caldera ringed by a double march. Long sightlines, no safe corner.',
+    theme: 'caldera',
+    blurb: 'Ash over a live caldera, split by magma. Long sightlines, no safe corner.',
     layout: CINDER_CROWN,
     bossKey: 'magmalord',
     bossName: 'The Caldera Regent',
@@ -169,8 +169,8 @@ export const PVP_ARENAS = [
   {
     id: 'frostspine',
     name: 'Frostspine',
-    theme: 'ice',
-    blurb: 'Four switchbacks through a frozen moraine. Every tower sees two lanes.',
+    theme: 'glacier',
+    blurb: 'Four switchbacks over a bright ice sheet. Every tower sees two lanes.',
     layout: FROSTSPINE,
     bossKey: 'frostwarden',
     bossName: 'The Warden of the Pass',
@@ -178,8 +178,8 @@ export const PVP_ARENAS = [
   {
     id: 'dust-meridian',
     name: 'Dust Meridian',
-    theme: 'desert',
-    blurb: 'A ladder of straights across an oasis. Wide shelves, brutal boss lane.',
+    theme: 'oasis',
+    blurb: 'A ladder of straights over bleached dunes. Wide shelves, brutal boss lane.',
     layout: DUST_MERIDIAN,
     bossKey: 'sandwyrm',
     bossName: 'The Meridian Wyrm',

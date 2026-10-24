@@ -246,6 +246,13 @@ Each biome also owns one landmark prop (`build_foliage`): Spire oak, saguaro,
 snow-laden fir, charred deadwood, crystal prism cluster. A recoloured tree was tried first and read as
 "the same tree, tinted", which is exactly what the map pass was meant to remove.
 
+Duel arenas do not borrow those tilesets: `scripts/build_arena_tiles.py` writes
+a full 42-tile set per arena theme (`-caldera`, `-glacier`, `-oasis`) from the
+same palette tables, including a themed landmark (`_build_obsidian`,
+`_build_serac`, `_build_palm`). Hordes re-use a biome regrade through
+`ENEMY_THEME_ALIAS`, because an ember brood on black basalt reads better than a
+fourth set of sprites nobody can tell apart.
+
 ### 7.2 Surface readability audit
 `surface_contrast(theme, 'road' | 'water')` returns a YCbCr distance between a
 surface and its biome ground, weighted 55/30/10/5 % across the ramp because the
