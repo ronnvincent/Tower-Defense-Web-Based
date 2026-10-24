@@ -686,41 +686,54 @@ def _build_conifer(rng):
 
 
 def _build_charred(rng):
-    """Charred deadwood: split trunk, bare claws, embers glowing in the cracks."""
+    """Charred deadwood: tapered trunk, stubby claw branches, ember-lit hollow."""
     pix = bytearray(FOLIAGE * FOLIAGE * 4)
-    ink, deep, mid = (0x14, 0x0E, 0x0E), (0x2C, 0x22, 0x21), (0x46, 0x36, 0x32)
+    ink, deep, mid, edge = (0x14, 0x0E, 0x0E), (0x2C, 0x22, 0x21), (0x4A, 0x39, 0x34), (0x1B, 0x13, 0x13)
     ember, ember_hi = (0xB4, 0x38, 0x10), (0xFF, 0x8A, 0x3C)
-    _shadow(pix, 32, 58, 15, 4, (0, 0, 0, 90))
-    # Trunk with a lean: wide enough to carry the ember hollow at 46 px on screen.
+    _shadow(pix, 32, 58, 16, 4, (0, 0, 0, 90))
+
+    def half(y):
+        # Narrow at the broken top, heavy at the root flare.
+        base = 4 + int((y - 18) * 6 / 38)
+        return base + (1 if y >= 50 else 0)
+
+    # Trunk, bark striated vertically (diagonal hatching reads as a striped box).
     for y in range(18, 57):
-        lean = (y - 18) // 10
-        for x in range(26 - lean, 38 - lean):
-            _put(pix, x, y, mid if (-lean + x) % 4 else deep, FOLIAGE)
-    # Broken crown: a splintered top edge instead of a flat cut.
-    for x, top in ((27, 16), (29, 13), (32, 15), (35, 12), (37, 17)):
+        spread = half(y)
+        for x in range(32 - spread, 32 + spread):
+            tone = mid if ((x * 7) % 5) not in (0, 1) else deep
+            _put(pix, x, y, tone, FOLIAGE)
+        _put(pix, 32 - spread, y, edge, FOLIAGE)
+        _put(pix, 31 + spread, y, edge, FOLIAGE)
+    # Splintered crown.
+    for x, top in ((28, 12), (30, 8), (32, 9), (34, 7), (36, 12)):
         for y in range(top, 19):
-            _put(pix, x, y, mid, FOLIAGE)
-    # Claw branches, two pixels thick so they survive down-scaling.
-    for direction, starty, length in ((-1, 30, 14), (1, 24, 13), (-1, 20, 9), (1, 38, 10), (-1, 41, 8)):
-        x, y = 32, starty
+            _put(pix, x, y, deep if x % 2 else mid, FOLIAGE)
+    # Stubby claw branches: three, two pixels thick, emerging from the trunk edge.
+    for direction, starty, length in ((-1, 30, 13), (1, 24, 12), (1, 40, 9)):
+        x = 32 + direction * half(starty)
+        y = starty
         for step in range(length):
             x += direction
             y -= 1 if step % 2 == 0 else 0
             _put(pix, x, y, mid if step % 3 else deep, FOLIAGE)
             _put(pix, x, y + 1, deep, FOLIAGE)
+            _put(pix, x, y + 2, edge, FOLIAGE)
             if step in (4, 8):
-                for k in range(1, 5):
+                for k in range(1, 4):
                     _put(pix, x + direction * k, y - k, deep, FOLIAGE)
                     _put(pix, x + direction * k, y - k + 1, deep, FOLIAGE)
-    # Hollow crack with embers
-    for y in range(30, 52):
+    # Hollow crack with embers, wide enough to read at board scale.
+    for y in range(24, 53):
         _put(pix, 31, y, ink, FOLIAGE)
+        _put(pix, 32, y, ink, FOLIAGE)
         if y % 6 == 0:
-            _put(pix, 31, y, ember, FOLIAGE)
-            _put(pix, 30, y, ember_hi, FOLIAGE)
+            _put(pix, 30, y, ember, FOLIAGE)
+            _put(pix, 31, y, ember_hi, FOLIAGE)
+            _put(pix, 33, y, ember, FOLIAGE)
     # Embers scattered in the ash at the base, half-buried.
     for _ in range(28):
-        x, y = rng.randint(18, 48), rng.randint(48, 58)
+        x, y = rng.randint(16, 48), rng.randint(48, 58)
         if rng.random() < 0.55:
             _put(pix, x, y, ember_hi if rng.random() < 0.4 else ember, FOLIAGE)
     return pix
