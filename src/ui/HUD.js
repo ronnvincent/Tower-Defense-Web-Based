@@ -343,7 +343,7 @@ export class HUD {
     if (tower.specialization) {
       titleStr = `★3 ${tower.stats.title}`;
     } else if (tower.isBarricade) {
-      titleStr = tower.level === 2 ? 'Spiked Bastion' : 'Stone Roadblock';
+      titleStr = tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade');
     }
 
     document.getElementById('inspect-name').innerText = tower.stats?.title || tower.def.name;

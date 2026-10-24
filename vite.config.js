@@ -6,6 +6,8 @@ export default defineConfig({
   base: './',
   server: {
     open: false,
+    // Allow proxied preview hosts (e.g. *.e2b.app) to reach the dev server.
+    allowedHosts: true,
     watch: {
       ignored: ['**/*.zip', '**/src/assets/**', '**/scripts/**'],
     },

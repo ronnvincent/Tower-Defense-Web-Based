@@ -21,7 +21,8 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 - **Core Logic:** Pure Modern JavaScript (ES Modules).
 - **Build System:** [Vite 7.3.7](https://vite.dev/) (Instant HMR local development and optimized production bundling).
 - **Testing Framework:** [Vitest 5.0.5](https://vitest.dev/) (Automated headless unit testing in Node.js environment).
-- **Audio:** Web Audio API (Synthesizes sound effects at runtime with zero external audio assets).
+- **Audio:** Web Audio API synthesis for the UI cues, plus CC0 foley clips.
+- **Art:** [Foozle "Spire"](https://foozlecc.itch.io/) pixel-art towers, enemies and terrain (CC0 1.0) — see [docs/asset-integration.md](docs/asset-integration.md).
 - **Styling:** Vanilla CSS3 with bespoke dark fantasy / arcane bastion art direction.
 
 ---
@@ -38,7 +39,7 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 ### 2. Adjacency-List Graph (`src/dsa/Graph.js`)
 - **Structure:** `Map<string, string[]>` mapping cell keys (`"row,col"`) to an array of orthogonally adjacent walkable neighbor coordinates.
 - **Why an Adjacency List?** In a 240-tile grid with only ~90 road cells (maximum degree 4), an adjacency list stores only existing edges ($O(V + E)$ space) instead of an $O(V^2)$ sparse adjacency matrix.
-- **Dynamic Graph Cuts:** Road Barricades physically remove nodes from the graph, dynamically rerouting enemies in real-time.
+- **Dynamic Graph Cuts:** Palisades physically remove nodes from the graph, dynamically rerouting enemies in real-time.
 
 ### 3. Arrays with $O(1)$ Swap Removal & In-Place Compaction (`src/utils/arrayUtils.js`)
 - Manages active collections: `activeEnemies[]`, `activeTowers[]`, `activeProjectiles[]`.
@@ -81,18 +82,18 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders. Earn gold coins by eliminating enemies and construct defensive towers on grass tiles or tactical barricades on road tiles.
 
 ### Defense Arsenal
-1. **Archer Tower (🪙 60):** Balanced single-target ballista. Upgradable to Level 3.
-2. **Cannon Battery (🪙 110):** Heavy mortar with ballistic arc and area-of-effect splash damage.
-3. **Frost Spire (🪙 85):** Casts slowing frost aura (up to 60% slow).
-4. **Road Barricade (🪙 30):** Placed directly on the road to cut graph edges and force enemy rerouting. Cannot seal off the only path.
+1. **Ballista Tower (🪙 60):** Balanced single-target bolt fire. Branches into Rapid Ranger or Sniper.
+2. **Boulder Sling (🪙 110):** Lobbed stone artillery with splash damage. Branches into Siege Sling or Stone Hammer.
+3. **Frost Bastion (🪙 85):** Crystal tower casting slowing frost (up to 60% slow). Branches into Blizzard Spire or Lightning Conductor.
+4. **Palisade (🪙 30):** Placed directly on the road to cut graph edges and force enemy rerouting. Cannot seal off the only path.
 
 ### Keyboard Shortcuts
 | Key | Action |
 |:---:|---|
-| <kbd>1</kbd> | Select Archer Tower |
+| <kbd>1</kbd> | Select Ballista Tower |
 | <kbd>2</kbd> | Select Cannon Battery |
 | <kbd>3</kbd> | Select Frost Spire |
-| <kbd>4</kbd> | Select Road Barricade |
+| <kbd>4</kbd> | Select Palisade |
 | <kbd>Space</kbd> | Start Next Wave / Toggle Pause |
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |
 | <kbd>C</kbd> | Toggle DSALGO Technical Codex |
@@ -177,7 +178,7 @@ tower-defense-dsalgo/
 │   │   ├── Tower.js            # Target acquisition, recoil & upgrade states
 │   │   └── Projectile.js       # Ballistic arcs, splash blast & hit text
 │   ├── rendering/
-│   │   ├── TextureFactory.js   # Procedural Canvas 2D sprites (zero external assets)
+│   │   ├── TextureFactory.js   # Procedural Canvas 2D fallbacks (portal, base, FX)
 │   │   └── AudioSynth.js       # Procedural Web Audio sound generator
 │   ├── scenes/
 │   │   ├── BootScene.js        # Asset generation & bootstrap

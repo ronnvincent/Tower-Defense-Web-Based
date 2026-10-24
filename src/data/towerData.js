@@ -17,10 +17,10 @@
 export const TOWER_TYPES = {
   archer: {
     key: 'archer',
-    name: 'Archer Tower',
+    name: 'Ballista Tower',
     hotkey: '1',
     cost: 60,
-    description: 'Rapid ballistic defense. Upgrades into high-fire-rate Ranger or high-range Sniper.',
+    description: 'Rapid bolt fire. Upgrades into a high-fire-rate Ranger or a long-range Sniper.',
     projectile: 'arrow',
     projectileSpeed: 640,
     placement: 'grass',
@@ -78,10 +78,10 @@ export const TOWER_TYPES = {
 
   cannon: {
     key: 'cannon',
-    name: 'Cannon Tower',
+    name: 'Boulder Sling',
     hotkey: '2',
     cost: 110,
-    description: 'Heavy artillery dealing area-of-effect splash damage.',
+    description: 'Lobbed stone artillery with area-of-effect splash damage.',
     projectile: 'cannonball',
     projectileSpeed: 380,
     placement: 'grass',
@@ -110,7 +110,7 @@ export const TOWER_TYPES = {
       siege: {
         specKey: 'siege',
         branch: 'spec-a',
-        title: 'Siege Cannon',
+        title: 'Siege Sling',
         damage: 130,
         range: 170,
         cooldown: 1350,
@@ -125,7 +125,7 @@ export const TOWER_TYPES = {
       artillery: {
         specKey: 'artillery',
         branch: 'spec-b',
-        title: 'Heavy Artillery',
+        title: 'Stone Hammer',
         damage: 240,
         range: 185,
         cooldown: 2100,
@@ -144,10 +144,10 @@ export const TOWER_TYPES = {
 
   frost: {
     key: 'frost',
-    name: 'Frost Spire',
+    name: 'Frost Bastion',
     hotkey: '3',
     cost: 85,
-    description: 'Mystic spire chilling enemies with slows, branching into Blizzard or Chain Lightning.',
+    description: 'Crystal bastion chilling enemies with slows, branching into Blizzard or Chain Lightning.',
     projectile: 'frost',
     projectileSpeed: 500,
     placement: 'grass',
@@ -214,27 +214,27 @@ export const TOWER_TYPES = {
 
 /**
  * Barricade: placed on ROAD tiles. It removes an edge from the graph, forcing BFS
- * to reroute enemies. Can be upgraded into a Spiked Bastion reflecting contact thorns.
+ * to reroute enemies. The iron-bound upgrade reflects contact thorns.
  */
 export const BARRICADE = {
   key: 'barricade',
-  name: 'Road Barricade',
+  name: 'Palisade',
   hotkey: '4',
   cost: 30,
-  description: 'Blocks a road tile. Enemies reroute via BFS. Upgradable to Spiked Bastion.',
+  description: 'Blocks a road tile. Enemies reroute via BFS. Upgradable to a reinforced palisade.',
   placement: 'road',
   levels: [
     {
       level: 1,
-      title: 'Stone Roadblock',
+      title: 'Wooden Palisade',
       thornsDamage: 0,
     },
     {
       level: 2,
-      title: 'Spiked Bastion',
+      title: 'Reinforced Palisade',
       upgradeCost: 35,
       thornsDamage: 15,
-      description: 'Reinforced spikes deal 15 contact damage whenever enemies march past.',
+      description: 'Iron-sheathed stakes deal 15 contact damage whenever enemies march past.',
     },
   ],
 };

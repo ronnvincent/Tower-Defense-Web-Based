@@ -62,7 +62,7 @@ The map contains **three distinct routes** from Spawn `(5,0)` to Base `(5,19)`:
 2. **North Route:** 28 cells (27 steps).
 3. **South Route:** 30 cells (29 steps).
 
-When the player attempts to construct a **Road Barricade**:
+When the player attempts to construct a **Palisade**:
 1. `tryBlockCell(key, enemyStarts)` simulates blocking the node using a temporary `blocked` Set.
 2. BFS runs to verify that:
    - A valid path still exists from Spawn `(5,0)` to Base `(5,19)`.

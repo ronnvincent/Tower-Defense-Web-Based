@@ -95,6 +95,14 @@ export class GameScene extends Phaser.Scene {
 
   renderBattlefieldMap() {
     const tilesGraphics = this.add.graphics().setDepth(3);
+    const isRoadCell = (r, c) =>
+      r >= 0 &&
+      r < this.map.rows &&
+      c >= 0 &&
+      c < this.map.cols &&
+      (this.map.tiles[r][c] === TILE.ROAD ||
+        this.map.tiles[r][c] === TILE.SPAWN ||
+        this.map.tiles[r][c] === TILE.BASE);
 
     for (let r = 0; r < this.map.rows; r++) {
       for (let c = 0; c < this.map.cols; c++) {
@@ -104,54 +112,56 @@ export class GameScene extends Phaser.Scene {
         const cx = x + TILE_SIZE / 2;
         const cy = y + TILE_SIZE / 2;
 
-        if (type === TILE.ROAD || type === TILE.SPAWN || type === TILE.BASE) {
-          // Cobblestone/dirt road sprite
-          if (this.textures.exists('tile-road')) {
-            this.add.image(cx, cy, 'tile-road').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
-          } else {
-            tilesGraphics.fillStyle(0x8c704b);
-            tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          }
-        } else if (type === TILE.GRASS) {
-          // Textured grass sprite
-          if (this.textures.exists('tile-grass')) {
-            const grass = this.add.image(cx, cy, 'tile-grass').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
-            if ((r + c) % 2 === 1) grass.setFlipX(true);
-          } else {
-            tilesGraphics.fillStyle((r + c) % 2 === 0 ? 0x1c3a33 : 0x1f4038);
-            tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          }
+        // Every cell starts as grass — the Spire road tiles carry their own
+        // ragged grass edges, so a single draw call per tile is enough.
+        if (this.textures.exists('tile-grass')) {
+          this.add.image(cx, cy, 'tile-grass').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+        } else {
+          tilesGraphics.fillStyle((r + c) % 2 === 0 ? 0x1c3a33 : 0x1f4038);
+          tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        }
 
-          // Natural environmental foliage
-          if ((r * 11 + c * 17) % 5 === 0 && this.textures.exists('tile-foliage')) {
-            this.add.image(cx + (r % 3 - 1) * 8, cy + (c % 3 - 1) * 8, 'tile-foliage')
-              .setScale(0.55)
-              .setAlpha(0.85)
-              .setDepth(2);
-          }
+        if (type === TILE.ROAD || type === TILE.SPAWN || type === TILE.BASE) {
+          // 4-bit neighbour mask -> one of 16 pre-baked road tiles.
+          const mask =
+            (isRoadCell(r - 1, c) ? 1 : 0) |
+            (isRoadCell(r, c + 1) ? 2 : 0) |
+            (isRoadCell(r + 1, c) ? 4 : 0) |
+            (isRoadCell(r, c - 1) ? 8 : 0);
+          const key = `tile-road-${mask}`;
+          this.add
+            .image(cx, cy, this.textures.exists(key) ? key : 'tile-road-15')
+            .setDisplaySize(TILE_SIZE, TILE_SIZE)
+            .setDepth(1);
         } else if (type === TILE.ROCK) {
-          // Base grass with authentic boulder
-          if (this.textures.exists('tile-grass')) {
-            this.add.image(cx, cy, 'tile-grass').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
-          }
           if (this.textures.exists('tile-rock')) {
-            this.add.image(cx, cy, 'tile-rock').setDisplaySize(48, 48).setDepth(2);
+            this.add.image(cx, cy, 'tile-rock').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2);
           } else {
             tilesGraphics.fillStyle(0x15302a);
             tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
           }
         } else if (type === TILE.WATER) {
-          // Deep mystic water
-          tilesGraphics.fillStyle(0x133854, 1);
-          tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          tilesGraphics.fillStyle(0x1b4e75, 0.7);
-          tilesGraphics.fillCircle(cx, cy, 20);
+          if (this.textures.exists('tile-water')) {
+            this.add.image(cx, cy, 'tile-water').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+          } else {
+            tilesGraphics.fillStyle(0x133854, 1);
+            tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+          }
+        } else if (type === TILE.GRASS) {
+          // Natural environmental foliage
+          if ((r * 11 + c * 17) % 5 === 0 && this.textures.exists('tile-foliage')) {
+            this.add
+              .image(cx + (r % 3 - 1) * 8, cy + (c % 3 - 1) * 8, 'tile-foliage')
+              .setScale(0.9)
+              .setAlpha(0.95)
+              .setDepth(2);
+          }
         }
       }
     }
 
-    // Subtle tactical grid lines
-    tilesGraphics.lineStyle(1, 0x1b2838, 0.22);
+    // Subtle tactical grid lines (kept so placement stays readable)
+    tilesGraphics.lineStyle(1, 0x1b2838, 0.18);
     for (let c = 0; c <= this.map.cols; c++) {
       tilesGraphics.lineBetween(c * TILE_SIZE, 0, c * TILE_SIZE, this.map.rows * TILE_SIZE);
     }

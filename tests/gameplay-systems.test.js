@@ -5,9 +5,9 @@ import { WAVES, countWaveEnemies } from '../src/data/waveData.js';
 import { calculateDamage, DAMAGE_TYPE } from '../src/systems/CombatCalculator.js';
 
 describe('Tower Progression & Specialization Architecture', () => {
-  it('defines 3 distinct progression levels for Archer Tower with branching specializations', () => {
+  it('defines 3 distinct progression levels for the Ballista Tower with branching specializations', () => {
     const archer = TOWER_TYPES.archer;
-    expect(archer.name).toBe('Archer Tower');
+    expect(archer.name).toBe('Ballista Tower');
     expect(archer.levels).toHaveLength(2); // Level 1 & Level 2
 
     const lvl1 = archer.levels[0];
@@ -38,7 +38,7 @@ describe('Tower Progression & Specialization Architecture', () => {
     expect(sniper.spriteKey).toBe('tower-top-archer-spec-b');
   });
 
-  it('defines Cannon Tower evolutions: Siege Cannon (AoE) vs Heavy Artillery (Anti-Armor)', () => {
+  it('defines Boulder Sling evolutions: Siege Sling (AoE) vs Stone Hammer (Anti-Armor)', () => {
     const cannon = TOWER_TYPES.cannon;
     expect(cannon.specializations.siege).toBeDefined();
     expect(cannon.specializations.artillery).toBeDefined();
@@ -46,8 +46,8 @@ describe('Tower Progression & Specialization Architecture', () => {
     const siege = cannon.specializations.siege;
     const artillery = cannon.specializations.artillery;
 
-    expect(siege.title).toBe('Siege Cannon');
-    expect(artillery.title).toBe('Heavy Artillery');
+    expect(siege.title).toBe('Siege Sling');
+    expect(artillery.title).toBe('Stone Hammer');
     expect(siege.splash).toBeGreaterThan(artillery.splash);
     expect(artillery.damage).toBeGreaterThan(siege.damage);
     expect(artillery.armorBreak).toBe(25);

@@ -347,8 +347,8 @@ body:active {
 }
 
 .card-sprite {
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -1315,4 +1315,14 @@ body:active {
 .toast-success {
   border-color: var(--emerald-primary);
   color: var(--emerald-primary);
+}
+
+/* Pixel-art assets must not be smoothed when the browser scales the HUD cards. */
+.card-sprite {
+  image-rendering: pixelated;
+}
+
+/* The Phaser canvas is a 1280x768 pixel-art buffer scaled with FIT; keep it sharp. */
+#game-container canvas {
+  image-rendering: pixelated;
 }

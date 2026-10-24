@@ -1,5 +1,11 @@
 import { TILE_SIZE, SELL_REFUND_RATIO } from '../config/gameConfig.js';
 import { TOWER_TYPES, BARRICADE } from '../data/towerData.js';
+import {
+  TOWER_VISUALS,
+  BARRICADE_VISUALS,
+  NON_ROTATING_TYPES,
+  MUZZLE_OFFSET,
+} from '../data/towerVisuals.js';
 import { Projectile } from './Projectile.js';
 import { audio } from '../rendering/AudioSynth.js';
 
@@ -48,20 +54,33 @@ export class Tower {
     this.container = scene.add.container(this.x, this.y);
     this.container.setDepth(15);
 
+    this.visual = this.getVisual();
+
     if (this.isBarricade) {
-      this.sprite = scene.add.image(0, 0, 'barricade');
+      const tier = BARRICADE_VISUALS[1];
+      // Palisade art is bottom-anchored on the tile's ground line, nudged down
+      // by the art's own skirt so the stakes stand *on* the road.
+      this.sprite = scene.add
+        .image(0, TILE_SIZE / 2 + tier.offsetY * 0.25, tier.key)
+        .setOrigin(0.5, 1);
       this.container.add(this.sprite);
     } else {
-      // Octagonal Base
-      this.baseSprite = scene.add.image(0, 0, `tower-base-${this.typeKey}`);
+      // Static structure (steps, keep, plinth) anchored to the tile's ground line.
+      this.baseSprite = scene.add
+        .image(0, TILE_SIZE / 2, this.visual.baseKey)
+        .setOrigin(0.5, 1);
       this.container.add(this.baseSprite);
 
-      // Rotating Turret Top
-      this.topSprite = scene.add.image(0, 0, `tower-top-${this.typeKey}`);
-      if (this.typeKey === 'frost') {
-        this.topSprite.setTint(0x7fe9ff);
-      }
+      // Weapon sprite: rotated around its mechanical pivot, not its centre.
+      // Must be a Sprite (not an Image) so the weapon's attack clip can play.
+      this.topSprite = scene.add.sprite(0, this.visual.weaponY, this.visual.weaponKey, 0);
+      this.topSprite.setOrigin(this.visual.originX, this.visual.originY);
       this.container.add(this.topSprite);
+
+      // Idle pose (frame 0) — the attack clip takes over while firing.
+      if (scene.anims.exists(`${this.visual.weaponKey}-rest`)) {
+        this.topSprite.play(`${this.visual.weaponKey}-rest`);
+      }
 
       // Level star/pip indicators
       this.levelText = scene.add.text(14, 14, '★', {
@@ -81,6 +100,30 @@ export class Tower {
     this.rangeCircle.setDepth(12);
     this.rangeCircle.setVisible(false);
     this.drawRangeCircle();
+  }
+
+  /** Which upgrade slot the tower currently shows ('lvl1' | 'lvl2' | 'spec-a' | 'spec-b'). */
+  get visualSlot() {
+    if (this.specialization) {
+      return this.specialization === 'rapid' || this.specialization === 'siege' || this.specialization === 'blizzard'
+        ? 'spec-a'
+        : 'spec-b';
+    }
+    return this.level === 2 ? 'lvl2' : 'lvl1';
+  }
+
+  /** Art data for the current slot, with the sprite origin expressed as 0..1. */
+  getVisual() {
+    if (this.isBarricade) {
+      return BARRICADE_VISUALS[this.level] || BARRICADE_VISUALS[1];
+    }
+    const v = TOWER_VISUALS[this.typeKey][this.visualSlot];
+    return {
+      ...v,
+      originX: v.px / v.fw,
+      originY: v.py / v.fh,
+      weaponY: TILE_SIZE / 2 - v.mount,
+    };
   }
 
   get stats() {
@@ -141,6 +184,23 @@ export class Tower {
     return this.targetingMode;
   }
 
+  /** Re-point both sprites at the art for the current level/specialisation. */
+  applyVisual() {
+    this.visual = this.getVisual();
+    if (this.baseSprite) {
+      this.baseSprite.setTexture(this.visual.baseKey);
+    }
+    if (this.topSprite) {
+      this.topSprite.setTexture(this.visual.weaponKey, 0);
+      this.topSprite.setOrigin(this.visual.originX, this.visual.originY);
+      this.topSprite.setPosition(0, this.visual.weaponY);
+      this.topSprite.setRotation(0);
+      if (this.scene.anims.exists(`${this.visual.weaponKey}-rest`)) {
+        this.topSprite.play(`${this.visual.weaponKey}-rest`);
+      }
+    }
+  }
+
   updateLevelIndicator() {
     if (!this.levelText || this.isBarricade) return;
     if (this.specialization) {
@@ -195,35 +255,25 @@ export class Tower {
 
     if (this.isBarricade) {
       this.level = 2;
-      if (this.sprite && this.scene.textures.exists('barricade-lvl2')) {
-        this.sprite.setTexture('barricade-lvl2');
+      const tier = BARRICADE_VISUALS[2];
+      if (this.sprite && this.scene.textures.exists(tier.key)) {
+        this.sprite.setTexture(tier.key);
+        this.sprite.y = TILE_SIZE / 2 + tier.offsetY * 0.25;
       }
       return true;
     }
 
     if (this.level === 1) {
       this.level = 2;
-      if (this.topSprite) {
-        const lvl2Key = `tower-top-${this.typeKey}-lvl2`;
-        if (this.scene.textures.exists(lvl2Key)) {
-          this.topSprite.setTexture(lvl2Key);
-        }
-      }
     } else if (this.level === 2) {
       this.level = 3;
       this.specialization = targetOpt.specKey || choiceKey;
-      if (this.topSprite && targetOpt.spriteKey && this.scene.textures.exists(targetOpt.spriteKey)) {
-        this.topSprite.setTexture(targetOpt.spriteKey);
-      }
     }
 
-    if (this.typeKey === 'frost') {
-      if (this.specialization === 'lightning') {
-        this.topSprite?.setTint(0xffea78); // Electric yellow/gold
-      } else {
-        this.topSprite?.setTint(0x7fe9ff); // Cyan blizzard
-      }
-    }
+    // Both halves of the tower change with the upgrade: the pack's level art is
+    // a taller structure AND a bigger weapon, so swapping only the top would
+    // leave the two halves mismatched.
+    this.applyVisual();
 
     this.updateLevelIndicator();
     this.drawRangeCircle(0x4ee1ff);
@@ -270,8 +320,8 @@ export class Tower {
       const dx = this.currentTarget.x - this.x;
       const dy = this.currentTarget.y - this.y;
 
-      // Turret faces the target (except frost spire which floats)
-      if (this.typeKey !== 'frost' && this.topSprite) {
+      // Turret faces the target (frost crystals float instead of tracking)
+      if (!NON_ROTATING_TYPES.has(this.typeKey) && this.topSprite) {
         this.turretAngle = Math.atan2(dy, dx);
         this.topSprite.rotation = this.turretAngle;
       }
@@ -351,8 +401,16 @@ export class Tower {
     audio.playShoot(this.typeKey);
     this.context.gameState.counters.projectilesFired++;
 
+    // Play the pack's attack animation (it ends back on the resting pose).
+    if (this.topSprite && this.scene.anims.exists(`${this.visual.weaponKey}-fire`)) {
+      this.topSprite.play(`${this.visual.weaponKey}-fire`);
+      this.topSprite.once('animationcomplete', () => {
+        this.topSprite?.play(`${this.visual.weaponKey}-rest`);
+      });
+    }
+
     // Recoil tween
-    if (this.topSprite && this.typeKey !== 'frost') {
+    if (this.topSprite && !NON_ROTATING_TYPES.has(this.typeKey)) {
       const recoilDist = this.typeKey === 'cannon' ? -5 : -3;
       const rx = Math.cos(this.turretAngle) * recoilDist;
       const ry = Math.sin(this.turretAngle) * recoilDist;
@@ -371,11 +429,20 @@ export class Tower {
     const projType = s.projectile || this.def.projectile;
     const projSpeed = s.projectileSpeed || this.def.projectileSpeed;
 
+    // Shots leave the actual weapon, not the tile centre.
+    const muzzle = MUZZLE_OFFSET[this.visual.file] || { x: 0, y: -24 };
+    const angle = this.turretAngle;
+    // Muzzle offsets are measured from the weapon's pivot; rotating weapons
+    // carry the offset around with them, static crystals just add it.
+    const aim = NON_ROTATING_TYPES.has(this.typeKey) ? -Math.PI / 2 : angle;
+    const originX = this.x + Math.cos(aim) * muzzle.x - Math.sin(aim) * muzzle.y;
+    const originY = this.y + this.visual.weaponY + Math.sin(aim) * muzzle.x + Math.cos(aim) * muzzle.y;
+
     const proj = new Projectile(
       this.scene,
       projType,
-      this.x,
-      this.y,
+      originX,
+      originY,
       target,
       {
         damage: s.damage,
@@ -390,8 +457,11 @@ export class Tower {
         chainTargets: s.chainTargets || 0,
         chainRange: s.chainRange || 0,
         stunMs: s.stunMs || 0,
+        impactKey: this.visual.slotImpact || null,
       },
-      this.context.activeEnemies
+      this.context.activeEnemies,
+      // Upgrade tiers can carry their own projectile and impact art.
+      this.visual.slotTexture || null
     );
     this.context.activeProjectiles.push(proj);
   }

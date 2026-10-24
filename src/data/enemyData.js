@@ -12,6 +12,9 @@
  *   isBoss       – true for major boss encounters
  *   bossPhases   – phase thresholds and mechanics for boss encounters
  *   abilities    – archetype specific abilities (e.g. heal pulse, summons)
+ *
+ * Sprites are looked up as `enemy-<typeKey>` (see src/data/spireManifest.js),
+ * so no per-archetype sprite key is needed here.
  */
 
 export const ENEMY_TYPES = {
@@ -27,7 +30,6 @@ export const ENEMY_TYPES = {
     score: 10,
     baseDamage: 1,
     radius: 16,
-    spriteKey: 'enemy-grunt',
   },
 
   runner: {
@@ -42,7 +44,6 @@ export const ENEMY_TYPES = {
     score: 12,
     baseDamage: 1,
     radius: 13,
-    spriteKey: 'enemy-runner',
   },
 
   brute: {
@@ -57,7 +58,6 @@ export const ENEMY_TYPES = {
     score: 35,
     baseDamage: 3,
     radius: 22,
-    spriteKey: 'enemy-brute',
   },
 
   swarm: {
@@ -72,7 +72,6 @@ export const ENEMY_TYPES = {
     score: 6,
     baseDamage: 1,
     radius: 12,
-    spriteKey: 'enemy-swarm',
     useSlimeAnim: true,
   },
 
@@ -88,7 +87,6 @@ export const ENEMY_TYPES = {
     score: 40,
     baseDamage: 2,
     radius: 18,
-    spriteKey: 'enemy-healer',
     ability: {
       type: 'heal',
       radius: 95,
@@ -109,7 +107,6 @@ export const ENEMY_TYPES = {
     score: 30,
     baseDamage: 2,
     radius: 19,
-    spriteKey: 'enemy-shield',
   },
 
   colossus: {
@@ -125,7 +122,6 @@ export const ENEMY_TYPES = {
     baseDamage: 8,
     radius: 28,
     isBoss: true,
-    spriteKey: 'boss-colossus',
     bossPhases: [
       {
         phase: 1,
@@ -164,7 +160,6 @@ export const ENEMY_TYPES = {
     baseDamage: 12,
     radius: 30,
     isBoss: true,
-    spriteKey: 'boss-warlord',
     bossPhases: [
       {
         phase: 1,
