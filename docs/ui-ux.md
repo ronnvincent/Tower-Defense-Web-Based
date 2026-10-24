@@ -166,7 +166,7 @@ Bugs this caught and fixed:
 
 ```bash
 npm test                # 298 tests / 24 suites (includes the UI + mobile-layout suites)
-npm run check:contrast  # WCAG audit — 30/30
+npm run check:contrast  # WCAG audit — 36/36
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
 npm run dev             # manual check at http://localhost:5173
@@ -206,3 +206,34 @@ Manual checklist for a human browser session:
 5. Resize the window down to ~600 px wide — the top bar wraps, the dock becomes a strip, the inspector
    stays inside the battlefield.
 6. On a phone, rotate to portrait — the rotate card appears with *Continue anyway*.
+
+---
+
+## 8. Campaign screens
+
+**World map** (`src/ui/LevelSelectUI.js`, styles under "CAMPAIGN UI" in `src/style.css`)
+- A single `.overlay-screen` inside `#modal-container`; the container stays
+  `pointer-events: none` so the battlefield below keeps its drags, and the
+  overlay re-enables pointer events for itself only.
+- Four stage nodes (three levels + Endless Siege) on a dashed `.track-line`.
+  Each node carries the generated minimap of *its own* battlefield, the level's
+  stars, and a padlock + `disabled` when it is still locked. The accent colour
+  comes from `THEMES[level.theme].accent` through a `--node-accent` custom
+  property, so a new biome needs no new CSS.
+- The header is the campaign wallet (gold, gems, total stars). `Esc`-free: the
+  only ways out are a node or MAIN MENU.
+
+**Result screen** (`src/ui/ResultScreenUI.js`)
+- Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, three
+  stat chips (score / waves / time), the banked rewards, an unlock line, and
+  Next / Replay / Leaderboard / Main Menu.
+- Defeat: same shell in crimson, a skull mark instead of stars, RETRY instead of
+  Next. Endless swaps the stat chips for WAVE REACHED / BEST WAVE / SCORE and
+  reports a new depth record.
+- The leaderboard opens *over* the result screen (later DOM sibling, higher
+  z-index), so the player can submit a score and still take Next afterwards.
+
+**HUD level chip** — the running level's name sits under the top bar in the same
+lane as the pause banner (which shifts down 26 px while a level chip is
+present). In Endless the wave counter drops its "/ N" denominator and the chip
+turns crimson.
