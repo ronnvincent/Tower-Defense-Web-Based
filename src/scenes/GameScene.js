@@ -1278,7 +1278,7 @@ export class GameScene extends Phaser.Scene {
     for (const milestone of crossed) {
       gold += milestone.gold;
       gems += milestone.gems;
-      this.hud?.showToast(`∞ MILESTONE · ${milestoneLabel(milestone)}`.replace(' ∞', ' ∞'), 'success');
+      this.hud?.showToast(`∞ MILESTONE · ${milestoneLabel(milestone)}`, 'success');
     }
     this.economy.earn(gold);
     this.progress?.addGems?.(gems);
