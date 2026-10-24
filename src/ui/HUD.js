@@ -136,6 +136,7 @@ export class HUD {
           <p class="pause-title">⏸ SIMULATION PAUSED</p>
           <div class="pause-actions">
             <button id="btn-resume" class="game-btn game-btn-primary">RESUME</button>
+            <button id="btn-blessings" class="game-btn game-btn-gold" title="Spend gold on a blessing for this battle">BLESSINGS</button>
             <button id="btn-codex" class="game-btn game-btn-gold" title="Algorithm codex (C)">CODEX</button>
             <button id="btn-menu" class="game-btn game-btn-danger">LEAVE BATTLE</button>
           </div>
@@ -369,6 +370,11 @@ export class HUD {
       return isPaused;
     };
     this.togglePause = togglePause;
+
+    document.getElementById('btn-blessings')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onOpenBlessings?.();
+    });
 
     document.getElementById('btn-pause')?.addEventListener('click', () => {
       audio.playClick();

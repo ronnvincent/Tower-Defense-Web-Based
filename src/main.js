@@ -11,6 +11,8 @@ import { LevelSelectUI } from './ui/LevelSelectUI.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
 import { ProgressStore } from './systems/Progression.js';
 import { AchievementsUI } from './ui/AchievementsUI.js';
+import { ForgeUI } from './ui/ForgeUI.js';
+import { BlessingsUI } from './ui/BlessingsUI.js';
 import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
 import { getNextLevel } from './data/levelData.js';
 import { audio } from './rendering/AudioSynth.js';
@@ -188,6 +190,31 @@ function openMainMenu() {
 }
 
 window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap };
+
+window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
+  onClose: () => {
+    hudLayer()?.classList.add('hidden');
+    menuOverlay()?.classList.remove('hidden');
+  },
+});
+
+// The blessings panel is in-battle UI: it reads the live scene rather than a
+// snapshot, so gold and the per-run purchase counters are always current.
+window.gameBlessings = new BlessingsUI(modalContainer, {
+  state: () => {
+    const scene = game.scene.getScene('GameScene');
+    if (!scene || !scene.economy || !scene.scene?.isActive?.()) return null;
+    return { gold: scene.economy.coins, purchased: scene.blessingsBought || {} };
+  },
+  buy: (id) => {
+    const scene = game.scene.getScene('GameScene');
+    if (!scene?.buyBlessing) return { ok: false, reason: 'no-run' };
+    const result = scene.buyBlessing(id);
+    // Buying from the paused panel must not leave the HUD showing old numbers.
+    scene.syncHUD?.();
+    return result;
+  },
+});
 
 window.gameAchievements = new AchievementsUI(screenContainer, window.gameProgress, {
   onClose: () => {
@@ -424,6 +451,13 @@ document.getElementById('menu-btn-achievements')?.addEventListener('click', () =
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.add('hidden');
   window.gameAchievements?.show();
+});
+
+document.getElementById('menu-btn-forge')?.addEventListener('click', () => {
+  audio.playClick();
+  menuOverlay()?.classList.add('hidden');
+  hudLayer()?.classList.add('hidden');
+  window.gameForge?.show();
 });
 
 document.getElementById('menu-btn-how-to-play')?.addEventListener('click', () => {

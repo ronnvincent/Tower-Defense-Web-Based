@@ -25,6 +25,8 @@ import { compactInPlace } from '../utils/arrayUtils.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
+import { relicBonuses } from '../systems/Relics.js';
+import { blessingBonuses, canBuyBlessing, getBlessing } from '../systems/Blessings.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 import { ProgressStore } from '../systems/Progression.js';
@@ -61,6 +63,11 @@ export class GameScene extends Phaser.Scene {
     this.theme = THEMES[this.level.theme] || THEMES.grassland;
     this.progress = window.gameProgress || new ProgressStore();
     this.lastMilestoneWave = 0;
+    // Permanent relics + this run's blessings fold into one bonus set, read by
+    // the economy, the core HP and every tower's damage/cooldown.
+    this.relicBonuses = relicBonuses(this.progress?.profile?.relics || {});
+    this.blessingsBought = {};
+    this.blessingBonuses = blessingBonuses({});
   }
 
   /** Fold an event into the lifetime stats (no-op without a progress store). */
@@ -89,8 +96,9 @@ export class GameScene extends Phaser.Scene {
     // planted on this route — see PlacementSystem.validate.
     this.routeCells = new Set(this.pathfinding.mainPath);
 
-    this.economy = new EconomyManager(this.level.startingCoins);
-    this.gameState = new GameStateManager(this.level.baseHealth);
+    // Relics are the meta-progression: a little more gold, a little more core.
+    this.economy = new EconomyManager(this.level.startingCoins + this.relicBonuses.startingGold);
+    this.gameState = new GameStateManager(this.level.baseHealth + this.relicBonuses.baseHealth);
     this.placement = new PlacementSystem(this.map);
     this.leaderboard = new Leaderboard();
 
@@ -149,6 +157,7 @@ export class GameScene extends Phaser.Scene {
       this.hud.callbacks = {
         onStartWave: () => this.handleStartWave(),
         onCallWaveEarly: () => this.handleCallWaveEarly(),
+        onOpenBlessings: () => window.gameBlessings?.show?.(),
         onToggleSpeed: () => this.handleToggleSpeed(),
         onTogglePause: () => this.handleTogglePause(),
         onOpenCodex: () => this.handleOpenCodex(),
@@ -527,16 +536,19 @@ export class GameScene extends Phaser.Scene {
   handleEnemyDefeated(enemy) {
     // Kill chain: each kill inside the window raises the payout multiplier.
     const kill = registerKill(this.combo, this.time?.now || 0);
-    const comboGold = comboBonus(enemy.reward, kill.multiplier);
+    // Kill bounty first, then the relic / blessing gold multipliers, then the
+    // chain bonus — so the chain always multiplies the number the player saw.
+    const bounty = Math.round(enemy.reward * this.relicBonuses.killGold * this.blessingBonuses.killGold);
+    const comboGold = comboBonus(bounty, kill.multiplier);
     const comboScore = comboBonus(enemy.score, kill.multiplier);
 
     audio.playCoin();
     if (kill.tier > 0) audio.playCombo(kill.tier);
-    this.economy.earn(enemy.reward + comboGold + this.rewardKillAuraBonus(enemy));
+    this.economy.earn(bounty + comboGold + this.rewardKillAuraBonus(enemy));
     this.economy.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
 
-    this.trackStats({ kills: 1, goldEarned: enemy.reward + comboGold, bestChain: kill.chain }, { max: ['bestChain'] });
+    this.trackStats({ kills: 1, goldEarned: bounty + comboGold, bestChain: kill.chain }, { max: ['bestChain'] });
     if (enemy.isBoss) this.trackStats({ bossesKilled: 1 });
 
     this.spawnDeathBurst(enemy.x, enemy.y, kill.tier);
@@ -745,7 +757,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleSellTower(tower) {
-    const refund = tower.sellRefund;
+    const refund = Math.round(tower.sellRefund * this.relicBonuses.sellRefund);
     this.economy.earn(refund);
     this.placement.release(tower.row, tower.col);
 
@@ -1035,7 +1047,12 @@ export class GameScene extends Phaser.Scene {
         range = Math.max(range, 1 + (aura.rangeBonus || 0));
         cooldown = Math.min(cooldown, 1 - (aura.fireRateBonus || 0));
       }
-      tower.setBuffs({ damage, range, cooldown });
+      // Banner auras first, then the permanent relic and the run blessings.
+      tower.setBuffs({
+        damage: damage * this.relicBonuses.damage * this.blessingBonuses.damage,
+        range,
+        cooldown: cooldown * this.relicBonuses.cooldown * this.blessingBonuses.cooldown,
+      });
     }
   }
 
@@ -1216,6 +1233,34 @@ export class GameScene extends Phaser.Scene {
       timeMs: payload.timeMs,
     });
     return payload;
+  }
+
+  /**
+   * Buy a run blessing with in-run gold.
+   *
+   * Gold is spent immediately and the effect is folded into `blessingBonuses`
+   * before tower auras are recomputed, so a damage blessing applies to the
+   * very next shot rather than next wave.
+   *
+   * @returns {{ ok:boolean, reason?:string, healed?:number }}
+   */
+  buyBlessing(id) {
+    const def = getBlessing(id);
+    const check = canBuyBlessing(id, { gold: this.economy.coins, purchased: this.blessingsBought });
+    if (!check.ok || !def) return { ok: false, reason: check.reason || 'unknown' };
+    if (!this.economy.spend(def.cost)) return { ok: false, reason: 'gold' };
+
+    this.blessingsBought[id] = (this.blessingsBought[id] || 0) + 1;
+    this.blessingBonuses = blessingBonuses(this.blessingsBought);
+    const healed = def.heal ? this.gameState.healBase(def.heal) : 0;
+    this.refreshTowerAuras();
+    audio.playVictory();
+    this.hud?.showToast(
+      `${def.icon} ${def.name}${healed ? ` · +${healed} core HP` : ''} · -${def.cost}g`,
+      'success'
+    );
+    this.syncHUD();
+    return { ok: true, healed };
   }
 
   /**

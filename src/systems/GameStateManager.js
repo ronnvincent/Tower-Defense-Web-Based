@@ -79,6 +79,18 @@ export class GameStateManager {
   }
 
   /**
+   * Restore core health (Blessing of Mending). Never past the maximum, and a
+   * finished match cannot be revived.
+   * @returns {number} health actually restored
+   */
+  healBase(amount) {
+    if (this.isOver() || amount <= 0) return 0;
+    const before = this.baseHealth;
+    this.baseHealth = Math.min(this.maxBaseHealth, this.baseHealth + amount);
+    return this.baseHealth - before;
+  }
+
+  /**
    * Enter a terminal state. Returns false (and changes nothing) if the match
    * has already ended — this is what prevents double game-over/victory.
    */

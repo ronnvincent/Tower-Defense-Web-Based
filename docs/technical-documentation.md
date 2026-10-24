@@ -434,3 +434,67 @@ run passes it — `isRecordWave()` is the single comparison behind that.
 | Achievements overlay | grouped checklist with per-entry progress bars and gems |
 | HUD wave badge | `BEST N` / `NEW BEST · N` in Endless |
 | Result screen | daily modifier + streak + gems row, achievement names for the run |
+
+---
+
+## 10. Economy Layer
+
+Two currencies, two jobs. **Gems** buy permanent relics (meta-progression);
+**gold** buys in-run power and towers. Keeping them apart means a bad run still
+pays forward, and a whale cannot buy a wave.
+
+### 10.1 Relics (`src/data/relics.js`, `src/systems/Relics.js`)
+
+Six relics, **73 gems** to own outright, 14 levels total:
+
+| Relic | Levels | Effect | Gem costs |
+|---|:---:|---|---|
+| War Chest | 3 | +50 starting gold / level | 3 / 5 / 7 |
+| Reinforced Core | 2 | +5 core HP / level | 4 / 6 |
+| Sharpened Blades | 3 | +8% tower damage / level | 4 / 6 / 9 |
+| Swift Hands | 2 | −6% tower cooldown / level | 5 / 8 |
+| Gilded Kills | 2 | +10% kill gold / level | 3 / 5 |
+| Second Wind | 2 | +8% sell refund / level | 3 / 5 |
+
+`relicBonuses(profile.relics)` returns **factors**, not percentages, so callers
+multiply instead of remembering what "8%" means:
+
+```js
+{ startingGold: 100, baseHealth: 5, damage: 1.16, cooldown: 0.88,
+  killGold: 1.1, sellRefund: 1.08 }
+```
+
+`GameScene.init()` reads the collection once, then `create()` folds it into the
+starting economy and the core's maximum HP. Damage and cooldown are applied in
+`refreshTowerAuras()` after the Banner Keep auras, so a relic never fights a
+buff and the cooldown multiplier is floored at 0.4 (a tower can never stall).
+
+`buyRelic()` is pure: it returns the next map + the gem cost and never mutates
+the save. The Forge UI banks the gems and persists, which keeps the purchase
+rules in one tested place.
+
+### 10.2 Run blessings (`src/systems/Blessings.js`)
+
+Gold sinks *inside* a battle, bought from the pause card so the player is never
+distracted mid-wave:
+
+| Blessing | Cost | Effect | Per run |
+|---|:---:|---|:---:|
+| Wrath | 120g | +20% tower damage | 1 |
+| Plenty | 100g | +15% kill gold | 1 |
+| Mending | 150g | +5 core HP (capped at max) | 2 |
+| Haste | 110g | −8% tower cooldown | 2 |
+
+`blessingBonuses(purchased)` stacks repeated purchases, `canBuyBlessing()` is the
+single affordability/cap check, and `GameStateManager.healBase()` refuses to heal
+a finished match or overshoot the maximum. Purchases recompute tower auras
+immediately, so Wrath applies to the next shot rather than the next wave.
+
+### 10.3 Surfaces
+
+| Surface | Change |
+|---|---|
+| Main menu | `THE FORGE` opens the relic shop |
+| Forge overlay | one card per relic: pips for owned levels, current → next effect, price, MASTERED state |
+| Pause card | `BLESSINGS` opens the in-battle gold sink (paused, so no lost wave) |
+| HUD | relic and blessing multipliers are invisible by design — they read as bigger numbers, not new numbers |
