@@ -168,7 +168,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 478 tests / 38 suites (includes the UI + mobile-layout suites)
+npm test                # 518 tests / 39 suites (includes the UI + mobile-layout + ui-kit suites)
 npm run check:contrast  # WCAG audit — 36/36
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
@@ -248,3 +248,25 @@ Manual checklist for a human browser session:
 lane as the pause banner (which shifts down 26 px while a level chip is
 present). In Endless the wave counter drops its "/ N" denominator and the chip
 turns crimson.
+
+---
+
+## 9. Third pass — "Obsidian & Gold" reskin
+
+This pass is documented in full in [interface-kit.md](interface-kit.md). Summary of what
+changed relative to sections 1–8:
+
+- **Art**: the free Cozy UI demo pack is retired. 28 deterministic sprites are generated
+  by `scripts/build_ui_kit.py` at the same canvas sizes and slices the stylesheet already
+  used, so no layout rule moved — only the URLs.
+- **Ink**: every `--ink-*` token flipped to a light value, because every plate is now
+  dark. The gold primary button is the one light plate and uses `--ink-on-gold`.
+  `npm run check:contrast` now audits 47 pairs against the *measured* sprite fills
+  (was 36 against the wood pack); all pass, worst 6.0:1.
+- **Menu**: nine stacked buttons → `PLAY` (only gold plate) + daily + a 3×2 tile hub +
+  a save summary. Two columns above 620 px, one below; no inner scrollbar on a landscape
+  phone; every target ≥ 44 px.
+- **In play**: the same plates dress the top bar, dock, chips, cards, toasts and boss
+  banner, and `fx_ring` shockwaves land on big kills and boss events.
+- **Guard rail**: `tests/ui-kit.test.js` (40 tests) pins asset URLs, sprite dimensions,
+  slice sanity, menu ids and the absence of the old pack.

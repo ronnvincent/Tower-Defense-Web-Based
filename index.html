@@ -11,7 +11,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#14100c" />
+    <meta name="theme-color" content="#080b11" />
     <!-- Installed to the home screen the game launches straight into
          fullscreen (Android) / standalone (iOS) in landscape. -->
     <meta name="mobile-web-app-capable" content="yes" />
@@ -35,57 +35,90 @@
       <!-- HUD Mount (hidden while the main menu is open) -->
       <div id="hud-container" class="hidden"></div>
 
-      <!-- Main Menu Overlay -->
+      <!-- Main Menu Overlay — one primary action, one daily, then a tile hub.
+           Nine equal buttons used to stack in a scrolling column; PLAY is now
+           the only gold plate, the daily keeps its own reward loop, and the
+           six secondary destinations are icon tiles. Same ids, so the wiring
+           in src/main.js is unchanged. -->
       <div id="main-menu-overlay" class="hidden">
         <div class="main-menu-card">
-          <div class="menu-title-block">
-            <h1 class="menu-main-title">TOWER DEFENSE</h1>
-            <div class="menu-sub-title">⚔️ DSALGO BASTION EDITION ⚔️</div>
+          <div class="menu-brand">
+            <p class="menu-eyebrow">DSALGO BASTION EDITION</p>
+            <h1 class="menu-main-title">TOWER<span>DEFENSE</span></h1>
+            <div class="menu-rule" role="presentation"></div>
+            <p class="menu-lede">
+              Five realms, one gate. Hold the line, bank the stars, come back tomorrow for a new rule.
+            </p>
+            <dl class="menu-summary" aria-label="Save summary">
+              <div>
+                <dt>STARS</dt>
+                <dd id="menu-stat-stars">0/0</dd>
+              </div>
+              <div>
+                <dt>GEMS</dt>
+                <dd id="menu-stat-gems">0</dd>
+              </div>
+              <div>
+                <dt>MEDALS</dt>
+                <dd id="menu-stat-medals">0/0</dd>
+              </div>
+            </dl>
+            <p class="menu-footnote">
+              Drag to pan · scroll or pinch to zoom · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> cancels
+            </p>
           </div>
-          <div class="menu-btn-list">
-            <button id="menu-btn-play" class="game-btn game-btn-primary menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_swords.svg" alt="" />
-              <span>PLAY CAMPAIGN</span>
+
+          <div class="menu-actions">
+            <button id="menu-btn-play" class="menu-play" type="button">
+              <span class="menu-play-main">PLAY</span>
+              <span class="menu-play-sub">CAMPAIGN</span>
             </button>
-            <button id="menu-btn-daily" class="game-btn game-btn-gold menu-btn menu-btn-daily">
-              <img class="btn-icon-img" src="/assets/ui/icon_swords.svg" alt="" />
-              <span id="menu-daily-label">DAILY CHALLENGE</span>
+
+            <button id="menu-btn-daily" class="menu-daily" type="button">
+              <img class="menu-daily-icon" src="/assets/ui-kit/glyph_calendar.png" alt="" />
+              <span class="menu-daily-body">
+                <span class="menu-daily-kicker">DAILY CHALLENGE</span>
+                <span id="menu-daily-label">TODAY'S RULE</span>
+              </span>
               <span id="menu-daily-streak" class="menu-badge hidden">🔥 0</span>
             </button>
-            <button id="menu-btn-achievements" class="game-btn game-btn-subtle menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_trophy.png" alt="" />
-              <span>ACHIEVEMENTS</span>
-            </button>
-            <button id="menu-btn-forge" class="game-btn game-btn-subtle menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_gem.png" alt="" />
-              <span>THE FORGE</span>
-            </button>
-            <button id="menu-btn-how-to-play" class="game-btn game-btn-subtle menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_info.png" alt="" />
-              <span>HOW TO PLAY</span>
-            </button>
-            <button id="menu-btn-leaderboard" class="game-btn game-btn-gold menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_trophy.png" alt="" />
-              <span>HALL OF CHAMPIONS</span>
-            </button>
-            <button id="menu-btn-codex" class="game-btn game-btn-subtle menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_codex.png" alt="" />
-              <span>ALGORITHM CODEX</span>
-            </button>
-            <button id="menu-btn-credits" class="game-btn game-btn-subtle menu-btn">
-              <img class="btn-icon-img" src="/assets/ui/icon_gear.png" alt="" />
-              <span>CREDITS &amp; INFO</span>
-            </button>
+
+            <nav class="menu-tiles" aria-label="More destinations">
+              <button id="menu-btn-forge" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_anvil.png" alt="" />
+                <span>FORGE</span>
+              </button>
+              <button id="menu-btn-achievements" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_medal.png" alt="" />
+                <span>ACHIEVEMENTS</span>
+              </button>
+              <button id="menu-btn-leaderboard" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_crown.png" alt="" />
+                <span>CHAMPIONS</span>
+              </button>
+              <button id="menu-btn-codex" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_scroll.png" alt="" />
+                <span>CODEX</span>
+              </button>
+              <button id="menu-btn-how-to-play" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_book.png" alt="" />
+                <span>HOW TO PLAY</span>
+              </button>
+              <button id="menu-btn-credits" class="menu-tile" type="button">
+                <img src="/assets/ui-kit/glyph_gear.png" alt="" />
+                <span>CREDITS</span>
+              </button>
+            </nav>
+
+            <div class="menu-links">
+              <button id="menu-btn-fullscreen" class="menu-link-btn hidden" type="button">
+                <svg class="fs-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+                </svg>
+                <span id="menu-fullscreen-label">FULLSCREEN</span>
+              </button>
+            </div>
           </div>
-          <button id="menu-btn-fullscreen" class="menu-link-btn hidden" type="button">
-            <svg class="fs-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-            <span id="menu-fullscreen-label">ENTER FULLSCREEN</span>
-          </button>
-          <p class="menu-footnote">
-            Drag the map to pan · scroll or pinch to zoom · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> cancels
-          </p>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import { ForgeUI } from './ui/ForgeUI.js';
 import { BlessingsUI } from './ui/BlessingsUI.js';
 import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
 import { getNextLevel } from './data/levelData.js';
+import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
@@ -160,7 +161,9 @@ function refreshDailyButton() {
   const won = daily.isWon(run.key);
   const label = document.getElementById('menu-daily-label');
   const badge = document.getElementById('menu-daily-streak');
-  if (label) label.textContent = won ? 'DAILY CLEARED' : `DAILY: ${run.modifier.name.toUpperCase()}`;
+  // The kicker ("DAILY CHALLENGE") is static markup, so the label only carries
+  // today's rule — no more "DAILY: DAILY: MIDAS RUSH" on a two-line button.
+  if (label) label.textContent = won ? 'CLEARED TODAY' : run.modifier.name.toUpperCase();
   if (badge) {
     badge.textContent = streak > 0 ? `🔥 ${streak}` : '';
     badge.classList.toggle('hidden', streak <= 0);
@@ -173,8 +176,25 @@ function refreshDailyButton() {
   return run;
 }
 
+/**
+ * Paint the menu's save summary (stars / gems / medals). Idempotent and cheap:
+ * the menu re-reads it every time it is revealed, so a victory that just
+ * banked stars is already reflected when the card drops in.
+ */
+function refreshMenuSummary() {
+  const progress = window.gameProgress;
+  if (!progress) return;
+  const stars = document.getElementById('menu-stat-stars');
+  const gems = document.getElementById('menu-stat-gems');
+  const medals = document.getElementById('menu-stat-medals');
+  if (stars) stars.textContent = `${progress.totalStars}/${progress.maxStars}`;
+  if (gems) gems.textContent = String(progress.gems);
+  if (medals) medals.textContent = `${progress.profile.achievements?.length || 0}/${ACHIEVEMENTS.length}`;
+}
+
 function openMainMenu() {
   refreshDailyButton();
+  refreshMenuSummary();
   window.gameResultScreen?.hide?.();
   window.gameLevelSelect?.hide?.();
   hudLayer()?.classList.add('hidden');
@@ -418,9 +438,10 @@ function bindGateToGameScene() {
 bindGateToGameScene();
 game.events.once('ready', bindGateToGameScene);
 
-// Paint the daily button once at boot; the label depends on the calendar and
-// the unlock list, both of which are ready by now.
+// Paint the daily button and the save summary once at boot; both depend on the
+// calendar and the save file, which are ready by now.
 refreshDailyButton();
+refreshMenuSummary();
 
 // 5. Bind Main Menu Actions
 document.getElementById('menu-btn-play')?.addEventListener('click', () => {

@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 /**
- * WCAG 2.1 contrast audit for the HUD palette.
+ * WCAG 2.1 contrast audit for the HUD, menus and plates.
  *
- * The backgrounds below are the *measured average colours* of the Cozy UI Pack
- * sprites that actually sit behind the text (sampled from the PNGs in
- * public/assets/cozy-ui). That is why this script caught real bugs the old
- * palette shipped with, e.g. `--text-muted` (#b0a08a) on parchment 1.56:1 and
- * gold `#f5c451` on the wooden modal header 1.43:1.
+ * The backgrounds below are the *measured average colours* of the ui-kit
+ * sprites that actually sit behind the text, printed by
+ * `python3 scripts/build_ui_kit.py`. That is why this script catches real bugs
+ * a palette guess misses: the old wood pack shipped `--text-muted` at 1.56:1 on
+ * parchment and gold `#f5c451` at 1.43:1 on the modal plate.
+ *
+ * Re-run the generator whenever a sprite changes and paste the new averages
+ * into SURFACES — otherwise the audit keeps "passing" against art that is no
+ * longer on screen.
  *
  * Usage: npm run check:contrast
  * Exits 1 if any pair drops below its target ratio.
@@ -29,18 +33,22 @@ function readTokens(source) {
 
 const tokens = readTokens(css);
 
-/** Backgrounds sampled from the actual sprite fills (see header). */
+/** Measured fills of public/assets/ui-kit/*.png (see the header). */
 const SURFACES = {
-  wood: '#dd9a79',
-  parchment: '#faf2e6',
-  slate: '#d9d2d3',
-  slot: '#a14e3f',
-  crimson: '#f65d63',
+  panel: '#1d2025', // frame_panel.png — menu card, modal, overlay shells
+  panelSoft: '#13171f', // frame_panel_soft.png — tables, telemetry
+  note: '#13171f', // frame_note.png — toasts, result summary
+  bar: '#151a24', // frame_bar.png — HUD top bar, tower dock
+  iron: '#283040', // btn_iron.png — default button
+  gold: '#ddab46', // btn_gold.png — primary button (the one light plate)
+  crimson: '#5f1622', // btn_crimson.png — sell / danger
+  card: '#151a24', // card_iron.png — dock build cards
+  cardCrimson: '#280b12', // card_crimson.png — boss banner
+  slot: '#0f1219', // slot.png — stat chips, icon sockets
+  slotSel: '#0f1219', // slot_sel.png — wave badge, selected card
   bgDeep: tokens['bg-deep'],
   bgGlass: '#0d141a', // codex drawer gradient midpoint
-  cream: '#fffeeb', // CardRegular / ItemSlotSelected
-  // Gate card: the darker end of the linear-gradient in .gate-card.
-  gateCard: '#0f0c09',
+  gateCard: '#0f0c09', // darker end of the display-gate gradient
 };
 
 const toLinear = (channel) => {
@@ -63,28 +71,54 @@ function contrast(a, b) {
 
 /** [foreground token, surface, minimum ratio, where it is used] */
 const PAIRS = [
-  ['ink-strong', 'wood', 4.5, 'HUD stat values, modal headings, menu title'],
-  ['ink', 'wood', 4.5, 'modal body copy, button labels'],
-  ['ink-muted', 'wood', 4.5, 'secondary labels on wood'],
-  ['ink-gold', 'wood', 4.5, 'gold accents on wood (costs, menu subtitle)'],
-  ['ink-strong', 'parchment', 4.5, 'toast text, result summary'],
-  ['ink', 'parchment', 4.5, 'toast text'],
-  ['ink-muted', 'parchment', 4.5, 'result labels'],
-  ['ink-gold', 'parchment', 4.5, 'result gold values'],
-  ['ink-cyan', 'parchment', 4.5, 'info accent on the note card'],
-  ['ink-red', 'parchment', 4.5, 'defeat accent on the note card'],
-  ['ink-green', 'parchment', 4.5, 'victory accent on the note card'],
-  ['ink-strong', 'slate', 4.5, 'leaderboard rows'],
-  ['ink', 'slate', 4.5, 'leaderboard rows'],
-  ['ink-muted', 'slate', 4.5, 'empty table / meta'],
-  ['ink-gold', 'slate', 4.5, 'telemetry section titles'],
-  ['ink-cyan', 'slate', 4.5, 'DSALGO notice'],
-  ['ink-strong', 'crimson', 4.5, 'boss banner name and sell button'],
-  ['ink', 'crimson', 4.5, 'boss ability line'],
-  ['slot-muted', 'slot', 4.5, 'stat chip labels (BASE / GOLD / DAMAGE)'],
-  ['slot-text', 'slot', 4.5, 'stat chip values'],
-  ['ink-strong', 'cream', 4.5, 'dock card names, wave badge'],
-  ['ink-gold', 'cream', 4.5, 'dock card prices'],
+  // Main plate — menu, modals, overlay shells
+  ['ink-strong', 'panel', 4.5, 'menu title, modal + overlay headings'],
+  ['ink', 'panel', 4.5, 'modal body copy, menu tiles'],
+  ['ink-muted', 'panel', 4.5, 'secondary labels, menu footnote'],
+  ['ink-gold', 'panel', 4.5, 'prices, kickers, section headings'],
+  ['ink-red', 'panel', 4.5, 'defeat / danger copy'],
+  ['ink-green', 'panel', 4.5, 'victory copy'],
+  ['ink-cyan', 'panel', 4.5, 'info accent'],
+
+  // Soft plate — tables, leaderboard, telemetry
+  ['ink-strong', 'panelSoft', 4.5, 'leaderboard rows'],
+  ['ink', 'panelSoft', 4.5, 'table body'],
+  ['ink-muted', 'panelSoft', 4.5, 'empty table / meta'],
+  ['ink-gold', 'panelSoft', 4.5, 'telemetry section titles'],
+  ['ink-cyan', 'panelSoft', 4.5, 'DSALGO notice'],
+
+  // Note plate — toast, result summary
+  ['ink-strong', 'note', 4.5, 'toast text, result summary'],
+  ['ink-muted', 'note', 4.5, 'result labels'],
+  ['ink-gold', 'note', 4.5, 'result gold values'],
+
+  // Chrome bars — HUD top bar + tower dock
+  ['ink-gold', 'bar', 4.5, 'dock title'],
+  ['ink', 'bar', 4.5, 'dock card labels'],
+  ['ink-muted', 'bar', 4.5, 'dock meta'],
+  ['slot-muted', 'bar', 4.5, 'HUD stat labels'],
+
+  // Buttons
+  ['ink', 'iron', 4.5, 'default button label'],
+  ['ink-strong', 'iron', 4.5, 'button label, close button'],
+  ['ink-muted', 'iron', 4.5, 'disabled / secondary button label'],
+  ['ink-on-gold', 'gold', 4.5, 'PLAY and every primary action'],
+  ['ink-strong', 'crimson', 4.5, 'sell / danger / early-call buttons'],
+  ['ink', 'crimson', 4.5, 'risk copy on the crimson plate'],
+
+  // Cards + sockets
+  ['ink', 'card', 4.5, 'dock build-card labels, menu tiles'],
+  ['ink-gold', 'card', 4.5, 'build-card prices'],
+  ['ink-muted', 'card', 4.5, 'build-card meta'],
+  ['ink-strong', 'cardCrimson', 4.5, 'boss banner name'],
+  ['ink-muted', 'cardCrimson', 4.5, 'boss ability line'],
+  ['slot-text', 'slot', 4.5, 'stat chip values, menu summary'],
+  ['slot-muted', 'slot', 4.5, 'stat chip labels'],
+  ['ink-gold', 'slot', 4.5, 'summary numbers'],
+  ['ink-strong', 'slotSel', 4.5, 'wave badge numbers'],
+  ['ink-muted', 'slotSel', 4.5, 'wave badge labels'],
+
+  // Dark glass — HUD backdrop, codex drawer
   ['text-main', 'bgDeep', 4.5, 'HUD text on the dark backdrop'],
   ['text-muted', 'bgDeep', 4.5, 'secondary HUD text'],
   ['text-dim', 'bgDeep', 4.5, 'tertiary HUD text'],
@@ -97,8 +131,6 @@ const PAIRS = [
   ['text-main', 'gateCard', 4.5, 'gate body copy emphasis'],
   ['text-muted', 'gateCard', 4.5, 'gate body copy'],
   ['text-dim', 'gateCard', 4.5, 'gate footnote + "play without fullscreen" link'],
-  ['ink-strong', 'wood', 4.5, 'menu fullscreen pill on the wooden menu card'],
-  ['text-main', 'bgDeep', 4.5, 'fullscreen gate copy on the dark page'],
 ];
 
 let failures = 0;

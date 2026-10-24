@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 478 tests across 38 test suites.
-- **Pass Rate:** **100% (478 / 478 Passed)**
+- **Total Automated Unit Tests:** 518 tests across 39 test suites.
+- **Pass Rate:** **100% (518 / 518 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -188,7 +188,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  38 passed (38)
-Tests       478 passed (478)
+Tests       518 passed (518)
 Duration    6.7s
 ```
 
@@ -219,6 +219,7 @@ Duration    6.7s
 | `tests/turret-aim.test.js` | node | 15 | Weapon art aimed 90° off the target (rotating by `atan2` instead of `atan2 + π/2`), turrets that fire before the barrel is on the line, a muzzle that drifts off the drawn barrel |
 | `tests/enemy-skins.test.js` | node | 12 | A wave tier that never escalates, a biome falling back to the wrong sheet, bosses inheriting an ember contour, a tier sheet that is a byte-copy of the base sheet, a missing PNG per (creep × biome × tier) |
 | `tests/terrain-contrast.test.js` | node | 4 | A lane or pond that stops separating from its biome ground, two biomes drifting onto the same surface palette (runs `terrain.py --contrast`) |
+| `tests/ui-kit.test.js` | node | 40 | A skin asset URL that 404s, a sprite regenerated at the wrong canvas (which stretches every 9-slice corner), a `menu-*` id `main.js` binds to that the markup no longer defines, the retired Cozy UI pack creeping back into the stylesheet or the contrast audit |
 | `tests/progression.test.js` | node | 12 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
 | `tests/campaign-ui.test.js` | jsdom | 18 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
 | `tests/boss-abilities.test.js` | jsdom | 9 | Boss phase data, aura/freeze pulses, speed-boost stacking with slow, tower freeze/thaw, endless boss cadence |

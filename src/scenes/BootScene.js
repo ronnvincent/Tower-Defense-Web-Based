@@ -140,6 +140,11 @@ export class BootScene extends Phaser.Scene {
     this.load.audio('sfx-glass', 'assets/audio/impact_glass.ogg');
     this.load.audio('sfx-coin', 'assets/audio/coin.ogg');
     this.load.audio('sfx-place', 'assets/audio/place.ogg');
+
+    // 8. UI-kit FX. Optional by contract: every consumer guards on
+    //    textures.exists(), so a missing file costs a shockwave, not the game.
+    this.load.image('fx-ring', 'assets/ui-kit/fx_ring.png');
+    this.load.image('fx-glow', 'assets/ui-kit/fx_glow.png');
   }
 
   create() {

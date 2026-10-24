@@ -508,3 +508,92 @@ immediately, so Wrath applies to the next shot rather than the next wave.
 | Forge overlay | one card per relic: pips for owned levels, current → next effect, price, MASTERED state |
 | Pause card | `BLESSINGS` opens the in-battle gold sink (paused, so no lost wave) |
 | HUD | relic and blessing multipliers are invisible by design — they read as bigger numbers, not new numbers |
+
+---
+
+## 11. Interface Kit & Menu Architecture
+
+Full write-up: [interface-kit.md](interface-kit.md).
+
+The skin the game shipped with was a free demo pack (warm wood plates, five icons) laid
+over cold pixel-art battles, and every ink token was tuned for those light plates. Once
+the same copy sat on the dark campaign overlays it was dark-on-dark — the achievement
+rows, forge "Next: +50 starting gold" line and blessing descriptions were unreadable on
+screen. The third UI pass replaces the art instead of recolouring it.
+
+### 11.1 Generated, deterministic art
+
+`scripts/build_ui_kit.py` (Pillow) bakes 28 sprites into `public/assets/ui-kit/` at the
+**exact canvas sizes and 9-slice geometry the stylesheet already used**, so the swap
+changed no layout:
+
+| Family | Canvas | Slice |
+|---|---|---|
+| `frame_panel` / `frame_panel_soft` / `frame_panel_inset` | 281×292 | 50 / 30 / 40 35 |
+| `frame_note` | 1090×330 | 30 |
+| `frame_bar` | 1511×384 | 40 60 |
+| `btn_iron` / `btn_gold` / `btn_crimson` / `btn_ghost` | 377×160 | 28 50 |
+| `btn_square` | 152×160 | 24 |
+| `card_iron` / `card_crimson` | 281×343, 281×342 | 35 30 |
+| `slot` / `slot_sel` | 137×148, 138×148 | 20 |
+| `glyph_*` | 64×64 | — |
+| `cursor` / `cursor_click` | 32×32 | — |
+| `fx_ring` / `fx_glow` | 128×128 | — |
+
+No RNG: a rebuild is byte-identical. The menu key art (`menu-bg.jpg`) is generated once
+and committed; it sits behind two scrims so the plate stays the brightest object on
+screen.
+
+Because the geometry never changed, **the swap was a token rename**: the 34 `--cozy-*`
+usages became `--ui-*` URLs, and no `border-image-slice` or `border-image-width` value
+moved.
+
+### 11.2 Tokens
+
+All plates are dark, so `--ink-*` flipped to light values (the single exception is
+`--ink-on-gold`, for the gold primary plate). `--wood`, `--parchment`, `--slate`,
+`--teal` and `--crimson-surface` survive as *measured surface* tokens that the contrast
+script references — they no longer describe wood or parchment.
+
+### 11.3 The contrast audit is coupled to the art
+
+`scripts/check-contrast.mjs` compares `:root` ink tokens against `SURFACES`, which are
+the **measured average fills printed by the generator**. After a palette change you rerun
+the generator and paste the new numbers; otherwise the audit would keep passing against
+art that is no longer on screen. Current state: 47/47 pairs ≥ 4.5:1 (worst is
+`--text-dim` on the dark page at 6.0:1; body copy on the panel plate is 15.6:1).
+
+### 11.4 Menu architecture
+
+The menu was a 520 px single column of nine equal buttons inside a scrolling card: on a
+landscape phone the inner scrollbar clipped the title, and no action read as "start
+here". It is now a two-column card:
+
+- **Brand column** — wordmark, gold rule, one line of flavour, and a save summary
+  (`STARS / GEMS / MEDALS`, painted by `refreshMenuSummary()`), plus the controls hint.
+- **Action column** — `PLAY` as the only gold plate (the one light surface, dark ink),
+  the daily challenge directly under it (modifier name + streak), then a 3×2 tile hub for
+  Forge, Achievements, Champions, Codex, How to Play and Credits. Fullscreen is demoted
+  to a small pill.
+
+Nothing scrolls on a 360 px-tall landscape viewport; `max-height: 430px` hides the
+flavour text and summary instead of shrinking touch targets, and `max-width: 620px`
+collapses to one centred column. The ids `src/main.js` binds are unchanged.
+
+### 11.5 In-play surfaces
+
+Top bar and dock use `frame_bar`; stat chips, sockets and the name input use `slot`
+(gold rim when selected); build cards use `card_iron`; the boss banner uses
+`card_crimson`; toasts and the result summary use `frame_note`; buttons use `btn_*`.
+
+New: `GameScene.shockwave()` pops a `fx_ring` sprite (tier-3 kills, boss entrance, boss
+death) and the boss entrance adds a centred halo. Both are guarded on
+`textures.exists('fx-ring')`, so a missing kit costs a flourish, never a fight.
+
+### 11.6 Guard rails
+
+`tests/ui-kit.test.js` (40 tests) asserts that every asset URL in the stylesheet and the
+markup resolves, that each sliced sprite keeps its exact canvas size and leaves a
+stretchable middle, that every `menu-*` id `main.js` binds exists exactly once, that the
+old scrolling button column is gone, and that the retired demo pack is not referenced by
+the CSS, the markup or the contrast audit.

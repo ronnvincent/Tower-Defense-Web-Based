@@ -360,6 +360,7 @@ export class GameScene extends Phaser.Scene {
         audio.playWarning();
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
         this.bossEntranceCinematic();
+        this.shockwave(e.x, e.y, { from: 0.35, to: 2.2, tint: 0xff9d6b, duration: 620 });
       },
       onBossPhaseChange: (e, phase) => {
         this.hud?.updateBossPhase(e, phase);
@@ -375,6 +376,7 @@ export class GameScene extends Phaser.Scene {
         }
         audio.playVictory();
         this.hud?.showToast(`🏆 BOSS DEFEATED: ${e.def.name}!`, 'success');
+        this.shockwave(e.x, e.y, { from: 0.5, to: 3.0, tint: 0xffe2a8, duration: 700 });
       },
       getBarricadeAt: (cellKey) => this.getBarricadeAt(cellKey),
       onBarricadeHit: (wall, damage) => this.damageBarricade(wall, damage),
@@ -445,8 +447,45 @@ export class GameScene extends Phaser.Scene {
       });
       cam.shake(420, 0.011);
       cam.flash(260, 255, 138, 60, false);
+      // Screen centre -> world centre: the ring is a world-space image, so a
+      // panned camera would otherwise pop it in the top-left quadrant.
+      const mid = cam.midPoint || { x: cam.scrollX + width / 2, y: cam.scrollY + height / 2 };
+      this.shockwave(mid.x, mid.y, { from: 0.6, to: 2.4, duration: 640, depth: 59 });
     } catch (error) {
       this.reportRuntimeError(error);
+    }
+  }
+
+  /**
+   * One-shot expanding shockwave drawn from the ui-kit ring art.
+   *
+   * The ring has a soft falloff, so a boss entrance or a tier-3 kill reads at a
+   * glance without the hard vector outline a stroked circle leaves behind.
+   * Guarded on the texture: if the kit is missing (or a test stubs `add`),
+   * this quietly does nothing instead of breaking the fight.
+   */
+  shockwave(x, y, { from = 0.3, to = 1.6, tint = 0xffd8a0, alpha = 0.9, duration = 520, depth = 24 } = {}) {
+    if (!this.textures?.exists?.('fx-ring') || !this.add?.image) return null;
+    try {
+      const ring = this.add
+        .image(x, y, 'fx-ring')
+        .setDepth(depth)
+        .setAlpha(alpha)
+        .setScale(from)
+        .setBlendMode('ADD');
+      if (typeof ring.setTint === 'function') ring.setTint(tint);
+      this.tweens.add({
+        targets: ring,
+        scale: to,
+        alpha: 0,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+      return ring;
+    } catch (error) {
+      this.reportRuntimeError(error);
+      return null;
     }
   }
 
@@ -644,6 +683,14 @@ export class GameScene extends Phaser.Scene {
         emitter.setParticleTint?.(tint);
         emitter.explode(8 + tier * 5, x, y);
       }
+      this.shockwave(x, y, {
+        from: 0.18,
+        to: 0.5 + tier * 0.22,
+        tint,
+        alpha: 0.55 + tier * 0.1,
+        duration: 300 + tier * 70,
+        depth: 44,
+      });
       if (this.textures.exists('spark')) {
         const flash = this.add
           .image(x, y, 'spark')

@@ -8,8 +8,8 @@
   "display_override": ["fullscreen", "standalone", "minimal-ui"],
   "orientation": "landscape",
   "orientation_override": "landscape",
-  "background_color": "#14100c",
-  "theme_color": "#14100c",
+  "background_color": "#080b11",
+  "theme_color": "#080b11",
   "categories": ["games", "education"],
   "icons": [
     {
