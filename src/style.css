@@ -4405,3 +4405,694 @@ body.is-fullscreen #app::after {
     display: none;
   }
 }
+
+/* ==========================================================================
+   DUEL — MIRROR ARENA
+   --------------------------------------------------------------------------
+   Lobby, countdown, result card and the in-battle rival strip. The lobby is a
+   three-step flow (entry → room → countdown) stacked inside one plate, so the
+   player never loses the room code while picking an arena. Everything reuses
+   the Obsidian & Gold sprites, so PvP reads as the same game, not a bolt-on.
+   ========================================================================== */
+
+/* --- menu entry ----------------------------------------------------------- */
+
+.menu-duel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: clamp(42px, 7.4vh, 56px);
+  padding: 2px 8px;
+  border-style: solid;
+  border-width: 10px 20px;
+  border-image-source: var(--ui-btn-crimson);
+  border-image-slice: 28 50 fill;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  color: var(--ink-strong);
+  cursor: var(--ui-cursor) 16 16, pointer;
+  pointer-events: auto;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.menu-duel:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+
+.menu-duel-icon {
+  width: clamp(20px, 2.1vw, 26px);
+  height: auto;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.72));
+}
+
+.menu-duel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-duel-kicker {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2.2px;
+  color: var(--ink-gold);
+}
+
+.menu-duel-title {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-duel-cta {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.42);
+  background: rgba(10, 6, 6, 0.55);
+}
+
+/* --- shared overlay label ------------------------------------------------- */
+
+.overlay-eyebrow {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ink-gold);
+}
+
+/* --- lobby shell ---------------------------------------------------------- */
+
+.pvp-shell {
+  width: min(980px, 100%);
+  gap: clamp(6px, 1.3vh, 14px);
+}
+
+.pvp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pvp-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pvp-sub {
+  font-size: var(--fs-small);
+  line-height: 1.35;
+  color: var(--ink-muted);
+}
+
+.pvp-entry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(10px, 2vw, 26px);
+  align-items: start;
+}
+
+.pvp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-style: solid;
+  border-width: 14px;
+  border-image-source: var(--ui-panel-soft);
+  border-image-slice: 50 fill;
+  border-image-repeat: stretch;
+}
+
+.pvp-h3 {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-title);
+  letter-spacing: 2px;
+  color: var(--gold-primary);
+}
+
+.pvp-copy {
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+.pvp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-muted);
+}
+
+.pvp-field .game-input {
+  width: 100%;
+}
+
+.pvp-code-input {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-value);
+  letter-spacing: 7px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.pvp-error {
+  grid-column: 1 / -1;
+  padding: 6px 10px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink-red);
+  border-left: 3px solid var(--crimson-primary);
+  background: rgba(95, 22, 34, 0.35);
+}
+
+/* --- room board ----------------------------------------------------------- */
+
+.pvp-room {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.2vh, 14px);
+}
+
+.pvp-room-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pvp-code-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pvp-code-label {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-muted);
+}
+
+.pvp-code {
+  padding: 4px 12px;
+  border-style: solid;
+  border-width: 9px;
+  border-image-source: var(--ui-slot-sel);
+  border-image-slice: 20 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-value);
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: var(--ink-gold);
+  cursor: var(--ui-cursor) 16 16, pointer;
+}
+
+.pvp-room-status {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-muted);
+}
+
+.pvp-seats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: clamp(6px, 1.2vw, 14px);
+}
+
+.pvp-seat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-style: solid;
+  border-width: 12px;
+  border-image-source: var(--ui-card);
+  border-image-slice: 35 30 fill;
+  border-image-repeat: stretch;
+  transition: filter 0.15s ease;
+}
+
+.pvp-seat.is-me {
+  border-image-source: var(--ui-card-crimson);
+  filter: drop-shadow(0 0 14px rgba(245, 196, 81, 0.18));
+}
+
+.pvp-seat.is-empty {
+  filter: grayscale(0.6) brightness(0.8);
+}
+
+.pvp-seat.is-down {
+  filter: grayscale(0.85) brightness(0.7);
+}
+
+.pvp-seat-tag {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  color: var(--ink-muted);
+}
+
+.pvp-seat-name {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-title);
+  letter-spacing: 1.4px;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pvp-seat-state {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--ink-muted);
+}
+
+.pvp-seat.is-ready .pvp-seat-state {
+  color: var(--ink-green);
+}
+
+.pvp-seat.is-down .pvp-seat-state {
+  color: var(--ink-red);
+}
+
+.pvp-vs {
+  align-self: center;
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-title);
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--ink-gold);
+  text-shadow: 0 0 18px var(--gold-glow);
+}
+
+.pvp-arenas {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(5px, 1vw, 12px);
+}
+
+.pvp-arena {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  text-align: left;
+  border-style: solid;
+  border-width: 12px;
+  border-image-source: var(--ui-card);
+  border-image-slice: 35 30 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  color: var(--ink);
+  cursor: var(--ui-cursor) 16 16, pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.pvp-arena:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+
+.pvp-arena.selected {
+  border-image-source: var(--ui-slot-sel);
+  filter: drop-shadow(0 0 16px rgba(245, 196, 81, 0.22));
+}
+
+.pvp-arena:disabled {
+  cursor: default;
+}
+
+.pvp-arena-name {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-title);
+  letter-spacing: 1px;
+  color: var(--ink-strong);
+}
+
+.pvp-arena-theme {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-gold);
+}
+
+.pvp-arena-blurb {
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--ink-muted);
+}
+
+.pvp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pvp-actions .game-btn {
+  flex: 1 1 160px;
+}
+
+.pvp-hint {
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* --- countdown ------------------------------------------------------------ */
+
+.pvp-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: clamp(10px, 3vh, 34px) 0;
+  text-align: center;
+}
+
+.pvp-countdown-label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--ink-muted);
+}
+
+.pvp-countdown-value {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(44px, 12vh, 96px);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--gold-primary);
+  text-shadow: 0 0 42px var(--gold-glow);
+  animation: pvpPulse 1s ease-in-out infinite;
+}
+
+.pvp-countdown-sub {
+  font-size: var(--fs-small);
+  letter-spacing: 1.4px;
+  color: var(--ink);
+}
+
+@keyframes pvpPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* --- duel result ---------------------------------------------------------- */
+
+.duel-shell {
+  width: min(760px, 100%);
+  align-items: stretch;
+  gap: clamp(6px, 1.2vh, 12px);
+}
+
+.duel-title.is-win {
+  color: var(--ink-green);
+  text-shadow: 0 0 28px rgba(92, 242, 166, 0.35);
+}
+
+.duel-title.is-loss {
+  color: var(--ink-red);
+  text-shadow: 0 0 28px rgba(255, 122, 144, 0.32);
+}
+
+.duel-title.is-draw {
+  color: var(--ink-cyan);
+}
+
+.duel-line {
+  font-size: var(--fs-body);
+  letter-spacing: 0.6px;
+  color: var(--ink);
+}
+
+.duel-scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.duel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-style: solid;
+  border-width: 10px;
+  border-image-source: var(--ui-slot);
+  border-image-slice: 20 fill;
+  border-image-repeat: stretch;
+  font-size: var(--fs-small);
+  color: var(--ink);
+}
+
+.duel-row.is-winner {
+  border-image-source: var(--ui-slot-sel);
+}
+
+.duel-row-name {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-body);
+  letter-spacing: 1px;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duel-row-name em {
+  font-style: normal;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+}
+
+.duel-row-score {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-title);
+  color: var(--ink-gold);
+}
+
+.duel-row-score small {
+  margin-left: 2px;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  letter-spacing: 1px;
+  color: var(--ink-muted);
+}
+
+.duel-row-waves,
+.duel-row-core {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--ink-muted);
+}
+
+.duel-row-badge {
+  min-width: 62px;
+  text-align: right;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-green);
+}
+
+.duel-row.is-winner .duel-row-badge {
+  color: var(--ink-green);
+}
+
+.duel-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+.duel-waiting-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--gold-primary);
+  box-shadow: 0 0 12px var(--gold-glow);
+  animation: pvpPulse 1.1s ease-in-out infinite;
+}
+
+.duel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.duel-actions .game-btn {
+  flex: 1 1 150px;
+}
+
+/* --- in-battle rival strip ------------------------------------------------ */
+
+.hud-rival {
+  position: absolute;
+  top: calc(var(--topbar-clearance) + var(--safe-top) + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, 92vw);
+  padding: 4px 10px;
+  border-style: solid;
+  border-width: 12px;
+  border-image-source: var(--ui-bar);
+  border-image-slice: 40 60 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--ink-muted);
+  pointer-events: none;
+  z-index: 130;
+}
+
+.hud-rival .rival-tag {
+  color: var(--ink-gold);
+  letter-spacing: 2px;
+}
+
+.hud-rival .rival-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-strong);
+}
+
+.hud-rival b {
+  color: var(--ink-strong);
+}
+
+.hud-rival .rival-core {
+  display: inline-block;
+  width: clamp(42px, 7vw, 74px);
+  height: 7px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(198, 158, 88, 0.42);
+}
+
+.hud-rival .rival-core i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #3fbf7f, #7ce3ac);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.hud-rival.rival-down .rival-core i {
+  background: linear-gradient(90deg, #b3253c, #ff7a90);
+}
+
+.hud-rival .rival-state {
+  color: var(--ink-green);
+}
+
+.hud-rival.rival-down .rival-state {
+  color: var(--ink-red);
+}
+
+.hud-rival.rival-done .rival-state {
+  color: var(--ink-gold);
+}
+
+/* --- compact screens ------------------------------------------------------ */
+
+@media (max-width: 780px) {
+  .pvp-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pvp-arenas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pvp-arena-blurb {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 460px) {
+  .pvp-h3 {
+    font-size: var(--fs-small);
+  }
+
+  .pvp-copy,
+  .pvp-hint,
+  .pvp-arena-blurb {
+    display: none;
+  }
+
+  .pvp-seat {
+    padding: 4px 8px;
+  }
+
+  .pvp-seat-name {
+    font-size: var(--fs-small);
+  }
+
+  .pvp-actions .game-btn,
+  .duel-actions .game-btn {
+    min-height: 34px;
+  }
+
+  .duel-row {
+    padding: 3px 8px;
+  }
+
+  .hud-rival {
+    font-size: 9px;
+    padding: 2px 8px;
+  }
+}

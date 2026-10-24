@@ -17,8 +17,36 @@
  * be unit tested in Node — see tests/camera-math.test.js.
  */
 
-/** Zoom range for the battlefield. 1 = the whole map fits the canvas. */
-export const ZOOM_LIMITS = Object.freeze({ min: 1, max: 3 });
+/**
+ * Absolute zoom range for the battlefield.
+ *
+ * `min` is a hard floor, not the framing: the real minimum is per-map and comes
+ * from {@link zoomLimitsFor}. A campaign map is exactly one canvas wide, so it
+ * frames at 1× and can never zoom out (nothing outside the map would show); a
+ * 26×16 duel arena is larger than the canvas, so it frames at 0.75× and the
+ * player can pull back to watch the rival lane — which is the whole point of
+ * the mirrored arena. On a small phone even 0.45× may not fit the whole arena,
+ * which is what the arena mini-map is for.
+ */
+export const ZOOM_LIMITS = Object.freeze({ min: 0.45, max: 3 });
+
+/**
+ * The zoom at which `bounds` exactly covers the canvas — never above 1× (the
+ * campaign framing) and never below the hard floor.
+ * @param {{width:number,height:number}} bounds  map size in world px
+ * @param {{width:number,height:number}} viewport  canvas size in screen px
+ */
+export function fitZoom(bounds, viewport) {
+  if (!bounds?.width || !bounds?.height) return 1;
+  const width = viewport?.width || bounds.width;
+  const height = viewport?.height || bounds.height;
+  return clamp(Math.min(width / bounds.width, height / bounds.height), ZOOM_LIMITS.min, 1);
+}
+
+/** Per-battlefield zoom range: `min` is the fit zoom, `max` the hard ceiling. */
+export function zoomLimitsFor(bounds, viewport) {
+  return { min: fitZoom(bounds, viewport), max: ZOOM_LIMITS.max };
+}
 
 /** How far (in screen px) a pointer must travel before a press becomes a pan. */
 export const DRAG_THRESHOLD = 6;
@@ -97,8 +125,8 @@ export function clampScroll(scroll, viewport, zoom, bounds) {
  * Zoom to `targetZoom` while pinning the world point under `screen`.
  * @returns {{zoom:number, scrollX:number, scrollY:number}}
  */
-export function zoomAround(view, bounds, targetZoom, screen) {
-  const zoom = clamp(targetZoom, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+export function zoomAround(view, bounds, targetZoom, screen, limits = ZOOM_LIMITS) {
+  const zoom = clamp(targetZoom, limits.min, limits.max);
   const anchor = screenToWorld(screen.x, screen.y, view);
   const scroll = clampScroll(scrollForAnchor(anchor, screen, view, zoom), view, zoom, bounds);
   return { zoom, scrollX: scroll.x, scrollY: scroll.y };
@@ -126,10 +154,10 @@ export function panBy(view, bounds, deltaX, deltaY) {
  * The world point that sat under the *starting* midpoint is pinned under the
  * *current* midpoint, which gives natural simultaneous pinch + two-finger pan.
  */
-export function pinchTransform(start, current, startView, bounds) {
+export function pinchTransform(start, current, startView, bounds, limits = ZOOM_LIMITS) {
   const startZoom = startView.zoom;
   const ratio = start.distance > 0 ? current.distance / start.distance : 1;
-  const zoom = clamp(startZoom * ratio, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+  const zoom = clamp(startZoom * ratio, limits.min, limits.max);
   const anchor = screenToWorld(start.mid.x, start.mid.y, startView);
   const scroll = clampScroll(
     scrollForAnchor(anchor, current.mid, startView, zoom),

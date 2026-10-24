@@ -1,6 +1,7 @@
-import { TILE_SIZE, MAP_COLS, MAP_ROWS, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
+import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, TILE } from '../data/mapData.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
+import { getPvpLevel } from '../data/pvpArenas.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem } from '../systems/PathfindingSystem.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
@@ -48,6 +49,23 @@ export class GameScene extends Phaser.Scene {
    * derived from it, so a restart is just another `scene.start`.
    */
   init(data) {
+    // A duel is a separate contract: the arena supplies the map, the horde and
+    // the economy, and everything the player owns in the campaign is ignored.
+    this.pvp = data?.pvp || null;
+    if (this.pvp) {
+      this.level = getPvpLevel(this.pvp.arenaId);
+      this.levelId = this.level.id;
+      this.dailyKey = null;
+      this.dailyModifier = null;
+      this.theme = THEMES[this.level.theme] || THEMES.grassland;
+      this.progress = window.gameProgress || new ProgressStore();
+      this.lastMilestoneWave = 0;
+      // The arena is the equaliser: no relics, no blessings, no meta lead.
+      this.relicBonuses = relicBonuses({});
+      this.blessingsBought = {};
+      this.blessingBonuses = blessingBonuses({});
+      return;
+    }
     this.levelId = data?.levelId || 'level-1';
     const baseLevel = getLevel(this.levelId);
     this.levelId = baseLevel.id;
@@ -72,11 +90,15 @@ export class GameScene extends Phaser.Scene {
 
   /** Fold an event into the lifetime stats (no-op without a progress store). */
   trackStats(patch, options) {
+    // A duel is a private match: it must not farm campaign stats, medals or the
+    // endless record, or two friends could boost each other's profile.
+    if (this.level?.pvp) return;
     this.progress?.trackStats?.(patch, options);
   }
 
   /** Pay out any achievements the stats just satisfied, with a toast each. */
   syncAchievements() {
+    if (this.level?.pvp) return [];
     const result = this.progress?.syncAchievements?.();
     if (!result?.unlocked?.length) return [];
     for (const def of result.unlocked) {
@@ -89,7 +111,7 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // 1. Initialize Systems & Managers — all scoped to the selected level.
-    this.map = parseMap(getMapLayout(this.level.map));
+    this.map = parseMap(this.level.mapLayout || getMapLayout(this.level.map));
     this.pathfinding = new PathfindingSystem(this.map);
     this.pathfinding.computeMainPath();
     // Hash set of the cells the horde marches (row,col). Palisades may only be
@@ -134,8 +156,11 @@ export class GameScene extends Phaser.Scene {
     // 2b. Camera rig — drag to pan, wheel/pinch to zoom. Pointer → world
     // coordinates now always go through the rig (see handlePointerMove/Up).
     this.lastPointerScreen = null;
+    // Camera bounds are the *map* in world pixels, not the canvas. A campaign
+    // map happens to be canvas-sized, so nothing changes there; a duel arena is
+    // bigger, and the rig can then pan and pull back to the rival half.
     this.cameraRig = new CameraRig(this, {
-      bounds: { x: 0, y: 0, width: this.scale.width, height: this.scale.height },
+      bounds: { x: 0, y: 0, width: this.map.cols * TILE_SIZE, height: this.map.rows * TILE_SIZE },
       onZoomChange: (state) => {
         this.hud?.setZoomState(state);
         this.refreshHoverFromLastPointer();
@@ -172,6 +197,15 @@ export class GameScene extends Phaser.Scene {
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
       this.hud.showCameraHintOnce();
+      if (this.level.pvp) {
+        // Two facts a duel player must know before the first wave: this is a
+        // mirror, and the arena is bigger than a campaign map (so: pull back).
+        this.hud.setMatchLabel('DUEL · FORGE DEFENCES');
+        this.hud.showToast(
+          `${this.level.name.replace(' · DUEL', '').toUpperCase()} · IDENTICAL HORDE · FIRST CORE DOWN LOSES · PULL BACK TO WATCH YOUR RIVAL`,
+          'info'
+        );
+      }
       this.syncHUD();
     }
 
@@ -775,6 +809,11 @@ export class GameScene extends Phaser.Scene {
    * instead of being dropped back at the title screen.
    */
   handleOpenMenu() {
+    // Quitting a duel is a forfeit, not a trip to the campaign map.
+    if (this.level?.pvp && window.gameFlow?.quitDuel) {
+      window.gameFlow.quitDuel();
+      return;
+    }
     if (window.gameFlow?.quitToMap) {
       window.gameFlow.quitToMap();
       return;
@@ -1185,6 +1224,9 @@ export class GameScene extends Phaser.Scene {
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     audio.playDefeat();
+    // In a duel a broken core is a knockout, not a campaign defeat: the room
+    // scores the match and the lobby decides what happens next.
+    if (this.level.pvp) return this.finishDuel('ko');
 
     const score = this.economy.score;
     const record = this.progress.recordDefeat(this.level, {
@@ -1214,6 +1256,7 @@ export class GameScene extends Phaser.Scene {
     // Base health survival score bonus
     this.economy.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
     audio.playVictory();
+    if (this.level.pvp) return this.finishDuel('cleared');
 
     const record = this.progress.recordVictory(this.level, {
       baseHealth: this.gameState.baseHealth,
@@ -1267,6 +1310,46 @@ export class GameScene extends Phaser.Scene {
    * Hand the run summary to the result screen. Falls back to the leaderboard
    * modal so a missing UI layer can never strand the player on a dead scene.
    */
+  /**
+   * Report this half of a duel to the room.
+   *
+   * The scene never decides who won: it publishes its own terminal state
+   * (cleared the script, or core destroyed) and the room compares the two
+   * seats. That keeps both clients on one source of truth and means a PvP
+   * match works the same whether the rival is on the same machine or across
+   * the internet.
+   */
+  finishDuel(outcome) {
+    const report = {
+      roomCode: this.pvp?.roomCode || null,
+      arenaId: this.level.arenaId,
+      seat: this.pvp?.seat ?? 0,
+      outcome,
+      score: this.economy.score,
+      coreHp: this.gameState.baseHealth,
+      maxCoreHp: this.gameState.maxBaseHealth,
+      waves: this.waveManager.wavesCompleted,
+      totalWaves: this.waveManager.totalWaves,
+      timeMs: this.gameState.elapsedMs,
+    };
+    this.lastDuel = report;
+    window.gamePvp?.reportSeat?.(report);
+    if (window.gameDuelResult?.show) {
+      window.gameDuelResult.show(report);
+      return report;
+    }
+    this.showResult({
+      outcome: outcome === 'ko' ? 'defeat' : 'victory',
+      pvp: true,
+      level: this.level,
+      score: report.score,
+      waves: report.waves,
+      totalWaves: report.totalWaves,
+      timeMs: report.timeMs,
+    });
+    return report;
+  }
+
   showResult(payload) {
     this.lastResult = payload;
     if (window.gameResultScreen?.show) {
@@ -1394,6 +1477,41 @@ export class GameScene extends Phaser.Scene {
       bestWave: this.level.endless ? this.progress?.profile?.endlessBestWave || 0 : 0,
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
+    this.syncDuelTelemetry();
+  }
+
+  /**
+   * Duel telemetry: paint the rival strip, and every ~0.7 s push my own wave /
+   * points / core HP to the room so the other player's strip stays live.
+   *
+   * Progress is cosmetic — it never decides the match — so it is throttled and
+   * dropped when the room is not connected.
+   */
+  syncDuelTelemetry() {
+    if (!this.level?.pvp || !this.pvp) return;
+    const room = window.gamePvp;
+    const rival = room?.view?.rival;
+    if (rival) {
+      this.hud?.setRivalState({
+        name: rival.name,
+        wave: rival.progress?.wave || 0,
+        totalWaves: this.waveManager.totalWaves,
+        score: rival.progress?.score || 0,
+        coreHp: rival.progress?.coreHp,
+        maxCoreHp: this.gameState.maxBaseHealth,
+        outcome: rival.progress?.alive === false ? 'ko' : rival.result?.outcome,
+      });
+    }
+    const now = this.time?.now || 0;
+    if (now - (this.lastDuelReport || 0) < 700) return;
+    this.lastDuelReport = now;
+    room?.reportProgress?.({
+      wave: this.waveManager.wavesCompleted,
+      totalWaves: this.waveManager.totalWaves,
+      score: this.economy.score,
+      coreHp: this.gameState.baseHealth,
+      alive: !this.gameState.isOver(),
+    });
   }
 
   bindKeyboardShortcuts() {

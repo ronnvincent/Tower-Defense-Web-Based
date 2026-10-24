@@ -93,6 +93,31 @@ rated **1–3 stars** on the core health you kept (≥ 85 % = 3★, ≥ 50 % = 2
 (plus a bonus gem at 3★), and replays pay a 20 % stipend. Progress is saved in `localStorage`
 (`td-dsalgo:progress:v1`) by `src/systems/Progression.js`.
 
+### Mirror Arena — 1v1 PvP
+
+A second mode, opened from **DUEL · 1v1 LOBBY** on the main menu. Two players
+share one room: both defend a **rotationally symmetric 26 × 16 arena** (73 % more
+ground than a campaign map) against the **identical 8-wave script**, fight the
+same bosses, and start from the same 260 gold and 25 core HP. Meta progression is
+switched off, so the arena is decided by play, not by unlocks.
+
+| Arena | Theme | Route | Final boss |
+|---|---|:-:|---|
+| **Cinder Crown** | Volcanic | 35 | **Magma Lord** — *The Caldera Regent* |
+| **Frostspine** | Ice | 37 | **Frost Warden** — *The Warden of the Pass* |
+| **Dust Meridian** | Desert | 43 | **Sand Wyrm** — *The Meridian Wyrm* |
+
+- **Win:** first core destroyed loses; if both sides clear all 8 waves, the higher
+  score wins (ties break on core HP, then clear time).
+- **Lobby:** host creates a room, the challenger joins with a 5-character code,
+  both ready up, the host picks the arena, a 3-second countdown opens the gates.
+- **Watch your rival:** the camera is map-aware (fits the whole arena at 0.75×) and
+  a HUD strip carries the rival's wave, points and core HP live.
+- **Transport:** `BroadcastChannel` for two tabs on one machine; `npm run pvp:relay`
+  plus `VITE_PVP_RELAY=ws://<host>:8787/pvp` for two devices.
+
+Full design, rules and architecture: [`docs/pvp.md`](docs/pvp.md).
+
 ### Objective
 Defend the **Guardian Core Base** on the level's own battlefield. Every level has its own starting
 gold (**220 / 240 / 260**), core HP (**25** on every field so the star thresholds stay fair),
@@ -112,7 +137,7 @@ above the wave counter and whose abilities telegraph before they fire.
 | Input | Action |
 |---|---|
 | Drag the battlefield (any mouse button or one finger) | Pan the camera |
-| Mouse wheel / trackpad scroll | Zoom towards the cursor (1×–3×) |
+| Mouse wheel / trackpad scroll | Zoom towards the cursor (fit×–3×; the fit factor is 1× on a campaign map, 0.75× on a duel arena) |
 | Two-finger pinch | Zoom + pan simultaneously |
 | Click a floating `▲` badge above a defence | Open that tower’s upgrade inspector |
 | Click the dimmed backdrop of a dialog | Close it |
@@ -185,10 +210,10 @@ npm run dev
 
 ### Running Unit Tests
 ```bash
-# Run all 331 automated unit tests (26 suites, incl. jsdom HUD tests)
+# Run all 583 automated unit tests (42 suites, incl. jsdom HUD and duel-lobby tests)
 npm test
 
-# WCAG 2.1 contrast audit of the HUD palette (36/36 pairs)
+# WCAG 2.1 contrast audit of the HUD palette (47/47 pairs)
 npm run check:contrast
 
 # Both of the above
@@ -202,6 +227,9 @@ npm run test:watch
 ```bash
 # Build optimized production bundle to dist/
 npm run build
+
+# Optional: run the duel relay for two-device PvP (ws://0.0.0.0:8787/pvp)
+npm run pvp:relay
 
 # Preview production build locally
 npm run preview

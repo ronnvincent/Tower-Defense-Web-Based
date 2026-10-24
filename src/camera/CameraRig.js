@@ -1,6 +1,6 @@
 import {
-  ZOOM_LIMITS,
   DRAG_THRESHOLD,
+  zoomLimitsFor,
   clamp,
   clampScroll,
   distance,
@@ -51,6 +51,13 @@ export class CameraRig {
       height: scene.scale.height,
     };
     this.onZoomChange = options.onZoomChange || null;
+    // The rig owns the *effective* zoom range for this battlefield: a map that
+    // is exactly one canvas wide frames at 1× and cannot zoom out, a larger
+    // arena frames further back so both halves stay reachable.
+    this.limits = options.limits || zoomLimitsFor(this.bounds, {
+      width: scene.scale.width,
+      height: scene.scale.height,
+    });
 
     this.pointers = new Map(); // pointer.id -> last known {x, y}
     this.mode = 'idle'; // idle | pending | drag | pinch
@@ -89,8 +96,14 @@ export class CameraRig {
       this.bounds.width,
       this.bounds.height
     );
-    this.camera.setZoom(ZOOM_LIMITS.min);
-    this.camera.setScroll(0, 0);
+    this.camera.setZoom(this.limits.min);
+    const start = clampScroll(
+      { x: this.bounds.x, y: this.bounds.y },
+      this.view,
+      this.limits.min,
+      this.bounds
+    );
+    this.camera.setScroll(start.x, start.y);
 
     this.bind(input, 'pointerdown', (pointer) => this.onPointerDown(pointer));
     this.bind(input, 'pointermove', (pointer) => this.onPointerMove(pointer));
@@ -150,7 +163,7 @@ export class CameraRig {
   }
 
   get atFit() {
-    return this.camera.zoom <= ZOOM_LIMITS.min + 0.001;
+    return this.camera.zoom <= this.limits.min + 0.001;
   }
 
   /** Pointer (canvas px) → world px. Replaces the old `pointer.x / TILE_SIZE`. */
@@ -190,11 +203,11 @@ export class CameraRig {
   zoomState() {
     return {
       zoom: this.camera.zoom,
-      min: ZOOM_LIMITS.min,
-      max: ZOOM_LIMITS.max,
+      min: this.limits.min,
+      max: this.limits.max,
       atFit: this.atFit,
-      canZoomIn: this.camera.zoom < ZOOM_LIMITS.max - 0.001,
-      canZoomOut: this.camera.zoom > ZOOM_LIMITS.min + 0.001,
+      canZoomIn: this.camera.zoom < this.limits.max - 0.001,
+      canZoomOut: this.camera.zoom > this.limits.min + 0.001,
     };
   }
 
@@ -213,13 +226,13 @@ export class CameraRig {
       x: this.camera.width / 2,
       y: this.camera.height / 2,
     };
-    const next = clamp(this.targetZoom * factor, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+    const next = clamp(this.targetZoom * factor, this.limits.min, this.limits.max);
     this.zoomTo(next, anchor);
   }
 
   zoomTo(nextZoom, screen = null) {
     const anchor = screen || { x: this.camera.width / 2, y: this.camera.height / 2 };
-    const zoom = clamp(nextZoom, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+    const zoom = clamp(nextZoom, this.limits.min, this.limits.max);
     this.zoomScreenPoint = { x: anchor.x, y: anchor.y };
     this.targetZoom = zoom;
     if (Math.abs(zoom - this.camera.zoom) < 0.001) {
@@ -230,21 +243,23 @@ export class CameraRig {
   /** Jump (no smoothing) to a zoom level — used by pinch. */
   setZoomImmediate(zoom, screen = null) {
     const anchor = screen || { x: this.camera.width / 2, y: this.camera.height / 2 };
-    const result = zoomAround(this.view, this.bounds, zoom, anchor);
+    const result = zoomAround(this.view, this.bounds, zoom, anchor, this.limits);
     this.applyZoomScroll(result.zoom, { x: result.scrollX, y: result.scrollY });
   }
 
   /** Snap back to the full-map view. */
   reset() {
-    this.targetZoom = ZOOM_LIMITS.min;
-    this.camera.setZoom(ZOOM_LIMITS.min);
-    this.camera.setScroll(0, 0);
+    this.targetZoom = this.limits.min;
+    this.camera.setZoom(this.limits.min);
+    const scroll = clampScroll({ x: this.bounds.x, y: this.bounds.y }, this.view, this.limits.min, this.bounds);
+    this.camera.scrollX = scroll.x;
+    this.camera.scrollY = scroll.y;
     this.notify(true);
   }
 
   /** Centre the camera on a world point (optionally zooming in to `zoom`). */
   focus(worldX, worldY, zoom = this.camera.zoom) {
-    const targetZoom = clamp(zoom, ZOOM_LIMITS.min, ZOOM_LIMITS.max);
+    const targetZoom = clamp(zoom, this.limits.min, this.limits.max);
     const scroll = clampScroll(
       scrollForAnchor({ x: worldX, y: worldY }, { x: this.camera.width / 2, y: this.camera.height / 2 }, this.view, targetZoom),
       this.view,
@@ -360,7 +375,7 @@ export class CameraRig {
     const [a, b] = this.activeTouchPointers();
     if (!a || !b || !this.pinchStart) return;
     const current = { distance: Math.max(1, distance(a, b)), mid: midpoint(a, b) };
-    const result = pinchTransform(this.pinchStart, current, this.pinchView, this.bounds);
+    const result = pinchTransform(this.pinchStart, current, this.pinchView, this.bounds, this.limits);
     this.camera.setZoom(result.zoom);
     this.camera.scrollX = result.scrollX;
     this.camera.scrollY = result.scrollY;
@@ -385,7 +400,8 @@ export class CameraRig {
         this.view,
         this.bounds,
         zoom,
-        this.zoomScreenPoint
+        this.zoomScreenPoint,
+        this.limits
       );
       this.camera.setZoom(result.zoom);
       this.camera.scrollX = result.scrollX;

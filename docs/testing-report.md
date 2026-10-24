@@ -2,10 +2,22 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 518 tests across 39 test suites.
-- **Pass Rate:** **100% (518 / 518 Passed)**
+- **Total Automated Unit Tests:** 583 tests across 42 test suites.
+- **Pass Rate:** **100% (583 / 583 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
+
+---
+
+### 1.1 Duel (PvP) coverage
+
+The Mirror Arena adds three suites that need no network and no GPU:
+
+| Suite | Tests | What it proves |
+| --- | :-: | --- |
+| `tests/pvp.test.js` | 31 | All arenas are 26 × 16 and 180° symmetric (gates included), every arena has a real BFS route and a usable shelf on both halves, the level contract is byte-identical for both seats, every boss key exists, the camera fits 1× on a campaign map and 0.75× on an arena, and every win condition (knockout / points / core HP / time / draw) resolves. |
+| `tests/lobby.test.js` | 22 | Room codes, envelopes and name sanitising; seat assignment, host-only start and arena pick, countdown → live, snapshot round-trip, rematch and forfeit; and **two real `PvpRoom` instances talking over `BroadcastChannel`** end to end (join → ready → start → countdown → launch → knockout). |
+| `tests/duel-ui.test.js` | 11 | The lobby and result panels in jsdom: seat labels, arena locking for the challenger, live wave/points readout, waiting state, winner row and escaping of hostile player names. |
 
 ---
 

@@ -9,6 +9,8 @@ import { StatisticsPanel } from './ui/StatisticsPanel.js';
 import { Leaderboard } from './systems/Leaderboard.js';
 import { LevelSelectUI } from './ui/LevelSelectUI.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
+import { PvpLobbyUI } from './ui/PvpLobbyUI.js';
+import { DuelResultUI } from './ui/DuelResultUI.js';
 import { ProgressStore } from './systems/Progression.js';
 import { AchievementsUI } from './ui/AchievementsUI.js';
 import { ForgeUI } from './ui/ForgeUI.js';
@@ -124,14 +126,23 @@ function startLevel(levelId = 'level-1', options = {}) {
   window.gameResultScreen?.hide?.();
   window.gameLevelSelect?.hide?.();
   window.gameAchievements?.hide?.();
+  window.gameDuelResult?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.remove('hidden');
+  // A campaign run must never inherit a duel room; a duel must never inherit
+  // campaign progression. Whoever starts the scene says which one it is.
+  if (!options.pvp) leaveDuelRoom();
 
   const gameScene = game.scene.getScene('GameScene');
   const menuScene = game.scene.getScene('MenuScene');
   // A daily run rides on the same scene contract: `dailyKey` + `dailyModifier`
   // (see GameScene.init). Everything else is the normal level boot.
-  const payload = { levelId, dailyKey: options.dailyKey || null, dailyModifier: options.dailyModifier || null };
+  const payload = {
+    levelId,
+    dailyKey: options.dailyKey || null,
+    dailyModifier: options.dailyModifier || null,
+    pvp: options.pvp || null,
+  };
 
   if (gameScene?.scene?.isActive()) {
     // Next / Replay / a new node picked after a battle: restart in place.
@@ -192,6 +203,45 @@ function refreshMenuSummary() {
   if (medals) medals.textContent = `${progress.profile.achievements?.length || 0}/${ACHIEVEMENTS.length}`;
 }
 
+/**
+ * Leave a live duel from the pause card. That is a forfeit: report a knockout
+ * so the room closes immediately and the result card explains why, rather than
+ * stranding the rival in a match nobody is fighting.
+ */
+function quitDuel() {
+  const scene = game.scene.getScene('GameScene');
+  const room = window.gamePvp;
+  if (room?.state?.status === 'live') {
+    room.reportSeat({
+      outcome: 'ko',
+      score: scene?.economy?.score || 0,
+      coreHp: 0,
+      waves: scene?.waveManager?.wavesCompleted || 0,
+      timeMs: scene?.gameState?.elapsedMs || 0,
+    });
+  }
+  if (scene?.scene?.isActive()) scene.scene.pause();
+  if (!room) window.gamePvpLobby?.reopenAfterMatch?.();
+}
+
+/** Freeze the battlefield behind a duel result card. */
+function pauseBattle() {
+  const scene = game.scene.getScene('GameScene');
+  if (scene?.scene?.isActive()) scene.scene.pause();
+}
+
+/** Drop the socket/room if a duel is still holding one. */
+function leaveDuelRoom() {
+  if (!window.gamePvp) return;
+  try {
+    window.gamePvp.leave();
+  } catch {
+    /* already closed */
+  }
+  window.gamePvp = null;
+  window.gamePvpLobby?.hide?.();
+}
+
 function openMainMenu() {
   refreshDailyButton();
   refreshMenuSummary();
@@ -199,6 +249,8 @@ function openMainMenu() {
   window.gameLevelSelect?.hide?.();
   hudLayer()?.classList.add('hidden');
   document.getElementById('pause-overlay')?.classList.add('hidden');
+  window.gameDuelResult?.hide?.();
+  leaveDuelRoom();
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
     gameScene.scene.start('MenuScene'); // stops the battle, then boots the menu
@@ -209,7 +261,7 @@ function openMainMenu() {
   // not needed because the menu was never torn down.
 }
 
-window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap };
+window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap, quitDuel, leaveDuelRoom, pauseBattle };
 
 window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
   onClose: () => {
@@ -265,6 +317,33 @@ window.gameResultScreen = new ResultScreenUI(screenContainer, {
       waves: result.waves,
       timeMs: result.timeMs,
     }),
+});
+
+/**
+ * Duel surfaces. The lobby owns the room (and hands it to `window.gamePvp`, the
+ * handle GameScene reports through); the result card only paints the outcome.
+ */
+window.gameDuelResult = new DuelResultUI(screenContainer, {
+  onRematch: () => {
+    const room = window.gamePvp;
+    if (!room) {
+      openMainMenu();
+      return;
+    }
+    room.rematch();
+    window.gamePvpLobby?.reopenAfterMatch?.();
+  },
+  onLobby: () => {
+    window.gamePvpLobby?.reopenAfterMatch?.();
+  },
+  onMenu: () => openMainMenu(),
+});
+
+window.gamePvpLobby = new PvpLobbyUI(screenContainer, {
+  onLaunch: ({ pvp }) => {
+    audio.playVictory();
+    startLevel('pvp', { pvp });
+  },
 });
 
 // Setup Statistics Panel (Codex)
@@ -465,6 +544,11 @@ document.getElementById('menu-btn-daily')?.addEventListener('click', () => {
   // Starting the run is what keeps the streak alive — winning pays the gems.
   window.gameDaily?.recordPlay(run.key);
   startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
+});
+
+document.getElementById('menu-btn-duel')?.addEventListener('click', () => {
+  audio.playClick();
+  window.gamePvpLobby?.show();
 });
 
 document.getElementById('menu-btn-achievements')?.addEventListener('click', () => {

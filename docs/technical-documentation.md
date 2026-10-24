@@ -292,6 +292,37 @@ The manifest (`src/data/spireManifest.js`) is generated; never edit it by hand.
 
 ---
 
+## 7.5 Mirror Arena: duel mode
+
+PvP is a **race over an identical script**, not a shared simulation.
+
+```
+GameScene ──reportSeat/reportProgress──► PvpRoom ──intent──► host LobbyState
+     ▲                                     │                      │
+     └──────── launch payload ─────────────┴────── snapshot ◄─────┘
+```
+
+- **Data** (`src/data/pvpArenas.js`): three 26 × 16 layouts, each generated as a
+  180° rotation pair with gates at `(7,0)` and `(8,25)`, plus one 8-wave script
+  (mid-boss on wave 4, arena boss on wave 8). `getPvpLevel()` returns a level
+  object with the same shape the campaign uses, so `GameScene` needs no second
+  code path.
+- **Rules** (`src/systems/PvpMatch.js`): a pure state machine — seats, readiness,
+  and the resolution ladder knockout → points → core HP → clear time → draw.
+  `resolve(match)` is the single authority; it runs on the host and in tests.
+- **Room** (`src/net/LobbyState.js`, `src/net/PvpRoom.js`): the host folds client
+  intents into a reducer and broadcasts a snapshot; challengers adopt it. The
+  only state on the wire is `{roomCode, arenaId, seed, status, clients, seats}`.
+- **Transport** (`src/net/transports.js`): `BroadcastChannel` for two tabs,
+  `WebSocketTransport` against `server/pvp-relay.mjs` for two devices. The relay
+  forwards envelopes and knows nothing about the rules.
+- **Fairness:** relics, blessings and profile writes are skipped when
+  `level.pvp` is true (`GameScene.trackStats`, `syncAchievements`, and the
+  victory/defeat handlers), so duels cannot farm campaign progress.
+- **Camera:** `CameraRig` bounds are now map pixels, and `fitZoom()` derives a
+  per-map minimum zoom (1× campaign, 0.75× arena, hard floor 0.45×), so a duel
+  can pull back to the whole battlefield to watch the rival lane.
+
 ## 8. Addictiveness Systems
 
 Three layers, built in that order: **dopamine** (moment-to-moment), **retention**

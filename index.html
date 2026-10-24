@@ -83,6 +83,17 @@
               <span id="menu-daily-streak" class="menu-badge hidden">🔥 0</span>
             </button>
 
+            <!-- PvP: a second mode, not a seventh tile. The crimson plate tells
+                 the player this is a fight against a person, not a wave. -->
+            <button id="menu-btn-duel" class="menu-duel" type="button">
+              <img class="menu-duel-icon" src="/assets/ui-kit/glyph_swords.png" alt="" />
+              <span class="menu-duel-body">
+                <span class="menu-duel-kicker">MIRROR ARENA</span>
+                <span class="menu-duel-title">DUEL · 1v1 LOBBY</span>
+              </span>
+              <span class="menu-duel-cta">ENTER</span>
+            </button>
+
             <nav class="menu-tiles" aria-label="More destinations">
               <button id="menu-btn-forge" class="menu-tile" type="button">
                 <img src="/assets/ui-kit/glyph_anvil.png" alt="" />
@@ -198,6 +209,24 @@
                   immediate swing — damage, gold, a core repair or faster firing.</li>
                 <li><strong>Endless:</strong> every 5 waves pays a checkpoint (gold + gems) and the wave badge shows
                   your personal best, flipping to <em>NEW BEST</em> when you pass it.</li>
+              </ul>
+            </section>
+
+            <section>
+              <h3>MIRROR ARENA (1v1)</h3>
+              <ul class="modal-list">
+                <li><strong>How a duel runs:</strong> host a room from <strong>DUEL · 1v1 LOBBY</strong>, send the
+                  five-character code to a friend, both press <strong>READY</strong>, then the host picks an arena.
+                  A three-second countdown opens both gates at once.</li>
+                <li><strong>Fair by construction:</strong> the arena is mirrored 180°, so both halves are the same
+                  ground entered from opposite sides. Both players get the same 8 waves, the same bosses, 260 gold
+                  and 25 core HP. Relics, blessings and campaign progress are switched off.</li>
+                <li><strong>Winning:</strong> the first core destroyed loses. If both cores survive all 8 waves,
+                  higher score wins — ties break on core HP left, then on clear time.</li>
+                <li><strong>Watching your rival:</strong> pull the camera back to <kbd>0</kbd> to see the whole
+                  arena, and read the rival strip under the top bar (wave · points · core HP).</li>
+                <li><strong>Leaving:</strong> quitting a live duel from the pause card is a forfeit, and the room
+                  closes immediately so nobody guards an empty arena.</li>
               </ul>
             </section>
 

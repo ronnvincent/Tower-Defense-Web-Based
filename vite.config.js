@@ -8,6 +8,10 @@ export default defineConfig({
     open: false,
     // Allow proxied preview hosts (e.g. *.e2b.app) to reach the dev server.
     allowedHosts: true,
+    // Duel relay (npm run pvp:relay). Only used when the client asks for it.
+    proxy: {
+      '/pvp': { target: 'ws://127.0.0.1:8787', ws: true, changeOrigin: true },
+    },
     watch: {
       ignored: ['**/*.zip', '**/src/assets/**', '**/scripts/**'],
     },

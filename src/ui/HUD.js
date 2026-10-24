@@ -212,6 +212,15 @@ export class HUD {
         </div>
       </div>
 
+      <div id="hud-rival" class="hud-panel hud-rival hidden" aria-live="polite">
+        <span class="rival-tag">RIVAL</span>
+        <span class="rival-name" id="rival-name">CHALLENGER</span>
+        <span class="rival-stat"><b id="rival-wave">0</b>/<span id="rival-waves">8</span> waves</span>
+        <span class="rival-stat rival-score"><b id="rival-score">0</b> pts</span>
+        <span class="rival-core" title="Rival core integrity"><i id="rival-core-fill"></i></span>
+        <span class="rival-state" id="rival-state">LIVE</span>
+      </div>
+
       <div id="hud-bottom-dock" class="hud-panel hud-dock">
         <div id="placement-hint" class="placement-hint hidden">
           <span id="placement-hint-text">Placing defence…</span>
@@ -298,6 +307,7 @@ export class HUD {
     inspector?.classList.remove('collapsed', 'dragging');
     document.getElementById('toast-banner')?.classList.add('hidden');
     document.getElementById('boss-banner')?.classList.add('hidden');
+    this.setRivalState(null);
     this.setPausedUI(false);
     document.getElementById('placement-hint')?.classList.add('hidden');
 
@@ -315,6 +325,46 @@ export class HUD {
     if (pauseBtn) pauseBtn.classList.remove('active');
     const pauseImg = document.getElementById('img-pause');
     if (pauseImg) pauseImg.src = '/assets/ui/icon_pause.png';
+  }
+
+  /* ================================================================= DUEL */
+
+  /**
+   * Show (or hide) the rival strip for a mirrored duel.
+   *
+   * This is the answer to "can I see what the other player is doing?": beside
+   * the pan-and-zoom camera that can pull back to the whole arena, the strip
+   * carries the rival's wave, points, core HP and whether they are still alive.
+   * `null` hides it, which is what the campaign does.
+   */
+  setRivalState(state) {
+    const strip = document.getElementById('hud-rival');
+    if (!strip) return;
+    if (!state) {
+      strip.classList.add('hidden');
+      strip.classList.remove('rival-down', 'rival-done');
+      return;
+    }
+    strip.classList.remove('hidden');
+    const waves = Math.max(1, Number(state.totalWaves) || 8);
+    const wave = Math.max(0, Number(state.wave) || 0);
+    this.setText('rival-name', String(state.name || 'CHALLENGER').toUpperCase().slice(0, 16));
+    this.setText('rival-wave', String(wave));
+    this.setText('rival-waves', String(waves));
+    this.setText('rival-score', Number(state.score || 0).toLocaleString());
+    const hp = Number.isFinite(state.coreHp) ? Math.max(0, Number(state.coreHp)) : waves;
+    const maxHp = Math.max(1, Number(state.maxCoreHp) || 25);
+    const fill = document.getElementById('rival-core-fill');
+    if (fill) fill.style.width = `${Math.max(0, Math.min(1, hp / maxHp)) * 100}%`;
+    strip.classList.toggle('rival-down', hp <= 0);
+    strip.classList.toggle('rival-done', state.outcome === 'cleared');
+    this.setText('rival-state', hp <= 0 ? 'KNOCKED OUT' : state.outcome === 'cleared' ? 'FINISHED' : 'LIVE');
+  }
+
+  /** Rename the dock for a duel so the build list never reads as a campaign. */
+  setMatchLabel(text) {
+    const title = document.querySelector('.dock-title');
+    if (title && text) title.textContent = text;
   }
 
   /* ================================================================ EVENTS */
