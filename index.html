@@ -229,6 +229,11 @@
       </div>
 
       <!-- Codex drawer + leaderboard modals mount here -->
+      <!-- Campaign screens (world map, victory/defeat) own this layer. Kept
+           separate from #modal-container so opening the leaderboard or the
+           codex can never wipe the screen the player is reading. -->
+      <div id="screen-container"></div>
+
       <div id="modal-container"></div>
 
     </div>

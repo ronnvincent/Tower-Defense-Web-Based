@@ -165,7 +165,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 298 tests / 24 suites (includes the UI + mobile-layout suites)
+npm test                # 300 tests / 24 suites (includes the UI + mobile-layout suites)
 npm run check:contrast  # WCAG audit — 36/36
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
@@ -230,8 +230,10 @@ Manual checklist for a human browser session:
 - Defeat: same shell in crimson, a skull mark instead of stars, RETRY instead of
   Next. Endless swaps the stat chips for WAVE REACHED / BEST WAVE / SCORE and
   reports a new depth record.
-- The leaderboard opens *over* the result screen (later DOM sibling, higher
-  z-index), so the player can submit a score and still take Next afterwards.
+- The leaderboard opens *over* the result screen: campaign screens live in
+  their own `#screen-container` (z-index 250) while dialogs keep
+  `#modal-container` (z-index 300). Both UIs replace their container's markup,
+  so sharing one would let the leaderboard wipe the screen it was opened from.
 
 **HUD level chip** — the running level's name sits under the top bar in the same
 lane as the pause banner (which shifts down 26 px while a level chip is

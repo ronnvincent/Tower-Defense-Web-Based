@@ -51,6 +51,10 @@ window.gameProgress = new ProgressStore();
 // 3. Mount UI Layers into DOM
 const hudContainer = document.getElementById('hud-container');
 const modalContainer = document.getElementById('modal-container');
+// The world map / result screens get their own layer: LeaderboardUI and the
+// codex replace `modalContainer.innerHTML`, which used to wipe the very screen
+// the player was reading.
+const screenContainer = document.getElementById('screen-container') || modalContainer;
 
 window.gameHUD = new HUD(hudContainer, {});
 
@@ -128,7 +132,7 @@ function openMainMenu() {
 
 window.gameFlow = { openLevelSelect, startLevel, openMainMenu };
 
-window.gameLevelSelect = new LevelSelectUI(modalContainer, window.gameProgress, {
+window.gameLevelSelect = new LevelSelectUI(screenContainer, window.gameProgress, {
   onSelectLevel: (levelId) => startLevel(levelId),
   onClose: () => {
     menuOverlay()?.classList.remove('hidden');
@@ -136,7 +140,7 @@ window.gameLevelSelect = new LevelSelectUI(modalContainer, window.gameProgress, 
   },
 });
 
-window.gameResultScreen = new ResultScreenUI(modalContainer, {
+window.gameResultScreen = new ResultScreenUI(screenContainer, {
   onNext: () => {
     const level = window.gameResultScreen?.result?.level;
     startLevel(getNextLevel(level?.id)?.id || 'level-1');

@@ -178,3 +178,43 @@ describe('ResultScreenUI', () => {
     expect(ui.result).toBeNull();
   });
 });
+
+describe('campaign screen layer', () => {
+  it('mounts on its own layer between the HUD and the modal dialogs', async () => {
+    const { readFileSync } = await import('node:fs');
+    const html = readFileSync('index.html', 'utf8');
+    const css = readFileSync('src/style.css', 'utf8');
+
+    const screens = html.indexOf('id="screen-container"');
+    const modals = html.indexOf('id="modal-container"');
+    expect(screens).toBeGreaterThan(-1);
+    expect(screens).toBeLessThan(modals); // layered before the modal container
+
+    const zIndex = (selector) => {
+      const block = new RegExp(`${selector} \\{[^}]*\\}`).exec(css);
+      return Number(/z-index:\s*(\d+)/.exec(block[0])[1]);
+    };
+    expect(zIndex('#screen-container')).toBeGreaterThan(zIndex('#hud-container'));
+    expect(zIndex('#screen-container')).toBeLessThan(zIndex('#modal-container'));
+  });
+
+  it('survives another UI replacing the modal container', () => {
+    document.body.innerHTML =
+      '<div id="screen-container"></div><div id="modal-container"></div>';
+    const result = new ResultScreenUI(document.getElementById('screen-container'));
+    result.show({
+      outcome: 'victory',
+      level: getLevel('level-1'),
+      stars: 3,
+      rewards: { gold: 150, gems: 5 },
+      score: 900,
+      waves: 6,
+      totalWaves: 6,
+      timeMs: 90000,
+    });
+
+    document.getElementById('modal-container').innerHTML = '<div id="leaderboard-modal"></div>';
+    expect(document.getElementById('result-screen')).not.toBeNull();
+    expect(document.getElementById('result-next')).not.toBeNull();
+  });
+});

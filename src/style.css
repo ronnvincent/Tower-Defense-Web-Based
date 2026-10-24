@@ -251,6 +251,13 @@ body.is-fullscreen::before {
   touch-action: none;
 }
 
+#screen-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 250; /* above the HUD, below modals so a dialog can cover a screen */
+}
+
 #modal-container {
   position: absolute;
   inset: 0;
