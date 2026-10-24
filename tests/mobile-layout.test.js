@@ -181,6 +181,8 @@ describe('Viewport and stage sizing', () => {
   it('keeps the floating camera controls on the measured dock clearance', () => {
     expect(rule(css, '.camera-cluster')).toContain('bottom: var(--dock-clearance)');
     expect(rule(css, '.toast-banner')).toContain('top: var(--topbar-clearance)');
+    // The boss warning sits below the toast lane, not on top of it.
+    expect(rule(css, '#boss-banner')).toContain('top: calc(var(--topbar-clearance) + 46px)');
   });
 
   it('keeps the top bar on a single row on short landscape screens', () => {

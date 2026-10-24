@@ -1026,8 +1026,9 @@ body.is-fullscreen::before {
 
 #boss-banner {
   position: absolute;
-  /* below the toast lane so a boss warning and a toast never collide */
-  top: clamp(104px, 15vh, 128px);
+  /* Below the toast lane: both are pinned to the measured top-bar height, so a
+     boss warning and a toast can never land on the same strip. */
+  top: calc(var(--topbar-clearance) + 46px);
   left: 50%;
   transform: translateX(-50%);
   width: min(460px, 86vw);
