@@ -244,6 +244,7 @@ export class GameScene extends Phaser.Scene {
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
       },
       onBossPhaseChange: (e, phase) => {
+        this.hud?.updateBossPhase(e, phase);
         this.hud?.updateBossBar(e);
         this.cameras.main.shake(300, 0.012);
         audio.playWarning();
@@ -259,9 +260,15 @@ export class GameScene extends Phaser.Scene {
       },
       onSummonMinions: (typeKey, count) => {
         for (let k = 0; k < count; k++) {
+          // Timers fire from Phaser's UPDATE event, outside update()'s guard —
+          // so contain this spawn too rather than risk killing the game loop.
           this.time.delayedCall(k * 320, () => {
-            if (!this.gameState.isOver()) {
-              this.spawnEnemy(typeKey, this.waveManager.waveNumber);
+            try {
+              if (!this.gameState.isOver()) {
+                this.spawnEnemy(typeKey, this.waveManager.waveNumber);
+              }
+            } catch (error) {
+              this.reportRuntimeError(error);
             }
           });
         }
@@ -712,13 +719,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time, rawDelta) {
-    // Camera and badges keep working even while the simulation is paused, so
-    // the player can inspect the battlefield before starting a wave.
-    this.cameraRig?.update(rawDelta);
-    this.badges?.update(this.cameras.main);
+    // Phaser's RequestAnimationFrame#step() schedules the NEXT frame *after*
+    // invoking the game step, so any uncaught exception in here means no next
+    // frame is ever requested and the whole game freezes permanently. Keep the
+    // loop alive and make the fault loud instead of fatal.
+    try {
+      // Camera and badges keep working even while the simulation is paused, so
+      // the player can inspect the battlefield before starting a wave.
+      this.cameraRig?.update(rawDelta);
+      this.badges?.update(this.cameras.main);
 
-    if (this.gameState.isPaused() || this.gameState.isOver()) return;
+      if (this.gameState.isPaused() || this.gameState.isOver()) return;
 
+      this.stepSimulation(rawDelta);
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
+  }
+
+  /** One simulation tick: waves, enemies, towers, projectiles, boss HUD. */
+  stepSimulation(rawDelta) {
     // Cap delta to prevent huge jumps after backgrounding tab
     const clampedDelta = Math.min(rawDelta, MAX_FRAME_DELTA) * this.simSpeed;
 
@@ -770,5 +790,19 @@ export class GameScene extends Phaser.Scene {
 
     // Synchronize HUD
     this.syncHUD();
+  }
+
+  /**
+   * Log a simulation fault once per unique message and tell the player, instead
+   * of letting it kill the game loop. Mirrors the error into the console with a
+   * full stack so it stays debuggable.
+   */
+  reportRuntimeError(error) {
+    if (!this.reportedErrors) this.reportedErrors = new Set();
+    const key = error?.message || String(error);
+    if (this.reportedErrors.has(key)) return;
+    this.reportedErrors.add(key);
+    console.error('[GameScene] simulation error (game loop kept alive):', error);
+    this.hud?.showToast?.('⚠️ Recovered from a script error — check the console', 'error');
   }
 }

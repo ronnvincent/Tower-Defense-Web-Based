@@ -100,7 +100,7 @@ describe('HUD markup', () => {
     expect(callbacks.onStartWave).toHaveBeenCalledTimes(1);
 
     document.getElementById('btn-speed').click();
-    expect(document.getElementById('btn-speed').innerText).toBe('2×');
+    expect(document.getElementById('btn-speed').textContent).toBe('2×');
 
     document.getElementById('btn-pause').click();
     expect(callbacks.onTogglePause).toHaveBeenCalled();
@@ -141,9 +141,9 @@ describe('HUD markup', () => {
     const hud = mountHud();
     hud.update({ ...STATE, coins: 40, baseHealth: 4, isPaused: true });
 
-    expect(document.getElementById('val-coins').innerText).toBe(40);
-    expect(document.getElementById('val-base-hp').innerText).toBe('4 / 20');
-    expect(document.getElementById('val-wave').innerText).toBe('1 / 6');
+    expect(document.getElementById('val-coins').textContent).toBe('40');
+    expect(document.getElementById('val-base-hp').textContent).toBe('4 / 20');
+    expect(document.getElementById('val-wave').textContent).toBe('1 / 6');
     expect(document.getElementById('pause-chip').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('stat-base-hp').classList.contains('critical')).toBe(true);
 
@@ -155,12 +155,12 @@ describe('HUD markup', () => {
   it('reflects camera zoom in the control cluster', () => {
     const hud = mountHud();
     hud.setZoomState({ zoom: 2, min: 1, max: 3, atFit: false, canZoomIn: true, canZoomOut: true });
-    expect(document.getElementById('zoom-readout').innerText).toBe('200%');
+    expect(document.getElementById('zoom-readout').textContent).toBe('200%');
     expect(document.getElementById('btn-zoom-out').disabled).toBe(false);
     expect(document.getElementById('btn-zoom-fit').classList.contains('active')).toBe(false);
 
     hud.setZoomState({ zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false });
-    expect(document.getElementById('zoom-readout').innerText).toBe('100%');
+    expect(document.getElementById('zoom-readout').textContent).toBe('100%');
     expect(document.getElementById('btn-zoom-out').disabled).toBe(true);
     expect(document.getElementById('btn-zoom-fit').classList.contains('active')).toBe(true);
   });
@@ -172,8 +172,8 @@ describe('HUD markup', () => {
 
     const hint = document.getElementById('placement-hint');
     expect(hint.classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('placement-hint-text').innerText).toContain('PALISADE');
-    expect(document.getElementById('placement-hint-text').innerText).toContain('30');
+    expect(document.getElementById('placement-hint-text').textContent).toContain('PALISADE');
+    expect(document.getElementById('placement-hint-text').textContent).toContain('30');
 
     hud.update({ ...STATE, coins: 5 });
     expect(hint.classList.contains('unaffordable')).toBe(true);
@@ -193,8 +193,8 @@ describe('HUD markup', () => {
 
     const panel = document.getElementById('tower-inspector');
     expect(panel.classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('inspect-name').innerText).toBe('Scout Ballista');
-    expect(document.getElementById('inspect-level').innerText).toBe('★ Level 1');
+    expect(document.getElementById('inspect-name').textContent).toBe('Scout Ballista');
+    expect(document.getElementById('inspect-level').textContent).toBe('★ Level 1');
     expect(document.getElementById('inspect-stats').textContent).toContain('150px');
 
     document.getElementById('btn-upgrade-tower').click();
@@ -236,7 +236,7 @@ describe('HUD markup', () => {
     hud.update(STATE);
     hud.showToast('Wave cleared', 'success');
     const toast = document.getElementById('toast-banner');
-    expect(toast.innerText).toBe('Wave cleared');
+    expect(toast.textContent).toBe('Wave cleared');
     expect(toast.className).toContain('toast-success');
 
     hud.toggleBuildSelection('frost');

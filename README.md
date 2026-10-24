@@ -154,7 +154,7 @@ npm run dev
 
 ### Running Unit Tests
 ```bash
-# Run all 135 automated unit tests (10 suites, incl. jsdom HUD tests)
+# Run all 151 automated unit tests (13 suites, incl. jsdom HUD tests)
 npm test
 
 # WCAG 2.1 contrast audit of the HUD palette (30/30 pairs)
@@ -237,7 +237,7 @@ tower-defense-dsalgo/
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (135 tests / 10 suites)
+└── tests/                      # Automated Vitest test suites (151 tests / 13 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js

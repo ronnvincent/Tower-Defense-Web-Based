@@ -28,6 +28,7 @@ export class HUD {
     this.inspectorAnchorRatio = null;
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
+    this.coins = 0;
 
     this.initDOM();
     this.bindEvents();
@@ -256,7 +257,7 @@ export class HUD {
 
     const speed = document.getElementById('btn-speed');
     if (speed) {
-      speed.innerText = '1×';
+      speed.textContent = '1×';
       speed.classList.remove('active');
     }
     const pauseBtn = document.getElementById('btn-pause');
@@ -281,7 +282,7 @@ export class HUD {
     speedBtn?.addEventListener('click', () => {
       audio.playClick();
       const newSpeed = this.callbacks.onToggleSpeed?.() ?? 1;
-      speedBtn.innerText = `${newSpeed}×`;
+      speedBtn.textContent = `${newSpeed}×`;
       speedBtn.classList.toggle('active', newSpeed > 1);
       speedBtn.setAttribute('aria-label', `Simulation speed ${newSpeed}x`);
     });
@@ -472,8 +473,8 @@ export class HUD {
         ? tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade')
         : `★ Level ${tower.level}`;
 
-    document.getElementById('inspect-name').innerText = tower.stats?.title || tower.def.name;
-    document.getElementById('inspect-level').innerText = titleStr;
+    document.getElementById('inspect-name').textContent = tower.stats?.title || tower.def.name;
+    document.getElementById('inspect-level').textContent = titleStr;
 
     const statsGrid = document.getElementById('inspect-stats');
     const targetingGroup = document.getElementById('inspect-targeting');
@@ -609,7 +610,7 @@ export class HUD {
     panel.classList.toggle('collapsed', this.inspectorCollapsed);
     const btn = document.getElementById('btn-collapse-inspect');
     if (btn) {
-      btn.innerText = this.inspectorCollapsed ? '▸' : '▾';
+      btn.textContent = this.inspectorCollapsed ? '▸' : '▾';
       btn.setAttribute('aria-label', this.inspectorCollapsed ? 'Expand panel' : 'Collapse panel');
     }
     this.repositionInspector(true);
@@ -662,10 +663,11 @@ export class HUD {
       return;
     }
     const def = getBuildDefinition(key);
-    const coins = Number(document.getElementById('val-coins')?.innerText ?? 0);
+    // Coins come from the last update() call — never parsed back out of the DOM.
+    const coins = Number(this.coins) || 0;
     const affordable = coins >= def.cost;
     const where = key === 'barricade' ? 'a road tile' : 'a grass tile';
-    text.innerText = affordable
+    text.textContent = affordable
       ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold — click ${where} · ESC to cancel`
       : `NEED ${def.cost} GOLD FOR ${def.name.toUpperCase()} · kill enemies to earn more`;
     hint.classList.toggle('unaffordable', !affordable);
@@ -680,7 +682,7 @@ export class HUD {
     if (message === this.lastToast && !banner.classList.contains('hidden')) return;
     this.lastToast = message;
 
-    banner.innerText = message;
+    banner.textContent = message;
     banner.className = `toast-banner toast-${type}`;
     banner.classList.remove('hidden');
 
@@ -696,7 +698,7 @@ export class HUD {
   setZoomState(state) {
     this.zoomState = { ...this.zoomState, ...state };
     const readout = document.getElementById('zoom-readout');
-    if (readout) readout.innerText = `${Math.round(this.zoomState.zoom * 100)}%`;
+    if (readout) readout.textContent = `${Math.round(this.zoomState.zoom * 100)}%`;
     const zoomIn = document.getElementById('btn-zoom-in');
     const zoomOut = document.getElementById('btn-zoom-out');
     if (zoomIn) zoomIn.disabled = !this.zoomState.canZoomIn;
@@ -710,20 +712,35 @@ export class HUD {
 
   /* ================================================================== BOSS */
 
-  showBossBanner(boss) {
+  /**
+   * Reveal the boss banner.
+   *
+   * This MUST stay in sync with GameScene's `onBossSpawn` callback, which calls
+   * `hud.showBossBar(enemy)`. A missing method here throws inside Phaser's
+   * step(), which cancels the next requestAnimationFrame and freezes the whole
+   * game the instant the first boss spawns (wave 3). tests/ui-contracts.test.js
+   * now pins every HUD method GameScene calls.
+   */
+  showBossBar(boss) {
     const banner = document.getElementById('boss-banner');
     if (!banner) return;
     banner.classList.remove('hidden');
-    document.getElementById('boss-name').innerText = boss.def.name.toUpperCase();
-    this.updateBossPhase(boss, boss.bossPhases?.[0] || { phase: 1, name: 'Engaged' });
+    const nameEl = document.getElementById('boss-name');
+    if (nameEl) nameEl.textContent = (boss?.def?.name || 'BOSS').toUpperCase();
+    this.updateBossPhase(boss, boss?.bossPhases?.[0] || { phase: 1, name: 'Engaged' });
     this.updateBossBar(boss);
+  }
+
+  /** @deprecated Kept for older call sites — use {@link HUD#showBossBar}. */
+  showBossBanner(boss) {
+    this.showBossBar(boss);
   }
 
   updateBossPhase(boss, phase) {
     const badge = document.getElementById('boss-phase-badge');
     const abilityText = document.getElementById('boss-ability-text');
-    if (badge) badge.innerText = `PHASE ${phase.phase || 1}`;
-    if (abilityText) abilityText.innerText = phase.name || 'Encounter Active';
+    if (badge) badge.textContent = `PHASE ${phase.phase || 1}`;
+    if (abilityText) abilityText.textContent = phase.name || 'Encounter Active';
   }
 
   updateBossBar(boss) {
@@ -734,24 +751,29 @@ export class HUD {
     const shieldBar = document.getElementById('boss-shield-bar');
     const hpText = document.getElementById('boss-hp-text');
 
-    const hpPct = Math.max(0, Math.min(100, (boss.health / boss.maxHealth) * 100));
+    // Defensive maths: a boss mid-spawn may not have its stats yet, and NaN%
+    // would silently break the bar widths.
+    const health = Number(boss?.health) || 0;
+    const maxHealth = Number(boss?.maxHealth) || 0;
+    const shield = Number(boss?.shield) || 0;
+    const maxShield = Number(boss?.maxShield) || 0;
+
+    const hpPct = maxHealth > 0 ? Math.max(0, Math.min(100, (health / maxHealth) * 100)) : 0;
     if (hpBar) hpBar.style.width = `${hpPct}%`;
 
-    if (boss.maxShield > 0) {
-      const shieldPct = Math.max(0, Math.min(100, (boss.shield / boss.maxShield) * 100));
+    if (maxShield > 0) {
+      const shieldPct = Math.max(0, Math.min(100, (shield / maxShield) * 100));
       if (shieldBar) {
         shieldBar.style.width = `${shieldPct}%`;
-        shieldBar.style.display = boss.shield > 0 ? 'block' : 'none';
+        shieldBar.style.display = shield > 0 ? 'block' : 'none';
       }
       if (hpText) {
-        hpText.innerText =
-          boss.shield > 0
-            ? `${boss.health} / ${boss.maxHealth} HP · shield ${boss.shield}`
-            : `${boss.health} / ${boss.maxHealth} HP`;
+        hpText.textContent =
+          shield > 0 ? `${health} / ${maxHealth} HP · shield ${shield}` : `${health} / ${maxHealth} HP`;
       }
     } else {
       if (shieldBar) shieldBar.style.display = 'none';
-      if (hpText) hpText.innerText = `${boss.health} / ${boss.maxHealth} HP`;
+      if (hpText) hpText.textContent = `${health} / ${maxHealth} HP`;
     }
   }
 
@@ -779,6 +801,7 @@ export class HUD {
       isPaused,
     } = state;
 
+    this.coins = coins;
     this.setText('val-base-hp', `${baseHealth} / ${maxBaseHealth}`);
     this.setText('val-coins', coins);
     this.setText('val-score', score);
@@ -800,7 +823,7 @@ export class HUD {
       startBtn.disabled = !canStartWave;
       startBtn.classList.toggle('game-btn-pulse', canStartWave);
       const label = startBtn.querySelector('.btn-text');
-      if (label) label.innerText = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
+      if (label) label.textContent = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
     }
 
     document.querySelectorAll('.build-card').forEach((card) => {
@@ -817,13 +840,15 @@ export class HUD {
     if (this.inspectedTower) {
       this.updateActionAffordability(this.inspectedTower);
       const refund = document.getElementById('inspect-sell-refund');
-      if (refund) refund.innerText = this.inspectedTower.sellRefund;
+      if (refund) refund.textContent = this.inspectedTower.sellRefund;
     }
     if (this.selectedBuildKey) this.setPlacementHint(this.selectedBuildKey);
   }
 
   setText(id, value) {
     const el = document.getElementById(id);
-    if (el && el.innerText !== String(value)) el.innerText = value;
+    // textContent (not innerText) so the values are also readable in jsdom,
+    // where innerText is not implemented.
+    if (el && el.textContent !== String(value)) el.textContent = String(value);
   }
 }

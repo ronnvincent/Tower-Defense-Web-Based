@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 135 tests across 10 test suites.
-- **Pass Rate:** **100% (135 / 135 Passed)**
+- **Total Automated Unit Tests:** 151 tests across 13 test suites.
+- **Pass Rate:** **100% (151 / 151 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** Verified via automated Chromium browser subagent across the full game loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Barricade Cut $\to$ Codex Telemetry).
 
@@ -98,9 +98,9 @@
      ✓ unblocking restores the shortest route
      ✓ records cumulative BFS statistics across runs
 
-Test Files  10 passed (10)
-Tests       135 passed (135)
-Duration    2.40s
+Test Files  13 passed (13)
+Tests       151 passed (151)
+Duration    4.06s
 ```
 
 ---
@@ -113,6 +113,56 @@ Duration    2.40s
 | `tests/upgrade-badge.test.js` | node | 9 | Badge label/price mismatches, unaffordable styling, badges drawn over the tower art at high zoom, badges blocking tile clicks |
 | `tests/panel-placement.test.js` | node | 7 | Inspector opening off-screen or on top of the selected tower |
 | `tests/hud-dom.test.js` | jsdom | 14 | HUD controls missing, buttons not forwarding callbacks, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
+| `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
+| `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
+| `tests/wave-flow.test.js` | node | 5 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point |
 
 Contrast is verified separately by `npm run check:contrast` (30/30 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
+
+
+---
+
+## 5. Root-cause fix: the wave-3 freeze
+
+**Symptom:** the game stopped dead the moment wave 3 reached its boss, and again on wave 6.
+
+**Root cause:** `GameScene`'s `onBossSpawn` callback calls `hud.showBossBar(enemy)`, but `HUD`
+only ever implemented `showBossBanner`. Calling the missing method threw
+`TypeError: this.hud.showBossBar is not a function` from inside `Enemy`'s constructor, i.e. inside
+`WaveManager.update()` → `GameScene.update()` → Phaser's step callback.
+
+That last step is what makes it fatal. Phaser's RAF driver schedules the *next* frame only after the
+current one returns:
+
+```js
+// node_modules/phaser/src/dom/RequestAnimationFrame.js
+this.step = function step (time) {
+  _this.callback(time);                 // ← GameScene.update() runs (and throws) here
+  if (_this.isRunning) {
+    _this.timeOutID = window.requestAnimationFrame(step);   // ← never reached
+  }
+};
+```
+
+With the exception escaping, no further frame is ever requested: the canvas keeps the last rendered
+image (matching the screenshot: "WAVE 3/6 · 17 spawning…", boss still queued) and no input is
+processed. Waves 4–5 look fine only because they contain no boss; wave 6 has one, so it dies too.
+
+**Fix:**
+
+1. `HUD.showBossBar(boss)` now exists (and `showBossBanner` delegates to it). It is null-safe and
+   tolerates an incomplete boss object; `updateBossBar` guards against NaN widths.
+2. `GameScene.update()` wraps the frame in `try/catch` → `reportRuntimeError()`, which logs once per
+   unique message and shows a toast. A future UI slip can no longer brick the loop.
+3. `onBossPhaseChange` now also refreshes the phase badge/ability text, not just the HP bar.
+
+**Regression cover:**
+
+- `tests/ui-contracts.test.js` parses every `hud.x(...)` / `gameCodex.x(...)` / `gameLeaderboardUI.x(...)`
+  / `audio.x(...)` call site in `src/` and asserts the method exists on the receiving class. It fails
+  with `Missing HUD methods: ["HUD.showBossBar"]` when the bug is reintroduced (verified).
+- `tests/hud-boss-bar.test.js` exercises the real DOM banner: reveal, HP/shield updates, hide, and a
+  bare `{}` boss object.
+- `tests/wave-flow.test.js` plays all six waves through `WaveManager` and asserts every spawn is
+  released in order, the queue grows past its initial 32 slots, and each wave reports completion.
