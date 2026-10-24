@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 304 tests across 24 test suites.
-- **Pass Rate:** **100% (304 / 304 Passed)**
+- **Total Automated Unit Tests:** 311 tests across 25 test suites.
+- **Pass Rate:** **100% (311 / 311 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -185,7 +185,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  24 passed (24)
-Tests       304 passed (304)
+Tests       311 passed (311)
 Duration    6.7s
 ```
 
@@ -202,6 +202,7 @@ Duration    6.7s
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
 | `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
+| `tests/campaign-assets.test.js` | node | 7 | Missing biome tiles, a road set that never changed, creeps or bosses without a sheet, animation strips too short for their frames, missing minimaps / star / lock icons |
 | `tests/progression.test.js` | node | 12 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
 | `tests/campaign-ui.test.js` | jsdom | 16 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
 | `tests/boss-abilities.test.js` | jsdom | 9 | Boss phase data, aura/freeze pulses, speed-boost stacking with slow, tower freeze/thaw, endless boss cadence |
