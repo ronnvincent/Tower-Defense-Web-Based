@@ -176,9 +176,9 @@ body:active {
 .hud-label {
   font-size: 11px;
   letter-spacing: 1px;
-  color: #42210b;
+  color: #ffdca8;
   font-weight: 800;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
   text-transform: uppercase;
 }
 
@@ -186,14 +186,14 @@ body:active {
   font-size: 19px;
   font-weight: 900;
   line-height: 1.1;
-  color: #1e0c02;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .gold-text {
-  color: #8c4e00;
+  color: #ffe082;
   font-weight: 900;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 8px rgba(245, 196, 81, 0.6);
 }
 
 .hud-center-group {
@@ -495,17 +495,16 @@ body:active {
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.6px;
-  padding: 8px 18px;
+  padding: 4px 12px;
   background: transparent;
-  border: none;
+  border-style: solid;
+  border-width: 12px 24px;
   border-image-source: var(--cozy-btn-wood);
   border-image-slice: 28 50 28 50 fill;
-  border-image-width: 16px 28px 16px 28px;
   border-image-repeat: stretch;
-  border-style: solid;
   border-radius: 0;
-  color: #ffffff;
-  text-shadow: 1px 1px 0 #1b0a02, -1px -1px 0 #1b0a02, 1px -1px 0 #1b0a02, -1px 1px 0 #1b0a02, 0 2px 4px rgba(0, 0, 0, 0.9);
+  color: #2b1305;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
   cursor: var(--cozy-cursor) 12 4, pointer;
   transition: transform 0.1s ease, filter 0.1s ease;
   display: inline-flex;
@@ -526,10 +525,10 @@ body:active {
 
 .game-btn-primary {
   border-image-source: var(--cozy-btn-wood);
-  color: #fff9e6;
+  color: #1e0901;
   font-weight: 900;
   font-size: 16px;
-  text-shadow: 1px 1px 0 #3a1a00, -1px -1px 0 #3a1a00, 1px -1px 0 #3a1a00, -1px 1px 0 #3a1a00, 0 2px 5px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .game-btn-primary:hover {
@@ -554,17 +553,17 @@ body:active {
 
 .game-btn-subtle {
   border-image-source: var(--cozy-btn-wood);
-  color: #ffffff;
+  color: #2b1305;
   font-weight: 800;
-  text-shadow: 1px 1px 0 #1b0a02, -1px -1px 0 #1b0a02, 1px -1px 0 #1b0a02, -1px 1px 0 #1b0a02, 0 2px 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .game-btn-upgrade {
   border-image-source: var(--cozy-btn-wood);
-  color: #b9f6ca;
+  color: #0d421d;
   font-size: 15px;
   font-weight: 900;
-  text-shadow: 1px 1px 0 #0f3d23, -1px -1px 0 #0f3d23, 1px -1px 0 #0f3d23, -1px 1px 0 #0f3d23, 0 2px 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .game-btn-upgrade:hover {
@@ -573,10 +572,10 @@ body:active {
 
 .game-btn-sell {
   border-image-source: var(--cozy-btn-red);
-  color: #ffcdd2;
+  color: #ffffff;
   font-size: 15px;
   font-weight: 900;
-  text-shadow: 1px 1px 0 #4a0e16, -1px -1px 0 #4a0e16, 1px -1px 0 #4a0e16, -1px 1px 0 #4a0e16, 0 2px 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .game-btn-sell:hover {
@@ -585,31 +584,31 @@ body:active {
 
 .game-btn-gold {
   border-image-source: var(--cozy-btn-wood);
-  color: #ffd54f;
+  color: #7a3c00;
   font-weight: 900;
-  text-shadow: 1px 1px 0 #3a1a00, -1px -1px 0 #3a1a00, 1px -1px 0 #3a1a00, -1px 1px 0 #3a1a00, 0 2px 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .game-btn-danger {
   border-image-source: var(--cozy-btn-red);
   color: #ffffff;
   font-weight: 900;
-  text-shadow: 1px 1px 0 #4a0e16, -1px -1px 0 #4a0e16, 1px -1px 0 #4a0e16, -1px 1px 0 #4a0e16, 0 2px 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .btn-close {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   background: transparent;
-  border: none;
+  border-style: solid;
+  border-width: 10px;
   border-image-source: var(--cozy-btn-sq-wood);
   border-image-slice: 24 24 24 24 fill;
-  border-image-width: 14px;
   border-image-repeat: stretch;
-  border-style: solid;
-  color: #f0e8d8;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #1b0a02, -1px -1px 0 #1b0a02;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 900;
   cursor: var(--cozy-cursor) 12 4, pointer;
   display: flex;
   align-items: center;
@@ -747,14 +746,13 @@ body:active {
   width: 520px;
   max-width: 90%;
   background: transparent;
-  border: none;
+  border-style: solid;
+  border-width: 44px 44px;
   border-image-source: var(--cozy-container1);
   border-image-slice: 50 50 50 50 fill;
-  border-image-width: 38px;
   border-image-repeat: stretch;
-  border-style: solid;
   border-radius: 0;
-  padding: 40px 36px 36px;
+  padding: 16px 24px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -775,7 +773,7 @@ body:active {
 
 .menu-title-block {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .menu-main-title {
@@ -804,26 +802,29 @@ body:active {
 }
 
 .menu-btn {
-  padding: 14px 22px;
-  font-size: 17px;
+  padding: 10px 20px;
+  font-size: 18px;
   font-weight: 900;
   letter-spacing: 1px;
   border-radius: 0;
+  border-style: solid;
+  border-width: 14px 28px;
   border-image-source: var(--cozy-btn-wood);
   border-image-slice: 28 50 28 50 fill;
-  border-image-width: 18px 32px 18px 32px;
   border-image-repeat: stretch;
-  border-style: solid;
   background: transparent;
-  border: none;
-  color: #ffffff;
-  text-shadow: 1px 1px 0 #1b0a02, -1px -1px 0 #1b0a02, 1px -1px 0 #1b0a02, -1px 1px 0 #1b0a02, 0 2px 4px rgba(0, 0, 0, 0.9);
+  color: #261104;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
   transition: transform 0.15s ease-out, filter 0.15s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .menu-btn:hover {
   transform: translateY(-3px) scale(1.02);
-  filter: brightness(1.2) drop-shadow(0 4px 12px rgba(245, 196, 81, 0.3));
+  filter: brightness(1.2) drop-shadow(0 4px 12px rgba(245, 196, 81, 0.4));
 }
 
 /* ============================================================= TABLES & LISTS */
