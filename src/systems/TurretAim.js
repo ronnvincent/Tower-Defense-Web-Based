@@ -69,6 +69,17 @@ export function isAligned(current, target, tolerance = AIM_TOLERANCE) {
 }
 
 /**
+ * May this turret fire yet?
+ *
+ * Static weapons (the frost crystal and the banner keep their pose) have no
+ * barrel to line up, so they are always ready. Gating them on alignment would
+ * freeze them permanently: their rotation never moves off 0.
+ */
+export function canFire(rotating, current, target, tolerance = AIM_TOLERANCE) {
+  return rotating ? isAligned(current, target, tolerance) : true;
+}
+
+/**
  * World position of a muzzle.
  *
  * `offset` is measured in the weapon's own art space (x right, y down, so the

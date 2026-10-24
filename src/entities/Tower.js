@@ -7,7 +7,7 @@ import {
   MUZZLE_OFFSET,
 } from '../data/towerVisuals.js';
 import { Projectile } from './Projectile.js';
-import { aimAngle, isAligned, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
+import { aimAngle, canFire, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
 import { audio } from '../rendering/AudioSynth.js';
 
 let towerIdCounter = 1;
@@ -477,8 +477,10 @@ export class Tower {
         this.turretAngle = 0;
       }
 
-      // Attack once the barrel is aligned and off cooldown.
-      if (this.cooldownTimer <= 0 && isAligned(this.turretAngle, desired)) {
+      // Attack once the barrel is aligned and off cooldown. Static weapons are
+      // always aligned (see canFire).
+      const rotating = !NON_ROTATING_TYPES.has(this.typeKey);
+      if (this.cooldownTimer <= 0 && canFire(rotating, this.turretAngle, desired)) {
         this.fire(this.currentTarget);
         this.cooldownTimer = this.attackCooldown;
       }

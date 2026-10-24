@@ -8,6 +8,7 @@ import {
   rotateToward,
   stepAngle,
   isAligned,
+  canFire,
   muzzlePoint,
 } from '../src/systems/TurretAim.js';
 
@@ -88,6 +89,16 @@ describe('turret aim — servo turn', () => {
     }
     expect(elapsed).toBeLessThanOrEqual(250);
     expect(isAligned(angle, target)).toBe(true);
+  });
+
+  it('never blocks a static weapon that cannot rotate', () => {
+    // The frost crystal and banner keep rotation 0 forever; gating them on
+    // alignment would stop them firing at anything that is not straight up.
+    expect(canFire(false, 0, Math.PI)).toBe(true);
+    expect(canFire(false, 0, HALF_PI)).toBe(true);
+    // Rotating turrets still have to line up.
+    expect(canFire(true, 0, Math.PI)).toBe(false);
+    expect(canFire(true, 0, 0.05)).toBe(true);
   });
 
   it('refuses a shot until the barrel is on the line', () => {
