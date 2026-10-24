@@ -8,6 +8,10 @@ import { LeaderboardUI } from './ui/LeaderboardUI.js';
 import { StatisticsPanel } from './ui/StatisticsPanel.js';
 import { Leaderboard } from './systems/Leaderboard.js';
 import { audio } from './rendering/AudioSynth.js';
+import { FullscreenController } from './system/FullscreenController.js';
+import { OrientationGate } from './system/OrientationGate.js';
+import { DisplayGateUI } from './ui/DisplayGateUI.js';
+import { GATE_MODE, gateBlocksGameplay } from './system/displayMode.js';
 
 // 1. Instantiate shared systems for UI
 const globalLeaderboard = new Leaderboard();
@@ -75,12 +79,164 @@ window.gameCodex = new StatisticsPanel(
   }
 );
 
-// 4. Bind Main Menu Actions
+// ---------------------------------------------------------------------------
+// 4. DISPLAY MODE — fullscreen + landscape enforcement
+// ---------------------------------------------------------------------------
+// Rules live in src/system/displayMode.js; the two controllers below only own
+// the browser side effects. Both gates are blocking overlays, and both pause
+// the simulation so the player never loses a wave while the screen is unusable.
+
+let gate = null;
+let pausedByGate = false;
+
+/**
+ * Freeze / unfreeze the running battle. Only the GameScene is paused (the
+ * canvas keeps its last frame visible); we remember that *we* paused it so a
+ * manual pause is never cancelled by a rotation.
+ */
+function setGameplayPaused(blocked) {
+  const gameScene = game.scene?.getScene?.('GameScene');
+  const plugin = gameScene?.scene;
+  if (!plugin) return;
+
+  if (blocked) {
+    if (plugin.isActive() && !plugin.isPaused()) {
+      plugin.pause();
+      pausedByGate = true;
+    }
+  } else if (pausedByGate) {
+    if (plugin.isPaused()) plugin.resume();
+    pausedByGate = false;
+  }
+}
+
+const menuFullscreenBtn = document.getElementById('menu-btn-fullscreen');
+const menuFullscreenLabel = document.getElementById('menu-fullscreen-label');
+
+function applyFullscreenState(state) {
+  window.gameHUD?.setFullscreenState?.(state);
+  document.body.classList.toggle('is-fullscreen', Boolean(state.active));
+
+  // Entering/leaving fullscreen changes the viewport size; ask Phaser's scale
+  // manager to re-fit the canvas now rather than waiting for the next resize.
+  if (game?.scale && typeof game.scale.refresh === 'function') {
+    requestAnimationFrame(() => {
+      try {
+        game.scale.refresh();
+      } catch {
+        /* scene booting */
+      }
+    });
+  }
+
+  if (!menuFullscreenBtn) return;
+  menuFullscreenBtn.classList.toggle('hidden', !state.supported);
+  menuFullscreenBtn.setAttribute('aria-pressed', String(Boolean(state.active)));
+  if (menuFullscreenLabel) {
+    menuFullscreenLabel.textContent = state.active ? 'EXIT FULLSCREEN' : 'ENTER FULLSCREEN';
+  }
+}
+
+let wasFullscreen = false;
+
+const fullscreen = new FullscreenController({
+  onChange: (state) => {
+    applyFullscreenState(state);
+
+    if (state.active) {
+      document.body.classList.add('is-fullscreen');
+      // Android: pin the screen to landscape while we own it. Silently
+      // unsupported on iOS/Firefox.
+      void fullscreen.lockOrientation('landscape');
+    } else {
+      document.body.classList.remove('is-fullscreen');
+      fullscreen.unlockOrientation();
+      // Leaving fullscreen on purpose (Esc / system gesture) must not trap the
+      // player behind the gate again during this landscape phase.
+      if (wasFullscreen) gate?.noteFullscreenExit?.();
+    }
+
+    wasFullscreen = state.active;
+    gate?.refresh();
+  },
+});
+fullscreen.bind();
+window.gameFullscreen = fullscreen;
+applyFullscreenState({ supported: fullscreen.supported, active: fullscreen.active });
+
+const gateUI = new DisplayGateUI({
+  onEnterFullscreen: async () => {
+    const entered = await fullscreen.request();
+    // Never trap the player: if the browser refuses even on a real tap
+    // (iOS Safari, restrictive policies), let them play without it.
+    if (!entered) gate?.skipFullscreen();
+  },
+  onSkipFullscreen: () => gate?.skipFullscreen(),
+});
+
+// One automatic fullscreen attempt per landscape phase. If the browser refuses,
+// the player still has the gate button; retrying on every state refresh would
+// just spam rejected promises.
+let autoFullscreenTried = false;
+
+gate = new OrientationGate({
+  fullscreen,
+  onChange: (state) => {
+    gateUI.apply(state);
+    setGameplayPaused(gateBlocksGameplay(state.mode));
+
+    if (state.mode === GATE_MODE.ROTATE) {
+      autoFullscreenTried = false; // re-arm for the next rotation
+    } else if (state.mode === GATE_MODE.FULLSCREEN && !autoFullscreenTried) {
+      autoFullscreenTried = true;
+      // Rotation is not a user gesture, so this usually rejects — but some
+      // browsers keep transient activation briefly after the last tap, in
+      // which case the game really does enter fullscreen automatically.
+      void fullscreen.request();
+    }
+  },
+});
+gate.start();
+window.gameOrientationGate = gate;
+
+// Desktop: the first click or key press anywhere grants the transient
+// activation the Fullscreen API requires, so the game launches fullscreen.
+if (!gate.handheld) fullscreen.requestOnFirstGesture();
+
+// A battle started while the gate is up (e.g. the player rotated during a
+// restart) must not run unpaused behind the overlay. Re-apply the gate on every
+// GameScene create, not just the first one.
+function bindGateToGameScene() {
+  const gameScene = game.scene?.getScene?.('GameScene');
+  if (!gameScene || gameScene.__gateBound) return;
+  gameScene.__gateBound = true;
+  gameScene.events.on('create', () => {
+    pausedByGate = false;
+    if (gate && gateBlocksGameplay(gate.state?.mode)) {
+      // Scene pause is queued by Phaser, so let the create tick finish first.
+      setTimeout(() => setGameplayPaused(true), 0);
+    }
+  });
+}
+
+// Scenes exist as soon as the game has booted; if boot is still pending, wait
+// for the READY event.
+bindGateToGameScene();
+game.events.once('ready', bindGateToGameScene);
+
+// 5. Bind Main Menu Actions
 document.getElementById('menu-btn-play')?.addEventListener('click', () => {
+  // Must happen synchronously inside the click handler to count as a gesture.
+  void fullscreen.request();
   const menuScene = game.scene.getScene('MenuScene');
   if (menuScene && menuScene.scene.isActive()) {
     menuScene.startGame();
   }
+});
+
+document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => {
+  audio.playClick();
+  void fullscreen.toggle();
 });
 
 document.getElementById('menu-btn-how-to-play')?.addEventListener('click', () => {
@@ -121,12 +277,6 @@ document.getElementById('btn-done-credits')?.addEventListener('click', () => {
 
 // ---------------------------------------------------------------- a11y / UX
 
-// Dismiss the portrait "rotate your device" hint for this session.
-document.getElementById('btn-rotate-dismiss')?.addEventListener('click', () => {
-  audio.playClick();
-  document.getElementById('rotate-hint')?.classList.add('dismissed');
-});
-
 // Clicking the dimmed backdrop (or pressing Escape) closes a dialog.
 for (const id of ['instructions-modal', 'credits-modal']) {
   const overlay = document.getElementById(id);
@@ -138,6 +288,14 @@ for (const id of ['instructions-modal', 'credits-modal']) {
 }
 
 window.addEventListener('keydown', (event) => {
+  // F toggles native fullscreen everywhere (menu, battle, codex).
+  if ((event.key === 'f' || event.key === 'F') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (event.target?.isContentEditable) return;
+    event.preventDefault();
+    void fullscreen.toggle();
+    return;
+  }
+
   if (event.key !== 'Escape') return;
   for (const id of ['instructions-modal', 'credits-modal']) {
     document.getElementById(id)?.classList.add('hidden');

@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 151 tests across 13 test suites.
-- **Pass Rate:** **100% (151 / 151 Passed)**
+- **Total Automated Unit Tests:** 200 tests across 16 test suites.
+- **Pass Rate:** **100% (200 / 200 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** Verified via automated Chromium browser subagent across the full game loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Barricade Cut $\to$ Codex Telemetry).
 
@@ -98,9 +98,9 @@
      ✓ unblocking restores the shortest route
      ✓ records cumulative BFS statistics across runs
 
-Test Files  13 passed (13)
-Tests       151 passed (151)
-Duration    4.06s
+Test Files  16 passed (16)
+Tests       200 passed (200)
+Duration    5.82s
 ```
 
 ---
@@ -116,8 +116,11 @@ Duration    4.06s
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
 | `tests/wave-flow.test.js` | node | 5 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point |
+| `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
+| `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |
+| `tests/display-gate-dom.test.js` | jsdom | 14 | Real index.html gate markup, gates outside #app, inert/aria transitions, button callbacks, focus, HUD ⛶ mirroring |
 
-Contrast is verified separately by `npm run check:contrast` (30/30 WCAG AA pairs, measured against
+Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
 
 

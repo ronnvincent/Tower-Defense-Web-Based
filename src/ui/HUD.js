@@ -29,6 +29,7 @@ export class HUD {
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
+    this.fullscreenState = { supported: true, active: false };
 
     this.initDOM();
     this.bindEvents();
@@ -88,6 +89,17 @@ export class HUD {
           </button>
           <button id="btn-mute" class="game-btn game-btn-icon" title="Toggle sound" aria-label="Toggle sound">
             <img id="img-mute" class="btn-icon-img" src="/assets/ui/icon_audio_on.png" alt="" />
+          </button>
+          <button
+            id="btn-fullscreen"
+            class="game-btn game-btn-icon fs-toggle"
+            title="Enter fullscreen (F)"
+            aria-label="Toggle fullscreen"
+            aria-pressed="false"
+          >
+            <svg class="fs-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
           </button>
           <button id="btn-menu" class="game-btn game-btn-icon" title="Return to menu">
             <img class="btn-icon-img" src="/assets/ui/icon_gear.png" alt="" />
@@ -310,6 +322,13 @@ export class HUD {
       const muted = audio.toggleMute();
       if (muteImg) muteImg.src = muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
       muteBtn.setAttribute('aria-pressed', String(muted));
+    });
+
+    // Fullscreen is owned by main.js (window.gameFullscreen); the HUD only
+    // asks it to toggle and mirrors the resulting state.
+    document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
+      audio.playClick();
+      window.gameFullscreen?.toggle?.();
     });
 
     document.getElementById('btn-menu')?.addEventListener('click', () => {
@@ -708,6 +727,25 @@ export class HUD {
       fit.classList.toggle('active', Boolean(this.zoomState.atFit));
       fit.setAttribute('aria-pressed', String(Boolean(this.zoomState.atFit)));
     }
+  }
+
+  /* ============================================================ FULLSCREEN */
+
+  /**
+   * Mirror the browser fullscreen state in the HUD.
+   * @param {{supported?:boolean, active?:boolean}} state
+   */
+  setFullscreenState(state = {}) {
+    this.fullscreenState = { ...this.fullscreenState, ...state };
+    const btn = document.getElementById('btn-fullscreen');
+    if (!btn) return;
+    const supported = this.fullscreenState.supported !== false;
+    btn.classList.toggle('hidden', !supported);
+    const active = Boolean(this.fullscreenState.active);
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+    btn.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+    btn.title = active ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)';
   }
 
   /* ================================================================== BOSS */

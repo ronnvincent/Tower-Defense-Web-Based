@@ -95,6 +95,8 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 | Two-finger pinch | Zoom + pan simultaneously |
 | Click a floating `▲` badge above a defence | Open that tower’s upgrade inspector |
 | Click the dimmed backdrop of a dialog | Close it |
+| `F` or the ⛶ button | Toggle browser fullscreen |
+| Phone in portrait | Game pauses behind a *Rotate your device* card |
 
 ### Keyboard Shortcuts
 | Key | Action |
@@ -107,6 +109,7 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 | <kbd>3</kbd> | Select Frost Spire |
 | <kbd>4</kbd> | Select Palisade |
 | <kbd>Space</kbd> | Start Next Wave / Toggle Pause |
+| <kbd>F</kbd> | Toggle fullscreen |
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |
 | <kbd>C</kbd> | Toggle DSALGO Technical Codex |
 | <kbd>L</kbd> | View Hall of Champions (Leaderboard) |
@@ -125,9 +128,13 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 - **Responsive HUD** — fluid type plus breakpoints at 1180 / 900 / 680 px and 620 / 460 px heights;
   portrait phones get a rotate card with an escape hatch.
 - **Contrast tokens** — text colours are chosen per surface (wood, parchment, slate, dark glass) and
-  audited with `npm run check:contrast` (30/30 pairs ≥ 4.5:1).
+  audited with `npm run check:contrast` (36/36 pairs ≥ 4.5:1).
+- **Fullscreen & landscape** — the game takes over the screen (first gesture on desktop, one tap on
+  mobile), portrait play is blocked behind a rotate card that pauses the battle, and the leftover
+  space beside the 5:3 stage is filled with an ambient backdrop instead of black bars. Installs as a
+  landscape fullscreen web app via `manifest.webmanifest`.
 
-Full write-up: [docs/ui-ux.md](docs/ui-ux.md).
+Full write-ups: [docs/ui-ux.md](docs/ui-ux.md) · [docs/display-and-fullscreen.md](docs/display-and-fullscreen.md).
 
 ---
 
@@ -154,10 +161,10 @@ npm run dev
 
 ### Running Unit Tests
 ```bash
-# Run all 151 automated unit tests (13 suites, incl. jsdom HUD tests)
+# Run all 200 automated unit tests (16 suites, incl. jsdom HUD tests)
 npm test
 
-# WCAG 2.1 contrast audit of the HUD palette (30/30 pairs)
+# WCAG 2.1 contrast audit of the HUD palette (36/36 pairs)
 npm run check:contrast
 
 # Both of the above
@@ -199,6 +206,10 @@ tower-defense-dsalgo/
 │   ├── camera/
 │   │   ├── cameraMath.js       # Pointer↔world maths, zoom anchors, clamps (pure)
 │   │   └── CameraRig.js        # Drag-pan, wheel/pinch zoom, tap routing
+│   ├── system/
+│   │   ├── displayMode.js      # Orientation / device / fullscreen decisions (pure)
+│   │   ├── FullscreenController.js  # Fullscreen API + orientation lock
+│   │   └── OrientationGate.js  # Rotation watching, gate state machine
 │   ├── config/
 │   │   └── gameConfig.js       # Game constants, balance tuning & storage keys
 │   ├── data/
@@ -237,7 +248,7 @@ tower-defense-dsalgo/
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (151 tests / 13 suites)
+└── tests/                      # Automated Vitest test suites (200 tests / 16 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js

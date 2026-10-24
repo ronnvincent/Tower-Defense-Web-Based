@@ -39,6 +39,8 @@ const SURFACES = {
   bgDeep: tokens['bg-deep'],
   bgGlass: '#0d141a', // codex drawer gradient midpoint
   cream: '#fffeeb', // CardRegular / ItemSlotSelected
+  // Gate card: the darker end of the linear-gradient in .gate-card.
+  gateCard: '#0f0c09',
 };
 
 const toLinear = (channel) => {
@@ -91,6 +93,12 @@ const PAIRS = [
   ['text-dim', 'bgGlass', 4.5, 'codex drawer footnote'],
   ['gold-primary', 'bgGlass', 4.5, 'codex headings'],
   ['cyan-primary', 'bgGlass', 4.5, 'live telemetry values'],
+  ['gold-primary', 'gateCard', 4.5, 'ROTATE YOUR DEVICE / ENTER FULLSCREEN titles'],
+  ['text-main', 'gateCard', 4.5, 'gate body copy emphasis'],
+  ['text-muted', 'gateCard', 4.5, 'gate body copy'],
+  ['text-dim', 'gateCard', 4.5, 'gate footnote + "play without fullscreen" link'],
+  ['ink-strong', 'wood', 4.5, 'menu fullscreen pill on the wooden menu card'],
+  ['text-main', 'bgDeep', 4.5, 'fullscreen gate copy on the dark page'],
 ];
 
 let failures = 0;
