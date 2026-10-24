@@ -81,4 +81,29 @@ describe('HUD boss banner', () => {
     hud.showBossBanner(boss());
     expect($('boss-banner').classList.contains('hidden')).toBe(false);
   });
+
+  it('counts the extra bosses the strip cannot show', () => {
+    hud.showBossBar(boss(), 2);
+    expect($('boss-extra').classList.contains('hidden')).toBe(false);
+    expect($('boss-extra').textContent).toBe('+2 BOSSES');
+
+    hud.showBossBar(boss(), 1);
+    expect($('boss-extra').textContent).toBe('+1 BOSS');
+
+    hud.setBossOverflow(0);
+    expect($('boss-extra').classList.contains('hidden')).toBe(true);
+  });
+
+  it('clears the overflow badge when the panel hides', () => {
+    hud.showBossBar(boss(), 1);
+    expect($('boss-extra').classList.contains('hidden')).toBe(false);
+
+    hud.hideBossBar();
+    expect($('boss-extra').classList.contains('hidden')).toBe(true);
+
+    // A negative or garbage count must never print "-1 BOSSES".
+    expect(() => hud.setBossOverflow(-3)).not.toThrow();
+    expect($('boss-extra').textContent).toBe('+0 BOSSES');
+    expect($('boss-extra').classList.contains('hidden')).toBe(true);
+  });
 });

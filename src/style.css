@@ -1430,6 +1430,14 @@ body.is-fullscreen::before {
 }
 
 .boss-name {
+  /* The title row now carries a phase badge *and* an extra-boss counter, so the
+     name has to be the part that yields: it shrinks and ellipsises instead of
+     pushing the badges out of the strip. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-heading);
   font-size: var(--fs-small);
   font-weight: 700;
@@ -1448,6 +1456,22 @@ body.is-fullscreen::before {
   color: #ffe9c9;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/*
+ * Extra-boss counter. Endless can field three bosses at once while the panel
+ * shows one; this chip is the only cue that the strip is not the whole story.
+ * Warm crimson, deliberately unlike the phase badge, so it reads as a threat
+ * count rather than another phase label.
+ */
+.boss-extra {
+  background: rgba(58, 16, 10, 0.92);
+  border-color: rgba(255, 150, 110, 0.7);
+  color: #ffc6a8;
+}
+
+.boss-extra.hidden {
+  display: none;
 }
 
 .boss-bar-frame {

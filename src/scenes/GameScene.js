@@ -30,6 +30,7 @@ import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
+import { BossTracker } from '../systems/BossTracker.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
@@ -158,6 +159,10 @@ export class GameScene extends Phaser.Scene {
     this.ghostGraphics = this.add.graphics().setDepth(30);
     this.bfsVisualizerGraphics = this.add.graphics().setDepth(8);
 
+    // Endless can field a titan next to the anchor boss (cycle 3) and both
+    // titans at once (cycle 8), so the panel tracks a roster and shows the
+    // deadliest live boss instead of whichever one spawned last.
+    this.bossRoster = new BossTracker();
     this.activeBoss = null;
 
     // 2b. Camera rig — drag to pan, wheel/pinch to zoom. Pointer → world
@@ -501,25 +506,29 @@ export class GameScene extends Phaser.Scene {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
       onDefeated: (e) => this.handleEnemyDefeated(e),
       onBossSpawn: (e) => {
-        this.activeBoss = e;
-        this.hud?.showBossBar(e);
+        this.activeBoss = this.bossRoster.add(e);
+        this.hud?.showBossBar(this.activeBoss, this.bossRoster.extras);
         audio.playWarning();
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
         this.bossEntranceCinematic();
         this.shockwave(e.x, e.y, { from: 0.35, to: 2.2, tint: 0xff9d6b, duration: 620 });
       },
       onBossPhaseChange: (e, phase) => {
-        this.hud?.updateBossPhase(e, phase);
-        this.hud?.updateBossBar(e);
+        // A phase change on an untracked boss must not overwrite the name of the
+        // one the strip is showing.
+        if (e === this.activeBoss) {
+          this.hud?.updateBossPhase(e, phase);
+          this.hud?.updateBossBar(e);
+        }
         this.cameras.main.shake(300, 0.012);
         audio.playWarning();
         this.hud?.showToast(`⚡ ${e.def.name} Phase Shift: ${phase.name}!`, 'warning');
       },
       onBossDefeated: (e) => {
-        if (this.activeBoss === e) {
-          this.activeBoss = null;
-          this.hud?.hideBossBar();
-        }
+        // The roster hands the strip to the next live boss; hiding it outright
+        // would drop the HP bar of an anchor still walking behind the titan.
+        this.activeBoss = this.bossRoster.remove(e);
+        this.syncBossPanel();
         audio.playVictory();
         this.hud?.showToast(`🏆 BOSS DEFEATED: ${e.def.name}!`, 'success');
         this.shockwave(e.x, e.y, { from: 0.5, to: 3.0, tint: 0xffe2a8, duration: 700 });
@@ -707,9 +716,9 @@ export class GameScene extends Phaser.Scene {
     const destroyed = this.gameState.damageBase(enemy.baseDamage);
     this.gameState.counters.enemiesEscaped++;
 
-    if (this.activeBoss === enemy) {
-      this.activeBoss = null;
-      this.hud?.hideBossBar();
+    if (enemy.isBoss) {
+      this.activeBoss = this.bossRoster.remove(enemy);
+      this.syncBossPanel();
     }
 
     if (destroyed) {
@@ -741,12 +750,31 @@ export class GameScene extends Phaser.Scene {
       this.hud?.showCombo({ chain: kill.chain, multiplier: kill.multiplier, tier: kill.tier, bonus: comboGold });
     }
 
-    if (this.activeBoss === enemy) {
-      this.activeBoss = null;
-      this.hud?.hideBossBar();
+    if (enemy.isBoss) {
+      this.activeBoss = this.bossRoster.remove(enemy);
+      this.syncBossPanel();
     }
 
     this.syncHUD();
+  }
+
+  /**
+   * Point the boss strip at the deadliest live boss.
+   *
+   * Called whenever the roster changes. Re-showing the bar re-reads the name and
+   * phase from the new boss, so the panel can never show one boss's health under
+   * another boss's name — the failure mode of the old single-slot tracking.
+   */
+  syncBossPanel() {
+    const boss = this.activeBoss;
+    if (!boss) {
+      this.hud?.hideBossBar();
+      return;
+    }
+    const phase =
+      boss.bossPhases?.[boss.currentPhaseIndex] || boss.bossPhases?.[0] || { phase: 1, name: 'Engaged' };
+    this.hud?.showBossBar(boss, this.bossRoster?.extras ?? 0);
+    this.hud?.updateBossPhase(boss, phase);
   }
 
   handleStartWave() {
@@ -1732,13 +1760,12 @@ export class GameScene extends Phaser.Scene {
     compactInPlace(this.activeProjectiles, (p) => !p.isDead);
 
     // 5. Boss Status HUD Update
-    if (this.activeBoss) {
-      if (this.activeBoss.isDead || this.activeBoss.reachedBase) {
-        this.activeBoss = null;
-        this.hud?.hideBossBar();
-      } else {
-        this.hud?.updateBossBar(this.activeBoss);
-      }
+    const tracked = this.bossRoster.prune();
+    if (tracked !== this.activeBoss) {
+      this.activeBoss = tracked;
+      this.syncBossPanel();
+    } else if (tracked) {
+      this.hud?.updateBossBar(tracked);
     }
 
     // Synchronize HUD

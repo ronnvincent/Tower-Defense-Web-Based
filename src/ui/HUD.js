@@ -159,6 +159,7 @@ export class HUD {
           <span class="boss-skull">💀</span>
           <span id="boss-name" class="boss-name">STONE COLOSSUS</span>
           <span id="boss-phase-badge" class="boss-phase-badge">PHASE 1</span>
+          <span id="boss-extra" class="boss-phase-badge boss-extra hidden">+1</span>
         </div>
         <div class="boss-bar-frame">
           <div id="boss-shield-bar" class="boss-shield-bar" style="width: 0%;"></div>
@@ -1001,14 +1002,30 @@ export class HUD {
    * game the instant the first boss spawns (wave 3). tests/ui-contracts.test.js
    * now pins every HUD method GameScene calls.
    */
-  showBossBar(boss) {
+  showBossBar(boss, extras = 0) {
     const banner = document.getElementById('boss-banner');
     if (!banner) return;
     banner.classList.remove('hidden');
     const nameEl = document.getElementById('boss-name');
     if (nameEl) nameEl.textContent = (boss?.def?.name || 'BOSS').toUpperCase();
     this.updateBossPhase(boss, boss?.bossPhases?.[0] || { phase: 1, name: 'Engaged' });
+    this.setBossOverflow(extras);
     this.updateBossBar(boss);
+  }
+
+  /**
+   * Show the number of bosses the strip cannot display.
+   *
+   * Endless can field three at once (anchor + both titans); the panel keeps
+   * tracking the deadliest one and this badge tells the player the rest are
+   * still out there, instead of silently hiding them.
+   */
+  setBossOverflow(count) {
+    const extra = document.getElementById('boss-extra');
+    if (!extra) return;
+    const others = Math.max(0, Math.floor(Number(count) || 0));
+    extra.textContent = `+${others} BOSS${others === 1 ? '' : 'ES'}`;
+    extra.classList.toggle('hidden', others === 0);
   }
 
   /** @deprecated Kept for older call sites — use {@link HUD#showBossBar}. */
@@ -1059,6 +1076,7 @@ export class HUD {
 
   hideBossBar() {
     document.getElementById('boss-banner')?.classList.add('hidden');
+    this.setBossOverflow(0);
   }
 
   hideBossBanner() {

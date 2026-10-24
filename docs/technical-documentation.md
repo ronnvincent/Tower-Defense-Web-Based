@@ -493,6 +493,27 @@ simulation loop.
 - The wave button itself carries the early-call bonus, so the decision is priced
   on the control that makes it.
 
+### 8.5 The boss strip is a roster, not a slot
+
+Endless can put more than one boss on the lane: cycle 3 sends a titan beside the
+anchor boss and cycle 8 sends both titans with it. The panel is a single strip,
+so `GameScene` no longer keeps one `activeBoss` pointer — it keeps a
+`BossTracker` (`src/systems/BossTracker.js`) and asks it who owns the strip.
+
+- **Who wins the strip.** Highest total pool (`maxHealth + maxShield`), ties to
+  the earlier spawn. The titan outranks the anchor it arrived with, and a phase
+  shield counts, so a shielded boss cannot lose the bar to a smaller one.
+- **A death never blanks the panel.** `onBossDefeated`, a leak and the per-frame
+  prune all route through `syncBossPanel()`, which hands the strip to the next
+  live boss (and re-reads its name and phase) or hides it when the lane is clear.
+  The old single slot hid the bar while an anchor was still walking behind the
+  dead titan.
+- **Untracked phase changes are ignored.** A phase shift on a boss that does not
+  own the strip can no longer print its phase onto another boss's name.
+- **The strip stays one strip.** `#boss-extra` shows `+N BOSSES` when the roster
+  is deeper than the panel, so the player knows the bar is not the whole story
+  and the panel never grows tall enough to cover the lane on a phone.
+
 ---
 
 ## 9. Retention Layer

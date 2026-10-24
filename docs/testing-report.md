@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 631 tests across 47 test suites.
-- **Pass Rate:** **100% (631 / 631 Passed)**
+- **Total Automated Unit Tests:** 642 tests across 48 test suites.
+- **Pass Rate:** **100% (642 / 642 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -215,7 +215,8 @@ Duration    6.7s
 | `tests/panel-placement.test.js` | node | 7 | Inspector opening off-screen or on top of the selected tower |
 | `tests/hud-dom.test.js` | jsdom | 16 | HUD controls missing, buttons not forwarding callbacks, destructive controls back on the top bar, a single tap leaving the battle, the pause card not opening/closing, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
-| `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
+| `tests/hud-boss-bar.test.js` | jsdom | 7 | Boss banner not appearing/updating, throwing on an incomplete boss object, or the extra-boss counter leaking `+0` / a negative count onto the strip |
+| `tests/boss-tracker.test.js` | jsdom | 9 | The strip showing the wrong boss when a titan and an anchor share a wave, a shield not counting toward the tracked pool, the panel blanking when the tracked boss dies first, a leaked boss never leaving the roster, or `syncBossPanel()` hiding a strip that still has a live boss |
 | `tests/hud-responsive.test.js` | jsdom | 7 | A boss card that spans the screen again on a phone, a compact strip that drifts back over the toast lane, a dock fold that hides its own handle |
 | `tests/dock-fold.test.js` | jsdom | 8 | The forge toggle not folding/unfolding the cards, an armed defence surviving into a fold, the fold not remembered (or crashing without storage), a duel label leaking into the next campaign battle |
 | `tests/map-margin.test.js` | node | 6 | A spawn or core back on the map edge (half its art clipped), a gate buried under the top bar or the dock, a duel arena whose gates stop mirroring each other, a margin that severs the road network |
@@ -291,8 +292,11 @@ processed. Waves 4–5 look fine only because they contain no boss; wave 6 has o
 - `tests/ui-contracts.test.js` parses every `hud.x(...)` / `gameCodex.x(...)` / `gameLeaderboardUI.x(...)`
   / `audio.x(...)` call site in `src/` and asserts the method exists on the receiving class. It fails
   with `Missing HUD methods: ["HUD.showBossBar"]` when the bug is reintroduced (verified).
-- `tests/hud-boss-bar.test.js` exercises the real DOM banner: reveal, HP/shield updates, hide, and a
-  bare `{}` boss object.
+- `tests/hud-boss-bar.test.js` exercises the real DOM banner: reveal, HP/shield updates, hide, the
+  `+N BOSSES` overflow chip, and a bare `{}` boss object.
+- `tests/boss-tracker.test.js` pins the multi-boss roster (biggest pool wins, ties keep the earlier
+  spawn, a death hands the strip to the next boss) and that `GameScene.syncBossPanel()` routes it to
+  the one strip.
 - `tests/progression.test.js` pins the star boundaries (85 % / 50 %), the first-clear vs replay
   payouts, the unlock graph (`level-1` → `level-2` → `endless`) and the save-file merge/corruption paths.
 - `tests/campaign-ui.test.js` renders the world map and the result modal in jsdom and asserts the
