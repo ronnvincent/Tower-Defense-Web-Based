@@ -4,7 +4,9 @@
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover lets the game paint under the notch; the HUD adds
          the safe-area insets back on top. user-scalable=no stops pinch from
-         zooming the *page* (pinch zooms the battlefield instead). -->
+         zooming the *page* (pinch zooms the battlefield instead); iOS Safari
+         ignores that flag, so src/system/viewportLock.js also cancels the
+         gesture* / multi-touch / ctrl-wheel fallbacks at runtime. -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"

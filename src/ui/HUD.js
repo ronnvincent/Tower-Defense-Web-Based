@@ -1,6 +1,8 @@
 import { BUILD_OPTIONS, getBuildDefinition } from '../data/towerData.js';
+import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { clampPanel, placeInspector } from './panelPlacement.js';
+import { HudLayout } from './hudLayout.js';
 
 const PAN_HINT_KEY = 'td-dsalgo:camera-hint:v1';
 
@@ -35,6 +37,10 @@ export class HUD {
     this.bindEvents();
     this.bindInspectorDrag();
     this.bindViewport();
+
+    // Publish the real dock / top-bar heights as CSS variables so the floating
+    // controls (camera pill, camera hint, toast) can never overlap them.
+    this.layout = new HudLayout().observe();
   }
 
   /* ================================================================ MARKUP */
@@ -47,14 +53,14 @@ export class HUD {
             <img class="hud-icon-img heart-pulse" src="/assets/ui/icon_heart.svg" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">BASE</span>
-              <span class="hud-value" id="val-base-hp">20 / 20</span>
+              <span class="hud-value" id="val-base-hp">${STARTING_BASE_HEALTH} / ${STARTING_BASE_HEALTH}</span>
             </div>
           </div>
           <div class="hud-stat" id="stat-coins" title="Treasury — spend gold on defences">
             <img class="hud-icon-img gold-coin" src="/assets/ui/icon_coin.png" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">GOLD</span>
-              <span class="hud-value gold-text" id="val-coins">160</span>
+              <span class="hud-value gold-text" id="val-coins">${STARTING_COINS}</span>
             </div>
           </div>
           <div class="hud-stat" id="stat-score" title="Total score">
@@ -450,13 +456,15 @@ export class HUD {
   }
 
   hostRect() {
-    const host = this.container.closest('#app') || this.container;
+    // #hud-container fills the viewport, and every HUD panel is a child of it,
+    // so its box is the coordinate space the panels are positioned in.
+    const host = this.container;
     const rect = host.getBoundingClientRect();
     return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
   }
 
   viewportSize() {
-    const host = this.container.closest('#app') || this.container;
+    const host = this.container;
     return { width: host.clientWidth || window.innerWidth, height: host.clientHeight || window.innerHeight };
   }
 

@@ -73,8 +73,15 @@
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* Height reserved by the bottom dock + breathing room, used by floating UI */
+  /* Width of the 5:3 battlefield: full-bleed, but never so tall that the
+     top/bottom crop would eat into the playable rows (cap = 1.25 × 5/3). */
+  --stage-width: min(100vw, calc(100vh * 25 / 12));
+
+  /* Fallback heights for the floating UI. src/ui/hudLayout.js measures the
+     real panels and overwrites both variables on <html>, so these only apply
+     for the first frame (and when JS is disabled). */
   --dock-clearance: clamp(112px, 17vh, 156px);
+  --topbar-clearance: clamp(64px, 9vh, 82px);
 
   /* Notch / home-indicator padding. Zero on everything except fullscreen
      phones with a cut-out; the HUD adds these on top of its normal offsets. */
@@ -121,11 +128,17 @@ body {
   height: 100%;
   overflow: hidden;
   background: var(--bg-deep);
+  /* Mobile Safari / Chrome: never re-flow or inflate the HUD text when the
+     device rotates — that alone reads as a "the page is zoomed" bug. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html {
   /* iOS: never let the page bounce or scroll behind the canvas. */
   overscroll-behavior: none;
+  /* The game owns pinch and pan; the page itself must never scroll or zoom. */
+  touch-action: none;
 }
 
 body {
@@ -184,35 +197,50 @@ body.is-fullscreen::before {
 }
 
 /*
- * The game is authored at 1280×768 (5:3). The frame is sized to that exact
- * aspect ratio so the Phaser canvas never letterboxes inside it — which is
- * what keeps the HTML HUD glued to the battlefield at every window size.
+ * The game is authored at 1280×768 (5:3).
+ *
+ * #app is pinned to the *viewport*, not to the battlefield: the HUD, the menu
+ * and the modals are children of it, so they must always be laid out against
+ * the visible screen even when the stage is wider or taller than the screen.
+ *
+ * #game-container holds the 5:3 stage. It is as wide as the screen — never
+ * narrower — so a phone in landscape has no side bands. When the screen is
+ * wider than 5:3 the extra height simply overflows and is cropped equally top
+ * and bottom, over the map's decorative tree rows that the top bar and dock
+ * cover anyway. The crop is capped at 1.25× the viewport height (`25 / 12` is
+ * 1.25 × 5/3): beyond ~2.2:1 the stage stops growing and the ambient backdrop
+ * fills the sliver of side band instead of cutting into playable rows.
  */
 #app {
   position: relative;
   z-index: 1;
-  width: min(100vw, calc(100vh * 5 / 3));
-  height: min(100vh, calc(100vw * 3 / 5));
+  width: 100vw;
+  height: 100vh;
   max-width: 100vw;
   max-height: 100vh;
-  background: #000;
-  box-shadow:
-    0 0 0 2px var(--border-iron),
-    0 24px 70px rgba(0, 0, 0, 0.85),
-    0 0 90px rgba(245, 196, 81, 0.08);
+  /* Transparent, so a stage that is narrower than the screen (portrait, 4:3)
+     reveals the blurred battlefield backdrop instead of black bars. */
+  background: transparent;
   overflow: hidden;
 }
 
 @supports (height: 100dvh) {
+  :root {
+    --stage-width: min(100vw, calc(100dvh * 25 / 12));
+  }
+
   #app {
-    width: min(100vw, calc(100dvh * 5 / 3));
-    height: min(100dvh, calc(100vw * 3 / 5));
+    height: 100dvh;
   }
 }
 
 #game-container {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--stage-width);
+  height: calc(var(--stage-width) * 3 / 5);
 }
 
 #hud-container {
@@ -220,6 +248,7 @@ body.is-fullscreen::before {
   inset: 0;
   pointer-events: none; /* only the controls inside it catch clicks */
   z-index: 100;
+  touch-action: none;
 }
 
 #modal-container {
@@ -574,6 +603,8 @@ body.is-fullscreen::before {
   bottom: calc(clamp(6px, 1.4vh, 14px) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
+  /* Seven cards plus the hint must never poke past the safe area. */
+  max-width: calc(100vw - 8px - var(--safe-left) - var(--safe-right));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -747,18 +778,22 @@ body.is-fullscreen::before {
 }
 
 /* ==========================================================================
-   PLACEMENT HINT — lives inside the dock so it always clears the dock height
+   PLACEMENT HINT
+   --------------------------------------------------------------------------
+   The hint is a normal flex child of the dock, not an absolute overlay. The
+   dock is anchored to the bottom of the screen, so showing the hint grows the
+   panel upwards — the cards never move and the pill can never sit on top of a
+   touch target, whatever the dock's height happens to be.
    ========================================================================== */
 
 .placement-hint {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: static;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: min(560px, 86vw);
+  max-width: 100%;
+  margin: 0 auto 8px;
   padding: 7px 10px 7px 16px;
   border-radius: 999px;
   background: rgba(9, 14, 18, 0.9);
@@ -772,7 +807,6 @@ body.is-fullscreen::before {
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: auto;
-  z-index: 120;
 }
 
 .placement-hint.unaffordable {
@@ -875,7 +909,9 @@ body.is-fullscreen::before {
 
 .toast-banner {
   position: absolute;
-  top: clamp(64px, 9vh, 82px);
+  /* Measured top-bar height + a gap: the toast is pinned under the HUD, never
+     on top of it. */
+  top: var(--topbar-clearance);
   left: 50%;
   transform: translateX(-50%);
   max-width: min(620px, 88vw);
@@ -2610,7 +2646,8 @@ body.is-fullscreen #app::after {
     font-size: 11px;
     white-space: normal;
     text-align: center;
-    max-width: 88%;
+    max-width: 100%;
+    margin-bottom: 6px;
   }
 
   .modal-card,
@@ -2689,6 +2726,63 @@ body.is-fullscreen #app::after {
 }
 
 @media (max-height: 460px) {
+  /* Landscape phones: one row of chrome. The tablet breakpoint wraps the wave
+     badge onto a second row, which costs ~80 px of a 390 px-tall screen —
+     a third of the battlefield before the first wave. */
+  .hud-topbar {
+    flex-wrap: nowrap;
+    min-height: 38px;
+    gap: 5px;
+    padding: 2px 10px;
+  }
+
+  .hud-center-group {
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .hud-controls-group {
+    order: 3;
+  }
+
+  .hud-wave-badge {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    padding: 2px 8px;
+    border-image-width: 9px;
+  }
+
+  .hud-wave-number {
+    font-size: 14px;
+  }
+
+  .hud-wave-sub {
+    font-size: 9px;
+  }
+
+  #btn-start-wave {
+    flex: 0 1 auto;
+    min-height: 28px;
+  }
+
+  /* Short viewports (phone landscape, or a squat desktop window) get no zoom
+     pill either — it reads as browser chrome and it sits on the dock corner.
+     Wheel/pinch still zoom, and the reset button stays. */
+  .cam-zoom-value,
+  .cam-divider,
+  #btn-zoom-in,
+  #btn-zoom-out {
+    display: none;
+  }
+
+  .camera-cluster {
+    padding: 3px;
+  }
+
   .hud-dock {
     padding: 2px 10px 3px;
   }
@@ -2725,6 +2819,23 @@ body.is-fullscreen #app::after {
   .cam-btn {
     width: 34px;
     height: 34px;
+  }
+
+  /*
+   * Phones: the ±/percentage pill is what players read as a browser zoom
+   * widget, and pinch already zooms the battlefield. Keep a single "reset
+   * view" button instead of three controls that eat the dock's corner.
+   */
+  .cam-zoom-value,
+  .cam-divider,
+  #btn-zoom-in,
+  #btn-zoom-out {
+    display: none;
+  }
+
+  .camera-cluster {
+    padding: 3px;
+    gap: 0;
   }
 
   .build-card {

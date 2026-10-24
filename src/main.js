@@ -12,6 +12,7 @@ import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
 import { DisplayGateUI } from './ui/DisplayGateUI.js';
 import { GATE_MODE, gateBlocksGameplay } from './system/displayMode.js';
+import { lockViewport } from './system/viewportLock.js';
 
 // 1. Instantiate shared systems for UI
 const globalLeaderboard = new Leaderboard();
@@ -44,6 +45,12 @@ const hudContainer = document.getElementById('hud-container');
 const modalContainer = document.getElementById('modal-container');
 
 window.gameHUD = new HUD(hudContainer, {});
+
+// The viewport meta already asks mobile browsers not to zoom the page, but
+// iOS Safari ignores `user-scalable=no` and Chrome honours "force enable zoom".
+// This cancels the page-level pinch / ctrl-wheel / zoom-shortcut fallbacks so a
+// two-finger gesture always zooms the battlefield instead of the HUD.
+lockViewport();
 window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, {
   onReturnToMenu: () => {
     const gameScene = game.scene.getScene('GameScene');

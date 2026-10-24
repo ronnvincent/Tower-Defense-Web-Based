@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 237 tests across 19 test suites.
-- **Pass Rate:** **100% (237 / 237 Passed)**
+- **Total Automated Unit Tests:** 264 tests across 21 test suites.
+- **Pass Rate:** **100% (264 / 264 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -113,12 +113,28 @@
      ✓ a lone grunt cannot chew through a palisade in seconds, a pack can
      ✓ resolves a swing without ever over-killing the wall
 
+ ✓ tests/viewport-lock.test.js (9 tests)
+     ✓ cancels the iOS page-pinch gesture events
+     ✓ cancels two-finger drags but leaves one-finger camera drags alone
+     ✓ cancels ctrl+wheel (trackpad pinch) and allows normal wheel zoom
+     ✓ cancels the browser zoom keyboard shortcuts outside text fields
+     ✓ detaches every listener on release
+
+ ✓ tests/mobile-layout.test.js (18 tests)
+     ✓ measures the gap between the dock top and the bottom of the screen
+     ✓ publishes the measured heights as custom properties
+     ✓ grows the clearance when the placement hint makes the dock taller
+     ✓ is a flow child of the dock, not an absolute overlay
+     ✓ scales the 5:3 stage to the full width of the viewport
+     ✓ keeps the top bar on a single row on short landscape screens
+     ✓ hides the zoom pill on touch devices but keeps reset
+
  ✓ tests/module-contracts.test.js (10 tests)
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  19 passed (19)
-Tests       237 passed (237)
+Test Files  21 passed (21)
+Tests       264 passed (264)
 Duration    6.7s
 ```
 
@@ -138,6 +154,8 @@ Duration    6.7s
 | `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
 | `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |
 | `tests/display-gate-dom.test.js` | jsdom | 14 | Real index.html gate markup, gates outside #app, inert/aria transitions, button callbacks, focus, HUD ⛶ mirroring |
+| `tests/mobile-layout.test.js` | jsdom | 18 | Placement hint covering the dock, floating HUD pinned to a stale dock height, stage leaving bands on a phone, missing viewport/touch-action lock |
+| `tests/viewport-lock.test.js` | jsdom | 9 | Page pinch-zoom on iOS, two-finger page scroll, ctrl+wheel and browser zoom shortcuts stealing the game's gestures |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).

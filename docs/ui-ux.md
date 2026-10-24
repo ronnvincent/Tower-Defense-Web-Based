@@ -104,8 +104,12 @@ Phaser view (`UpgradeBadges`).
 
 ## 5. Responsive HUD
 
-`#app` now keeps the authored 5:3 aspect (`min(100vw, 100vh × 5/3)`), so the Phaser canvas never
-letterboxes inside its frame and the HTML HUD always lines up with the battlefield.
+`#app` fills the screen (`100vw × 100dvh`) and the 5:3 battlefield is a separate, always-full-width
+box inside it, so the HUD is anchored to the screen even when the stage overflows it. Two measured
+custom properties — `--dock-clearance` and `--topbar-clearance`, published by
+[`src/ui/hudLayout.js`](../src/ui/hudLayout.js) — keep every floating control clear of the dock and
+the top bar at any aspect ratio. The placement hint lives *inside* the dock as a flow child, so it
+grows the panel upwards instead of covering a card.
 
 | Breakpoint | Behaviour |
 |---|---|
@@ -113,8 +117,8 @@ letterboxes inside its frame and the HTML HUD always lines up with the battlefie
 | ≤ 900 px | Top bar wraps: stats + icon-only controls on row 1, wave badge + START WAVE on row 2 |
 | ≤ 680 px | Score chip hidden, dock becomes a full-width strip without its title, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
 | ≤ 620 px height | Desktop labels hidden, 30 px dock icons, 40 vh inspector, camera hint suppressed |
-| ≤ 460 px height | Dock name labels hidden (icon + price only), compact menu |
-| `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows |
+| ≤ 460 px height | Dock name labels hidden (icon + price only), compact menu, top bar collapses to one row (wave badge inline) |
+| `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows, zoom pill reduced to its "reset view" button (pinch already zooms the battlefield) |
 
 Type and spacing use `clamp()` so the HUD scales with the window instead of jumping between sizes.
 
@@ -161,7 +165,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 237 tests / 19 suites (includes the 4 UI suites)
+npm test                # 264 tests / 21 suites (includes the UI + mobile-layout suites)
 npm run check:contrast  # WCAG audit — 30/30
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
