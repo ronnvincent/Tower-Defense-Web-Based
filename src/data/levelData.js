@@ -166,6 +166,10 @@ export const LEVELS = [
           { type: 'brute', count: 5, interval: 1500 },
           { type: 'healer', count: 3, interval: 2100, delay: 1200 },
           { type: 'shield', count: 3, interval: 1500, delay: 1500 },
+          // First Flare bodies in the campaign: raiders sprint ahead of the
+          // brutes and start chewing the palisade while the tanks are still
+          // crossing the mesa.
+          { type: 'raider', count: 8, interval: 520, delay: 900 },
         ],
       },
       {
@@ -251,6 +255,9 @@ export const LEVELS = [
         groups: [
           { type: 'shield', count: 8, interval: 1200 },
           { type: 'swarm', count: 20, interval: 260, delay: 1000 },
+          // Frozen corpses walk behind the shields: slow, but they reach the
+          // wall long after the swarm has been cleared.
+          { type: 'thrall', count: 6, interval: 1600, delay: 1400 },
         ],
       },
       {
@@ -336,6 +343,8 @@ export const LEVELS = [
           { type: 'healer', count: 5, interval: 1700 },
           { type: 'runner', count: 18, interval: 320, delay: 900 },
           { type: 'shield', count: 5, interval: 1300, delay: 1500 },
+          // Bone archers pick at the palisade from behind the runners.
+          { type: 'bonearcher', count: 8, interval: 640, delay: 1500 },
         ],
       },
       {
@@ -344,6 +353,8 @@ export const LEVELS = [
           { type: 'brute', count: 9, interval: 1100 },
           { type: 'swarm', count: 24, interval: 220, delay: 800 },
           { type: 'healer', count: 4, interval: 1700, delay: 1400 },
+          { type: 'raider', count: 10, interval: 460, delay: 600 },
+          { type: 'thrall', count: 5, interval: 1700, delay: 2200 },
         ],
       },
       {
@@ -403,7 +414,19 @@ export function getNextLevel(id) {
  * pair arrives together. They are deliberately in a separate list so the early
  * rotation stays readable — a fresh player meets the campaign five first.
  */
-export const ENDLESS_BOSSES = ['colossus', 'sandwyrm', 'frostwarden', 'magmalord', 'prismlord'];
+export const ENDLESS_BOSSES = [
+  // The campaign five first: a fresh endless run still meets the bosses the
+  // stages taught it. The Flare trio joins the rotation from cycle 5 (wave 30),
+  // where a player has already beaten everything the campaign can throw.
+  'colossus',
+  'sandwyrm',
+  'frostwarden',
+  'magmalord',
+  'prismlord',
+  'ironhorn',
+  'ashwing',
+  'gravesworn',
+];
 export const ENDLESS_TITANS = ['voidherald', 'obsidian'];
 
 /** Titans join from this boss cycle onwards (cycle 0 = wave 5). */
@@ -465,6 +488,9 @@ export function makeEndlessWave(n) {
       groups: [
         { type: 'grunt', count: 12 + extra, interval: every(900) },
         { type: 'runner', count: 6 + extra, interval: every(420), delay: 1000 },
+        // Greenskins join the opening wave once the run is warm, so the first
+        // cycle still teaches with the campaign bestiary.
+        { type: 'raider', count: Math.max(0, Math.min(24, (cycle - 1) * 4)), interval: every(420), delay: 1800 },
         { type: 'healer', count: Math.max(0, Math.min(4, cycle - 2)), interval: every(1800), delay: 1600 },
       ].filter((group) => group.count > 0),
     };
@@ -476,6 +502,9 @@ export function makeEndlessWave(n) {
         { type: 'swarm', count: 18 + extra, interval: every(300) },
         { type: 'shield', count: 2 + cycle, interval: every(1400), delay: 1200 },
         { type: 'runner', count: Math.max(0, Math.min(14, (cycle - 3) * 2)), interval: every(380), delay: 2200 },
+        // A corpse wall behind the shield line: the tanks you cannot simply
+        // out-DPS while the runners are already at the gate.
+        { type: 'thrall', count: Math.max(0, Math.min(18, (cycle - 1) * 3)), interval: every(1500), delay: 1900 },
       ].filter((group) => group.count > 0),
     };
   }
@@ -485,6 +514,8 @@ export function makeEndlessWave(n) {
       groups: [
         { type: 'brute', count: 4 + Math.min(12, cycle), interval: every(1300) },
         { type: 'healer', count: 2 + Math.min(6, cycle), interval: every(1800), delay: 1200 },
+        // Archers arrive with the first real brute push.
+        { type: 'bonearcher', count: Math.max(0, Math.min(24, (cycle - 1) * 4)), interval: every(700), delay: 1500 },
         { type: 'grunt', count: Math.max(0, Math.min(40, (cycle - 4) * 4)), interval: every(600), delay: 2000 },
       ].filter((group) => group.count > 0),
     };

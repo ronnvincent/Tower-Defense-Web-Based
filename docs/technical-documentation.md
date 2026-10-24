@@ -295,6 +295,26 @@ fails if two biomes share a lane or water value. Current values (road / water):
 grassland 58.0 / 41.7, desert 43.9 / 77.9, ice 37.9 / 61.9, volcanic 36.2 / 73.8,
 crystal 61.0 / 34.7.
 
+### 7.2b The roster, and where the bodies come from
+
+Twenty archetypes ship today: six campaign creeps, three Flare creeps, eight
+bosses and the two endless titans. `ENEMY_SOURCES` in the generator maps each
+creep to a source strip; `BOSS_SOURCES` does the same for bosses and adds a
+grade. Both accept a path relative to `src/assets` (`flare/enemies/thrall`), so a
+second art pack does not have to be copied into the Spire folder.
+
+The Flare side is imported once by `scripts/extract_flare_enemies.py`: it reads
+the pack's per-frame rectangle/offset definitions, lifts the front-facing
+direction, removes the baked shadow (the game draws its own, and a baked one
+would rotate with the body), and recomposites idle/move/death into the same
+9-row strip. Empty tail columns are blank rather than repeated keyframes, so the
+manifest's measured frame counts stay honest.
+
+Rotation: `ENDLESS_BOSSES` keeps the campaign five first and appends
+`ironhorn`, `ashwing` and `gravesworn`, so early endless is unchanged and the
+new bosses appear from cycle 5 (wave 30). The three new creeps join endless from
+cycle 2 onward and appear in the later campaign stages.
+
 ### 7.3 Horde skins (`src/systems/EnemySkins.js`)
 Three pure lookups, all exported for the tests:
 

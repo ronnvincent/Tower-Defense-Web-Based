@@ -30,6 +30,18 @@ ASSETS = os.path.join(ROOT, "src", "assets")
 SRC = os.path.join(ASSETS, "spire")
 OUT = os.path.join(ROOT, "public", "assets")
 
+
+def source_path(sprite):
+    """Resolve an enemy source strip.
+
+    Spire strips live in `src/assets/spire/enemies`; imported packs carry their
+    own folder (`flare/enemies/thrall`), which is why a source may be a path
+    relative to `src/assets` instead of a bare name.
+    """
+    if "/" in sprite:
+        return os.path.join(ASSETS, f"{sprite}.png")
+    return os.path.join(SRC, "enemies", f"{sprite}.png")
+
 # ---------------------------------------------------------------- PNG helpers
 
 
@@ -590,6 +602,12 @@ ENEMY_SOURCES = {
     "shield": ("magma_crab", 64, 9),
     "colossus": ("firewasp", 96, 9),
     "warlord": ("flying_locust", 64, 9),
+    # Flare pack (CC-BY-SA 3.0) — imported by scripts/extract_flare_enemies.py
+    # into the same 9-row idle/move/death layout, so biomes and tiers apply
+    # unchanged. Frame sizes are the measured cell of each imported strip.
+    "thrall": ("flare/enemies/thrall", 65, 9),
+    "raider": ("flare/enemies/raider", 62, 9),
+    "bonearcher": ("flare/enemies/bonearcher", 80, 9),
 }
 
 
@@ -922,6 +940,12 @@ BOSS_SOURCES = {
     # fields creatures the player has never seen in a stage fight.
     "obsidian": ("clampbeetle", 64, 9, 3, (0x090A14, 0x2A2350, 0x6F5BD6, 0xC9BEFF)),
     "voidherald": ("flying_locust", 64, 9, 3, (0x05070F, 0x123B45, 0x2FB6A8, 0xB9FFF2)),
+    # Flare bosses. A full duotone would flatten the painted armour into a
+    # silhouette, so these carry a sixth value: how hard to grade toward the
+    # ramp. 0.55 tints them into their element and keeps the detail.
+    "ironhorn": ("flare/enemies/ironhorn", 103, 9, 1, (0x1A0F0A, 0x6B3A1E, 0xC97B3C, 0xFFE0B0), 0.55),
+    "ashwing": ("flare/enemies/ashwing", 122, 9, 1, (0x07120C, 0x1E4A34, 0x57A56F, 0xD6FFD9), 0.5),
+    "gravesworn": ("flare/enemies/gravesworn", 114, 9, 1, (0x0A0A12, 0x2A2C46, 0x6C7BA8, 0xE6ECFF), 0.55),
 }
 
 # Which way each strip's art points at rotation 0.
@@ -951,16 +975,25 @@ ENEMY_FACING = {
     "prismlord": "north",
     "obsidian": "south",
     "voidherald": "south",
+    # Imported from Flare at direction 6 (the full-front pose).
+    "thrall": "south",
+    "raider": "south",
+    "bonearcher": "south",
+    "ironhorn": "south",
+    "ashwing": "south",
+    "gravesworn": "south",
 }
 
 
 def build_bosses():
     print("bosses")
-    for key, (sprite, fw, rows, scale, ramp) in BOSS_SOURCES.items():
-        path = os.path.join(SRC, "enemies", f"{sprite}.png")
+    for key, spec in BOSS_SOURCES.items():
+        sprite, fw, rows, scale, ramp = spec[:5]
+        strength = spec[5] if len(spec) > 5 else 1.0
+        path = source_path(sprite)
         w, h, sheet = read_png(path)
         assert w % fw == 0, (path, w, fw)
-        graded = duotone(sheet, ramp)
+        graded = grade_toward(sheet, ramp, strength) if strength < 1 else duotone(sheet, ramp)
         nw, nh, big = scale_pixels(graded, w, h, scale)
         save(
             os.path.join(OUT, "enemies", f"enemy-{key}.png"),
@@ -1268,7 +1301,7 @@ def tier_sheet(sheet, w, h, theme, tier):
 def build_enemies():
     print("enemies")
     for key, (sprite, fw, frames) in ENEMY_SOURCES.items():
-        path = os.path.join(SRC, "enemies", f"{sprite}.png")
+        path = source_path(sprite)
         w, h, sheet = read_png(path)
         fh = h // frames
         assert h % frames == 0, (path, h, frames)
@@ -1386,12 +1419,23 @@ def build_effects():
     return manifest
 
 
+# Sheets whose pose-to-pose silhouette swings so far that frame 0 is a lie.
+#
+# The game scales a sprite by sqrt(artWidth * artHeight) so every creature lands
+# at its radius. The Spire sheets keep one silhouette across every frame, so
+# measuring frame 0 is exact. Flare's wyvern folds its wings on frame 0 and
+# spreads them across 108 px two frames later: measuring the folded pose made
+# the whole animation 1.8x too large and clipped the wings off-screen. For these
+# keys the manifest averages every idle/move frame instead.
+AVERAGE_MEASURE = {"thrall", "raider", "bonearcher", "ironhorn", "ashwing", "gravesworn"}
+
+
 def build_enemy_manifest():
     """Measure every enemy strip: 9 rows = idle/move/death x 3 colour variants."""
     print("enemy manifest")
     manifest = {}
     jobs = [(key, fw, rows) for key, (sprite, fw, rows) in ENEMY_SOURCES.items()]
-    jobs += [(key, fw * scale, rows) for key, (sprite, fw, rows, scale, ramp) in BOSS_SOURCES.items()]
+    jobs += [(key, spec[1] * spec[3], spec[2]) for key, spec in BOSS_SOURCES.items()]
     for key, fw, rows in jobs:
         path = os.path.join(OUT, "enemies", f"enemy-{key}.png")
         w, h, pix = read_png(path)
@@ -1411,21 +1455,44 @@ def build_enemy_manifest():
                 if ink:
                     n += 1
             counts.append(n)
-        # Ink bounds of the first idle frame: the game scales sprites by their
-        # drawn width, not the frame width, so a wide sheet (128 px) and a narrow
-        # one (64 px) end up the same on-screen size.
-        x0, y0, x1, y1 = fw, fh, -1, -1
-        for y in range(fh):
-            for x in range(fw):
-                if pix[(y * w + x) * 4 + 3]:
-                    x0, y0 = min(x0, x), min(y0, y)
-                    x1, y1 = max(x1, x), max(y1, y)
+        # Ink bounds: the game scales sprites by their drawn width, not the
+        # frame width, so a wide sheet (128 px) and a narrow one (64 px) end up
+        # the same on-screen size.
+        if key in AVERAGE_MEASURE:
+            widths, heights = [], []
+            for row in range(6):  # idle + move; the death sprawl is not the body
+                for col in range(cols):
+                    bx0, by0, bx1, by1 = fw, fh, -1, -1
+                    for y in range(row * fh, (row + 1) * fh):
+                        base = y * w + col * fw
+                        local_y = y - row * fh
+                        for x in range(fw):
+                            if pix[(base + x) * 4 + 3]:
+                                bx0, by0 = min(bx0, x), min(by0, local_y)
+                                bx1, by1 = max(bx1, x), max(by1, local_y)
+                    if bx1 >= 0:
+                        widths.append(bx1 - bx0 + 1)
+                        heights.append(by1 - by0 + 1)
+            # Mean pose, not the widest and not the first: a flying creature
+            # alternates folded and spread frames, and either extreme either
+            # clips the wings or shrinks the body to a dot.
+            art_w = round(sum(widths) / len(widths))
+            art_h = round(sum(heights) / len(heights))
+            x0, y0 = 0, 0
+        else:
+            x0, y0, x1, y1 = fw, fh, -1, -1
+            for y in range(fh):
+                for x in range(fw):
+                    if pix[(y * w + x) * 4 + 3]:
+                        x0, y0 = min(x0, x), min(y0, y)
+                        x1, y1 = max(x1, x), max(y1, y)
+            art_w, art_h = x1 - x0 + 1, y1 - y0 + 1
         manifest[key] = {
             "file": os.path.basename(path),
             "frameWidth": fw,
             "frameHeight": fh,
-            "artWidth": x1 - x0 + 1,
-            "artHeight": y1 - y0 + 1,
+            "artWidth": art_w,
+            "artHeight": art_h,
             "idle": counts[0],
             "move": counts[3],
             "death": counts[6],

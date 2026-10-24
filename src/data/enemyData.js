@@ -117,6 +117,58 @@ export const ENEMY_TYPES = {
     siege: 14,
   },
 
+  /* ---------------------------------------------------------------- Flare pack
+     Imported by scripts/extract_flare_enemies.py (CC-BY-SA 3.0). These are the
+     bodies that are not insects: a corpse wall, a greenskin that outruns the
+     grunts, and an undead marksman. Same 9-row strip contract as the Spire set,
+     so the biome and tier recolours apply without a special case. */
+
+  thrall: {
+    key: 'thrall',
+    name: 'Rotting Thrall',
+    role: 'Corpse wall — slow, hard to kill, and it grinds the palisade down while the fast wave slips past.',
+    health: 220,
+    speed: 32,
+    armor: 8,
+    shield: 0,
+    reward: 11,
+    score: 18,
+    baseDamage: 2,
+    radius: 18,
+    siege: 20,
+  },
+
+  raider: {
+    key: 'raider',
+    name: 'Bog Raider',
+    role: 'Greenskin skirmisher — faster than a grunt, reaches the palisade first and hacks it apart.',
+    health: 70,
+    speed: 96,
+    armor: 0,
+    shield: 0,
+    reward: 8,
+    score: 14,
+    baseDamage: 1,
+    radius: 14,
+    siege: 16,
+    siegeInterval: 900,
+  },
+
+  bonearcher: {
+    key: 'bonearcher',
+    name: 'Bone Archer',
+    role: 'Undead marksman — light on its feet, armoured enough to ignore splash, and it picks the palisade apart from the second rank.',
+    health: 110,
+    speed: 70,
+    armor: 12,
+    shield: 0,
+    reward: 10,
+    score: 20,
+    baseDamage: 1,
+    radius: 15,
+    siege: 12,
+  },
+
   colossus: {
     key: 'colossus',
     name: 'Stone Colossus',
@@ -302,6 +354,173 @@ export const ENEMY_TYPES = {
         speedMultiplier: 1.4,
         immuneToSlow: true,
         onEnterText: 'PHASE 3: WHITEOUT!',
+      },
+    ],
+  },
+
+  /* ------------------------------------------------------------ Flare bosses
+     Endless rotation from cycle 5 (wave 30). They keep their painted detail —
+     `BOSS_SOURCES` grades them only 50-55% toward their element instead of the
+     full duotone the Spire giants get, because a flat ramp turns armour into a
+     silhouette. Each one owns a different way to break a defence: speed, tower
+     lockout, or bodies. */
+
+  /**
+   * The bull that breaks the line — drums the horde forward, then drops its
+   * armour for raw speed as it dies.
+   */
+  ironhorn: {
+    key: 'ironhorn',
+    name: 'Ironhorn Minotaur',
+    role: 'Endless boss — beats the war drum to speed the whole pack up, then sheds its armour for a final charge.',
+    health: 2800,
+    speed: 30,
+    armor: 60,
+    shield: 0,
+    reward: 240,
+    score: 750,
+    baseDamage: 12,
+    radius: 38,
+    siege: 110,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'War Drum',
+        thresholdPct: 1,
+        armor: 60,
+        ability: {
+          type: 'speedAura',
+          radius: 150,
+          multiplier: 1.25,
+          durationMs: 2600,
+          intervalMs: 8000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Bloodrage',
+        thresholdPct: 0.6,
+        armor: 38,
+        speedMultiplier: 1.25,
+        onEnterText: 'PHASE 2: BLOODRAGE!',
+      },
+      {
+        phase: 3,
+        name: 'Last Stand',
+        thresholdPct: 0.28,
+        speedMultiplier: 1.4,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: LAST STAND!',
+      },
+    ],
+  },
+
+  /**
+   * The flyer — outpaces the lane, blinds the towers around it, then dives.
+   */
+  ashwing: {
+    key: 'ashwing',
+    name: 'Ashwing Wyvern',
+    role: 'Endless boss — wingbeat hastens the brood, ember breath shuts nearby towers down, and its final dive cannot be slowed.',
+    health: 3200,
+    speed: 46,
+    armor: 30,
+    shield: 300,
+    reward: 280,
+    score: 850,
+    baseDamage: 13,
+    radius: 40,
+    siege: 95,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Wingbeat',
+        thresholdPct: 1,
+        ability: {
+          type: 'speedAura',
+          radius: 210,
+          multiplier: 1.35,
+          durationMs: 2400,
+          intervalMs: 6500,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Ember Breath',
+        thresholdPct: 0.65,
+        grantShield: 400,
+        speedMultiplier: 1.1,
+        ability: {
+          type: 'disableTowers',
+          radius: 170,
+          durationMs: 2200,
+          intervalMs: 8000,
+        },
+        onEnterText: 'PHASE 2: EMBER BREATH!',
+      },
+      {
+        phase: 3,
+        name: 'Ashen Dive',
+        thresholdPct: 0.3,
+        speedMultiplier: 1.45,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: ASHEN DIVE!',
+      },
+    ],
+  },
+
+  /**
+   * The commander — pays for its slow march with bodies and a bone barrier.
+   */
+  gravesworn: {
+    key: 'gravesworn',
+    name: 'Grave-Sworn Marshal',
+    role: 'Endless boss — raises a bone barrier, then calls its guard back from the grave twice before turning deathless.',
+    health: 3600,
+    speed: 27,
+    armor: 55,
+    shield: 500,
+    reward: 300,
+    score: 900,
+    baseDamage: 15,
+    radius: 40,
+    siege: 125,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Bone Wall',
+        thresholdPct: 1,
+        ability: {
+          type: 'summon',
+          enemyKey: 'brute',
+          count: 2,
+          intervalMs: 7000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Raise Dead',
+        thresholdPct: 0.65,
+        grantShield: 900,
+        speedMultiplier: 1.1,
+        ability: {
+          type: 'summon',
+          enemyKey: 'shield',
+          count: 3,
+          intervalMs: 6500,
+        },
+        onEnterText: 'PHASE 2: RAISE DEAD!',
+      },
+      {
+        phase: 3,
+        name: 'Deathless',
+        thresholdPct: 0.3,
+        speedMultiplier: 1.35,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: DEATHLESS!',
       },
     ],
   },

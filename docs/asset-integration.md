@@ -110,6 +110,34 @@ size plus the frame count of each animation band.
 | `boss-obsidian` | Clampbeetle, **3×** | `enemy-obsidian.png` (192×192 frames) | 8 / 8 / 13 |
 | `boss-voidherald` | Flying Locust, **3×** | `enemy-voidherald.png` (192×192 frames) | 12 / 8 / 14 |
 
+### Flare monsters (CC-BY-SA 3.0)
+The Spire set is all insects, so a second pack supplies the bodies that are not
+bugs. Six creatures come from [FLARE](https://github.com/clintbellanger/flare-game)
+(© Clint Bellanger and contributors, CC-BY-SA 3.0 — full text in
+`src/assets/flare/LICENSE.txt`, provenance and modifications in
+`src/assets/flare/README.md`).
+
+Flare ships packed atlases with an `.txt` naming a rectangle and a foot offset
+for every frame of eight facings. `scripts/extract_flare_enemies.py` lifts a
+single facing, drops the baked ground shadow, and recomposites the clips into
+the same 9-row idle/move/death strip the Spire sheets use — which means biomes,
+tiers and the manifest apply with no special case in the game.
+
+| Game archetype | Flare creature | Sheet (frame) | Frames (idle / move / death) |
+| --- | --- | --- | --- |
+| `thrall` | Zombie | `enemy-thrall.png` (65×65) | 4 / 8 / 6 |
+| `raider` | Goblin | `enemy-raider.png` (62×62) | 4 / 8 / 6 |
+| `bonearcher` | Skeleton archer | `enemy-bonearcher.png` (80×80) | 4 / 8 / 6 |
+| `boss-ironhorn` | Minotaur | `enemy-ironhorn.png` (103×103) | 8 / 8 / 8 |
+| `boss-ashwing` | Wyvern | `enemy-ashwing.png` (122×122) | 8 / 8 / 8 |
+| `boss-gravesworn` | Skeleton knight | `enemy-gravesworn.png` (114×114) | 4 / 8 / 6 |
+
+Bosses take a *partial* grade (50–55 % toward their element ramp) rather than
+the full duotone the Spire giants get: the Flare sheets are painted with armour
+detail, and mapping them onto four flat stops turns a minotaur into a silhouette.
+Creeps get the same per-biome re-grade as every other creep, so a thrall is
+frozen blue on the ice map and charred on the Caldera.
+
 ### Boss sheets
 The campaign bosses reuse the elite silhouettes, upscaled 2–3× with
 nearest-neighbour (so the pixel grid survives) and **duotoned** onto a
