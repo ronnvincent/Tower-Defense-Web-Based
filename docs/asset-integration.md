@@ -123,6 +123,16 @@ single facing, drops the baked ground shadow, and recomposites the clips into
 the same 9-row idle/move/death strip the Spire sheets use — which means biomes,
 tiers and the manifest apply with no special case in the game.
 
+One field cannot be shared with the Spire set. Those strips are drawn top-down,
+so `Enemy.faceTravel()` simply rotates the body to the lane heading. Flare's
+creatures stand on the ground and face the camera; rotating one a quarter turn
+lays it flat, so all six declare `facing: 'camera'` and are mirrored left/right
+instead. Eight real facings exist in the source and would fix the north/south
+case, but copying them into every biome × tier sheet multiplies the creature
+sheets fourfold — about 17 MB per direction set in `public/assets/enemies` — for
+a difference the player only sees walking away from the camera. The front-on
+contract buys the readable half for free.
+
 | Game archetype | Flare creature | Sheet (frame) | Frames (idle / move / death) |
 | --- | --- | --- | --- |
 | `thrall` | Zombie | `enemy-thrall.png` (65×65) | 4 / 8 / 6 |
@@ -131,6 +141,13 @@ tiers and the manifest apply with no special case in the game.
 | `boss-ironhorn` | Minotaur | `enemy-ironhorn.png` (103×103) | 8 / 8 / 8 |
 | `boss-ashwing` | Wyvern | `enemy-ashwing.png` (122×122) | 8 / 8 / 8 |
 | `boss-gravesworn` | Skeleton knight | `enemy-gravesworn.png` (114×114) | 4 / 8 / 6 |
+
+The generator measures each sheet's ink to size it on screen. Spire sheets hold
+one silhouette across every frame, so frame 0 is exact; Flare's creatures change
+pose far more (the wyvern folds its wings to 68×40 and spreads them to 108×65),
+so `AVERAGE_MEASURE` takes the mean box over the idle and move rows instead.
+Measuring the folded frame made the whole animation 1.8× too large and clipped
+the wings off-screen.
 
 Bosses take a *partial* grade (50–55 % toward their element ramp) rather than
 the full duotone the Spire giants get: the Flare sheets are painted with armour

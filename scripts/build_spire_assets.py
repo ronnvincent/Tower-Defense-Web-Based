@@ -975,13 +975,16 @@ ENEMY_FACING = {
     "prismlord": "north",
     "obsidian": "south",
     "voidherald": "south",
-    # Imported from Flare at direction 6 (the full-front pose).
-    "thrall": "south",
-    "raider": "south",
-    "bonearcher": "south",
-    "ironhorn": "south",
-    "ashwing": "south",
-    "gravesworn": "south",
+    # Flare's creatures are drawn upright, in three-quarter view, with their
+    # feet on the ground — a minotaur turning to walk east would be a minotaur
+    # lying on its side. They are the one imported pack that must mirror, not
+    # rotate, so they declare the front-on contract.
+    "thrall": "camera",
+    "raider": "camera",
+    "bonearcher": "camera",
+    "ironhorn": "camera",
+    "ashwing": "camera",
+    "gravesworn": "camera",
 }
 
 

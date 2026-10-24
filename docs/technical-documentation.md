@@ -310,6 +310,13 @@ would rotate with the body), and recomposites idle/move/death into the same
 9-row strip. Empty tail columns are blank rather than repeated keyframes, so the
 manifest's measured frame counts stay honest.
 
+Facing is a property of the source art, not of the game: the Spire strips are
+top-down and rotate to their heading, while the Flare six are upright
+three-quarter views and declare `facing: 'camera'`, which mirrors instead of
+rotating. Sprite size comes from the measured ink box — averaged over the idle
+and move rows for the Flare sheets, whose poses swing too widely for frame 0 to
+represent them.
+
 Rotation: `ENDLESS_BOSSES` keeps the campaign five first and appends
 `ironhorn`, `ashwing` and `gravesworn`, so early endless is unchanged and the
 new bosses appear from cycle 5 (wave 30). The three new creeps join endless from

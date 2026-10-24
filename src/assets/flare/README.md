@@ -32,9 +32,12 @@ facings.
 
 `scripts/extract_flare_enemies.py` regenerates the strips in `enemies/`:
 
-1. **One facing.** Only direction 6 (full front) is lifted, because the game
-   rotates a single strip (`Enemy.faceTravel`) instead of swapping direction
-   sets.
+1. **One facing.** Only direction 6 (full front) is lifted. The game ships one
+   strip per creature, and Flare's art is upright, so these sheets declare
+   `facing: 'camera'`: `Enemy.faceTravel()` mirrors them left/right instead of
+   rotating them, which would lay a walking minotaur on its side. Keeping all
+   eight facings would have to be baked into every biome × tier sheet — four
+   times the pixels per creature for a difference only visible from behind.
 2. **Shadows removed.** Flare bakes a soft black ellipse under each creature;
    the game draws its own shadow and a baked one would rotate with the body.
    Only low-alpha near-black pixels are dropped.

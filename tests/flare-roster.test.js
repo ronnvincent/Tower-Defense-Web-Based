@@ -49,6 +49,7 @@ describe('Flare creature data', () => {
       expect(ENEMY_TYPES[key], `${key} missing from ENEMY_TYPES`).toBeTruthy();
       const sheet = ENEMY_SHEETS[key];
       expect(sheet, `${key} missing from the manifest`).toBeTruthy();
+      // Front-on, upright art: see the dedicated mirror test below.
       expect(['south', 'north', 'camera']).toContain(sheet.facing);
       expect(sheet.frameWidth).toBeGreaterThan(0);
       expect(sheet.frameHeight).toBeGreaterThan(0);
@@ -57,6 +58,22 @@ describe('Flare creature data', () => {
       expect(sheet.idle, `${key} has no idle`).toBeGreaterThan(0);
       expect(sheet.death, `${key} has no death`).toBeGreaterThan(0);
     }
+  });
+
+  it('mirrors upright art instead of rolling it onto its side', () => {
+    // Flare's creatures stand on the ground and face the camera. faceTravel()
+    // rotates a strip to its heading, which is right for the top-down Spire
+    // bugs and wrong here: a turning minotaur would end up horizontal. These
+    // six must keep the front-on contract and flip left/right only.
+    for (const key of FLARE) {
+      expect(ENEMY_SHEETS[key].facing, `${key} would be rotated flat`).toBe('camera');
+    }
+    // The Spire set is still the rotating half of the roster, so the two
+    // contracts must both be represented — one of them silently swallowing the
+    // other would be the regression.
+    const declared = new Set(Object.values(ENEMY_SHEETS).map((sheet) => sheet.facing));
+    expect(declared.has('south')).toBe(true);
+    expect(declared.has('camera')).toBe(true);
   });
 
   it('ships a 9-row strip whose rows all fit inside the frame grid', () => {
