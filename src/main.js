@@ -119,6 +119,31 @@ document.getElementById('btn-done-credits')?.addEventListener('click', () => {
   document.getElementById('credits-modal')?.classList.add('hidden');
 });
 
+// ---------------------------------------------------------------- a11y / UX
+
+// Dismiss the portrait "rotate your device" hint for this session.
+document.getElementById('btn-rotate-dismiss')?.addEventListener('click', () => {
+  audio.playClick();
+  document.getElementById('rotate-hint')?.classList.add('dismissed');
+});
+
+// Clicking the dimmed backdrop (or pressing Escape) closes a dialog.
+for (const id of ['instructions-modal', 'credits-modal']) {
+  const overlay = document.getElementById(id);
+  overlay?.addEventListener('click', (event) => {
+    if (event.target !== overlay) return;
+    audio.playClick();
+    overlay.classList.add('hidden');
+  });
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  for (const id of ['instructions-modal', 'credits-modal']) {
+    document.getElementById(id)?.classList.add('hidden');
+  }
+});
+
 // Global user interaction listener to unlock Web Audio on first gesture
 window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 window.addEventListener('keydown', () => audio.unlock(), { once: true });

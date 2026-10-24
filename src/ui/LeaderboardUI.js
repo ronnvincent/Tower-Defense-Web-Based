@@ -117,6 +117,12 @@ export class LeaderboardUI {
 
   bindEvents(gameResult) {
     document.getElementById('btn-close-lb')?.addEventListener('click', () => this.hide());
+
+    // Backdrop click closes the dialog (the table inside keeps its clicks).
+    const overlay = document.getElementById('leaderboard-modal');
+    overlay?.addEventListener('click', (event) => {
+      if (event.target === overlay) this.hide();
+    });
     document.getElementById('btn-done-lb')?.addEventListener('click', () => {
       this.hide();
       if (this.callbacks.onReturnToMenu) this.callbacks.onReturnToMenu();

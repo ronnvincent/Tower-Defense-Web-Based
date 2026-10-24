@@ -87,9 +87,21 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 3. **Frost Bastion (🪙 85):** Crystal tower casting slowing frost (up to 60% slow). Branches into Blizzard Spire or Lightning Conductor.
 4. **Palisade (🪙 30):** Placed directly on the road to cut graph edges and force enemy rerouting. Cannot seal off the only path.
 
+### Camera & Mouse Controls
+| Input | Action |
+|---|---|
+| Drag the battlefield (any mouse button or one finger) | Pan the camera |
+| Mouse wheel / trackpad scroll | Zoom towards the cursor (1×–3×) |
+| Two-finger pinch | Zoom + pan simultaneously |
+| Click a floating `▲` badge above a defence | Open that tower’s upgrade inspector |
+| Click the dimmed backdrop of a dialog | Close it |
+
 ### Keyboard Shortcuts
 | Key | Action |
 |:---:|---|
+| <kbd>+</kbd> / <kbd>−</kbd> | Zoom in / out |
+| <kbd>0</kbd> | Fit the whole map (reset camera) |
+| <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> | Nudge the camera |
 | <kbd>1</kbd> | Select Ballista Tower |
 | <kbd>2</kbd> | Select Cannon Battery |
 | <kbd>3</kbd> | Select Frost Spire |
@@ -98,6 +110,24 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |
 | <kbd>C</kbd> | Toggle DSALGO Technical Codex |
 | <kbd>L</kbd> | View Hall of Champions (Leaderboard) |
+
+---
+
+## 🖥️ UI / UX Systems
+
+- **Camera** — drag to pan, wheel or pinch to zoom (1×–3×), clamped to the battlefield. All tile
+  maths goes through `cameraMath.screenToWorld`, so building/selecting stays pixel-accurate at any zoom.
+- **Upgrade badges** — every defence shows its next upgrade and price above its roof; gold = affordable,
+  grey = not yet, cyan ring = selected. Click one to open the inspector.
+- **Non-blocking panels** — the HUD frame is click-through, the tower inspector is draggable/collapsible
+  and anchors itself beside the selected tower, and the DSALGO codex is a live side drawer that never
+  stops the battle.
+- **Responsive HUD** — fluid type plus breakpoints at 1180 / 900 / 680 px and 620 / 460 px heights;
+  portrait phones get a rotate card with an escape hatch.
+- **Contrast tokens** — text colours are chosen per surface (wood, parchment, slate, dark glass) and
+  audited with `npm run check:contrast` (30/30 pairs ≥ 4.5:1).
+
+Full write-up: [docs/ui-ux.md](docs/ui-ux.md).
 
 ---
 
@@ -124,8 +154,14 @@ npm run dev
 
 ### Running Unit Tests
 ```bash
-# Run all 62 automated unit tests
+# Run all 135 automated unit tests (10 suites, incl. jsdom HUD tests)
 npm test
+
+# WCAG 2.1 contrast audit of the HUD palette (30/30 pairs)
+npm run check:contrast
+
+# Both of the above
+npm run check
 
 # Run tests in watch mode
 npm run test:watch
@@ -159,7 +195,10 @@ tower-defense-dsalgo/
 │   └── contribution-record.md
 ├── src/
 │   ├── main.js                 # Game bootstrap & scene lifecycle
-│   ├── style.css               # Complete dark fantasy / bastion styling
+│   ├── style.css               # Design tokens, HUD, responsive breakpoints
+│   ├── camera/
+│   │   ├── cameraMath.js       # Pointer↔world maths, zoom anchors, clamps (pure)
+│   │   └── CameraRig.js        # Drag-pan, wheel/pinch zoom, tap routing
 │   ├── config/
 │   │   └── gameConfig.js       # Game constants, balance tuning & storage keys
 │   ├── data/
@@ -198,7 +237,7 @@ tower-defense-dsalgo/
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (62 unit tests)
+└── tests/                      # Automated Vitest test suites (135 tests / 10 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js

@@ -102,6 +102,15 @@ export class Tower {
     this.drawRangeCircle();
   }
 
+  /**
+   * Pixel height of the structure art, measured from the tile's ground line.
+   * The upgrade badge floats above this so it never covers the weapon.
+   */
+  get artHeight() {
+    const art = this.isBarricade ? this.sprite : this.baseSprite;
+    return art && art.height ? art.height : TILE_SIZE;
+  }
+
   /** Which upgrade slot the tower currently shows ('lvl1' | 'lvl2' | 'spec-a' | 'spec-b'). */
   get visualSlot() {
     if (this.specialization) {

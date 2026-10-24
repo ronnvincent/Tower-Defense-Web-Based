@@ -1,5 +1,15 @@
 import { BUILD_OPTIONS, getBuildDefinition } from '../data/towerData.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { clampPanel, placeInspector } from './panelPlacement.js';
+
+const PAN_HINT_KEY = 'td-dsalgo:camera-hint:v1';
+
+const TARGETING_MODES = [
+  { mode: 'first', label: 'FIRST', title: 'Target the enemy furthest along the path' },
+  { mode: 'strongest', label: 'STRONG', title: 'Target the enemy with the highest current health' },
+  { mode: 'nearest', label: 'NEAR', title: 'Target the enemy closest to this tower' },
+  { mode: 'last', label: 'LAST', title: 'Target the enemy nearest the spawn portal' },
+];
 
 export class HUD {
   /**
@@ -8,34 +18,45 @@ export class HUD {
    */
   constructor(container, callbacks) {
     this.container = container;
-    this.callbacks = callbacks;
+    this.callbacks = callbacks || {};
     this.selectedBuildKey = null;
     this.inspectedTower = null;
     this.toastTimer = null;
+    this.hintTimer = null;
+    this.inspectorPinned = false;
+    this.inspectorCollapsed = false;
+    this.inspectorAnchorRatio = null;
+    this.lastToast = '';
+    this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
 
     this.initDOM();
+    this.bindEvents();
+    this.bindInspectorDrag();
+    this.bindViewport();
   }
+
+  /* ================================================================ MARKUP */
 
   initDOM() {
     this.container.innerHTML = `
-      <div id="hud-top-bar" class="hud-panel">
+      <div id="hud-top-bar" class="hud-panel hud-topbar">
         <div class="hud-stat-group">
-          <div class="hud-stat" id="stat-base-hp" title="Base Health">
-            <img class="hud-icon-img heart-pulse" src="/assets/ui/icon_heart.svg" alt="Base HP" />
+          <div class="hud-stat" id="stat-base-hp" title="Base integrity — if this hits 0 the realm falls">
+            <img class="hud-icon-img heart-pulse" src="/assets/ui/icon_heart.svg" alt="" />
             <div class="hud-stat-meta">
-              <span class="hud-label">BASE INTEGRITY</span>
+              <span class="hud-label">BASE</span>
               <span class="hud-value" id="val-base-hp">20 / 20</span>
             </div>
           </div>
-          <div class="hud-stat" id="stat-coins" title="Available Coins">
-            <img class="hud-icon-img gold-coin" src="/assets/ui/icon_coin.png" alt="Treasury" />
+          <div class="hud-stat" id="stat-coins" title="Treasury — spend gold on defences">
+            <img class="hud-icon-img gold-coin" src="/assets/ui/icon_coin.png" alt="" />
             <div class="hud-stat-meta">
-              <span class="hud-label">TREASURY</span>
+              <span class="hud-label">GOLD</span>
               <span class="hud-value gold-text" id="val-coins">160</span>
             </div>
           </div>
-          <div class="hud-stat" id="stat-score" title="Total Score">
-            <img class="hud-icon-img" src="/assets/ui/icon_trophy.png" alt="Score" />
+          <div class="hud-stat" id="stat-score" title="Total score">
+            <img class="hud-icon-img" src="/assets/ui/icon_trophy.png" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">SCORE</span>
               <span class="hud-value" id="val-score">0</span>
@@ -44,40 +65,39 @@ export class HUD {
         </div>
 
         <div class="hud-stat-group hud-center-group">
-          <div class="hud-wave-badge">
-            <span class="hud-wave-label">DEFENSE WAVE</span>
+          <div class="hud-wave-badge" title="Current wave">
+            <span class="hud-wave-label">WAVE</span>
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
             <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
           </div>
-          <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse">
+          <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
             <span class="btn-glow"></span>
             <span class="btn-text">START WAVE</span>
           </button>
         </div>
 
         <div class="hud-stat-group hud-controls-group">
-          <button id="btn-speed" class="game-btn game-btn-subtle" title="Toggle Simulation Speed (1x / 2x)">
-            1×
+          <button id="btn-speed" class="game-btn game-btn-icon" title="Simulation speed (toggle 1× / 2×)" aria-label="Simulation speed">1×</button>
+          <button id="btn-pause" class="game-btn game-btn-icon" title="Pause / resume the battle" aria-label="Pause">
+            <img id="img-pause" class="btn-icon-img" src="/assets/ui/icon_pause.png" alt="" />
           </button>
-          <button id="btn-pause" class="game-btn game-btn-subtle" title="Pause / Resume Game">
-            <img id="img-pause" class="btn-icon-img" src="/assets/ui/icon_pause.png" alt="Pause" />
-          </button>
-          <button id="btn-codex" class="game-btn game-btn-gold" title="Open DSALGO Algorithm Codex">
-            <img class="btn-icon-img" src="/assets/ui/icon_codex.png" alt="Codex" />
+          <button id="btn-codex" class="game-btn game-btn-gold btn-labelled" title="Algorithm codex (C)">
+            <img class="btn-icon-img" src="/assets/ui/icon_codex.png" alt="" />
             <span>CODEX</span>
           </button>
-          <button id="btn-mute" class="game-btn game-btn-subtle" title="Toggle Sound">
-            <img id="img-mute" class="btn-icon-img" src="/assets/ui/icon_audio_on.png" alt="Sound" />
+          <button id="btn-mute" class="game-btn game-btn-icon" title="Toggle sound" aria-label="Toggle sound">
+            <img id="img-mute" class="btn-icon-img" src="/assets/ui/icon_audio_on.png" alt="" />
           </button>
-          <button id="btn-menu" class="game-btn game-btn-subtle" title="Return to Menu">
-            <img class="btn-icon-img" src="/assets/ui/icon_gear.png" alt="Menu" />
-            <span>MENU</span>
+          <button id="btn-menu" class="game-btn game-btn-icon" title="Return to menu">
+            <img class="btn-icon-img" src="/assets/ui/icon_gear.png" alt="" />
+            <span class="btn-label">MENU</span>
           </button>
         </div>
       </div>
 
-      <!-- Boss Encounter Top Banner -->
-      <div id="boss-banner" class="boss-panel hidden">
+      <div id="pause-chip" class="pause-chip hidden">⏸ SIMULATION PAUSED</div>
+
+      <div id="boss-banner" class="boss-panel hud-panel hidden">
         <div class="boss-title-row">
           <span class="boss-skull">💀</span>
           <span id="boss-name" class="boss-name">STONE COLOSSUS</span>
@@ -93,182 +113,573 @@ export class HUD {
         </div>
       </div>
 
-      <div id="toast-banner" class="toast-banner hidden"></div>
+      <div id="toast-banner" class="toast-banner hidden" role="status" aria-live="polite"></div>
 
-      <!-- Tower Selection, Upgrade & Specialization Inspector -->
-      <div id="tower-inspector" class="hud-panel hidden">
-        <div class="inspector-header">
-          <div class="inspector-title-group">
-            <span id="inspect-name" class="inspector-name">Archer Tower</span>
-            <span id="inspect-level" class="inspector-level">★ Level 1</span>
+      <div id="camera-hint" class="camera-hint hidden">
+        <span class="camera-hint-icon">✥</span>
+        <span><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom</span>
+        <button id="btn-dismiss-hint" class="camera-hint-dismiss" aria-label="Dismiss camera hint">✕</button>
+      </div>
+
+      <div id="camera-cluster" class="hud-panel camera-cluster" role="group" aria-label="Camera controls">
+        <button id="btn-zoom-out" class="cam-btn" title="Zoom out (−)" aria-label="Zoom out">−</button>
+        <span id="zoom-readout" class="cam-zoom-value" title="Drag the map to pan. Press 0 to reset.">100%</span>
+        <button id="btn-zoom-in" class="cam-btn" title="Zoom in (+)" aria-label="Zoom in">+</button>
+        <span class="cam-divider" aria-hidden="true"></span>
+        <button id="btn-zoom-fit" class="cam-btn cam-btn-fit" title="Fit the whole map (0)" aria-label="Reset view">⤢</button>
+      </div>
+
+      <div id="tower-inspector" class="hud-panel hud-inspector hidden" role="dialog" aria-label="Tower inspector">
+        <div class="inspector-shell">
+          <div class="inspector-header" id="inspector-drag-handle" title="Drag to move this panel">
+            <div class="inspector-title-group">
+              <span class="inspector-grip" aria-hidden="true">⠿</span>
+              <span class="inspector-name" id="inspect-name">Archer Tower</span>
+              <span class="inspector-level" id="inspect-level">★ Level 1</span>
+            </div>
+            <div class="inspector-header-btns">
+              <button id="btn-collapse-inspect" class="inspector-chip-btn" title="Collapse panel" aria-label="Collapse panel">▾</button>
+              <button id="btn-close-inspect" class="btn-close" title="Close inspector" aria-label="Close inspector">✕</button>
+            </div>
           </div>
-          <button id="btn-close-inspect" class="btn-close">✕</button>
-        </div>
 
-        <!-- Targeting Priority Mode Selector -->
-        <div id="inspect-targeting" class="inspector-targeting-group">
-          <span class="lbl">TARGETING PRIORITY</span>
-          <div class="targeting-buttons">
-            <button class="target-btn active" data-mode="first" title="Target enemy furthest along the path">FIRST</button>
-            <button class="target-btn" data-mode="strongest" title="Target enemy with highest current health">STRONG</button>
-            <button class="target-btn" data-mode="nearest" title="Target enemy closest to tower">NEAR</button>
-            <button class="target-btn" data-mode="last" title="Target enemy nearest to spawn portal">LAST</button>
+          <div class="inspector-body" id="inspector-body">
+            <div id="inspect-targeting" class="inspector-targeting-group">
+              <span class="lbl">TARGETING PRIORITY</span>
+              <div class="targeting-buttons">
+                ${TARGETING_MODES.map(
+                  (t, i) =>
+                    `<button class="target-btn ${i === 0 ? 'active' : ''}" data-mode="${t.mode}" title="${t.title}">${t.label}</button>`
+                ).join('')}
+              </div>
+            </div>
+
+            <div id="inspect-stats" class="inspector-stats-grid"></div>
+
+            <div id="inspector-actions-container" class="inspector-actions"></div>
           </div>
-        </div>
-
-        <div id="inspect-stats" class="inspector-stats-grid">
-          <div class="stat-cell"><span class="lbl">DAMAGE</span><span class="val" id="inspect-dmg">15</span></div>
-          <div class="stat-cell"><span class="lbl">RANGE</span><span class="val" id="inspect-rng">150px</span></div>
-          <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val" id="inspect-spd">0.65s</span></div>
-          <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val" id="inspect-type">Physical</span></div>
-          <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val" id="inspect-spl">-</span></div>
-        </div>
-
-        <div id="inspector-actions-container" class="inspector-actions">
-          <!-- Dynamically populated upgrade / branching options & sell button -->
         </div>
       </div>
 
-      <!-- Bottom Build Dock -->
-      <div id="hud-bottom-dock" class="hud-panel">
-        <div class="dock-title">FORGE DEFENSES</div>
-        <div class="dock-cards" id="dock-cards-container">
-          <!-- Build cards injected dynamically -->
+      <div id="hud-bottom-dock" class="hud-panel hud-dock">
+        <div id="placement-hint" class="placement-hint hidden">
+          <span id="placement-hint-text">Placing defence…</span>
+          <button id="btn-cancel-placement" class="placement-hint-cancel">ESC</button>
         </div>
+        <div class="dock-title">FORGE DEFENSES</div>
+        <div class="dock-cards" id="dock-cards-container"></div>
       </div>
     `;
 
     this.renderBuildCards();
-    this.bindEvents();
+    this.setZoomState(this.zoomState);
   }
 
   renderBuildCards() {
     const container = document.getElementById('dock-cards-container');
+    if (!container) return;
     container.innerHTML = BUILD_OPTIONS.map((key) => {
       const def = getBuildDefinition(key);
       const isBarricade = key === 'barricade';
       return `
-        <div class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" id="card-${key}" title="${def.description}">
-          <div class="card-hotkey">${def.hotkey}</div>
+        <button class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" id="card-${key}"
+                title="${def.description}" aria-label="Build ${def.name} for ${def.cost} gold">
+          <div class="card-hotkey" aria-hidden="true">${def.hotkey}</div>
           <div class="card-icon-frame">
             <div class="card-sprite sprite-${key}"></div>
           </div>
           <div class="card-info">
             <span class="card-name">${def.name}</span>
-            <span class="card-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Cost" /> ${def.cost}</span>
+            <span class="card-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${def.cost}</span>
           </div>
-        </div>
+        </button>
       `;
     }).join('');
   }
 
-  bindEvents() {
-    // Build Card Selection
+  /** Shows the "drag to pan" tip once per browser, when the battle starts. */
+  showCameraHintOnce() {
+    let seen = true;
+    try {
+      seen = window.localStorage.getItem(PAN_HINT_KEY) === '1';
+    } catch {
+      seen = true;
+    }
+    if (!seen) this.showCameraHint();
+  }
+
+  showCameraHint(durationMs = 7000) {
+    const hint = document.getElementById('camera-hint');
+    if (!hint) return;
+    hint.classList.remove('hidden');
+    if (this.hintTimer) clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => this.hideCameraHint(), durationMs);
+  }
+
+  hideCameraHint() {
+    const hint = document.getElementById('camera-hint');
+    if (!hint) return;
+    hint.classList.add('hidden');
+    try {
+      window.localStorage.setItem(PAN_HINT_KEY, '1');
+    } catch {
+      /* storage disabled — show the hint again next session, harmless */
+    }
+  }
+
+  /**
+   * Wipe every transient state before a new battle starts. The HUD instance is
+   * persistent across scene restarts, so a stale inspector pointing at a
+   * destroyed tower used to be able to call upgrade() on it.
+   */
+  reset() {
+    this.inspectedTower = null;
+    this.selectedBuildKey = null;
+    this.inspectorPinned = false;
+    this.inspectorCollapsed = false;
+    this.inspectorAnchorRatio = null;
+    this.lastToast = '';
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+
+    const inspector = document.getElementById('tower-inspector');
+    inspector?.classList.add('hidden');
+    inspector?.classList.remove('collapsed', 'dragging');
+    document.getElementById('toast-banner')?.classList.add('hidden');
+    document.getElementById('boss-banner')?.classList.add('hidden');
+    document.getElementById('pause-chip')?.classList.add('hidden');
+    document.getElementById('placement-hint')?.classList.add('hidden');
+
     document.querySelectorAll('.build-card').forEach((card) => {
-      card.addEventListener('click', () => {
-        const key = card.dataset.key;
-        this.toggleBuildSelection(key);
-      });
+      card.classList.remove('selected', 'disabled');
+      card.setAttribute('aria-pressed', 'false');
     });
 
-    // Wave Start Button
-    document.getElementById('btn-start-wave').addEventListener('click', () => {
+    const speed = document.getElementById('btn-speed');
+    if (speed) {
+      speed.innerText = '1×';
+      speed.classList.remove('active');
+    }
+    const pauseBtn = document.getElementById('btn-pause');
+    if (pauseBtn) pauseBtn.classList.remove('active');
+    const pauseImg = document.getElementById('img-pause');
+    if (pauseImg) pauseImg.src = '/assets/ui/icon_pause.png';
+  }
+
+  /* ================================================================ EVENTS */
+
+  bindEvents() {
+    document.querySelectorAll('.build-card').forEach((card) => {
+      card.addEventListener('click', () => this.toggleBuildSelection(card.dataset.key));
+    });
+
+    document.getElementById('btn-start-wave')?.addEventListener('click', () => {
       audio.playClick();
-      this.callbacks.onStartWave();
+      this.callbacks.onStartWave?.();
     });
 
-    // Speed Toggle
     const speedBtn = document.getElementById('btn-speed');
-    speedBtn.addEventListener('click', () => {
+    speedBtn?.addEventListener('click', () => {
       audio.playClick();
-      const newSpeed = this.callbacks.onToggleSpeed();
+      const newSpeed = this.callbacks.onToggleSpeed?.() ?? 1;
       speedBtn.innerText = `${newSpeed}×`;
       speedBtn.classList.toggle('active', newSpeed > 1);
+      speedBtn.setAttribute('aria-label', `Simulation speed ${newSpeed}x`);
     });
 
-    // Pause Toggle
     const pauseBtn = document.getElementById('btn-pause');
     const pauseImg = document.getElementById('img-pause');
-    pauseBtn.addEventListener('click', () => {
+    pauseBtn?.addEventListener('click', () => {
       audio.playClick();
-      const isPaused = this.callbacks.onTogglePause();
-      if (pauseImg) {
-        pauseImg.src = isPaused ? '/assets/ui/icon_speed.png' : '/assets/ui/icon_pause.png';
-      }
+      const isPaused = this.callbacks.onTogglePause?.();
+      if (pauseImg) pauseImg.src = isPaused ? '/assets/ui/icon_speed.png' : '/assets/ui/icon_pause.png';
       pauseBtn.classList.toggle('active', isPaused);
+      pauseBtn.setAttribute('aria-label', isPaused ? 'Resume' : 'Pause');
+      document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
     });
 
-    // Codex Button
-    document.getElementById('btn-codex').addEventListener('click', () => {
+    document.getElementById('btn-codex')?.addEventListener('click', () => {
       audio.playClick();
-      this.callbacks.onOpenCodex();
+      this.callbacks.onOpenCodex?.();
     });
 
-    // Mute Button
     const muteBtn = document.getElementById('btn-mute');
     const muteImg = document.getElementById('img-mute');
-    if (muteImg) {
-      muteImg.src = audio.muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
-    }
-    muteBtn.addEventListener('click', () => {
+    if (muteImg) muteImg.src = audio.muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
+    muteBtn?.addEventListener('click', () => {
       const muted = audio.toggleMute();
-      if (muteImg) {
-        muteImg.src = muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
-      }
+      if (muteImg) muteImg.src = muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
+      muteBtn.setAttribute('aria-pressed', String(muted));
     });
 
-    // Menu Button
-    document.getElementById('btn-menu').addEventListener('click', () => {
+    document.getElementById('btn-menu')?.addEventListener('click', () => {
       audio.playClick();
-      this.callbacks.onOpenMenu();
+      this.callbacks.onOpenMenu?.();
     });
 
-    // Close Inspector
-    document.getElementById('btn-close-inspect').addEventListener('click', () => {
+    // Camera controls
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onZoomIn?.();
+    });
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onZoomOut?.();
+    });
+    document.getElementById('btn-zoom-fit')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onZoomReset?.();
+    });
+
+    document.getElementById('btn-dismiss-hint')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      audio.playClick();
+      this.hideCameraHint();
+    });
+    document.getElementById('camera-hint')?.addEventListener('click', () => this.hideCameraHint());
+
+    document.getElementById('btn-cancel-placement')?.addEventListener('click', () => {
+      audio.playClick();
+      this.clearBuildSelection();
+    });
+    document.getElementById('placement-hint')?.addEventListener('click', (event) => {
+      if (event.target.closest('button')) return;
+      this.clearBuildSelection();
+    });
+
+    document.getElementById('btn-close-inspect')?.addEventListener('click', () => {
       audio.playClick();
       this.closeInspector();
     });
+    document.getElementById('btn-collapse-inspect')?.addEventListener('click', () => {
+      audio.playClick();
+      this.toggleInspectorCollapsed();
+    });
 
-    // Targeting priority buttons
     document.querySelectorAll('.target-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (!this.inspectedTower) return;
-        const mode = btn.dataset.mode;
-        this.inspectedTower.setTargetingMode(mode);
-        this.updateTargetingUI(mode);
+        this.inspectedTower.setTargetingMode(btn.dataset.mode);
+        this.updateTargetingUI(btn.dataset.mode);
       });
+    });
+
+    // Double-clicking the drag handle resets the panel to its anchored spot.
+    const handle = document.getElementById('inspector-drag-handle');
+    handle?.addEventListener('dblclick', () => {
+      this.inspectorPinned = false;
+      this.repositionInspector(true);
+    });
+  }
+
+  bindViewport() {
+    this._onResize = () => this.repositionInspector();
+    window.addEventListener('resize', this._onResize);
+    window.addEventListener('orientationchange', this._onResize);
+  }
+
+  /* ============================================================== INSPECTOR */
+
+  bindInspectorDrag() {
+    const handle = document.getElementById('inspector-drag-handle');
+    const panel = document.getElementById('tower-inspector');
+    if (!handle || !panel) return;
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('button')) return;
+      const host = this.hostRect();
+      const rect = panel.getBoundingClientRect();
+      dragging = true;
+      offsetX = event.clientX - rect.left;
+      offsetY = event.clientY - rect.top;
+      this.inspectorPinned = true;
+      panel.classList.add('dragging');
+      handle.setPointerCapture?.(event.pointerId);
+      // Store the current spot as left/top so the panel does not jump.
+      panel.style.left = `${rect.left - host.left}px`;
+      panel.style.top = `${rect.top - host.top}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      event.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      const host = this.hostRect();
+      const rect = { width: panel.offsetWidth, height: panel.offsetHeight };
+      const next = clampPanel(
+        { left: event.clientX - host.left - offsetX, top: event.clientY - host.top - offsetY },
+        rect,
+        { width: host.width, height: host.height }
+      );
+      panel.style.left = `${next.left}px`;
+      panel.style.top = `${next.top}px`;
+    });
+
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.classList.remove('dragging');
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+    handle.addEventListener('lostpointercapture', endDrag);
+  }
+
+  hostRect() {
+    const host = this.container.closest('#app') || this.container;
+    const rect = host.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  }
+
+  viewportSize() {
+    const host = this.container.closest('#app') || this.container;
+    return { width: host.clientWidth || window.innerWidth, height: host.clientHeight || window.innerHeight };
+  }
+
+  /** Re-anchor the inspector to its tower (called on select/resize/rotate). */
+  repositionInspector(force = false) {
+    const panel = document.getElementById('tower-inspector');
+    if (!panel || panel.classList.contains('hidden')) return;
+    if (this.inspectorPinned && !force) return;
+
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    const viewport = this.viewportSize();
+    const ratio = this.inspectorAnchorRatio || { x: 0.74, y: 0.55 };
+    const anchor = { x: ratio.x * viewport.width, y: ratio.y * viewport.height };
+    const size = { width: panel.offsetWidth, height: panel.offsetHeight };
+    const spot = placeInspector(anchor, size, viewport);
+    panel.style.left = `${spot.left}px`;
+    panel.style.top = `${spot.top}px`;
+    panel.dataset.side = spot.side;
+  }
+
+  inspectTower(tower, anchorRatio = null) {
+    this.inspectedTower = tower;
+    if (this.selectedBuildKey) this.clearBuildSelection();
+
+    const panel = document.getElementById('tower-inspector');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+
+    const titleStr = tower.specialization
+      ? `★3 ${tower.stats?.title || ''}`.trim()
+      : tower.isBarricade
+        ? tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade')
+        : `★ Level ${tower.level}`;
+
+    document.getElementById('inspect-name').innerText = tower.stats?.title || tower.def.name;
+    document.getElementById('inspect-level').innerText = titleStr;
+
+    const statsGrid = document.getElementById('inspect-stats');
+    const targetingGroup = document.getElementById('inspect-targeting');
+
+    if (tower.isBarricade) {
+      targetingGroup.style.display = 'none';
+      const thorns = tower.stats?.thornsDamage || 0;
+      statsGrid.innerHTML = `
+        <div class="stat-cell full-width">
+          <span class="lbl">ROLE</span>
+          <span class="val">Cuts the road graph — enemies reroute via BFS</span>
+        </div>
+        <div class="stat-cell full-width">
+          <span class="lbl">THORNS RETALIATION</span>
+          <span class="val">${thorns > 0 ? `${thorns} damage on contact` : 'None at level 1'}</span>
+        </div>
+      `;
+    } else {
+      targetingGroup.style.display = 'block';
+      this.updateTargetingUI(tower.targetingMode);
+      const s = tower.stats;
+      const special = this.describeSpecial(s);
+      statsGrid.innerHTML = `
+        <div class="stat-cell"><span class="lbl">DAMAGE</span><span class="val">${s.damage}</span></div>
+        <div class="stat-cell"><span class="lbl">RANGE</span><span class="val">${s.range}px</span></div>
+        <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s</span></div>
+        <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
+        <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
+      `;
+    }
+
+    const actionsContainer = document.getElementById('inspector-actions-container');
+    actionsContainer.innerHTML = this.renderUpgradeActions(tower);
+    this.bindUpgradeActions(tower);
+    this.updateActionAffordability(tower);
+
+    if (anchorRatio) this.inspectorAnchorRatio = anchorRatio;
+    this.repositionInspector();
+  }
+
+  describeSpecial(s) {
+    if (s.splash) return `Area splash · ${s.splash}px radius`;
+    if (s.slow) return `Slows ${Math.round(s.slow * 100)}% for ${(s.slowMs / 1000).toFixed(1)}s`;
+    if (s.armorBreak) return `Armour break −${s.armorBreak} for ${(s.armorBreakMs / 1000).toFixed(1)}s`;
+    if (s.armorPenetration) return `Armour penetration ${Math.round(s.armorPenetration * 100)}%`;
+    if (s.chainTargets > 1) return `Chain lightning · ${s.chainTargets} targets`;
+    return '—';
+  }
+
+  renderUpgradeActions(tower) {
+    const opts = tower.nextUpgrades;
+    let html = '';
+
+    if (opts.length === 1) {
+      const opt = opts[0];
+      html = `
+        <button id="btn-upgrade-tower" class="game-btn game-btn-upgrade" data-choice="${opt.key}">
+          UPGRADE · <img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-upgrade-cost">${opt.upgradeCost}</span>
+        </button>
+      `;
+    } else if (opts.length > 1) {
+      html = `
+        <div class="spec-selection-block">
+          <div class="spec-choice-title">CHOOSE A SPECIALISATION</div>
+          <div class="spec-cards-row">
+            ${opts
+              .map(
+                (opt) => `
+              <button class="game-btn game-btn-spec btn-upgrade-choice" data-choice="${opt.key}" title="${opt.description}">
+                <span class="spec-btn-title">${opt.title}</span>
+                <span class="spec-btn-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${opt.upgradeCost}</span>
+                <span class="spec-btn-desc">${opt.description}</span>
+              </button>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      html = `<div class="max-spec-badge">★ FULLY UPGRADED</div>`;
+    }
+
+    html += `
+      <button id="btn-sell-tower" class="game-btn game-btn-sell">
+        SELL · +<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-sell-refund">${tower.sellRefund}</span>
+      </button>
+    `;
+    return html;
+  }
+
+  bindUpgradeActions(tower) {
+    const single = document.getElementById('btn-upgrade-tower');
+    single?.addEventListener('click', () => {
+      this.callbacks.onUpgradeTower?.(this.inspectedTower, single.dataset.choice);
+    });
+
+    document.querySelectorAll('.btn-upgrade-choice').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.callbacks.onUpgradeTower?.(this.inspectedTower, btn.dataset.choice);
+      });
+    });
+
+    const sellBtn = document.getElementById('btn-sell-tower');
+    sellBtn?.addEventListener('click', () => {
+      audio.playCoin();
+      this.callbacks.onSellTower?.(this.inspectedTower);
+      this.closeInspector();
+    });
+  }
+
+  updateActionAffordability(tower) {
+    if (!tower) return;
+    const single = document.getElementById('btn-upgrade-tower');
+    if (single) single.disabled = !tower.canUpgrade(single.dataset.choice);
+    document.querySelectorAll('.btn-upgrade-choice').forEach((btn) => {
+      btn.disabled = !tower.canUpgrade(btn.dataset.choice);
     });
   }
 
   updateTargetingUI(activeMode) {
     document.querySelectorAll('.target-btn').forEach((b) => {
-      b.classList.toggle('active', b.dataset.mode === activeMode);
+      const active = b.dataset.mode === activeMode;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
     });
   }
+
+  toggleInspectorCollapsed() {
+    const panel = document.getElementById('tower-inspector');
+    if (!panel) return;
+    this.inspectorCollapsed = !this.inspectorCollapsed;
+    panel.classList.toggle('collapsed', this.inspectorCollapsed);
+    const btn = document.getElementById('btn-collapse-inspect');
+    if (btn) {
+      btn.innerText = this.inspectorCollapsed ? '▸' : '▾';
+      btn.setAttribute('aria-label', this.inspectorCollapsed ? 'Expand panel' : 'Collapse panel');
+    }
+    this.repositionInspector(true);
+  }
+
+  closeInspector() {
+    this.inspectedTower = null;
+    this.inspectorAnchorRatio = null;
+    const panel = document.getElementById('tower-inspector');
+    if (panel) panel.classList.add('hidden');
+    this.callbacks.onDeselectTower?.();
+  }
+
+  /* ============================================================== SELECTION */
 
   toggleBuildSelection(key) {
     audio.playClick();
     if (this.selectedBuildKey === key) {
       this.clearBuildSelection();
-    } else {
-      this.selectedBuildKey = key;
-      document.querySelectorAll('.build-card').forEach((c) => {
-        c.classList.toggle('selected', c.dataset.key === key);
-      });
-      this.closeInspector();
-      this.callbacks.onSelectBuild(key);
+      return;
     }
+    this.selectedBuildKey = key;
+    document.querySelectorAll('.build-card').forEach((c) => {
+      const active = c.dataset.key === key;
+      c.classList.toggle('selected', active);
+      c.setAttribute('aria-pressed', String(active));
+    });
+    if (this.inspectedTower) this.closeInspector();
+    this.setPlacementHint(key);
+    this.callbacks.onSelectBuild?.(key);
   }
 
-  clearBuildSelection() {
+  clearBuildSelection(silent = false) {
+    const had = Boolean(this.selectedBuildKey);
     this.selectedBuildKey = null;
-    document.querySelectorAll('.build-card').forEach((c) => c.classList.remove('selected'));
-    this.callbacks.onSelectBuild(null);
+    document.querySelectorAll('.build-card').forEach((c) => {
+      c.classList.remove('selected');
+      c.setAttribute('aria-pressed', 'false');
+    });
+    this.setPlacementHint(null);
+    if (had && !silent) this.callbacks.onSelectBuild?.(null);
   }
+
+  setPlacementHint(key) {
+    const hint = document.getElementById('placement-hint');
+    const text = document.getElementById('placement-hint-text');
+    if (!hint || !text) return;
+    if (!key) {
+      hint.classList.add('hidden');
+      return;
+    }
+    const def = getBuildDefinition(key);
+    const coins = Number(document.getElementById('val-coins')?.innerText ?? 0);
+    const affordable = coins >= def.cost;
+    const where = key === 'barricade' ? 'a road tile' : 'a grass tile';
+    text.innerText = affordable
+      ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold — click ${where} · ESC to cancel`
+      : `NEED ${def.cost} GOLD FOR ${def.name.toUpperCase()} · kill enemies to earn more`;
+    hint.classList.toggle('unaffordable', !affordable);
+    hint.classList.remove('hidden');
+  }
+
+  /* ================================================================= TOASTS */
 
   showToast(message, type = 'info') {
     const banner = document.getElementById('toast-banner');
     if (!banner) return;
+    if (message === this.lastToast && !banner.classList.contains('hidden')) return;
+    this.lastToast = message;
+
     banner.innerText = message;
     banner.className = `toast-banner toast-${type}`;
     banner.classList.remove('hidden');
@@ -276,17 +687,35 @@ export class HUD {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
       banner.classList.add('hidden');
+      this.lastToast = '';
     }, 2800);
   }
 
-  /* ======================================================= BOSS ENCOUNTER HUD */
+  /* ============================================================ CAMERA STATE */
+
+  setZoomState(state) {
+    this.zoomState = { ...this.zoomState, ...state };
+    const readout = document.getElementById('zoom-readout');
+    if (readout) readout.innerText = `${Math.round(this.zoomState.zoom * 100)}%`;
+    const zoomIn = document.getElementById('btn-zoom-in');
+    const zoomOut = document.getElementById('btn-zoom-out');
+    if (zoomIn) zoomIn.disabled = !this.zoomState.canZoomIn;
+    if (zoomOut) zoomOut.disabled = !this.zoomState.canZoomOut;
+    const fit = document.getElementById('btn-zoom-fit');
+    if (fit) {
+      fit.classList.toggle('active', Boolean(this.zoomState.atFit));
+      fit.setAttribute('aria-pressed', String(Boolean(this.zoomState.atFit)));
+    }
+  }
+
+  /* ================================================================== BOSS */
 
   showBossBanner(boss) {
     const banner = document.getElementById('boss-banner');
     if (!banner) return;
     banner.classList.remove('hidden');
     document.getElementById('boss-name').innerText = boss.def.name.toUpperCase();
-    this.updateBossPhase(boss, boss.bossPhases[0] || { phase: 1, name: 'Engaged' });
+    this.updateBossPhase(boss, boss.bossPhases?.[0] || { phase: 1, name: 'Engaged' });
     this.updateBossBar(boss);
   }
 
@@ -306,189 +735,95 @@ export class HUD {
     const hpText = document.getElementById('boss-hp-text');
 
     const hpPct = Math.max(0, Math.min(100, (boss.health / boss.maxHealth) * 100));
-    hpBar.style.width = `${hpPct}%`;
+    if (hpBar) hpBar.style.width = `${hpPct}%`;
 
     if (boss.maxShield > 0) {
       const shieldPct = Math.max(0, Math.min(100, (boss.shield / boss.maxShield) * 100));
-      shieldBar.style.width = `${shieldPct}%`;
-      shieldBar.style.display = boss.shield > 0 ? 'block' : 'none';
-      hpText.innerText = boss.shield > 0
-        ? `${boss.health} / ${boss.maxHealth} HP (Shield: ${boss.shield})`
-        : `${boss.health} / ${boss.maxHealth} HP`;
+      if (shieldBar) {
+        shieldBar.style.width = `${shieldPct}%`;
+        shieldBar.style.display = boss.shield > 0 ? 'block' : 'none';
+      }
+      if (hpText) {
+        hpText.innerText =
+          boss.shield > 0
+            ? `${boss.health} / ${boss.maxHealth} HP · shield ${boss.shield}`
+            : `${boss.health} / ${boss.maxHealth} HP`;
+      }
     } else {
-      shieldBar.style.display = 'none';
-      hpText.innerText = `${boss.health} / ${boss.maxHealth} HP`;
+      if (shieldBar) shieldBar.style.display = 'none';
+      if (hpText) hpText.innerText = `${boss.health} / ${boss.maxHealth} HP`;
     }
+  }
+
+  hideBossBar() {
+    document.getElementById('boss-banner')?.classList.add('hidden');
   }
 
   hideBossBanner() {
-    const banner = document.getElementById('boss-banner');
-    if (banner) banner.classList.add('hidden');
+    this.hideBossBar();
   }
 
-  /* ========================================================== TOWER INSPECTOR */
-
-  inspectTower(tower) {
-    this.inspectedTower = tower;
-    this.clearBuildSelection();
-    const panel = document.getElementById('tower-inspector');
-    panel.classList.remove('hidden');
-
-    const statsGrid = document.getElementById('inspect-stats');
-    const targetingGroup = document.getElementById('inspect-targeting');
-    const actionsContainer = document.getElementById('inspector-actions-container');
-
-    // Update Header Name & Level Title
-    let titleStr = `★ Level ${tower.level}`;
-    if (tower.specialization) {
-      titleStr = `★3 ${tower.stats.title}`;
-    } else if (tower.isBarricade) {
-      titleStr = tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade');
-    }
-
-    document.getElementById('inspect-name').innerText = tower.stats?.title || tower.def.name;
-    document.getElementById('inspect-level').innerText = titleStr;
-
-    if (tower.isBarricade) {
-      targetingGroup.style.display = 'none';
-      const thorns = tower.stats?.thornsDamage || 0;
-      statsGrid.innerHTML = `
-        <div class="stat-cell full-width">
-          <span class="lbl">ROLE</span>
-          <span class="val">Forces enemy BFS path rerouting</span>
-        </div>
-        <div class="stat-cell full-width">
-          <span class="lbl">THORNS RETALIATION</span>
-          <span class="val">${thorns > 0 ? `${thorns} Physical Damage on Contact` : 'None (Level 1)'}</span>
-        </div>
-      `;
-    } else {
-      targetingGroup.style.display = 'block';
-      this.updateTargetingUI(tower.targetingMode);
-
-      const s = tower.stats;
-      document.getElementById('inspect-dmg').innerText = s.damage;
-      document.getElementById('inspect-rng').innerText = `${s.range}px`;
-      document.getElementById('inspect-spd').innerText = `${(s.cooldown / 1000).toFixed(2)}s`;
-      document.getElementById('inspect-type').innerText = (s.damageType || 'Physical').toUpperCase();
-
-      let special = '-';
-      if (s.splash) special = `Area Splash: ${s.splash}px radius`;
-      else if (s.slow) special = `Slows: ${Math.round(s.slow * 100)}% (${(s.slowMs / 1000).toFixed(1)}s)`;
-      else if (s.armorPenetration) special = `Armor Pen: ${Math.round(s.armorPenetration * 100)}%`;
-      else if (s.armorBreak) special = `Breaks Armor: -${s.armorBreak} (${(s.armorBreakMs / 1000).toFixed(1)}s)`;
-      else if (s.chainTargets) special = `Chain Lightning: ${s.chainTargets} targets`;
-      document.getElementById('inspect-spl').innerText = special;
-    }
-
-    // Render Upgrade / Branching Actions
-    const opts = tower.nextUpgrades;
-    let buttonsHtml = '';
-
-    if (opts.length === 1) {
-      // Single linear upgrade (Level 1 -> Level 2 or Barricade 1 -> 2)
-      const opt = opts[0];
-      buttonsHtml = `
-        <button id="btn-upgrade-tower" class="game-btn game-btn-upgrade" data-choice="${opt.key}">
-          UPGRADE (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-upgrade-cost">${opt.upgradeCost}</span>)
-        </button>
-      `;
-    } else if (opts.length > 1) {
-      // Branching Specialization (Level 2 -> Level 3 Specialization A vs B)
-      buttonsHtml = `
-        <div class="spec-selection-block">
-          <div class="spec-selection-title">CHOOSE SPECIALIZATION:</div>
-          <div class="spec-cards-row">
-            ${opts.map((opt) => `
-              <button class="game-btn game-btn-spec btn-upgrade-choice" data-choice="${opt.key}" title="${opt.description}">
-                <div class="spec-btn-title">${opt.title}</div>
-                <div class="spec-btn-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${opt.upgradeCost}</div>
-                <div class="spec-btn-desc">${opt.description}</div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    } else {
-      // Max Level
-      buttonsHtml = `
-        <button class="game-btn game-btn-subtle" disabled style="opacity:0.7;">
-          ★ MAX SPECIALIZATION REACHED
-        </button>
-      `;
-    }
-
-    // Sell button
-    buttonsHtml += `
-      <button id="btn-sell-tower" class="game-btn game-btn-sell">
-        SELL (+<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-sell-refund">${tower.sellRefund}</span>)
-      </button>
-    `;
-
-    actionsContainer.innerHTML = buttonsHtml;
-
-    // Bind dynamic upgrade buttons
-    const singleUpgradeBtn = document.getElementById('btn-upgrade-tower');
-    if (singleUpgradeBtn) {
-      singleUpgradeBtn.addEventListener('click', () => {
-        this.callbacks.onUpgradeTower(this.inspectedTower, singleUpgradeBtn.dataset.choice);
-      });
-    }
-
-    document.querySelectorAll('.btn-upgrade-choice').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        this.callbacks.onUpgradeTower(this.inspectedTower, btn.dataset.choice);
-      });
-    });
-
-    const sellBtn = document.getElementById('btn-sell-tower');
-    if (sellBtn) {
-      sellBtn.addEventListener('click', () => {
-        audio.playCoin();
-        this.callbacks.onSellTower(this.inspectedTower);
-        this.closeInspector();
-      });
-    }
-  }
-
-  closeInspector() {
-    this.inspectedTower = null;
-    const panel = document.getElementById('tower-inspector');
-    if (panel) panel.classList.add('hidden');
-    this.callbacks.onDeselectTower();
-  }
+  /* ================================================================= UPDATE */
 
   update(state) {
-    const { baseHealth, maxBaseHealth, coins, score, waveNumber, totalWaves, enemiesRemaining, canStartWave, isSpawning } = state;
+    const {
+      baseHealth,
+      maxBaseHealth,
+      coins,
+      score,
+      waveNumber,
+      totalWaves,
+      enemiesRemaining,
+      canStartWave,
+      isSpawning,
+      isPaused,
+    } = state;
 
-    document.getElementById('val-base-hp').innerText = `${baseHealth} / ${maxBaseHealth}`;
-    document.getElementById('val-coins').innerText = coins;
-    document.getElementById('val-score').innerText = score;
-    document.getElementById('val-wave').innerText = `${waveNumber} / ${totalWaves}`;
-    document.getElementById('val-enemies-left').innerText = isSpawning
-      ? `${enemiesRemaining} Spawning...`
-      : `${enemiesRemaining} Enemies Left`;
+    this.setText('val-base-hp', `${baseHealth} / ${maxBaseHealth}`);
+    this.setText('val-coins', coins);
+    this.setText('val-score', score);
+    this.setText('val-wave', `${waveNumber} / ${totalWaves}`);
+    this.setText(
+      'val-enemies-left',
+      isSpawning ? `${enemiesRemaining} spawning…` : `${enemiesRemaining} left`
+    );
+
+    const hpStat = document.getElementById('stat-base-hp');
+    if (hpStat) {
+      const ratio = maxBaseHealth ? baseHealth / maxBaseHealth : 0;
+      hpStat.classList.toggle('critical', ratio <= 0.3);
+      hpStat.classList.toggle('warning', ratio > 0.3 && ratio <= 0.6);
+    }
 
     const startBtn = document.getElementById('btn-start-wave');
-    startBtn.disabled = !canStartWave;
-    startBtn.classList.toggle('game-btn-pulse', canStartWave);
+    if (startBtn) {
+      startBtn.disabled = !canStartWave;
+      startBtn.classList.toggle('game-btn-pulse', canStartWave);
+      const label = startBtn.querySelector('.btn-text');
+      if (label) label.innerText = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
+    }
 
-    // Disable dock build cards player cannot afford
     document.querySelectorAll('.build-card').forEach((card) => {
       const def = getBuildDefinition(card.dataset.key);
       const unaffordable = coins < def.cost;
       card.classList.toggle('disabled', unaffordable);
+      card.setAttribute('aria-disabled', String(unaffordable));
     });
 
-    // Re-evaluate inspector upgrade affordabilities
-    if (this.inspectedTower) {
-      const singleUpgradeBtn = document.getElementById('btn-upgrade-tower');
-      if (singleUpgradeBtn) {
-        singleUpgradeBtn.disabled = !this.inspectedTower.canUpgrade(singleUpgradeBtn.dataset.choice);
-      }
-      document.querySelectorAll('.btn-upgrade-choice').forEach((btn) => {
-        btn.disabled = !this.inspectedTower.canUpgrade(btn.dataset.choice);
-      });
+    if (isPaused !== undefined) {
+      document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
     }
+
+    if (this.inspectedTower) {
+      this.updateActionAffordability(this.inspectedTower);
+      const refund = document.getElementById('inspect-sell-refund');
+      if (refund) refund.innerText = this.inspectedTower.sellRefund;
+    }
+    if (this.selectedBuildKey) this.setPlacementHint(this.selectedBuildKey);
+  }
+
+  setText(id, value) {
+    const el = document.getElementById(id);
+    if (el && el.innerText !== String(value)) el.innerText = value;
   }
 }

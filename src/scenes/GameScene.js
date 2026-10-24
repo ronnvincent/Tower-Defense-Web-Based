@@ -12,6 +12,8 @@ import { Enemy } from '../entities/Enemy.js';
 import { Tower } from '../entities/Tower.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { CameraRig } from '../camera/CameraRig.js';
+import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -57,9 +59,29 @@ export class GameScene extends Phaser.Scene {
 
     this.activeBoss = null;
 
-    // 3. Connect UI
+    // 2b. Camera rig — drag to pan, wheel/pinch to zoom. Pointer → world
+    // coordinates now always go through the rig (see handlePointerMove/Up).
+    this.lastPointerScreen = null;
+    this.cameraRig = new CameraRig(this, {
+      bounds: { x: 0, y: 0, width: this.scale.width, height: this.scale.height },
+      onZoomChange: (state) => {
+        this.hud?.setZoomState(state);
+        this.refreshHoverFromLastPointer();
+      },
+    });
+    this.cameraRig.install();
+
+    // 2c. Floating upgrade badges above every defence.
+    this.badges = new UpgradeBadges(this, {
+      onActivate: (tower) => this.selectTower(tower),
+    });
+
+    // 3. Connect UI — the HUD layer ships hidden so it never flashes over the
+    // menu; reveal it defensively in case the scene is started directly.
+    document.getElementById('hud-container')?.classList.remove('hidden');
     this.hud = window.gameHUD;
     if (this.hud) {
+      this.hud.reset();
       this.hud.callbacks = {
         onStartWave: () => this.handleStartWave(),
         onToggleSpeed: () => this.handleToggleSpeed(),
@@ -70,14 +92,25 @@ export class GameScene extends Phaser.Scene {
         onUpgradeTower: (t, choiceKey) => this.handleUpgradeTower(t, choiceKey),
         onSellTower: (t) => this.handleSellTower(t),
         onDeselectTower: () => this.handleDeselectTower(),
+        onZoomIn: () => this.cameraRig.zoomBy(1.25),
+        onZoomOut: () => this.cameraRig.zoomBy(1 / 1.25),
+        onZoomReset: () => this.cameraRig.reset(),
       };
+      this.hud.setZoomState(this.cameraRig.zoomState());
+      this.hud.showCameraHintOnce();
       this.syncHUD();
     }
 
-    // 4. Input Events
+    // 4. Input Events — the rig is installed first, so it can tell the scene
+    // whether a pointerup was a tap or the end of a pan/pinch.
     this.input.on('pointermove', (pointer) => this.handlePointerMove(pointer));
-    this.input.on('pointerdown', (pointer) => this.handlePointerDown(pointer));
+    this.input.on('pointerup', (pointer) => this.handlePointerUp(pointer));
     this.bindKeyboardShortcuts();
+
+    this.events.once('shutdown', () => {
+      this.cameraRig?.destroy();
+      this.badges?.clear();
+    });
   }
 
   createParticleSystems() {
@@ -313,8 +346,12 @@ export class GameScene extends Phaser.Scene {
 
   handleUpgradeTower(tower, choiceKey = null) {
     if (tower.upgrade(choiceKey)) {
-      this.hud?.inspectTower(tower);
+      if (this.selectedTower === tower) {
+        this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
+      }
+      this.badges?.pulse(tower);
       this.syncHUD();
+      this.updateGhostGraphics();
     }
   }
 
@@ -342,6 +379,7 @@ export class GameScene extends Phaser.Scene {
     tower.destroy();
 
     this.selectedTower = null;
+    this.badges?.setSelected(null);
     this.syncHUD();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
   }
@@ -351,23 +389,66 @@ export class GameScene extends Phaser.Scene {
       this.selectedTower.setSelected(false);
       this.selectedTower = null;
     }
+    this.badges?.setSelected(null);
+  }
+
+  /** Screen (canvas) px → tile row/col, honouring camera pan + zoom. */
+  tileAtScreen(x, y) {
+    const world = this.cameraRig ? this.cameraRig.screenToWorld(x, y) : { x, y };
+    return {
+      row: Math.floor(world.y / TILE_SIZE),
+      col: Math.floor(world.x / TILE_SIZE),
+      worldX: world.x,
+      worldY: world.y,
+    };
   }
 
   handlePointerMove(pointer) {
-    const col = Math.floor(pointer.x / TILE_SIZE);
-    const row = Math.floor(pointer.y / TILE_SIZE);
+    this.lastPointerScreen = { x: pointer.x, y: pointer.y };
+    this.refreshHoverFromLastPointer();
+  }
 
-    if (row !== this.hoverTile.row || col !== this.hoverTile.col) {
-      this.hoverTile = { row, col };
+  /**
+   * Recompute the highlighted tile from the last known pointer position.
+   * Called on every move *and* whenever the camera moves, so the build ghost
+   * stays glued to the cursor while panning/zooming.
+   */
+  refreshHoverFromLastPointer() {
+    if (!this.lastPointerScreen) return;
+    if (this.cameraRig?.isDragging) {
+      this.ghostGraphics?.clear();
+      return;
+    }
+    const { x, y } = this.lastPointerScreen;
+    const tile = this.tileAtScreen(x, y);
+    if (tile.row !== this.hoverTile.row || tile.col !== this.hoverTile.col) {
+      this.hoverTile = { row: tile.row, col: tile.col };
       this.updateGhostGraphics();
     }
   }
 
-  handlePointerDown(pointer) {
-    const col = Math.floor(pointer.x / TILE_SIZE);
-    const row = Math.floor(pointer.y / TILE_SIZE);
+  handlePointerUp(pointer) {
+    // A pan/pinch, a press that began on the HUD, or a right-click must never
+    // build a tower or steal a selection.
+    if (this.cameraRig && !this.cameraRig.consumeTap()) return;
+    if (pointer.rightButtonReleased && pointer.rightButtonReleased()) return;
 
-    if (!this.placement.inBounds(row, col)) return;
+    const { row, col, worldX, worldY } = this.tileAtScreen(pointer.x, pointer.y);
+
+    // 0. Upgrade badge above a defence?
+    const badgeTower = this.badges?.hitTest(worldX, worldY);
+    if (badgeTower) {
+      audio.playClick();
+      this.selectTower(badgeTower);
+      return;
+    }
+
+    if (!this.placement.inBounds(row, col)) {
+      // Tapping the void clears the current selection.
+      this.handleDeselectTower();
+      this.hud?.closeInspector();
+      return;
+    }
 
     // 1. If building a tower/barricade
     if (this.selectedBuildKey) {
@@ -379,13 +460,52 @@ export class GameScene extends Phaser.Scene {
     const occupant = this.placement.getOccupant(row, col);
     if (occupant) {
       audio.playClick();
-      this.handleDeselectTower();
-      this.selectedTower = occupant;
-      this.selectedTower.setSelected(true);
-      this.hud?.inspectTower(occupant);
+      this.selectTower(occupant);
     } else {
       this.handleDeselectTower();
       this.hud?.closeInspector();
+    }
+  }
+
+  /** Select a tower, show its range, focus the camera if it is off-screen. */
+  selectTower(tower) {
+    if (!tower) return;
+    if (this.selectedTower && this.selectedTower !== tower) {
+      this.selectedTower.setSelected(false);
+    }
+    this.selectedTower = tower;
+    tower.setSelected(true);
+    this.badges?.setSelected(tower);
+    this.ensureTowerVisible(tower);
+    this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
+  }
+
+  /** Tower position as a 0..1 fraction of the battlefield (zoom-safe). */
+  anchorRatioFor(tower) {
+    if (!this.cameraRig) {
+      return { x: tower.x / this.scale.width, y: tower.y / this.scale.height };
+    }
+    const screen = this.cameraRig.worldToScreen(tower.x, tower.y);
+    return {
+      x: screen.x / this.scale.width,
+      y: screen.y / this.scale.height,
+    };
+  }
+
+  /** If the tower is outside the comfortable part of the view, pan to it. */
+  ensureTowerVisible(tower) {
+    if (!this.cameraRig) return;
+    const screen = this.cameraRig.worldToScreen(tower.x, tower.y);
+    const marginX = this.scale.width * 0.14;
+    const marginY = this.scale.height * 0.18;
+    if (
+      screen.x < marginX ||
+      screen.x > this.scale.width - marginX ||
+      screen.y < marginY ||
+      screen.y > this.scale.height - marginY
+    ) {
+      this.cameraRig.focus(tower.x, tower.y);
+      this.hud?.setZoomState(this.cameraRig.zoomState());
     }
   }
 
@@ -521,6 +641,7 @@ export class GameScene extends Phaser.Scene {
   handleGameOver() {
     this.gameState.end(STATUS.GAME_OVER);
     this.hud?.hideBossBar();
+    window.gameCodex?.hide?.();
     audio.playDefeat();
     if (window.gameLeaderboardUI) {
       window.gameLeaderboardUI.show({
@@ -535,6 +656,7 @@ export class GameScene extends Phaser.Scene {
   handleVictory() {
     this.gameState.end(STATUS.VICTORY);
     this.hud?.hideBossBar();
+    window.gameCodex?.hide?.();
     // Base health survival score bonus
     this.economy.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
     audio.playVictory();
@@ -560,7 +682,9 @@ export class GameScene extends Phaser.Scene {
       enemiesRemaining: this.activeEnemies.length + this.waveManager.pendingSpawns(),
       canStartWave: this.waveManager.canStartNextWave(),
       isSpawning: this.waveManager.state === 'spawning',
+      isPaused: this.gameState.isPaused(),
     });
+    this.badges?.sync(this.activeTowers, this.economy.coins);
   }
 
   bindKeyboardShortcuts() {
@@ -588,6 +712,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time, rawDelta) {
+    // Camera and badges keep working even while the simulation is paused, so
+    // the player can inspect the battlefield before starting a wave.
+    this.cameraRig?.update(rawDelta);
+    this.badges?.update(this.cameras.main);
+
     if (this.gameState.isPaused() || this.gameState.isOver()) return;
 
     // Cap delta to prevent huge jumps after backgrounding tab

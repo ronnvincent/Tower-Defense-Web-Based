@@ -44,11 +44,10 @@ export class MenuScene extends Phaser.Scene {
       menuOverlay.classList.remove('hidden');
     }
 
-    // Hide HUD if returning from a game
-    const hudBar = document.getElementById('hud-top-bar');
-    const hudDock = document.getElementById('hud-bottom-dock');
-    if (hudBar) hudBar.classList.add('hidden');
-    if (hudDock) hudDock.classList.add('hidden');
+    // Hide the whole HUD layer while the menu is up (panels, camera
+    // controls, floating inspector) so nothing shows through the overlay.
+    document.getElementById('hud-container')?.classList.add('hidden');
+    window.gameHUD?.reset?.();
   }
 
   startGame() {
@@ -56,10 +55,7 @@ export class MenuScene extends Phaser.Scene {
     const menuOverlay = document.getElementById('main-menu-overlay');
     if (menuOverlay) menuOverlay.classList.add('hidden');
 
-    const hudBar = document.getElementById('hud-top-bar');
-    const hudDock = document.getElementById('hud-bottom-dock');
-    if (hudBar) hudBar.classList.remove('hidden');
-    if (hudDock) hudDock.classList.remove('hidden');
+    document.getElementById('hud-container')?.classList.remove('hidden');
 
     this.scene.start('GameScene');
   }

@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 62 tests across 4 test suites.
-- **Pass Rate:** **100% (62 / 62 Passed)**
+- **Total Automated Unit Tests:** 135 tests across 10 test suites.
+- **Pass Rate:** **100% (135 / 135 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** Verified via automated Chromium browser subagent across the full game loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Barricade Cut $\to$ Codex Telemetry).
 
@@ -98,7 +98,21 @@
      ✓ unblocking restores the shortest route
      ✓ records cumulative BFS statistics across runs
 
-Test Files  4 passed (4)
-Tests       62 passed (62)
-Duration    271ms
+Test Files  10 passed (10)
+Tests       135 passed (135)
+Duration    2.40s
 ```
+
+---
+
+## 4. UI / UX Regression Suites (camera, badges, panels, contrast)
+
+| Suite | Env | Tests | Guards against |
+|---|---|:---:|---|
+| `tests/camera-math.test.js` | node | 15 | Wrong tile under the cursor at non-1× zoom / panned cameras; zoom drifting off the cursor; camera escaping the map bounds; broken pinch resolution |
+| `tests/upgrade-badge.test.js` | node | 9 | Badge label/price mismatches, unaffordable styling, badges drawn over the tower art at high zoom, badges blocking tile clicks |
+| `tests/panel-placement.test.js` | node | 7 | Inspector opening off-screen or on top of the selected tower |
+| `tests/hud-dom.test.js` | jsdom | 14 | HUD controls missing, buttons not forwarding callbacks, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
+
+Contrast is verified separately by `npm run check:contrast` (30/30 WCAG AA pairs, measured against
+sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
