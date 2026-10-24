@@ -989,6 +989,25 @@ def read_map_layouts():
     return layouts
 
 
+def read_map_biomes():
+    """Pull the per-tile biome overlay out of src/data/mapData.js.
+
+    Returns {map_id: [letters]}; the campaign maps have no entry and fall back
+    to the level's own theme, exactly like `getMapBiomes()` does at runtime.
+    """
+    src = open(os.path.join(ROOT, "src", "data", "mapData.js")).read()
+    match = re.search(r"export const MAP_BIOMES = \{(.*?)\n\};", src, re.S)
+    if not match:
+        return {}
+    grid = {}
+    for name, chunk in re.findall(r"\n\s{2}(\w+):\s*\[(.*?)\n\s{2}\],", match.group(1), re.S):
+        grid[name] = re.findall(r"'([^']*)'", chunk)
+    return grid
+
+
+BIOME_LETTER = {"i": "ice", "d": "desert", "v": "volcanic", "c": "crystal"}
+
+
 def average_colour(pixels, w, h, x0, y0, size):
     r = g = b = n = 0
     for y in range(y0, min(h, y0 + size)):
@@ -1051,25 +1070,39 @@ def build_map_thumbnails():
     """
     print("map thumbnails")
     layouts = read_map_layouts()
+    biomes = read_map_biomes()
     cell = 6
-    for theme in ("grassland", "desert", "ice", "volcanic", "crystal"):
-        layout = layouts.get(theme) or layouts["grassland"]
+    palettes = {}
+
+    # The horde's lane has to read as a lane at thumbnail size. Measured
+    # against the average ground colour, the ice road is the worst offender
+    # (65,80,94 vs a 95,118,142 sheet: nearly the same luminance) and the
+    # volcanic road is close behind, so both are lifted harder.
+    ROAD_BOOST = {"grassland": 1.15, "desert": 1.05, "ice": 2.2, "volcanic": 1.85, "crystal": 1.35}
+
+    def palette(theme):
+        """Average ground/road/water/rock/foliage colour for one biome."""
+        if theme in palettes:
+            return palettes[theme]
         suffix = "" if theme == "grassland" else f"-{theme}"
 
         def tile_colour(name, x, y, size=16):
             tw2, th2, pix = read_png(os.path.join(OUT, "tiles", f"{name}{suffix}.png"))
             return average_colour(pix, tw2, th2, x, y, size)
 
-        grass = tile_colour("grass", 24, 24)
-        # The horde's lane has to read as a lane at thumbnail size. Measured
-        # against the average ground colour, the ice road is the worst offender
-        # (65,80,94 vs a 95,118,142 sheet: nearly the same luminance) and the
-        # volcanic road is close behind, so both are lifted harder.
-        boost = {"grassland": 1.15, "desert": 1.05, "ice": 2.2, "volcanic": 1.85, "crystal": 1.35}[theme]
-        road = tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24))
-        water = tile_colour("water", 24, 24)
-        rock = tile_colour("rock", 24, 24)
-        tree = tile_colour("foliage", 24, 24)
+        boost = ROAD_BOOST.get(theme, 1.15)
+        palettes[theme] = {
+            "grass": tile_colour("grass", 24, 24),
+            "road": tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24)),
+            "water": tile_colour("water", 24, 24),
+            "rock": tile_colour("rock", 24, 24),
+            "tree": tile_colour("foliage", 24, 24),
+        }
+        return palettes[theme]
+
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal"):
+        layout = layouts.get(theme) or layouts["grassland"]
+        biome_rows = biomes.get(theme)
         spawn = (0xB3, 0x88, 0xFF)
         base = (0xF5, 0xC4, 0x51)
 
@@ -1079,19 +1112,28 @@ def build_map_thumbnails():
         out = blank(width, height)
         for r, line in enumerate(layout):
             for c, ch in enumerate(line):
+                # A mixed battlefield thumbnails its own ground: each cell is
+                # sampled from the tile set the biome overlay names, so the
+                # endless minimap shows winter, sand and fire at 6 px a cell.
+                letter = biome_rows[r][c] if biome_rows and c < len(biome_rows[r]) else None
+                pal = palette(BIOME_LETTER.get(letter, theme))
+                # The road is one material across the whole map (see
+                # GameScene.renderBattlefieldMap), so the minimap must not paint
+                # it per biome either.
+                lane_pal = palette(theme)
                 if ch == "S":
                     colour = spawn
                 elif ch == "B":
                     colour = base
                 elif ch == "#":
-                    colour = road
+                    colour = lane_pal["road"]
                 elif ch == "~":
-                    colour = water
+                    colour = pal["water"]
                 elif ch == "x":
-                    colour = rock
+                    colour = pal["rock"]
                 else:
                     folliage = (r * 3 + c * 5) % 9 == 0
-                    colour = tree if folliage else grass
+                    colour = pal["tree"] if folliage else pal["grass"]
                 # A touch of checker shading keeps a flat minimap from reading
                 # like a solid blob at 120 px.
                 f = 0.92 if (r + c) % 2 else 1.0
