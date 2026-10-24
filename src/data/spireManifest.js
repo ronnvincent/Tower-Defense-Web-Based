@@ -20,6 +20,30 @@ export const ENEMY_SHEETS = {
   'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12 },
 };
 
+/**
+ * Texture key per creep, per battlefield, per escalation tier.
+ * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).
+ */
+export const ENEMY_SKINS = {
+  'grunt': { 'grassland': ['enemy-grunt', 'enemy-grunt-e1', 'enemy-grunt-e2'], 'desert': ['enemy-grunt-desert', 'enemy-grunt-desert-e1', 'enemy-grunt-desert-e2'], 'ice': ['enemy-grunt-ice', 'enemy-grunt-ice-e1', 'enemy-grunt-ice-e2'], 'volcanic': ['enemy-grunt-volcanic', 'enemy-grunt-volcanic-e1', 'enemy-grunt-volcanic-e2'] },
+  'runner': { 'grassland': ['enemy-runner', 'enemy-runner-e1', 'enemy-runner-e2'], 'desert': ['enemy-runner-desert', 'enemy-runner-desert-e1', 'enemy-runner-desert-e2'], 'ice': ['enemy-runner-ice', 'enemy-runner-ice-e1', 'enemy-runner-ice-e2'], 'volcanic': ['enemy-runner-volcanic', 'enemy-runner-volcanic-e1', 'enemy-runner-volcanic-e2'] },
+  'brute': { 'grassland': ['enemy-brute', 'enemy-brute-e1', 'enemy-brute-e2'], 'desert': ['enemy-brute-desert', 'enemy-brute-desert-e1', 'enemy-brute-desert-e2'], 'ice': ['enemy-brute-ice', 'enemy-brute-ice-e1', 'enemy-brute-ice-e2'], 'volcanic': ['enemy-brute-volcanic', 'enemy-brute-volcanic-e1', 'enemy-brute-volcanic-e2'] },
+  'swarm': { 'grassland': ['enemy-swarm', 'enemy-swarm-e1', 'enemy-swarm-e2'], 'desert': ['enemy-swarm-desert', 'enemy-swarm-desert-e1', 'enemy-swarm-desert-e2'], 'ice': ['enemy-swarm-ice', 'enemy-swarm-ice-e1', 'enemy-swarm-ice-e2'], 'volcanic': ['enemy-swarm-volcanic', 'enemy-swarm-volcanic-e1', 'enemy-swarm-volcanic-e2'] },
+  'healer': { 'grassland': ['enemy-healer', 'enemy-healer-e1', 'enemy-healer-e2'], 'desert': ['enemy-healer-desert', 'enemy-healer-desert-e1', 'enemy-healer-desert-e2'], 'ice': ['enemy-healer-ice', 'enemy-healer-ice-e1', 'enemy-healer-ice-e2'], 'volcanic': ['enemy-healer-volcanic', 'enemy-healer-volcanic-e1', 'enemy-healer-volcanic-e2'] },
+  'shield': { 'grassland': ['enemy-shield', 'enemy-shield-e1', 'enemy-shield-e2'], 'desert': ['enemy-shield-desert', 'enemy-shield-desert-e1', 'enemy-shield-desert-e2'], 'ice': ['enemy-shield-ice', 'enemy-shield-ice-e1', 'enemy-shield-ice-e2'], 'volcanic': ['enemy-shield-volcanic', 'enemy-shield-volcanic-e1', 'enemy-shield-volcanic-e2'] },
+  'colossus': { 'grassland': ['enemy-colossus', 'enemy-colossus-e1', 'enemy-colossus-e2'], 'desert': ['enemy-colossus-desert', 'enemy-colossus-desert-e1', 'enemy-colossus-desert-e2'], 'ice': ['enemy-colossus-ice', 'enemy-colossus-ice-e1', 'enemy-colossus-ice-e2'], 'volcanic': ['enemy-colossus-volcanic', 'enemy-colossus-volcanic-e1', 'enemy-colossus-volcanic-e2'] },
+  'warlord': { 'grassland': ['enemy-warlord', 'enemy-warlord-e1', 'enemy-warlord-e2'], 'desert': ['enemy-warlord-desert', 'enemy-warlord-desert-e1', 'enemy-warlord-desert-e2'], 'ice': ['enemy-warlord-ice', 'enemy-warlord-ice-e1', 'enemy-warlord-ice-e2'], 'volcanic': ['enemy-warlord-volcanic', 'enemy-warlord-volcanic-e1', 'enemy-warlord-volcanic-e2'] },
+};
+
+export const ENEMY_PALETTES = 3;
+
+/** Per-tier presentation: sprite scale and glow strength (0 = none). */
+export const ENEMY_TIERS = [
+  { scale: 1.0, glow: 0.0 },
+  { scale: 1.08, glow: 0.22 },
+  { scale: 1.16, glow: 0.34 },
+];
+
 export const IMPACT_SHEETS = {
   'impact-arrow': { file: 'impact-arrow.png', frameWidth: 64, frameHeight: 64, frames: 6 },
   'impact-rapid': { file: 'impact-rapid.png', frameWidth: 64, frameHeight: 64, frames: 6 },

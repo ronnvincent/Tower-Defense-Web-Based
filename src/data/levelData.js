@@ -237,7 +237,7 @@ export const ENDLESS_LEVEL = {
   index: 4,
   name: 'Endless Siege',
   theme: 'volcanic',
-  map: 'grassland',
+  map: 'volcanic',
   blurb: THEMES.volcanic.blurb,
   endless: true,
   startingCoins: 260,

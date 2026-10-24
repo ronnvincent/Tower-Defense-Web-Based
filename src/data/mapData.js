@@ -65,6 +65,22 @@ export const MAPS = {
     'S###................', // 10
     '~~~............xxx..', // 11
   ],
+  // Endless Siege keeps its own battlefield: a four-step staircase down the
+  // caldera, so the run does not replay the Verdant Marches layout in ash.
+  volcanic: [
+    'S####...............', // 0
+    '....#.....xx........', // 1
+    '....#..~~....x...x..', // 2
+    '....#####...........', // 3
+    '..x.....#....x......', // 4
+    '...x....#.....~~....', // 5
+    '..x.....#####.......', // 6
+    '..x.........#.......', // 7
+    '...~~.......#....x..', // 8
+    '............#####.x.', // 9
+    '..x...x....~~...#...', // 10
+    '....x..........~###B', // 11
+  ],
 };
 
 export const TILE = {

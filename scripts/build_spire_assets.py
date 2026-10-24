@@ -23,6 +23,8 @@ import sys
 import zlib
 from collections import Counter
 
+import terrain
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "src", "assets")
 SRC = os.path.join(ASSETS, "spire")
@@ -312,6 +314,149 @@ def duotone(pixels, stops):
         rgb = lut.get(key)
         if rgb is None:
             rgb = mix(ramp, hsl(*key)[2])
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+# Enemy sheets are re-graded per biome rather than recoloured flat: the
+# silhouette keeps its original shading, but the palette is pulled 45% toward the
+# biome's own ramp so a desert grunt reads as sun-bleached and an ice one as
+# frost-bitten instead of "the same bug again".
+ENEMY_THEME_RAMPS = {
+    "desert": ["#3A2A17", "#9A7338", "#F0D79A"],
+    "ice": ["#16303F", "#5E93AE", "#E6F8FF"],
+    "volcanic": ["#160A0A", "#6E2A16", "#FF9A4A"],
+}
+
+# Per-wave escalation, in three discrete broods. Wave 1-2 spawns the base
+# creature, waves 3-4 the elite (brighter, saturated, gold-contoured), waves 5+
+# the champion (darker body, ember contour grown one pixel outwards). The tiers
+# are baked into separate sheets because the Sprite's 9-row strip only offers
+# three near-identical palette variants -- measurably ~5% of pixels differ, which
+# is why palette swapping alone never read as a change on screen.
+ENEMY_TIERS = [
+    {  # 0 - base brood: exactly the biome re-grade
+        "suffix": "",
+        "grade": 1.0,
+        "saturation": 1.0,
+        "lift": 1.0,
+        "rim": None,
+        "rim_strength": 0.0,
+        "rim_thickness": 1,
+        "scale": 1.0,
+        "glow": 0.0,
+    },
+    {  # 1 - elite brood: brighter, punchier, gold shoulder light
+        "suffix": "-e1",
+        "grade": 0.78,
+        "saturation": 1.38,
+        "lift": 1.16,
+        "rim": "#FFD166",
+        "rim_strength": 0.5,
+        "rim_thickness": 1,
+        "scale": 1.08,
+        "glow": 0.22,
+    },
+    {  # 2 - champion brood: scorched body, ember contour that grows 1 px out
+        "suffix": "-e2",
+        "grade": 1.0,
+        "saturation": 1.55,
+        "lift": 0.92,
+        "rim": "#FF6A2B",
+        "rim_strength": 0.62,
+        "rim_thickness": 2,
+        "scale": 1.16,
+        "glow": 0.34,
+    },
+]
+
+ENEMY_CHAMPION_STOPS = ["#1A0A0E", "#7A1B22", "#FFB36B"]
+
+
+def rim_light(pixels, w, h, colour, strength=0.86, thickness=1, alpha=255):
+    """Draw a glowing contour around the sprite.
+
+    Two things happen here, and both are structural rather than a tint:
+
+    * every silhouette pixel that touches empty space is pushed hard toward
+      `colour`, so the creature gains a readable coloured edge; and
+    * for `thickness > 1` the contour is *grown outwards* into the empty pixels
+      one step further out. That growth is what makes an elite brute read as
+      heavier than a plain one at a glance.
+    """
+    out = bytearray(pixels)
+    solid = bytearray(1 if pixels[i * 4 + 3] else 0 for i in range(w * h))
+
+    def near_solid(x, y, radius):
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and solid[ny * w + nx]:
+                    return True
+        return False
+
+    halo = blank(w, h)
+    for y in range(h):
+        for x in range(w):
+            i = (y * w + x) * 4
+            if solid[y * w + x]:
+                if near_solid(x, y, 1) and not (
+                    x > 0 and y > 0 and x < w - 1 and y < h - 1
+                    and solid[y * w + x - 1] and solid[y * w + x + 1]
+                    and solid[(y - 1) * w + x] and solid[(y + 1) * w + x]
+                ):
+                    out[i], out[i + 1], out[i + 2] = (
+                        round(out[i] * (1 - strength) + colour[k] * strength) for k in range(3)
+                    )
+            elif thickness > 1 and near_solid(x, y, thickness - 1):
+                halo[i], halo[i + 1], halo[i + 2] = colour[0], colour[1], colour[2]
+                halo[i + 3] = alpha
+    # The halo is composited only where the sprite has no pixel, so it reads as
+    # an outer rim instead of painting over the art.
+    for i in range(0, len(halo), 4):
+        if halo[i + 3] and not out[i + 3]:
+            out[i : i + 4] = halo[i : i + 4]
+    return out
+
+
+def saturated(pixels, factor=1.18, lift=1.0):
+    """Push saturation (and optionally brightness) so a re-grade keeps its hue."""
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if not out[i + 3]:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            h, sat, light = hsl(*key)
+            rgb = rgb_from_hsl(h, min(1.0, sat * factor), min(1.0, light * lift))
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+def rgb_tuple(value):
+    """Accept '#rrggbb' or a packed 0xRRGGBB integer."""
+    if isinstance(value, str):
+        return hex_to_rgb(int(value.lstrip("#"), 16))
+    return hex_to_rgb(value)
+
+
+def grade_toward(pixels, stops, strength=0.45):
+    """Blend every pixel toward a dark -> light ramp at `strength`."""
+    ramp = [rgb_tuple(value) for value in stops]
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            target = mix(ramp, hsl(*key)[2])
+            rgb = tuple(int(round(key[k] * (1 - strength) + target[k] * strength)) for k in range(3))
             lut[key] = rgb
         out[i], out[i + 1], out[i + 2] = rgb
     return out
@@ -692,90 +837,70 @@ def theme_mapping(sheets, ramps):
 
 
 def build_tiles():
+    """Terrain for all four biomes.
+
+    Grass, lane and water are drawn by `terrain.py` natively per biome (three
+    ground variants, 16 lane masks, 16 shoreline masks) instead of recolouring a
+    single Spire crop four times. Only the tree prop still comes from the Spire
+    set, re-graded per theme so it matches its ground.
+    """
     print("terrain")
     gw, gh, grass = read_png(os.path.join(SRC, "tileset", "grass.png"))
-    ww, wh, water = read_png(os.path.join(SRC, "tileset", "water.png"))
+    # The oak prop is a cut-out inside its 64 px cell, and the cell's left column
+    # also caught a sliver of the neighbouring tile. Trim both: keep only the
+    # tree's own pixels, then re-centre it on a clean canvas.
+    raw_tree = crop(grass, gw, 832, 384, 64, 64)
+    trim_tree = blank(64, 64)
+    for y in range(64):
+        for x in range(1, 64):  # x=0 is the stray column
+            i = (y * 64 + x) * 4
+            trim_tree[i : i + 4] = raw_tree[i : i + 4]
+    tree = trim_tree
 
-    SAND = crop(grass, gw, 384, 128, 64, 64)          # plain, borderless sand
-    STRIP = {                                          # one ragged sand/grass edge
-        "n": crop(grass, gw, 384, 64, 64, 64),
-        "s": crop(grass, gw, 384, 192, 64, 64),
-        "w": crop(grass, gw, 320, 128, 64, 64),
-        "e": crop(grass, gw, 448, 128, 64, 64),
-    }
-    CORNER = {                                         # two adjacent ragged edges
-        "nw": crop(grass, gw, 320, 64, 64, 64),
-        "ne": crop(grass, gw, 448, 64, 64, 64),
-        "sw": crop(grass, gw, 320, 192, 64, 64),
-        "se": crop(grass, gw, 448, 192, 64, 64),
-    }
-    ISOLATED = crop(grass, gw, 128, 128, 64, 64)       # sand island, grass all round
+    def write_theme(theme):
+        sfx = terrain.suffix(theme)
 
-    def overlay(base, layer):
-        """Copy every pixel of `layer` that is not identical to plain sand."""
-        out = bytearray(base)
-        for i in range(0, len(out), 4):
-            if layer[i : i + 4] != SAND[i : i + 4]:
-                out[i : i + 4] = layer[i : i + 4]
-        return out
-
-    # Road autotile: `mask` bits say which neighbours are ROAD (1 = road).
-    # A side needs the ragged grass border when that neighbour is grass.
-    def road_tile(mask):
-        grass_sides = [s for bit, s in ((1, "n"), (2, "e"), (4, "s"), (8, "w")) if not mask & bit]
-        gs = set(grass_sides)
-        if not grass_sides:
-            return SAND
-        if gs == {"n", "s"}:
-            return overlay(overlay(SAND, STRIP["n"]), STRIP["s"])
-        if gs == {"e", "w"}:
-            return overlay(overlay(SAND, STRIP["e"]), STRIP["w"])
-        if gs == {"n", "e", "s", "w"}:
-            return ISOLATED
-        corners = {"nw": ("n", "w"), "ne": ("n", "e"), "sw": ("s", "w"), "se": ("s", "e")}
-        for name, (a, b) in corners.items():
-            if gs == {a, b}:
-                return CORNER[name]
-        # Three-sided end caps (only 2 tiles on the shipped map): corner art plus
-        # the missing strip, which reads correctly at a glance.
-        if len(gs) == 3:
-            missing = ({"n", "e", "s", "w"} - gs).pop()
-            pair = {"n": "sw", "s": "nw", "e": "nw", "w": "ne"}[missing]
-            return overlay(CORNER[pair], STRIP[missing])
-        return overlay(SAND, STRIP[grass_sides[0]])
-
-    # 1. Compose the grassland set once, in memory.
-    tiles = {f"road_{mask}": road_tile(mask) for mask in range(16)}
-    tiles["grass"] = crop(grass, gw, 128, 64, 64, 64)   # seamless
-
-    rock = crop(grass, gw, 848, 845, 33, 36)
-    rock_out = blank(64, 64)
-    blit(rock_out, 64, rock, 33, 36, 15, 18)
-    tiles["rock"] = rock_out
-
-    # Water: a plain, borderless lake fill taken from inside the shoreline module.
-    tiles["water"] = crop(water, ww, 184, 72, 64, 64)
-
-    # Foliage: oak tree prop
-    tiles["foliage"] = crop(grass, gw, 832, 384, 64, 64)
-
-    sheets = [tiles["road_15"], tiles["grass"], tiles["water"], tiles["rock"], tiles["foliage"]]
-
-    # 2. Write grassland under the plain keys, then one recoloured set per theme.
-    for name, pixels in tiles.items():
-        note = "seamless" if name == "grass" else ""
-        save(os.path.join(OUT, "tiles", f"{name}.png"), pixels, 64, 64, note)
-
-    for theme, ramps in THEME_RAMPS.items():
-        lut = theme_mapping(sheets, ramps)
-        for name, pixels in tiles.items():
+        # Ground: three variants that share one seamless macro pattern.
+        for index, name in enumerate(("grass", "grass_2", "grass_3")):
             save(
-                os.path.join(OUT, "tiles", f"{name}-{theme}.png"),
-                recolour(pixels, lut),
+                os.path.join(OUT, "tiles", f"{name}{sfx}.png"),
+                terrain.build_ground(theme, index),
                 64,
                 64,
-                f"{theme} variant",
+                "seamless" if index == 0 else f"variant {index + 1}",
             )
+
+        # Lanes and shorelines: full 4-bit autotiles.
+        for mask in range(16):
+            save(os.path.join(OUT, "tiles", f"road_{mask}{sfx}.png"), terrain.build_road(theme, mask), 64, 64)
+            save(os.path.join(OUT, "tiles", f"water_{mask}{sfx}.png"), terrain.build_water(theme, mask), 64, 64)
+        # `water.png` stays the open-water fill (all four neighbours water).
+        save(os.path.join(OUT, "tiles", f"water{sfx}.png"), terrain.build_water(theme, 15), 64, 64)
+
+        # Boulder clusters: two variants so a rock field does not repeat.
+        save(os.path.join(OUT, "tiles", f"rock{sfx}.png"), terrain.build_rock(theme, 0), 64, 64)
+        save(os.path.join(OUT, "tiles", f"rock_2{sfx}.png"), terrain.build_rock(theme, 1), 64, 64)
+
+        # Scatter props.
+        for kind in terrain.DECOR_KINDS:
+            save(
+                os.path.join(OUT, "tiles", f"decor_{kind}{sfx}.png"),
+                terrain.build_decor(theme, kind),
+                32,
+                32,
+            )
+
+        # Landmark prop per battlefield: the hand-painted Spire oak in the
+        # grassland, and a purpose-drawn silhouette elsewhere (cactus / snowy
+        # conifer / charred deadwood) so no two maps share a tree.
+        if theme == "grassland":
+            pixels, note = tree, "Spire oak"
+        else:
+            pixels, note = terrain.build_foliage(theme), f"{theme} landmark"
+        save(os.path.join(OUT, "tiles", f"foliage{sfx}.png"), pixels, 64, 64, note)
+
+    for theme in terrain.BIOMES:
+        write_theme(theme)
 
 
 # ------------------------------------------------------------------------ bosses
@@ -878,7 +1003,7 @@ def build_ui_icons():
     layouts = read_map_layouts()
     cell = 6
     for theme in ("grassland", "desert", "ice", "volcanic"):
-        layout = layouts["grassland" if theme == "volcanic" else theme]
+        layout = layouts.get(theme) or layouts["grassland"]
         suffix = "" if theme == "grassland" else f"-{theme}"
 
         def tile_colour(name, x, y, size=16):
@@ -888,7 +1013,7 @@ def build_ui_icons():
         grass = tile_colour("grass", 24, 24)
         # The horde's lane has to read as a lane at thumbnail size; the volcanic
         # road is nearly as dark as its ash ground, so lift it harder there.
-        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.1, "volcanic": 1.85}[theme]
+        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.45, "volcanic": 1.85}[theme]
         road = tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24))
         water = tile_colour("water", 24, 24)
         rock = tile_colour("rock", 24, 24)
@@ -1016,6 +1141,36 @@ def build_projectiles():
 # ---------------------------------------------------------------------- enemies
 
 
+def tier_sheet(sheet, w, h, theme, tier):
+    """One (biome, tier) combo of an enemy strip.
+
+    `theme` None means the untouched grassland sheet. Every tier keeps the biome
+    hue (that is what keeps a desert scarab sandy on any wave) and then adds its
+    own escalation: saturation/lightness, plus a coloured contour that is grown
+    outwards for champions.
+    """
+    if theme is None and tier == 0:
+        return bytearray(sheet)
+    stops = ENEMY_THEME_RAMPS.get(theme) if theme else None
+    base = grade_toward(sheet, stops, 0.62) if stops else bytearray(sheet)
+    if tier == 2:
+        # Champions burn: pull the whole body toward the ember ramp first so the
+        # orange contour has something to belong to.
+        base = grade_toward(base, ENEMY_CHAMPION_STOPS, 0.22)
+    spec = ENEMY_TIERS[tier]
+    base = saturated(base, spec["saturation"], spec["lift"])
+    if spec["rim"]:
+        base = rim_light(
+            base,
+            w,
+            h,
+            rgb_tuple(spec["rim"]),
+            strength=spec["rim_strength"],
+            thickness=spec["rim_thickness"],
+        )
+    return base
+
+
 def build_enemies():
     print("enemies")
     for key, (sprite, fw, frames) in ENEMY_SOURCES.items():
@@ -1023,13 +1178,31 @@ def build_enemies():
         w, h, sheet = read_png(path)
         fh = h // frames
         assert h % frames == 0, (path, h, frames)
-        # Copy the sheet verbatim, dropping only fully transparent padding rows
-        # is unnecessary: Phaser slices it with frameWidth/frameHeight.
+        # Copy the sheet verbatim: Phaser slices it with frameWidth/frameHeight.
         save(
             os.path.join(OUT, "enemies", f"enemy-{key}.png"),
             sheet, w, h,
             f"<- {sprite} {w // fw}x{frames} frames of {fw}x{fh}",
         )
+        for tier in (1, 2):
+            spec = ENEMY_TIERS[tier]
+            save(
+                os.path.join(OUT, "enemies", f"enemy-{key}{spec['suffix']}.png"),
+                tier_sheet(sheet, w, h, None, tier),
+                w,
+                h,
+                f"<- {sprite}, grassland {spec['suffix']}",
+            )
+        for theme, stops in ENEMY_THEME_RAMPS.items():
+            for tier in range(len(ENEMY_TIERS)):
+                spec = ENEMY_TIERS[tier]
+                save(
+                    os.path.join(OUT, "enemies", f"enemy-{key}-{theme}{spec['suffix']}.png"),
+                    tier_sheet(sheet, w, h, theme, tier),
+                    w,
+                    h,
+                    f"<- {sprite}, {theme} {spec['suffix'] or 'base'}",
+                )
 
 
 # ------------------------------------------------------------------- ui cards
@@ -1167,7 +1340,25 @@ def build_enemy_manifest():
     return manifest
 
 
-def write_manifest(enemies, impacts):
+def build_enemy_variants():
+    """{ key: { theme: [tier0, tier1, tier2] } } texture keys per creep.
+
+    `grassland` is included so every battlefield resolves through one lookup, and
+    every entry lists all ENEMY_TIERS texture keys in order.
+    """
+    skins = {}
+    for key in ENEMY_SOURCES:
+        per_theme = {}
+        for theme in (None, *ENEMY_THEME_RAMPS):
+            stem = f"enemy-{key}" + (f"-{theme}" if theme else "")
+            per_theme[theme or "grassland"] = [
+                stem + ENEMY_TIERS[tier]["suffix"] for tier in range(len(ENEMY_TIERS))
+            ]
+        skins[key] = per_theme
+    return skins
+
+
+def write_manifest(enemies, impacts, variants=None):
     path = os.path.join(ROOT, "src", "data", "spireManifest.js")
     lines = [
         "/**",
@@ -1186,7 +1377,26 @@ def write_manifest(enemies, impacts):
             f"frameHeight: {m['frameHeight']}, artWidth: {m['artWidth']}, artHeight: {m['artHeight']}, "
             f"idle: {m['idle']}, move: {m['move']}, death: {m['death']} }},"
         )
-    lines += ["};", "", "export const IMPACT_SHEETS = {"]
+    lines += ["};", "", "/**", " * Texture key per creep, per battlefield, per escalation tier.", " * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).", " */", "export const ENEMY_SKINS = {"]
+    for key, per_theme in (variants or {}).items():
+        entries = ", ".join(
+            f"{theme!r}: [{', '.join(repr(name) for name in tiers)}]"
+            for theme, tiers in per_theme.items()
+        )
+        lines.append(f"  {key!r}: {{ {entries} }},")
+    lines += [
+        "};",
+        "",
+        "export const ENEMY_PALETTES = 3;",
+        "",
+        "/** Per-tier presentation: sprite scale and glow strength (0 = none). */",
+        "export const ENEMY_TIERS = [",
+    ]
+    for spec in ENEMY_TIERS:
+        lines.append(
+            f"  {{ scale: {spec['scale']}, glow: {spec['glow']} }},"
+        )
+    lines += ["];", "", "export const IMPACT_SHEETS = {"]
     for key, m in impacts.items():
         lines.append(
             f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
@@ -1210,7 +1420,8 @@ def main():
     build_ui_icons()
     impacts = build_effects()
     enemies = build_enemy_manifest()
-    write_manifest(enemies, impacts)
+    variants = build_enemy_variants()
+    write_manifest(enemies, impacts, variants)
     print("done")
 
 

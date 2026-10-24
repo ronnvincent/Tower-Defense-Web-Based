@@ -2,6 +2,7 @@ import { TILE_SIZE } from '../config/gameConfig.js';
 import { parseCellKey } from '../dsa/Graph.js';
 import { ENEMY_TYPES, waveHealthMultiplier } from '../data/enemyData.js';
 import { ENEMY_SHEETS } from '../data/spireManifest.js';
+import { skinFor, waveAccent } from '../systems/EnemySkins.js';
 import { calculateDamage, DAMAGE_TYPE } from '../systems/CombatCalculator.js';
 import { siegeStep, siegeDamage, siegeInterval } from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
@@ -100,11 +101,33 @@ export class Enemy {
     const sheetDef = ENEMY_SHEETS[this.typeKey];
     const artSize = sheetDef ? Math.sqrt(sheetDef.artWidth * sheetDef.artHeight) : 64;
     this.baseScale = (this.radius * 2.3) / artSize;
-    const spriteKey = `enemy-${this.typeKey}`;
-    this.sprite = scene.add.sprite(0, 0, spriteKey, 0).setScale(this.baseScale);
-    this.animPrefix = spriteKey;
+
+    // Biome sheet + per-wave colour palette (see systems/EnemySkins.js). A
+    // missing variant texture or clip can never leave an enemy invisible: both
+    // fall back to the base sheet and its palette-0 aliases.
+    const skin = skinFor(this.typeKey, waveNumber, options.theme);
+    const hasTexture = Boolean(scene?.textures?.exists?.(skin.texture));
+    const texture = hasTexture ? skin.texture : `enemy-${this.typeKey}`;
+    const clipExists = (key) => Boolean(scene?.anims?.exists?.(key));
+    let animPrefix = `${texture}-v${skin.palette}`;
+    if (!clipExists(`${animPrefix}-move`) && !clipExists(`${animPrefix}-idle`)) {
+      animPrefix = clipExists(`${texture}-v0-move`) ? `${texture}-v0` : texture;
+    }
+    this.skin = { texture, palette: skin.palette, tier: skin.tier };
+    // Escalating broods read at a glance: elite creeps are a touch bigger, and
+    // champions are bigger still plus lit from behind by a brood-coloured glow.
+    this.tier = skin.tier;
+    this.waveNumber = waveNumber;
+    this.baseScale *= skin.scale;
+
+    // Frame 0 is the first idle pose; the animation below moves it into this
+    // breed's palette row immediately.
+    this.sprite = scene.add.sprite(0, 0, texture, 0).setScale(this.baseScale);
+    this.animPrefix = animPrefix;
     this.playAnim('move');
     this.container.add(this.sprite);
+
+    if (skin.glow > 0) this.createBroodGlow(skin.glow);
 
     // Kinetic Shield Visual Barrier (if shielded)
     if (this.shield > 0) {
@@ -586,6 +609,36 @@ export class Enemy {
 
     this.container.setPosition(this.x, this.y);
     this.container.setDepth(20 + this.y * 0.001);
+  }
+
+  /**
+   * Soft brood glow behind an elite/champion creep.
+   *
+   * The sprite art already carries a coloured contour at these tiers; the glow
+   * is what makes a champion *feel* different while it walks, and it is drawn
+   * under the sprite so it never muddies the silhouette.
+   */
+  createBroodGlow(strength) {
+    const scene = this.scene;
+    if (!scene?.add?.ellipse) return;
+    const radius = this.radius * 1.9;
+    const glow = scene.add
+      .ellipse(0, 2, radius * 2, radius * 1.2, waveAccent(this.waveNumber ?? 1), strength);
+    this.container.addAt(glow, 0);
+    // Champions pulse; elites breathe slowly. Both are cheap tweens on scale.
+    if (scene.tweens?.add) {
+      scene.tweens.add({
+        targets: glow,
+        scaleX: { from: 0.92, to: 1.08 },
+        scaleY: { from: 0.92, to: 1.08 },
+        alpha: { from: strength, to: Math.min(0.6, strength * 1.6) },
+        duration: this.tier >= 2 ? 760 : 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+    this.broodGlow = glow;
   }
 
   pulseHealingAura() {

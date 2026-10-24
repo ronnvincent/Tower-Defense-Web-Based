@@ -1,6 +1,11 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
-import { ENEMY_SHEETS, IMPACT_SHEETS } from '../data/spireManifest.js';
+import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_PALETTES, IMPACT_SHEETS } from '../data/spireManifest.js';
+
+/** Ground tile variants per biome (grass, grass_2, grass_3). */
+const GROUND_VARIANTS = ['', '_2', '_3'];
+/** Scatter props drawn on empty grass. */
+const DECOR_KINDS = ['tuft', 'bloom', 'shard'];
 
 /**
  * BootScene — loads the Spire art set (CC0) and registers every animation.
@@ -43,26 +48,25 @@ export class BootScene extends Phaser.Scene {
       progressBar.fillRoundedRect(width / 2 - 156, height / 2 + 4, 312 * value, 16, 4);
     });
 
-    // 1. Terrain — 16-mask road autotile + grass / rock / water / foliage
-    this.load.image('tile-grass', 'assets/tiles/grass.png');
-    for (let mask = 0; mask < 16; mask++) {
-      this.load.image(`tile-road-${mask}`, `assets/tiles/road_${mask}.png`);
-    }
-    this.load.image('tile-rock', 'assets/tiles/rock.png');
-    this.load.image('tile-water', 'assets/tiles/water.png');
-    this.load.image('tile-foliage', 'assets/tiles/foliage.png');
-
-    // 1b. Biome variants — the same Foozle autotiles re-graded per level theme.
-    // GameScene.tileTexture() asks for `<key><tileSuffix>` and falls back to the
-    // grassland art, so a missing variant can never break a level.
-    for (const suffix of ['-desert', '-ice', '-volcanic']) {
-      this.load.image(`tile-grass${suffix}`, `assets/tiles/grass${suffix}.png`);
+    // 1. Terrain — per-biome ground variants, 16-mask lane autotile, 16-mask
+    // shoreline autotile, boulder clusters and scatter props. Every key exists
+    // both bare (grassland) and with its biome suffix; tileTexture() asks for
+    // `<key><tileSuffix>` and falls back to the bare art.
+    for (const suffix of ['', '-desert', '-ice', '-volcanic']) {
+      for (const variant of GROUND_VARIANTS) {
+        this.load.image(`tile-grass${variant}${suffix}`, `assets/tiles/grass${variant}${suffix}.png`);
+      }
       for (let mask = 0; mask < 16; mask++) {
         this.load.image(`tile-road-${mask}${suffix}`, `assets/tiles/road_${mask}${suffix}.png`);
+        this.load.image(`tile-water-${mask}${suffix}`, `assets/tiles/water_${mask}${suffix}.png`);
       }
       this.load.image(`tile-rock${suffix}`, `assets/tiles/rock${suffix}.png`);
+      this.load.image(`tile-rock-2${suffix}`, `assets/tiles/rock_2${suffix}.png`);
       this.load.image(`tile-water${suffix}`, `assets/tiles/water${suffix}.png`);
       this.load.image(`tile-foliage${suffix}`, `assets/tiles/foliage${suffix}.png`);
+      for (const kind of DECOR_KINDS) {
+        this.load.image(`tile-decor-${kind}${suffix}`, `assets/tiles/decor_${kind}${suffix}.png`);
+      }
     }
 
     // 2. Towers — static base + animated weapon sheet per upgrade slot
@@ -82,12 +86,21 @@ export class BootScene extends Phaser.Scene {
       this.load.image(tier.key, `assets/towers/${tier.file}`);
     }
 
-    // 4. Enemies — animated 9-row strips (idle / move / death x 3 palettes)
+    // 4. Enemies — animated 9-row strips (idle / move / death x 3 palettes).
+    // Every biome x wave-tier re-grade is a separate sheet: the base strip, the
+    // elite strip and the champion strip, per battlefield. Texture keys come
+    // straight from the manifest (`ENEMY_SKINS`), so no naming is guessed here.
     for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
-      this.load.spritesheet(`enemy-${key}`, `assets/enemies/${sheet.file}`, {
-        frameWidth: sheet.frameWidth,
-        frameHeight: sheet.frameHeight,
-      });
+      const textures = new Set([`enemy-${key}`]);
+      for (const tiers of Object.values(ENEMY_SKINS[key] || {})) {
+        for (const textureKey of tiers) textures.add(textureKey);
+      }
+      for (const textureKey of textures) {
+        this.load.spritesheet(textureKey, `assets/enemies/${textureKey}.png`, {
+          frameWidth: sheet.frameWidth,
+          frameHeight: sheet.frameHeight,
+        });
+      }
     }
 
     // 5. Projectiles
@@ -160,47 +173,63 @@ export class BootScene extends Phaser.Scene {
     }
   }
 
-  /** Idle loop + walk loop + death clip for every enemy archetype. */
+  /**
+   * Idle / walk / death clips for every enemy archetype, battlefield and wave
+   * tier, in each of the strip's three palette variants.
+   *
+   * A Spire strip is 9 rows: 0-2 idle, 3-5 move, 6-8 death, each row a different
+   * colour variant. Biome and tier pick the *texture*, the palette picks the row
+   * inside it, so a wave 1 grunt and a wave 5 grunt differ by brood colouring,
+   * contour and scale rather than by a barely-visible hue nudge.
+   *
+   * The bare `enemy-<key>-<clip>` keys are kept as aliases of palette 0 so any
+   * older call site (and the headless tests) still resolves.
+   */
   createEnemyAnimations() {
     for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
-      const textureKey = `enemy-${key}`;
-      if (!this.textures.exists(textureKey)) continue;
-      const cols = this.textures.getTextureKeys
-        ? this.textures.get(textureKey).source[0].width / sheet.frameWidth
-        : sheet.idle;
+      const biomeTextures = new Set([`enemy-${key}`]);
+      for (const tiers of Object.values(ENEMY_SKINS[key] || {})) {
+        for (const textureKey of tiers) biomeTextures.add(textureKey);
+      }
 
-      // Rows 0-2 are the three palette variants of the idle loop, 3-5 the walk,
-      // 6-8 the death animation; variant 0 (row 0/3/6) is the default.
-      if (sheet.idle > 1) {
-        this.anims.create({
-          key: `enemy-${key}-idle`,
-          frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: sheet.idle - 1 }),
-          frameRate: 8,
-          repeat: -1,
-        });
+      for (const textureKey of biomeTextures) {
+        if (!this.textures.exists(textureKey)) continue;
+        const cols = this.textures.get(textureKey).source[0].width / sheet.frameWidth;
+
+        for (let palette = 0; palette < ENEMY_PALETTES; palette += 1) {
+          this.createEnemyClips(textureKey, sheet, cols, palette);
+        }
+        // Legacy aliases -> palette 0.
+        this.createEnemyClips(textureKey, sheet, cols, 0, '');
       }
-      if (sheet.move > 1) {
-        this.anims.create({
-          key: `enemy-${key}-move`,
-          frames: this.anims.generateFrameNumbers(textureKey, {
-            start: cols,
-            end: cols + sheet.move - 1,
-          }),
-          frameRate: 10,
-          repeat: -1,
-        });
-      }
-      if (sheet.death > 1) {
-        this.anims.create({
-          key: `enemy-${key}-death`,
-          frames: this.anims.generateFrameNumbers(textureKey, {
-            start: cols * 2,
-            end: cols * 2 + sheet.death - 1,
-          }),
-          frameRate: 12,
-          repeat: 0,
-        });
-      }
+    }
+  }
+
+  /**
+   * One idle/move/death trio: rows `palette`, `3 + palette`, `6 + palette`.
+   *
+   * Measured against the shipped sheets: rows 0-2 are the idle strip in the
+   * three palettes, rows 3-5 the walk strip, rows 6-8 the death strip. Frame
+   * counts per row are taken from the manifest, not assumed.
+   */
+  createEnemyClips(textureKey, sheet, cols, palette, suffixOverride = null) {
+    const suffix = suffixOverride === null ? `-v${palette}` : suffixOverride;
+    const row = (index) => (index + palette) * cols;
+    const clips = [
+      ['idle', sheet.idle, row(0), 8, -1],
+      ['move', sheet.move, row(3), 10, -1],
+      ['death', sheet.death, row(6), 12, 0],
+    ];
+    for (const [clip, frames, start, frameRate, repeat] of clips) {
+      if (frames <= 1) continue;
+      const key = `${textureKey}${suffix}-${clip}`;
+      if (this.anims.exists(key)) continue;
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers(textureKey, { start, end: start + frames - 1 }),
+        frameRate,
+        repeat,
+      });
     }
   }
 

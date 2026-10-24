@@ -124,36 +124,105 @@ families (carapace, eyes, highlights), so rotating them kept the original
 identity. Dropping to one ramp makes a boss read as its own creature at a
 glance while keeping the pack's shape language.
 
-Each strip holds nine rows: idle, walk and death, each in three colour
-variants. The game plays variant 0. Frame size differs per creature (the
-Firebug sheet is 128×64 per frame, the Firewasp 96×96), so the manifest also
-records the drawn width/height of the art. Sprites are scaled by that drawn
-width to match the existing collision radius, and rotated +90° because the art
-faces up.
+### Biome re-grade × wave tier × palette
+
+Each strip holds nine rows: idle, walk and death, each in three colour variants.
+Frame size differs per creature (the Firebug sheet is 128×64 per frame, the
+Firewasp 96×96), so the manifest also records the drawn width/height of the art.
+Sprites are scaled by that drawn width to match the existing collision radius,
+and rotated +90° because the art faces up.
+
+One strip on its own was not enough on screen. Two things were measured and
+fixed at the root:
+
+1. **The three row variants are nearly identical.** Comparing frame 0 of row 0
+   with rows 1 and 2 shows only ~186 of ~3,576 inked pixels differ (≈5 %), so
+   "swap the palette row per wave" was invisible in play.
+2. **A single re-grade per biome cannot express escalation.** Waves 1 and 6
+   looked the same shade.
+
+So the generator now bakes a sheet per **(creature × battlefield × tier)** and
+`spireManifest.js` exports the texture keys as `ENEMY_SKINS`:
+
+| Tier | Waves | Extra work on top of the biome re-grade | Scale | Glow |
+|:-:|:-:|---|:-:|:-:|
+| 0 base | 1–2 | none (pure biome re-grade) | 1.00 | — |
+| 1 elite | 3–4 | saturation ×1.38, lightness ×1.16, gold contour | 1.08 | 0.22 |
+| 2 champion | 5+ | ember ramp under the biome hue, saturation ×1.55, ember contour **grown one pixel outwards** | 1.16 | 0.34 |
+
+The contour is structural, not a tint: `rim_light()` recolours every silhouette
+pixel that touches empty space and, for champions, paints the ring of pixels just
+outside the silhouette, so a champion's body is literally larger. `Enemy` then
+multiplies `baseScale` by the tier scale and, from tier 1 up, adds an additive
+brood-coloured glow ellipse behind the sprite (`createBroodGlow`, pulsing on a
+760 ms tween for champions, 1200 ms for elites). `ENEMY_TIERS` in the manifest
+carries the scale/glow numbers so the renderer holds no magic values.
+
+Bosses keep their single heroic sheet — escalation is a creep feature, and an
+ember contour on the Frost Warden would fight its element. `textureFor()` returns
+`enemy-<boss>` for any key without a `ENEMY_SKINS` entry.
+
+Per-wave palette rows are still used on top of this (rows 0–2 / 3–5 / 6–8 in two-
+wave blocks), so the horde keeps changing inside a tier.
 
 Display names in `src/data/enemyData.js` stay thematic; the insect artwork is
 accepted as part of the "Spire" look.
 
 ## 4. Terrain
 
-Every tile is 64×64 and derived from `tileset/grass.png` / `water.png`:
+Every tile is 64×64, **painted procedurally** by `scripts/terrain.py` from the
+biome's own palette rather than re-graded from one pack tile. A colour LUT over
+`grass.png` was the first attempt and it could not make a desert read as sand:
+it kept the pack's leaf detail and only moved the hue. `build_tiles()` in
+`build_spire_assets.py` is now a thin wrapper that writes what `terrain.py`
+returns:
 
-- `grass.png` — base ground for the whole board
-- `road_0.png` … `road_15.png` — road autotiles indexed by a 4-bit neighbour
-  mask (N=1, E=2, S=4, W=8); the ragged grass border comes from the pack art
-- `rock.png`, `water.png` — obstacles and hazards
-- `foliage.png` — scattered decoration on grass tiles
+| Base key | Painter | Notes |
+|---|---|---|
+| `grass`, `grass_2`, `grass_3` | `build_ground` | flat base + 14 % single-pixel dither + hand-placed blade clumps; three variants share one macro pattern so the board never shows a grid |
+| `road_0` … `road_15` | `build_road` | 4-bit autotile (N=1, E=2, S=4, W=8), wobbled fringe, **alpha-composited** — the lane is drawn on top of the ground, nothing is painted into the fringe |
+| `water_0` … `water_15`, `water` | `build_water` | same autotile contract; depth by distance from the shoreline (3 bands), light foam rim, rounded corners on single-cell ponds |
+| `rock`, `rock_2` | `build_rock` | polar-blob boulder clusters with top-left lighting, hairline cracks and grass/gravel tufts at the base |
+| `decor_tuft` / `decor_bloom` / `decor_shard` | `build_decor` | 32×32 scatter props (blade clumps, flowers, stone shards), different per biome |
+| `foliage` | `build_foliage` | one landmark per battlefield: the Spire oak in the grassland, saguaro cacti in the desert, snow-laden firs on the ice, ember-lit charred deadwood on the volcano |
 
-### Biome variants
-The same 21 tiles are re-graded per theme into `grass-desert.png`,
-`road_7-ice.png`, … `foliage-volcanic.png`. `build_tiles()` collects the
-grassland set once, then builds a colour LUT per theme: every source colour is
-tagged with a role (ground / road / stone / accent / water / ink) and projected
-onto that role's three-stop ramp by its own lightness, so shading survives.
-`THEME_RAMPS` in the generator holds the nine ramps; the grassland keeps the
-untouched pack art. `GameScene.tileTexture(base)` asks for
-`<base><theme.tileSuffix>` and falls back to the grassland texture, so a missing
-variant degrades instead of crashing.
+Two fixes are worth recording because both were visible on screen:
+
+- **Seams between connected tiles.** `_fringe().inside()` probed past the tile
+  edge by wrapping (`x % size`), which answered "masked" for open ground and
+  painted a false rim on every internal seam. Out-of-range probes now answer from
+  the autotile mask instead.
+- **Painting ground colour into the fringe** desynced from the biome ground
+  (bluish seams on ice) and forced a per-neighbour recomputation. The fringe is
+  transparent and `GameScene.renderBattlefieldMap()` layers ground → lane/water →
+  decor, which is the root-cause fix.
+
+### Biome identity
+`RAMPS`, `ROAD_RAMPS`, `WATER_RAMPS` and `ROCK_RAMPS` in `terrain.py` hold the
+palettes; `suffix()` maps a theme to its file suffix and `seed_for()` (crc32, not
+`hash()`, which is randomised per process) keeps every build byte-identical.
+
+| Theme | Ground | Lane | Water | Landmark |
+|---|---|---|---|---|
+| grassland | green dither, blade clumps, flowers | warm clay | dark teal pond | Spire oak |
+| desert | ochre sand, cracked shadows | trodden dark earth | deep oasis aqua | saguaro cactus |
+| ice | slate blue, wind streaks, frost needles | dark slate | frozen navy | snowy fir |
+| volcanic | near-black ash, ember flecks, magma cracks | ashen basalt + ember seams | bright magma | charred deadwood |
+
+### Readability audit
+`scripts/terrain.py --contrast` prints a JSON table of surface-vs-ground
+separation. The metric is a YCbCr distance with area weights (55/30/10/5 % across
+the ramp), because a saturated teal pond on green grass can sit at the same luma
+and still be perfectly readable — a pure brightness delta rejects good palettes
+and accepts grey mud. `tests/terrain-contrast.test.js` enforces the floor
+(≥ 26) and also fails if two biomes end up with the same lane or water value.
+
+### Maps
+`src/data/mapData.js` holds four 20×12 ASCII battlefields — `grassland`,
+`desert`, `ice` and `volcanic` (a four-step staircase, 31 tiles) — each verified
+pathable by the BFS graph. Levels 1–3 use the first three; Endless Siege marches
+the volcanic one. `build_tiles()` also renders the 120×72 world-map minimaps from
+the same ASCII and the same themed tiles.
 
 ### UI art
 - `star_gold.png` / `star_empty.png` / `lock.png` — Kenney *Game Icons* white
@@ -188,9 +257,12 @@ variant degrades instead of crashing.
 ## 6. Regenerating the art
 
 ```bash
-python3 scripts/build_spire_assets.py
+python3 scripts/build_spire_assets.py     # all art + src/data/spireManifest.js
+python3 scripts/terrain.py --contrast     # battlefield readability table
 ```
 
 Requires only the standard library plus the unpacked source packs in
 `src/assets/spire/`. The script prints one line per output file — treat that as
-the manifest — and rewrites `src/data/spireManifest.js`.
+the manifest — and rewrites `src/data/spireManifest.js`. Terrain and enemy tiers
+are deterministic (crc32 seeding), so a rebuild with no source change produces
+identical bytes.

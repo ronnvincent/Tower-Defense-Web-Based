@@ -215,3 +215,64 @@ answers them with `handleBossSpeedAura()` (haste pulse + toast + shake) and
 `handleBossDisableTowers()` (freeze pulse, tower tint, refreshed auras).
 
 Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times \min(2, 1 + 0.09 \times (w - 1))$.
+
+---
+
+## 7. Battlefield & Horde Art Pipeline
+
+The battlefield and the horde are generated, not hand-painted per map, so adding
+a fifth biome is a palette entry rather than a second art pack.
+
+### 7.1 Procedural terrain (`scripts/terrain.py`)
+`build_ground`, `build_road`, `build_water`, `build_rock`, `build_decor` and
+`build_foliage` each paint a 64×64 RGBA tile (32×32 for the scatter props) from
+the theme's ramp. `build_spire_assets.py` only writes the files and the manifest.
+Two properties matter for correctness:
+
+- **Determinism.** Every random draw comes from `random.Random(seed_for(...))`
+  with a `zlib.crc32` seed — Python's `hash()` is randomised per process, which
+  would churn every PNG (and the git diff) on each build.
+- **Compositing, not painting.** `road_*` and `water_*` leave every pixel outside
+  their fringe fully transparent. `GameScene.renderBattlefieldMap()` paints
+  ground, then lane/water, then decor/rocks, so a lane edge can never disagree
+  with the biome ground beside it. The earlier version painted ground colour into
+  the fringe, which forced a per-neighbour recomputation and produced bluish seams
+  on the ice map; `_fringe()` also wrapped its out-of-bounds probes (`x % size`),
+  which painted a false rim on every seam between two connected tiles. Both are
+  fixed at the source.
+
+Each biome also owns one landmark prop (`build_foliage`): Spire oak, saguaro,
+snow-laden fir, charred deadwood. A recoloured tree was tried first and read as
+"the same tree, tinted", which is exactly what the map pass was meant to remove.
+
+### 7.2 Surface readability audit
+`surface_contrast(theme, 'road' | 'water')` returns a YCbCr distance between a
+surface and its biome ground, weighted 55/30/10/5 % across the ramp because the
+bright foam stop only covers a rim. `python3 scripts/terrain.py --contrast`
+prints the table; `tests/terrain-contrast.test.js` enforces a floor of 26 and
+fails if two biomes share a lane or water value. Current values (road / water):
+grassland 58.0 / 41.7, desert 43.9 / 77.9, ice 37.9 / 61.9, volcanic 36.2 / 73.8.
+
+### 7.3 Horde skins (`src/systems/EnemySkins.js`)
+Three pure lookups, all exported for the tests:
+
+| Axis | Function | Effect |
+|---|---|---|
+| battlefield | `textureFor(type, theme, tier)` | `ENEMY_SKINS` maps each creep to a baked sheet per biome |
+| escalation | `tierForWave(wave)` | waves 1–2 base, 3–4 elite, 5+ champion, then capped |
+| colour | `paletteForWave(wave)` | rows 0–2 / 3–5 / 6–8 of the strip, in two-wave blocks |
+
+The generator bakes **36 creep sheets** (8 creeps × 4 battlefields × 3 tiers).
+Tier 1 adds saturation and a gold contour; tier 2 lays an ember ramp under the
+biome hue and grows an ember contour one pixel outwards, so the champion's
+*silhouette* is bigger, not just warmer. `Enemy` multiplies its base scale by
+`ENEMY_TIERS[tier].scale` and adds an additive brood glow ellipse from tier 1 up.
+Bosses are excluded on purpose and keep their single duotone sheet.
+
+### 7.4 Adding a look
+1. Add or edit a ramp in `terrain.py` (`RAMPS` / `ROAD_RAMPS` / `WATER_RAMPS`).
+2. Add a landmark in `build_foliage` if the biome needs one.
+3. Add the ASCII layout to `mapData.js`, then point a level at it.
+4. `python3 scripts/build_spire_assets.py && npx vitest run`.
+
+The manifest (`src/data/spireManifest.js`) is generated; never edit it by hand.

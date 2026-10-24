@@ -17,6 +17,12 @@ import { audio } from '../rendering/AudioSynth.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 import { ProgressStore } from '../systems/Progression.js';
+import { waveAccent } from '../systems/EnemySkins.js';
+
+/** Ground tile variants per biome (grass, grass_2, grass_3). */
+const GROUND_VARIANT_KEYS = ['tile-grass', 'tile-grass_2', 'tile-grass_3'];
+/** Scatter props drawn on empty grass. */
+const DECOR_KINDS = ['tuft', 'bloom', 'shard'];
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -137,16 +143,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   createParticleSystems() {
-    if (this.textures.exists('spark')) {
-      this.particleEmitter = this.add.particles(0, 0, 'spark', {
-        speed: { min: 30, max: 90 },
-        scale: { start: 0.8, end: 0 },
-        alpha: { start: 1, end: 0 },
-        lifespan: 380,
-        emitting: false,
-      });
-      this.particleEmitter.setDepth(45);
-    }
+    if (!this.textures.exists('spark')) return;
+    this.particleEmitter = this.add.particles(0, 0, 'spark', {
+      speed: { min: 30, max: 90 },
+      scale: { start: 0.8, end: 0 },
+      alpha: { start: 1, end: 0 },
+      lifespan: 380,
+      emitting: false,
+    });
+    this.particleEmitter.setDepth(45);
+
+    // Dedicated spawn puff: slower, drifting outward from the portal and tinted
+    // to the wave's brood colour by setBroodColour()/spawnEnemy().
+    this.spawnEmitter = this.add.particles(0, 0, 'spark', {
+      speed: { min: 20, max: 70 },
+      scale: { start: 1.1, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      lifespan: 620,
+      emitting: false,
+    });
+    this.spawnEmitter.setDepth(46);
   }
 
   /** Theme-aware texture key with a graceful fallback to the base art. */
@@ -156,20 +172,34 @@ export class GameScene extends Phaser.Scene {
     return this.textures.exists(base) ? base : null;
   }
 
+  /**
+   * Paint the battlefield.
+   *
+   * Every cell is dressed from the biome's own generated set: one of three
+   * seamless ground variants (chosen by a stable hash, so a cell never changes
+   * look between visits), a lane texture picked from the 4-bit neighbour mask,
+   * a shoreline mask for lakes, two boulder variants and scattered decor. The
+   * hash-driven approach is what removes the "one grass tile repeated 240
+   * times" grid the old renderer produced.
+   */
   renderBattlefieldMap() {
     const tilesGraphics = this.add.graphics().setDepth(3);
-    const grassKey = this.tileTexture('tile-grass');
-    const rockKey = this.tileTexture('tile-rock');
-    const waterKey = this.tileTexture('tile-water');
+    const groundKeys = GROUND_VARIANT_KEYS.map((key) => this.tileTexture(key)).filter(Boolean);
     const foliageKey = this.tileTexture('tile-foliage');
-    const isRoadCell = (r, c) =>
-      r >= 0 &&
-      r < this.map.rows &&
-      c >= 0 &&
-      c < this.map.cols &&
-      (this.map.tiles[r][c] === TILE.ROAD ||
-        this.map.tiles[r][c] === TILE.SPAWN ||
-        this.map.tiles[r][c] === TILE.BASE);
+    const rockKeys = [this.tileTexture('tile-rock'), this.tileTexture('tile-rock-2')].filter(Boolean);
+    const decorKeys = DECOR_KINDS.map((kind) => this.tileTexture(`tile-decor-${kind}`)).filter(Boolean);
+
+    const at = (r, c) => (r >= 0 && r < this.map.rows && c >= 0 && c < this.map.cols ? this.map.tiles[r][c] : -1);
+    const isLane = (r, c) => {
+      const t = at(r, c);
+      return t === TILE.ROAD || t === TILE.SPAWN || t === TILE.BASE;
+    };
+    const isWater = (r, c) => at(r, c) === TILE.WATER;
+    const maskAt = (predicate, r, c) =>
+      (predicate(r - 1, c) ? 1 : 0) |
+      (predicate(r, c + 1) ? 2 : 0) |
+      (predicate(r + 1, c) ? 4 : 0) |
+      (predicate(r, c - 1) ? 8 : 0);
 
     for (let r = 0; r < this.map.rows; r++) {
       for (let c = 0; c < this.map.cols; c++) {
@@ -178,54 +208,63 @@ export class GameScene extends Phaser.Scene {
         const type = this.map.tiles[r][c];
         const cx = x + TILE_SIZE / 2;
         const cy = y + TILE_SIZE / 2;
+        const hash = (r * 73856093) ^ (c * 19349663);
 
-        // Every cell starts as grass — the Spire road tiles carry their own
-        // ragged grass edges, so a single draw call per tile is enough.
-        if (grassKey) {
-          this.add.image(cx, cy, grassKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+        // 1. Ground: one of three variants per biome.
+        if (groundKeys.length) {
+          const key = groundKeys[Math.abs(hash) % groundKeys.length];
+          this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
         } else {
           tilesGraphics.fillStyle((r + c) % 2 === 0 ? 0x1c3a33 : 0x1f4038);
           tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
         }
 
-        if (type === TILE.ROAD || type === TILE.SPAWN || type === TILE.BASE) {
-          // 4-bit neighbour mask -> one of 16 pre-baked road tiles.
-          const mask =
-            (isRoadCell(r - 1, c) ? 1 : 0) |
-            (isRoadCell(r, c + 1) ? 2 : 0) |
-            (isRoadCell(r + 1, c) ? 4 : 0) |
-            (isRoadCell(r, c - 1) ? 8 : 0);
+        // 2. Surface: lane, water, boulder — each with its own autotile mask.
+        if (isLane(r, c)) {
+          const mask = maskAt(isLane, r, c);
           const key = this.tileTexture(`tile-road-${mask}`) || 'tile-road-15';
           this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
-        } else if (type === TILE.ROCK) {
-          if (rockKey) {
-            this.add.image(cx, cy, rockKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2);
-          } else {
-            tilesGraphics.fillStyle(0x15302a);
-            tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-          }
         } else if (type === TILE.WATER) {
-          if (waterKey) {
-            this.add.image(cx, cy, waterKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+          const mask = maskAt(isWater, r, c);
+          const key = this.tileTexture(`tile-water-${mask}`) || this.tileTexture('tile-water');
+          if (key) {
+            this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           } else {
             tilesGraphics.fillStyle(0x133854, 1);
             tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
           }
-        } else if (type === TILE.GRASS) {
-          // Natural environmental foliage
-          if ((r * 11 + c * 17) % 5 === 0 && foliageKey) {
+        } else if (type === TILE.ROCK) {
+          if (rockKeys.length) {
+            const key = rockKeys[(Math.abs(hash) >> 3) % rockKeys.length];
+            this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2);
+          } else {
+            tilesGraphics.fillStyle(0x15302a);
+            tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+          }
+        } else if (type === TILE.GRASS && decorKeys.length) {
+          // 3. Scatter: trees are rare landmarks, props fill the meadow.
+          const roll = Math.abs(hash) % 100;
+          if (roll < 7 && foliageKey) {
+            const jx = ((hash >> 5) % 13) - 6;
+            const jy = ((hash >> 9) % 11) - 5;
+            this.add.image(cx + jx, cy + jy, foliageKey).setScale(0.94).setAlpha(0.97).setDepth(2);
+          } else if (roll < 42) {
+            const key = decorKeys[(Math.abs(hash) >> 7) % decorKeys.length];
+            const jx = ((hash >> 11) % 41) - 20;
+            const jy = ((hash >> 13) % 41) - 20;
             this.add
-              .image(cx + (r % 3 - 1) * 8, cy + (c % 3 - 1) * 8, foliageKey)
-              .setScale(0.9)
-              .setAlpha(0.95)
-              .setDepth(2);
+              .image(cx + jx, cy + jy, key)
+              .setDisplaySize(TILE_SIZE * 0.72, TILE_SIZE * 0.72)
+              .setAlpha(0.94)
+              .setDepth(2)
+              .setFlipX(Boolean(hash & 1));
           }
         }
       }
     }
 
     // Subtle tactical grid lines (kept so placement stays readable)
-    tilesGraphics.lineStyle(1, 0x1b2838, 0.18);
+    tilesGraphics.lineStyle(1, 0x1b2838, 0.16);
     for (let c = 0; c <= this.map.cols; c++) {
       tilesGraphics.lineBetween(c * TILE_SIZE, 0, c * TILE_SIZE, this.map.rows * TILE_SIZE);
     }
@@ -312,9 +351,21 @@ export class GameScene extends Phaser.Scene {
           });
         }
       },
-    }, { healthScale: this.level.enemyHealthScale });
+    }, { healthScale: this.level.enemyHealthScale, theme: this.theme?.id || this.level.theme });
     this.activeEnemies.push(enemy);
     this.gameState.counters.enemiesSpawned++;
+
+    // A coloured puff at the gate: the brood's accent, so the wave's breed is
+    // readable the instant it steps out of the portal.
+    const emitter = this.spawnEmitter || this.particleEmitter;
+    if (emitter && this.spawnAccent !== undefined) {
+      try {
+        if (typeof emitter.setParticleTint === 'function') emitter.setParticleTint(this.spawnAccent);
+        emitter.explode(enemy.isBoss ? 26 : 5, enemy.x, enemy.y);
+      } catch (error) {
+        this.reportRuntimeError(error);
+      }
+    }
   }
 
   /** Expanding ring used by boss pulses so the player can read the radius. */
@@ -414,9 +465,56 @@ export class GameScene extends Phaser.Scene {
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
     if (started) {
-      this.hud?.showToast(`Wave ${this.waveManager.waveNumber}: ${this.waveManager.currentWave.name}!`, 'info');
+      const wave = this.waveManager.waveNumber;
+      this.hud?.showToast(`Wave ${wave}: ${this.waveManager.currentWave.name}!`, 'info');
+      this.setBroodColour(wave);
+      this.flashWaveBanner(wave, this.waveManager.currentWave.name);
     }
     this.syncHUD();
+  }
+
+  /**
+   * Tint the portal with the wave's brood colour. Each wave block uses one of
+   * the three enemy palettes, so the gate visibly changes colour as the horde
+   * changes breed.
+   */
+  setBroodColour(waveNumber) {
+    if (!this.theme) return;
+    const base = this.theme.portalTint ?? 0xb388ff;
+    const accent = waveAccent(waveNumber);
+    // 50/50 blend keeps the biome's identity while the brood still reads.
+    const mixed =
+      (((base >> 16 & 255) + (accent >> 16 & 255)) >> 1) << 16 |
+      (((base >> 8 & 255) + (accent >> 8 & 255)) >> 1) << 8 |
+      (((base & 255) + (accent & 255)) >> 1);
+    this.portalSprite?.setTint(mixed);
+    this.spawnAccent = accent;
+  }
+
+  /** Big, short-lived "WAVE 4 — DUNE SWARM" title over the battlefield. */
+  flashWaveBanner(waveNumber, name = '') {
+    if (!this.add?.text || !this.cameras?.main) return;
+    try {
+      const { width } = this.scale;
+      const label = this.level?.endless ? `WAVE ${waveNumber}` : `WAVE ${waveNumber} / ${this.waveManager.totalWaves}`;
+      const title = this.add
+        .text(width / 2, 96, `${label}\n${String(name).toUpperCase()}`, {
+          fontFamily: 'Cinzel, Georgia, serif',
+          fontSize: '26px',
+          color: '#f5c451',
+          align: 'center',
+          stroke: '#120d07',
+          strokeThickness: 5,
+        })
+        .setOrigin(0.5, 0.5)
+        .setScrollFactor(0)
+        .setDepth(60)
+        .setAlpha(0);
+
+      this.tweens.add({ targets: title, alpha: 1, duration: 180, yoyo: true, hold: 900, onComplete: () => title.destroy() });
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
   }
 
   handleToggleSpeed() {
