@@ -1,0 +1,22 @@
+{
+  "name": "tower-defense-dsalgo",
+  "version": "1.0.0",
+  "description": "Tower Defense: DSALGO Edition — a Phaser 3 tower defense game demonstrating custom data structures and algorithms (Queue, Graph, BFS, Merge Sort).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7",
+    "vitest": "^5.0.5"
+  }
+}
