@@ -379,9 +379,14 @@ def build_water(theme, mask=15):
                 c = mid
             else:
                 c = light
-            # Broad, very faint tone drift so a large lake is not dead flat.
-            if noise[y][x] > 0.72 and depth_px >= 6:
-                c = mid
+            # Dithered tone drift so a large lake is not dead flat. Checkerboard
+            # parity instead of noise blobs: the same noise field in every tile
+            # would otherwise draw a visible puddle grid across a lake.
+            if depth_px >= 6:
+                if noise[y][x] > 0.86 and (x + y) % 2 == 0:
+                    c = light
+                elif noise[y][x] > 0.62 and (x + y) % 2 == 0:
+                    c = mid
             i = (y * TILE + x) * 4
             pix[i : i + 4] = bytes((c[0], c[1], c[2], 255))
 
@@ -396,13 +401,22 @@ def build_water(theme, mask=15):
                 _put(pix, x, y, foam)
 
     rng = random.Random(seed_for(theme, "ripple", mask))
-    for _ in range(6):
-        x, y = rng.randrange(8, TILE - 18), rng.randrange(8, TILE - 8)
-        if not all(inside(x + k, y) for k in range(6)):
+    # Ripple dashes: a bright 4-6 px stroke with a crest pixel above it. Real
+    # surface motion is what separates a pond from a dark hole.
+    for _ in range(9):
+        x, y = rng.randrange(6, TILE - 14), rng.randrange(6, TILE - 6)
+        run = rng.randint(4, 7)
+        if not all(inside(x + k, y) for k in range(run)):
             continue
-        for k in range(6):
-            _put(pix, x + k, y, light)
+        for k in range(run):
+            _put(pix, x + k, y, light if k % 2 else foam)
         _put(pix, x + 2, y - 1, foam)
+        _put(pix, x + run - 2, y + 1, light)
+    # Sparse sparkles.
+    for _ in range(4):
+        x, y = rng.randrange(6, TILE - 6), rng.randrange(6, TILE - 6)
+        if inside(x, y):
+            _put(pix, x, y, foam)
     return pix
 
 
