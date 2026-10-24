@@ -79,21 +79,37 @@ export const MAPS = {
     '........x.....~.....', // 10
     'x..............x...x', // 11
   ],
-  // Endless Siege keeps its own battlefield: a four-step staircase down the
-  // caldera, so the run does not replay the Verdant Marches layout in ash.
+  // Endless Siege's battlefield — "The Convergence", 28x18, twice the area of a
+  // campaign map and the only map in the game that changes biome underfoot.
+  //
+  // A single 54-cell road snakes from a snowfield gate, over a meltwater river
+  // three times, through the dunes, down the caldera shelf and onto the crystal
+  // dais the core sits on. Each band is a different tile set (see MAP_BIOMES),
+  // so the horde visibly marches from winter into sand and then into fire — the
+  // point of the level is that the ground itself tells you how far you have come.
+  //
+  // Gates keep three rows and two columns of margin, and the road crosses the
+  // river only on tiles the layout marks as road, which the renderer draws as
+  // bridges over the water beneath.
   volcanic: [
-    'x...................', // 0
-    '................x...', // 1
-    '..x......~~.........', // 2
-    '.S###...............', // 3  ← gate in the HUD-free band
-    '....#####..x........', // 4
-    '...x....#......~~...', // 5
-    '........#####.x.....', // 6
-    '............######B.', // 7  ← core in the HUD-free band
-    '....~~..........x...', // 8
-    '..x.............x...', // 9
-    '.....x......~~......', // 10
-    'x.......x..........x', // 11
+    '............~~~~~~~......x..', // 0  meltwater source
+    '....x.......~~~~~~~...x.....', // 1
+    '.......x.....x~~~.x...x..x..', // 2
+    '..S##################....x..', // 3  <- snowfield gate
+    '.x.......x....~~~...#..x....', // 4
+    '...x.......x..~~~.x.#..x..x.', // 5
+    '.........############....x..', // 6
+    '..x......#...x~~~..x....x...', // 7
+    '.........#.x..~~~x...x...x..', // 8
+    '..x......#############...x..', // 9
+    '..x.~~~~......~~~...x#.....x', // 10
+    '...x~~~.....x.~~~....#....x.', // 11
+    '.........x.....#######......', // 12
+    '...x.......x...#########B.x.', // 13  <- crystal dais
+    '....~~~x............x.......', // 14
+    '..~~~~~~....x.......x.....x.', // 15
+    '..x~~~~..x....x..........x..', // 16
+    '...x..x....x.......x...x...x', // 17
   ],
   // Prism Depths: a four-turn spiral. Every switchback has one water pool and one
   // boulder field beside it, so the long straight runs are the only open build
@@ -113,6 +129,51 @@ export const MAPS = {
     '..x.........x......x', // 11
   ],
 };
+
+/**
+ * Per-tile biome overlay — the same grid shape as the layout, one letter per
+ * cell, naming which tile set that square is painted from:
+ *
+ *   i  ice       d  desert      v  volcanic      c  crystal
+ *
+ * Only the endless battlefield has one. The campaign maps are one biome each and
+ * the renderer falls back to the level's theme when a map is absent from this
+ * table, so nothing about the stages changes.
+ *
+ * The boundaries are deliberately ragged (a snowdrift spilling into the dunes, a
+ * lava tongue climbing back out, a crystal vein up the eastern wall) instead of
+ * straight ruler lines: the seam is where the map looks alive.
+ */
+export const MAP_BIOMES = {
+  volcanic: [
+    'iiiiiiiiiiiiiiiiiiiiiiiiiiii', // 0  snowfield + meltwater source
+    'iiiiiiiiiiiiiiiiiiiiiiiiiiii', // 1
+    'iiiiiiiiiiiiiiiiiiiiiiiiiiii', // 2
+    'iiiiiiiiiiiiiiiiiiiiiiiiiiii', // 3
+    'iiiiiiiiiiiiiiiiiiiiiidddddd', // 4  heat spilling over the pass
+    'iiiiiiiiiiiiiidiiidddddddddd', // 5
+    'iiiiiiiddddddddddddddddddddd', // 6  snowdrift tongue
+    'iiiiidddddddddiiiddddddddddd', // 7  (the river keeps its own colour)
+    'iiidddddddddddiiiddddddddddd', // 8
+    'dddddddddddddddddddddddddddd', // 9  dunes
+    'ddddddddddddddiiiddddddddddd', // 10
+    'ddddddddddddddiiiddddddddddd', // 11
+    'vvvvvvvvvvvvvvvvvvvvvvcccccc', // 12 caldera shelf
+    'vvvvvvvvvvvvvvvvvvvvvvcccccc', // 13
+    'vvvvvvvvvvvvvvvvvvvvvvcccccc', // 14
+    'vvvvvvvvvvvvvvvvvvvvvvcccccc', // 15
+    'vvvvvvvvvvvvvvvvvvvvvvcccccc', // 16
+    'vvvvvvvvvvvvvvvvvvvvvvvvvvvv', // 17
+  ],
+};
+
+/** Biome letter -> campaign theme id (each one owns a generated tile set). */
+export const BIOME_THEME = Object.freeze({
+  i: 'ice',
+  d: 'desert',
+  v: 'volcanic',
+  c: 'crystal',
+});
 
 export const TILE = {
   GRASS: 'grass',
@@ -176,6 +237,31 @@ export function parseMap(layout = MAP_LAYOUT) {
  */
 export function getMapLayout(mapId) {
   return MAPS[mapId] || MAP_LAYOUT;
+}
+
+/**
+ * Biome grid for a map id, or null when the battlefield is single-biome.
+ *
+ * Returns `[[themeId, …], …]` so the renderer can ask "which tile set owns this
+ * square?" without knowing anything about the letters. A malformed grid is
+ * ignored rather than thrown: a texture lookup falling back to the level theme
+ * is a cosmetic problem, a crash mid-wave is not.
+ */
+export function getMapBiomes(mapId) {
+  const grid = MAP_BIOMES[mapId];
+  if (!grid) return null;
+  const layout = getMapLayout(mapId);
+  if (grid.length !== layout.length) return null;
+  const rows = [];
+  for (let r = 0; r < grid.length; r++) {
+    if (grid[r].length !== layout[r].length) return null;
+    const row = [];
+    for (let c = 0; c < grid[r].length; c++) {
+      row.push(BIOME_THEME[grid[r][c]] || null);
+    }
+    rows.push(row);
+  }
+  return rows;
 }
 
 /** Road-like tiles that enemies can walk on (graph nodes). */

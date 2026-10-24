@@ -10,15 +10,31 @@ import { audio } from '../rendering/AudioSynth.js';
 let enemyIdCounter = 1;
 
 /**
- * Spire's horde art is drawn **facing the camera** (a 3/4 top-down view: head
- * up-frame, mandibles/feet at the bottom edge). Rotating it by the travel angle
- * therefore turned every creep sideways on a horizontal lane and upside down on
- * a downward one — "walking with its back to us".
+ * Facing — the horde turns into its heading instead of walking backwards.
  *
- * The horde walks upright, and only mirrors left/right to look toward the lane
- * it is taking. See `faceTravel()`.
+ * Every Spire strip is drawn **top-down**, so the body can be rotated; what
+ * differs is which way the art already points inside its frame. That fact is
+ * measured once per sheet and shipped as `facing` in `spireManifest.js`:
+ *
+ *   'south' — head (mandibles, eyes, claws) on the bottom edge → turn by −90°
+ *   'north' — head on the top edge (the void butterfly)     → turn by +90°
+ *   'camera'— front-on portrait art                          → never rotate
+ *
+ * The old code used one blanket +90° offset on top of art that points *down*,
+ * which is 180° out: every creep walked with its back to the camera, and the
+ * "fix" that followed simply froze the rotation at 0, so a northbound creep
+ * still moon-walked. `faceTravel()` now derives the offset per archetype and
+ * snaps to 45° steps, which keeps pixel art legible instead of smearing it at
+ * an arbitrary angle.
  */
-const ENEMY_FLIP_DEADZONE = 0.2;
+const FACING_OFFSET = Object.freeze({
+  south: -Math.PI / 2,
+  north: Math.PI / 2,
+});
+/** Rotation quantum: eight compass poses, so a diagonal lane stays crisp. */
+const FACING_STEP = Math.PI / 4;
+/** Below this many px/s of travel the last heading is kept (path jitter). */
+const FACING_DEADZONE = 0.2;
 
 export class Enemy {
   /**
@@ -50,7 +66,10 @@ export class Enemy {
     const mult = waveHealthMultiplier(waveNumber) * (options.healthScale || 1);
     this.maxHealth = Math.round(this.def.health * mult);
     this.health = this.maxHealth;
-    this.baseSpeed = this.def.speed;
+    // Endless keeps accelerating long after the campaign curve has topped out,
+    // so the mode can hand the scene its own speed multiplier per wave.
+    this.speedScale = options.speedScale || 1;
+    this.baseSpeed = this.def.speed * this.speedScale;
     this.speed = this.baseSpeed;
     // Boss haste pulses (Sandstorm Aura) stack on top of slow effects.
     this.speedBuff = 1;
@@ -58,7 +77,9 @@ export class Enemy {
     this.armor = this.def.armor || 0;
     this.maxShield = Math.round((this.def.shield || 0) * mult);
     this.shield = this.maxShield;
-    this.reward = this.def.reward;
+    // Endless pays a depth-scaled bounty: a wave-40 grunt has 20x the health of
+    // a wave-1 grunt, and 7 gold would not buy one upgrade.
+    this.reward = Math.round(this.def.reward * (options.rewardScale || 1));
     this.score = this.def.score;
     this.baseDamage = this.def.baseDamage;
     this.radius = this.def.radius;
@@ -109,6 +130,8 @@ export class Enemy {
     const sheetDef = ENEMY_SHEETS[this.typeKey];
     const artSize = sheetDef ? Math.sqrt(sheetDef.artWidth * sheetDef.artHeight) : 64;
     this.baseScale = (this.radius * 2.3) / artSize;
+    // Which way the art points at rotation 0 — see faceTravel().
+    this.facing = sheetDef?.facing || 'south';
 
     // Biome sheet + per-wave colour palette (see systems/EnemySkins.js). A
     // missing variant texture or clip can never leave an enemy invisible: both
@@ -264,10 +287,10 @@ export class Enemy {
     this.x = step.x;
     this.y = step.y;
 
-    // Face the wall while hammering it: mirror toward it, never rotate. The
-    // siege solver's `facing` is a heading, which this art cannot wear.
-    this.faceTravel(wall.x - this.x);
-    this.sprite.rotation = 0;
+    // Face the wall while hammering it. Same rule as the march: the sheet's
+    // own orientation decides the offset, so the creep swings its head toward
+    // the palisade instead of hammering it with its back.
+    this.faceTravel(wall.x - this.x, wall.y - this.y);
 
     if (step.attack) {
       // In contact: swing on the archetype's siege cadence.
@@ -387,7 +410,9 @@ export class Enemy {
 
     // Speed multiplier change
     if (phase.speedMultiplier) {
-      this.baseSpeed = this.def.speed * phase.speedMultiplier;
+      // Keep the run's speed ramp: a phase must make the boss faster, not
+      // quietly reset it to the campaign stat line.
+      this.baseSpeed = this.def.speed * this.speedScale * phase.speedMultiplier;
       this.speed = this.baseSpeed * (1 - this.slowFactor);
     }
 
@@ -606,11 +631,10 @@ export class Enemy {
       this.y += (dy / dist) * step;
       this.distanceTraveled += step;
 
-      // The art already faces the camera, so the body stays upright; only the
-      // horizontal heading mirrors the sprite. Rotating it (the old behaviour)
-      // laid every creep on its side on a left/right lane and turned it upside
-      // down on the long march south.
-      this.faceTravel(dx);
+      // Turn the body into the heading it is actually travelling (see
+      // faceTravel): the sheet's `facing` metadata supplies the offset, so a
+      // westward creep shows its head to the west, not its tail.
+      this.faceTravel(dx, dy);
     }
 
     // Walking wobble animation
@@ -623,16 +647,36 @@ export class Enemy {
   }
 
   /**
-   * Mirror the upright sprite toward a horizontal heading.
+   * Turn the body into its heading.
    *
-   * A deadzone keeps the sprite from flickering while the path jitters by a
-   * fraction of a pixel, and `rotation` is pinned to 0 so no code path (siege,
-   * phase change, status effect) can leave the creep lying on its side.
+   * @param {number} dx world-space x of the step (or of the wall being hit)
+   * @param {number} [dy] world-space y of the step
+   *
+   * The offset comes from the sheet's own `facing`, so the head — not the tail
+   * — leads the march, and a corner swings the sprite to the new lane within
+   * one frame instead of leaving it side-on. Front-on art (`'camera'`) is the
+   * one case that cannot rotate: it mirrors instead, exactly like before.
    */
-  faceTravel(dx) {
+  faceTravel(dx, dy = 0) {
     if (!this.sprite) return;
-    if (Math.abs(dx) > ENEMY_FLIP_DEADZONE) this.sprite.setFlipX(dx < 0);
-    this.sprite.rotation = 0;
+    if (this.facing === 'camera') {
+      if (Math.abs(dx) > FACING_DEADZONE) this.sprite.setFlipX(dx < 0);
+      this.sprite.rotation = 0;
+      return;
+    }
+    // Keep the last pose while the creep is effectively stationary; a jittering
+    // waypoint must not spin the sprite on the spot.
+    if (Math.abs(dx) < FACING_DEADZONE && Math.abs(dy) < FACING_DEADZONE) return;
+
+    const offset = FACING_OFFSET[this.facing] ?? FACING_OFFSET.south;
+    const raw = Math.atan2(dy, dx) + offset;
+    // Snap to the nearest 45° pose. `+0.5*step` before flooring rounds to
+    // nearest; the modulo keeps the result inside [0, 2π) for a stable value.
+    const snapped = Math.round(raw / FACING_STEP) * FACING_STEP;
+    this.sprite.rotation = Math.atan2(Math.sin(snapped), Math.cos(snapped));
+    // A rotated sprite is already asymmetric on screen; mirroring it as well
+    // would flip the head to the tail side on a westward lane.
+    this.sprite.setFlipX(false);
   }
 
   /**

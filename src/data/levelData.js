@@ -367,10 +367,12 @@ export const ENDLESS_LEVEL = {
   index: 5,
   name: 'Endless Siege',
   theme: 'volcanic',
+  // The Convergence: a 28x18 four-biome battlefield, twice the area of a stage
+  // map, so the run has room to breathe and the road has 54 cells to defend.
   map: 'volcanic',
-  blurb: THEMES.volcanic.blurb,
+  blurb: 'Winter, sand and fire in one march. No end, no dawn — only the next wave and a titan behind it.',
   endless: true,
-  startingCoins: 260,
+  startingCoins: 320,
   baseHealth: 25,
   enemyHealthScale: 1.2,
   reward: { gold: 0, gems: 0 },
@@ -393,33 +395,67 @@ export function getNextLevel(id) {
   return index >= 0 ? LEVELS[index + 1] || null : null;
 }
 
-/** Bosses rotate through the endless run, one every fifth wave. */
+/**
+ * Bosses rotate through the endless run, one every fifth wave.
+ *
+ * `ENDLESS_TITANS` are the endgame half of that rotation: from the fourth boss
+ * cycle (wave 20) a titan joins the boss wave, and from the eighth (wave 45) the
+ * pair arrives together. They are deliberately in a separate list so the early
+ * rotation stays readable — a fresh player meets the campaign five first.
+ */
 export const ENDLESS_BOSSES = ['colossus', 'sandwyrm', 'frostwarden', 'magmalord', 'prismlord'];
+export const ENDLESS_TITANS = ['voidherald', 'obsidian'];
+
+/** Titans join from this boss cycle onwards (cycle 0 = wave 5). */
+export const TITAN_FIRST_CYCLE = 3;
+/** …and both of them from this cycle onwards (wave 45). */
+export const TITAN_PAIR_CYCLE = 8;
 
 /**
  * Build wave `n` (1-based) of Endless Siege.
  *
- * The shape deliberately repeats a 5-wave pattern — pressure, swarm, armour,
- * mixed, boss — while counts and health ramp forever. Wave numbers feed
- * `waveHealthMultiplier`, so the stat curve keeps climbing without new data.
+ * The shape repeats a 5-wave pattern — pressure, swarm, armour, mixed, boss —
+ * while every dial that matters keeps climbing:
+ *
+ *   counts    grow +3 a cycle, capped only far out    (extra)
+ *   cadence   every spawn interval shrinks with depth (pace)
+ *   stats     `endlessHealthScale` / `endlessSpeedScale` in enemyData.js
+ *   bosses    the campaign five, then titans on top
+ *
+ * The result is that wave 20 is not "wave 5 with more bodies" any more: it is a
+ * faster horde with four times the health and a titan at the back of it.
  */
 export function makeEndlessWave(n) {
   const wave = Math.max(1, Math.floor(n));
   const step = ((wave - 1) % 5) + 1;
   const cycle = Math.floor((wave - 1) / 5);
-  const extra = Math.min(18, cycle * 2);
+  const extra = Math.min(60, cycle * 3);
+  // Spawn cadence: −1.2% per wave, floored so a wave still reads as a stream.
+  const pace = Math.max(0.45, 1 - wave * 0.012);
+  const every = (ms) => Math.max(140, Math.round(ms * pace));
 
   if (step === 5) {
     const bossKey = ENDLESS_BOSSES[cycle % ENDLESS_BOSSES.length];
+    const groups = [
+      { type: 'swarm', count: 10 + extra, interval: every(260) },
+      { type: 'brute', count: 3 + Math.min(12, cycle), interval: every(1200), delay: 1200 },
+      { type: bossKey, count: 1, interval: 0, delay: 2200 },
+    ];
+    if (cycle >= TITAN_FIRST_CYCLE) {
+      const titans = cycle >= TITAN_PAIR_CYCLE ? ENDLESS_TITANS : [ENDLESS_TITANS[cycle % ENDLESS_TITANS.length]];
+      titans.forEach((titan, index) => {
+        groups.push({ type: titan, count: 1, interval: 0, delay: 5200 + index * 3600 });
+      });
+      // The escorts that walk in with a titan are the ones that punish a
+      // player who tunnels the boss: shields soak, healers undo the chip damage.
+      groups.push({ type: 'shield', count: 2 + Math.min(6, cycle - TITAN_FIRST_CYCLE), interval: every(1100), delay: 3000 });
+      groups.push({ type: 'healer', count: 1 + Math.min(3, cycle - TITAN_FIRST_CYCLE), interval: every(1600), delay: 4200 });
+    }
     return {
-      name: `Boss Cycle ${cycle + 1}`,
+      name: cycle >= TITAN_FIRST_CYCLE ? `Titan Cycle ${cycle + 1}` : `Boss Cycle ${cycle + 1}`,
       bossWave: true,
       bossKey,
-      groups: [
-        { type: 'swarm', count: 10 + extra, interval: 260 },
-        { type: 'brute', count: 3 + Math.min(6, cycle), interval: 1200, delay: 1200 },
-        { type: bossKey, count: 1, interval: 0, delay: 2200 },
-      ],
+      groups,
     };
   }
 
@@ -427,36 +463,40 @@ export function makeEndlessWave(n) {
     return {
       name: `Endless Wave ${wave}`,
       groups: [
-        { type: 'grunt', count: 12 + extra, interval: Math.max(320, 900 - wave * 12) },
-        { type: 'runner', count: 6 + extra, interval: 420, delay: 1000 },
-      ],
+        { type: 'grunt', count: 12 + extra, interval: every(900) },
+        { type: 'runner', count: 6 + extra, interval: every(420), delay: 1000 },
+        { type: 'healer', count: Math.max(0, Math.min(4, cycle - 2)), interval: every(1800), delay: 1600 },
+      ].filter((group) => group.count > 0),
     };
   }
   if (step === 2) {
     return {
       name: `Endless Wave ${wave}`,
       groups: [
-        { type: 'swarm', count: 18 + extra, interval: Math.max(180, 300 - wave * 4) },
-        { type: 'shield', count: 2 + cycle, interval: 1400, delay: 1200 },
-      ],
+        { type: 'swarm', count: 18 + extra, interval: every(300) },
+        { type: 'shield', count: 2 + cycle, interval: every(1400), delay: 1200 },
+        { type: 'runner', count: Math.max(0, Math.min(14, (cycle - 3) * 2)), interval: every(380), delay: 2200 },
+      ].filter((group) => group.count > 0),
     };
   }
   if (step === 3) {
     return {
       name: `Endless Wave ${wave}`,
       groups: [
-        { type: 'brute', count: 4 + Math.min(8, cycle), interval: 1300 },
-        { type: 'healer', count: 2 + Math.min(4, cycle), interval: 1800, delay: 1200 },
-      ],
+        { type: 'brute', count: 4 + Math.min(12, cycle), interval: every(1300) },
+        { type: 'healer', count: 2 + Math.min(6, cycle), interval: every(1800), delay: 1200 },
+        { type: 'grunt', count: Math.max(0, Math.min(40, (cycle - 4) * 4)), interval: every(600), delay: 2000 },
+      ].filter((group) => group.count > 0),
     };
   }
   return {
     name: `Endless Wave ${wave}`,
     groups: [
-      { type: 'shield', count: 4 + Math.min(6, cycle), interval: 1200 },
-      { type: 'runner', count: 8 + extra, interval: 340, delay: 1000 },
-      { type: 'swarm', count: 10 + extra, interval: 240, delay: 1200 },
-    ],
+      { type: 'shield', count: 4 + Math.min(10, cycle), interval: every(1200) },
+      { type: 'runner', count: 8 + extra, interval: every(340), delay: 1000 },
+      { type: 'swarm', count: 10 + extra, interval: every(240), delay: 1200 },
+      { type: 'brute', count: Math.max(0, Math.min(16, (cycle - 3) * 2)), interval: every(1200), delay: 2600 },
+    ].filter((group) => group.count > 0),
   };
 }
 

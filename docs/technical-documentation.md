@@ -141,7 +141,7 @@ boss and first-clear bounty.
 | `level-2` Sunscorch Mesa | desert | 7 | 240 | 25 | 1.15× | Dune Tyrant |
 | `level-3` Frostbite Hollow | ice | 8 | 260 | 25 | 1.30× | Frost Warden |
 | `level-4` Prism Depths | crystal | 9 | 280 | 25 | 1.45× | Prism Warden |
-| `endless` Endless Siege | volcanic | ∞ | 260 | 25 | 1.20× | rotating every 5th wave |
+| `endless` Endless Siege | volcanic (The Convergence, 28×18) | ∞ | 320 | 25 | 1.20× + uncapped endless ramp | rotating every 5th wave, titans from wave 20 |
 
 ### Stars, rewards and unlocks (`src/systems/Progression.js`)
 - **Star rating** — core HP kept: $\ge 85\%$ → 3★, $\ge 50\%$ → 2★, else 1★.
@@ -157,6 +157,24 @@ boss and first-clear bounty.
   generated on demand (5-wave cycle, boss on every 5th) and cached in
   `generated[]` instead of mutating the level definition. `totalWaves` reports
   `Infinity` and `isFinal` is never set, so the run can only end on a defeat.
+
+### Endless difficulty (why it no longer plateaus)
+
+Three separate caps used to collide: the campaign HP curve stops at 2× (wave
+12), the generator stopped adding bodies at 18, and the boss rotation never
+changed — so wave 20 was wave 5 with a longer queue. Each has its own fix:
+
+| Dial | Function | Behaviour |
+|---|---|---|
+| health | `endlessHealthScale(w)` | $1 + 0.1w + 0.004w^2$ — **uncapped**: 2.2× at 10, 4.3× at 20, 15.5× at 50 |
+| speed | `endlessSpeedScale(w)` | $\min(1.75, 1 + 0.012w + 0.00025w^2)$ — capped so the horde stays readable |
+| bounty | `endlessRewardScale(w)` | $1 + 0.06w$ — a wave-40 grunt worth 7 gold could not fund the wall it breaks |
+| bodies | `makeEndlessWave(n)` | +3 bodies per cycle (cap 60) and a cadence multiplier of $\max(0.45, 1 - 0.012n)$ |
+| bosses | `ENDLESS_TITANS` | `voidherald` joins from cycle 3 (wave 20), both titans from cycle 8 (wave 45) |
+
+The scales are applied in `GameScene.spawnScaling(wave)`, which is the single
+place a spawn reads its multipliers from; campaign levels get exactly the level
+definition and nothing else. `tests/endless-difficulty.test.js` pins the curve.
 
 ### Victory / defeat flow
 `GameScene.handleVictory()` → `ProgressStore.recordVictory()` → `ResultScreenUI`
@@ -217,13 +235,16 @@ Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 | **Dune Tyrant** (`sandwyrm`) | 2600 | 46 px/s | 60 | 🪙 180 | 500 pts | `level-2` boss: Sandstorm Aura (+35% speed, 190 px) every 7 s; Razor Winds below 45% HP |
 | **Frost Warden** (`frostwarden`) | 3600 | 28 px/s | 75 | 🪙 220 | 600 pts | `level-3` boss: freezes towers in 170 px, shields itself below 55%, immune to slow below 22% |
 | **Magma Regent** (`magmalord`) | 4200 | 30 px/s | 85 | 🪙 260 | 700 pts | Endless boss: summons swarms, hastes the horde, then burns immune to slow |
+| **Void Herald** (`voidherald`) | 7800 | 30 px/s | 160 | 🪙 460 | 1700 pts | Endless titan: 4 phases — tower lockout → summoned brutes → collapse → hasted Event Horizon |
+| **Obsidian Behemoth** (`obsidian`) | 9000 | 26 px/s | 140 | 🪙 420 | 1500 pts | Endless titan: 4 phases — 70 armour + shield escorts → 1500 HP skin → fracture haste → unstoppable |
 
 Boss abilities are dispatched from one shared `abilityTimer` in
 `Enemy.update()` (`summon` / `speedAura` / `disableTowers`); `GameScene`
 answers them with `handleBossSpeedAura()` (haste pulse + toast + shake) and
 `handleBossDisableTowers()` (freeze pulse, tower tint, refreshed auras).
 
-Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times \min(2, 1 + 0.09 \times (w - 1))$.
+Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times \min(2, 1 + 0.09 \times (w - 1))$
+for the campaign, multiplied by `endlessHealthScale(w)` in Endless (see §6.2).
 
 ---
 
@@ -287,17 +308,72 @@ biome hue and grows an ember contour one pixel outwards, so the champion's
 stakes a ground ring under champions so a wave tier reads even at a glance.
 Bosses are excluded on purpose and keep their single duotone sheet.
 
-**Facing rule.** The pack's horde art is drawn *facing the camera* (a 3/4
-top-down view: head at the top of the frame, feet at the bottom). Rotating the
-sprite by the travel heading — the obvious thing to do — therefore laid every
-creep on its side on a horizontal lane and turned it upside down on the long
-march south. `Enemy.faceTravel(dx)` keeps the body upright and only mirrors it
-above a 0.2 px deadzone, and both the walking and the siege paths pin
-`rotation = 0`, so no state (siege swing, phase change, status tint) can leave a
-creep crooked. `tests/enemy-facing.test.js` walks a four-leg lap and fails if any
-frame is rotated.
+**Facing rule.** Every strip is top-down art, but each creature is drawn with
+its head somewhere specific inside the frame: on the **bottom edge** for eight of
+the nine creeps and both titans (mandibles, claws, eyes at the bottom), on the
+**top edge** for the void butterfly. The manifest therefore carries a `facing`
+field per sheet — `south`, `north`, or `camera` for front-on art that must never
+rotate — and `Enemy.faceTravel(dx, dy)` derives its rotation offset from it:
 
-### 7.4 Adding a look
+```js
+rotation = snap45(atan2(dy, dx) + FACING_OFFSET[sheet.facing])  // south: −90°, north: +90°
+```
+
+History matters here, because the bug shipped twice. The first pass used one
+blanket `+90°` offset on art that points *down*, which is 180° out: every creep
+walked with its back to the camera, and a horizontal lane showed a full profile.
+The second pass "fixed" it by pinning `rotation = 0` everywhere, which only made
+the error consistent — the horde always faced south. The per-sheet contract
+replaces both. Rotations snap to 45° steps so pixel art stays legible, the flip
+flag is cleared whenever the body is turned (mirroring a rotated sprite swaps the
+head to the tail side), and the palisade siege path uses the same call with the
+vector to the wall. `tests/enemy-facing.test.js` walks a four-leg lap — south,
+east, north, west — and asserts the quarter turn lands on the frame the lane
+changes, for a south-drawn sheet and for the north-drawn butterfly.
+
+`scripts/build_spire_assets.py --manifest-only` re-derives every measurement and
+the `facing` table straight from the shipped PNGs without re-encoding a single
+texture, which is how the manifest stays generated rather than hand-edited.
+
+### 7.4 One battlefield, four biomes (`MAP_BIOMES`)
+
+The endless battlefield is the only map in the game whose ground changes
+underfoot. `MAPS.volcanic` holds the 28×18 ASCII layout; `MAP_BIOMES.volcanic`
+holds a grid of the same shape, one letter per cell:
+
+```
+i  ice      d  desert      v  volcanic      c  crystal
+```
+
+`getMapBiomes(mapId)` decodes it to theme ids (or returns `null`, which is the
+campaign case — those maps are one biome each and fall back to the level theme).
+`GameScene.renderBattlefieldMap()` then resolves every texture through
+`tileTexture(base, themeId)`, so one cell of `tile-road-13` becomes
+`tile-road-13-ice`, `-desert`, `-volcanic` or `-crystal` depending on where it
+sits. A malformed grid is ignored rather than thrown: a texture falling back to
+the level theme is cosmetic, a crash mid-wave is not.
+
+Two details sell the effect:
+
+- **Water keeps one colour per body.** Every water cell in the meltwater river is
+  tagged `i`, so the river does not change palette when it crosses the snow→dune
+  seam. The oasis is `d`, the caldera lake `v`.
+- **The road is one material.** Lanes are always painted from the level theme,
+  not the cell's biome: a crystal causeway turning lavender mid-run read as a
+  rendering bug, and a consistent stone road is what makes a 54-cell path easy to
+  follow across four palettes.
+
+Seams between biomes carry a terrace lip — a 7 px shadow on the south edge of the
+cell that steps down, a 3 px highlight on the north edge of the cell below — so
+the transition reads as ground falling away instead of a ruler line. A dither
+blend of the neighbouring ground was tried first and rejected: a full-tile alpha
+overlay reads as a grid of squares, not as a gradient.
+
+Lane squares with water on opposite sides are **bridges**: the water is painted
+first, then the road as a 60 %-depth deck with two timber rails, so the river
+visibly continues underneath.
+
+### 7.5 Adding a look
 1. Add or edit a ramp in `terrain.py` (`RAMPS` / `ROAD_RAMPS` / `WATER_RAMPS`).
 2. Add a landmark in `build_foliage` if the biome needs one.
 3. Add the ASCII layout to `mapData.js`, then point a level at it.

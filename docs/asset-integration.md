@@ -107,6 +107,8 @@ size plus the frame count of each animation band.
 | `boss-frostwarden` | Magma Crab, **2×** | `enemy-frostwarden.png` (128×128 frames) | 8 / 8 / 10 |
 | `boss-magmalord` | Firewasp, **2×** | `enemy-magmalord.png` (192×192 frames) | 12 / 8 / 12 |
 | `boss-prismlord` | Void Butterfly, **3×** | `enemy-prismlord.png` (192×192 frames) | 6 / 4 / 12 |
+| `boss-obsidian` | Clampbeetle, **3×** | `enemy-obsidian.png` (192×192 frames) | 8 / 8 / 13 |
+| `boss-voidherald` | Flying Locust, **3×** | `enemy-voidherald.png` (192×192 frames) | 12 / 8 / 14 |
 
 ### Boss sheets
 The campaign bosses reuse the elite silhouettes, upscaled 2–3× with
@@ -120,6 +122,8 @@ through four stops:
 | Frost Warden | Magma Crab ×2 | `#10202E → #33607F → #9FD4EF → #F2FBFF` |
 | Magma Regent | Firewasp ×2 | `#1E0806 → #8C2A0E → #FFA23C → #FFE9B0` |
 | Prism Warden | Void Butterfly ×3 | `#140A2A → #4A2E8C → #B892F0 → #F4ECFF` |
+| Void Herald | Flying Locust ×3 | `#05070F → #123B45 → #2FB6A8 → #B9FFF2` |
+| Obsidian Behemoth | Clampbeetle ×3 | `#090A14 → #2A2350 → #6F5BD6 → #C9BEFF` |
 
 A hue rotation alone was not enough: the source sheets carry several hue
 families (carapace, eyes, highlights), so rotating them kept the original

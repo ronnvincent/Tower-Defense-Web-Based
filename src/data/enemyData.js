@@ -416,6 +416,139 @@ export const ENEMY_TYPES = {
       },
     ],
   },
+
+  /**
+   * Endless Siege titans — the answer to "wave 20 is a walkover".
+   *
+   * These are not campaign bosses with a bigger number: each one carries a
+   * four-phase script that keeps flipping the answer the player needs (armour →
+   * shield → haste → unstoppable), so a defence that solved wave 15 has to be
+   * rebuilt while the titan is already walking. They only appear from the fifth
+   * boss cycle (wave 20) onwards, and never in a stage fight.
+   */
+  obsidian: {
+    key: 'obsidian',
+    name: 'Obsidian Behemoth',
+    role: 'Endless titan — 70 armour up front, a 1500 HP skin at 70%, fracture haste at 40% and an unstoppable last stand.',
+    health: 9000,
+    speed: 26,
+    armor: 70,
+    shield: 400,
+    reward: 420,
+    score: 1500,
+    baseDamage: 22,
+    radius: 44,
+    siege: 140,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Living Bulwark',
+        thresholdPct: 1.0,
+        armor: 70,
+        ability: {
+          type: 'summon',
+          enemyKey: 'shield',
+          count: 4,
+          intervalMs: 7000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Obsidian Skin',
+        thresholdPct: 0.7,
+        grantShield: 1500,
+        speedMultiplier: 1.1,
+        onEnterText: 'PHASE 2: OBSIDIAN SKIN!',
+      },
+      {
+        phase: 3,
+        name: 'Fracture',
+        thresholdPct: 0.4,
+        armor: 30,
+        speedMultiplier: 1.35,
+        ability: {
+          type: 'speedAura',
+          radius: 230,
+          multiplier: 1.5,
+          durationMs: 4000,
+          intervalMs: 6000,
+        },
+        onEnterText: 'PHASE 3: FRACTURE!',
+      },
+      {
+        phase: 4,
+        name: 'The Unmade',
+        thresholdPct: 0.15,
+        speedMultiplier: 1.6,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 4: THE UNMADE!',
+      },
+    ],
+  },
+
+  voidherald: {
+    key: 'voidherald',
+    name: 'Void Herald',
+    role: 'Endless titan — silences every tower within 200 px, summons brutes mid-fight and collapses into a hasted final form.',
+    health: 7800,
+    speed: 30,
+    armor: 45,
+    shield: 600,
+    reward: 460,
+    score: 1700,
+    baseDamage: 25,
+    radius: 42,
+    siege: 160,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Null Field',
+        thresholdPct: 1.0,
+        ability: {
+          type: 'disableTowers',
+          radius: 200,
+          durationMs: 3000,
+          intervalMs: 8000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Herald of the Swarm',
+        thresholdPct: 0.75,
+        grantShield: 1200,
+        ability: {
+          type: 'summon',
+          enemyKey: 'brute',
+          count: 3,
+          intervalMs: 6500,
+        },
+        onEnterText: 'PHASE 2: HERALD OF THE SWARM!',
+      },
+      {
+        phase: 3,
+        name: 'Collapse',
+        thresholdPct: 0.45,
+        speedMultiplier: 1.25,
+        ability: {
+          type: 'disableTowers',
+          radius: 230,
+          durationMs: 3600,
+          intervalMs: 6500,
+        },
+        onEnterText: 'PHASE 3: COLLAPSE!',
+      },
+      {
+        phase: 4,
+        name: 'Event Horizon',
+        thresholdPct: 0.18,
+        speedMultiplier: 1.5,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 4: EVENT HORIZON!',
+      },
+    ],
+  },
 };
 
 /**
@@ -427,4 +560,38 @@ export const ENEMY_TYPES = {
  */
 export function waveHealthMultiplier(waveNumber) {
   return Math.min(2, 1 + 0.09 * (waveNumber - 1));
+}
+
+/**
+ * Endless Siege's own HP ramp — the campaign curve above is *capped at 2×* so a
+ * six-wave stage never turns into a slog, and that cap is exactly why the old
+ * endless run flattened out: from wave 12 onwards the horde stopped growing.
+ *
+ * This one never caps. It is quadratic so the first ten waves stay learnable and
+ * the next thirty do not: 2.2× at wave 10, 4.3× at 20, 7.3× at 30, 15.5× at 50
+ * (on top of the level's own 1.2× and the capped campaign ramp).
+ */
+export function endlessHealthScale(waveNumber) {
+  const w = Math.max(0, Math.floor(Number(waveNumber) || 1) - 1);
+  return 1 + 0.1 * w + 0.004 * w * w;
+}
+
+/**
+ * Endless speed ramp. Flatter than the HP curve on purpose: a creep that
+ * outruns the camera stops being readable, so the horde caps at 1.75× while its
+ * health keeps climbing forever.
+ */
+export function endlessSpeedScale(waveNumber) {
+  const w = Math.max(0, Math.floor(Number(waveNumber) || 1) - 1);
+  return Math.min(1.75, 1 + 0.012 * w + 0.00025 * w * w);
+}
+
+/**
+ * Endless bounty ramp. Kill payouts are flat per archetype, so without this a
+ * 2000 HP grunt still hands over 7 gold and the player cannot rebuild the wall
+ * that the wave just broke.
+ */
+export function endlessRewardScale(waveNumber) {
+  const w = Math.max(0, Math.floor(Number(waveNumber) || 1) - 1);
+  return 1 + 0.06 * w;
 }

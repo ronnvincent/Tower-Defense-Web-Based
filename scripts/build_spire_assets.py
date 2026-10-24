@@ -917,6 +917,40 @@ BOSS_SOURCES = {
     # Prism Depths boss: the butterfly silhouette reads as a hovering prism
     # warden once it is duotoned into indigo/amethyst.
     "prismlord": ("voidbutterfly", 64, 9, 3, (0x140A2A, 0x4A2E8C, 0xB892F0, 0xF4ECFF)),
+    # Endless Siege's "OP" bosses. Same strips, graded into their own element
+    # and upscaled a third larger than the campaign set, so wave 25 onwards
+    # fields creatures the player has never seen in a stage fight.
+    "obsidian": ("clampbeetle", 64, 9, 3, (0x090A14, 0x2A2350, 0x6F5BD6, 0xC9BEFF)),
+    "voidherald": ("flying_locust", 64, 9, 3, (0x05070F, 0x123B45, 0x2FB6A8, 0xB9FFF2)),
+}
+
+# Which way each strip's art points at rotation 0.
+#
+# The Spire horde is drawn top-down: the head (mandibles, eyes, claws) sits on
+# the *bottom* edge of the frame for every creep except the void butterfly,
+# whose head is at the top. `Enemy.faceTravel()` turns that fact into a rotation
+# offset per sheet, so a creep walking east faces east instead of showing its
+# back — the bug that made the old blanket ±90° offset look like every monster
+# was marching backwards.
+#
+#   'south'  – head at the bottom of the frame (turn by heading − 90°)
+#   'north'  – head at the top of the frame   (turn by heading + 90°)
+#   'camera' – front-on portrait art that must never rotate (mirror only)
+ENEMY_FACING = {
+    "grunt": "south",
+    "runner": "south",
+    "brute": "south",
+    "swarm": "south",
+    "healer": "north",
+    "shield": "south",
+    "colossus": "south",
+    "warlord": "south",
+    "sandwyrm": "south",
+    "frostwarden": "south",
+    "magmalord": "south",
+    "prismlord": "north",
+    "obsidian": "south",
+    "voidherald": "south",
 }
 
 
@@ -1353,6 +1387,8 @@ def build_enemy_manifest():
             "idle": counts[0],
             "move": counts[3],
             "death": counts[6],
+            # Orientation contract, read by Enemy.faceTravel().
+            "facing": ENEMY_FACING.get(key, "south"),
         }
         print(f"  {key:16s} {fw}x{fh} idle={counts[0]} move={counts[3]} death={counts[6]}")
     return manifest
@@ -1376,7 +1412,7 @@ def build_enemy_variants():
     return skins
 
 
-def write_manifest(enemies, impacts, variants=None):
+def write_manifest(enemies, impacts, variants=None, impact_lines=None):
     path = os.path.join(ROOT, "src", "data", "spireManifest.js")
     lines = [
         "/**",
@@ -1385,6 +1421,9 @@ def write_manifest(enemies, impacts, variants=None):
         " *",
         " * Frame sizes and frame counts measured from the real Foozle \"Spire\" PNGs.",
         " * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.",
+        " * `facing` is the orientation contract for Enemy.faceTravel(): 'south' and",
+        " * 'north' name the way the art already points at rotation 0, 'camera' marks",
+        " * front-on art that must only ever be mirrored.",
         " */",
         "",
         "export const ENEMY_SHEETS = {",
@@ -1393,7 +1432,7 @@ def write_manifest(enemies, impacts, variants=None):
         lines.append(
             f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
             f"frameHeight: {m['frameHeight']}, artWidth: {m['artWidth']}, artHeight: {m['artHeight']}, "
-            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']} }},"
+            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']}, facing: {m.get('facing', 'south')!r} }},"
         )
     lines += ["};", "", "/**", " * Texture key per creep, per battlefield, per escalation tier.", " * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).", " */", "export const ENEMY_SKINS = {"]
     for key, per_theme in (variants or {}).items():
@@ -1415,11 +1454,14 @@ def write_manifest(enemies, impacts, variants=None):
             f"  {{ scale: {spec['scale']}, glow: {spec['glow']} }},"
         )
     lines += ["];", "", "export const IMPACT_SHEETS = {"]
-    for key, m in impacts.items():
-        lines.append(
-            f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
-            f"frameHeight: {m['frameHeight']}, frames: {m['frames']} }},"
-        )
+    if impact_lines is not None:
+        lines += [line for line in impact_lines.splitlines() if line.strip()]
+    else:
+        for key, m in impacts.items():
+            lines.append(
+                f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
+                f"frameHeight: {m['frameHeight']}, frames: {m['frames']} }},"
+            )
     lines += ["};", ""]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as fh:
@@ -1427,9 +1469,30 @@ def write_manifest(enemies, impacts, variants=None):
     print(f"  wrote {os.path.relpath(path, ROOT)}")
 
 
+def read_existing_impacts():
+    """Reuse the IMPACT_SHEETS block already in the manifest, verbatim.
+
+    `--manifest-only` exists so an orientation/measurement change can be
+    re-derived from the shipped PNGs without re-encoding every texture in the
+    game (which churns binary files that did not change).
+    """
+    path = os.path.join(ROOT, "src", "data", "spireManifest.js")
+    if not os.path.exists(path):
+        return None
+    src = open(path).read()
+    block = re.search(r"export const IMPACT_SHEETS = \{\n(.*?)\n\};", src, re.S)
+    return block.group(1) if block else None
+
+
 def main():
     if "--thumbnails" in sys.argv[1:]:
         build_map_thumbnails()
+        print("done")
+        return
+    if "--manifest-only" in sys.argv[1:]:
+        enemies = build_enemy_manifest()
+        variants = build_enemy_variants()
+        write_manifest(enemies, {}, variants, impact_lines=read_existing_impacts())
         print("done")
         return
     build_towers()

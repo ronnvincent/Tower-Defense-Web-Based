@@ -1,6 +1,11 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
-import { parseMap, getMapLayout, TILE } from '../data/mapData.js';
+import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
+import {
+  endlessHealthScale,
+  endlessSpeedScale,
+  endlessRewardScale,
+} from '../data/enemyData.js';
 import { getPvpLevel } from '../data/pvpArenas.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem } from '../systems/PathfindingSystem.js';
@@ -244,9 +249,16 @@ export class GameScene extends Phaser.Scene {
     this.spawnEmitter.setDepth(46);
   }
 
-  /** Theme-aware texture key with a graceful fallback to the base art. */
-  tileTexture(base) {
-    const themed = `${base}${this.theme?.tileSuffix || ''}`;
+  /**
+   * Theme-aware texture key with a graceful fallback to the base art.
+   *
+   * `themeId` overrides the level theme for one cell, which is how the endless
+   * battlefield paints four biomes on one map: the renderer asks for the same
+   * `tile-road-13` key under the ice, desert, volcanic or crystal suffix.
+   */
+  tileTexture(base, themeId = null) {
+    const theme = (themeId && THEMES[themeId]) || this.theme;
+    const themed = `${base}${theme?.tileSuffix || ''}`;
     if (this.textures.exists(themed)) return themed;
     return this.textures.exists(base) ? base : null;
   }
@@ -263,10 +275,19 @@ export class GameScene extends Phaser.Scene {
    */
   renderBattlefieldMap() {
     const tilesGraphics = this.add.graphics().setDepth(3);
-    const groundKeys = GROUND_VARIANT_KEYS.map((key) => this.tileTexture(key)).filter(Boolean);
-    const foliageKey = this.tileTexture('tile-foliage');
-    const rockKeys = [this.tileTexture('tile-rock'), this.tileTexture('tile-rock-2')].filter(Boolean);
-    const decorKeys = DECOR_KINDS.map((kind) => this.tileTexture(`tile-decor-${kind}`)).filter(Boolean);
+    // Biome overlay: null on the campaign maps (they are one biome each), a
+    // 2D theme-id grid on the endless battlefield. Cache the per-theme texture
+    // key lists once — a 504-cell map must not re-resolve them per cell.
+    this.biomeGrid = getMapBiomes(this.level.map);
+    const themedCache = new Map();
+    const themed = (base, themeId) => {
+      const key = `${themeId || ''}|${base}`;
+      if (!themedCache.has(key)) themedCache.set(key, this.tileTexture(base, themeId));
+      return themedCache.get(key);
+    };
+    const themeOf = (r, c) => this.biomeGrid?.[r]?.[c] || null;
+    const groundFor = (themeId) =>
+      GROUND_VARIANT_KEYS.map((key) => themed(key, themeId)).filter(Boolean);
 
     const at = (r, c) => (r >= 0 && r < this.map.rows && c >= 0 && c < this.map.cols ? this.map.tiles[r][c] : -1);
     const isLane = (r, c) => {
@@ -274,6 +295,11 @@ export class GameScene extends Phaser.Scene {
       return t === TILE.ROAD || t === TILE.SPAWN || t === TILE.BASE;
     };
     const isWater = (r, c) => at(r, c) === TILE.WATER;
+    // A lane square with water on both sides of it is a bridge: paint the river
+    // under the road so a crossing reads as construction, not as a puddle.
+    const isBridge = (r, c) =>
+      isLane(r, c) &&
+      ((isWater(r, c - 1) && isWater(r, c + 1)) || (isWater(r - 1, c) && isWater(r + 1, c)));
     const maskAt = (predicate, r, c) =>
       (predicate(r - 1, c) ? 1 : 0) |
       (predicate(r, c + 1) ? 2 : 0) |
@@ -289,6 +315,14 @@ export class GameScene extends Phaser.Scene {
         const cy = y + TILE_SIZE / 2;
         const hash = (r * 73856093) ^ (c * 19349663);
 
+        const themeId = themeOf(r, c);
+        const groundKeys = groundFor(themeId);
+        const rockKeys = [themed('tile-rock', themeId), themed('tile-rock-2', themeId)].filter(Boolean);
+        const decorKeys = DECOR_KINDS.map((kind) => themed(`tile-decor-${kind}`, themeId)).filter(
+          Boolean
+        );
+        const foliageKey = themed('tile-foliage', themeId);
+
         // 1. Ground: one of three variants per biome.
         if (groundKeys.length) {
           const key = groundKeys[Math.abs(hash) % groundKeys.length];
@@ -300,12 +334,42 @@ export class GameScene extends Phaser.Scene {
 
         // 2. Surface: lane, water, boulder — each with its own autotile mask.
         if (isLane(r, c)) {
+          // The road is built, not grown: one paving material for the whole
+          // battlefield, laid over whatever the ground happens to be. That is
+          // also what keeps the lane legible across four biomes — a crystal
+          // causeway turning lavender mid-run read as a rendering bug.
           const mask = maskAt(isLane, r, c);
-          const key = this.tileTexture(`tile-road-${mask}`) || 'tile-road-15';
-          this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+          const key = themed(`tile-road-${mask}`, null) || themed('tile-road-15', null) || 'tile-road-15';
+          if (isBridge(r, c)) {
+            // A bridge: the river keeps flowing underneath, and the road is
+            // drawn as a narrower deck with timber rails so the crossing reads
+            // as construction instead of a suspiciously dry patch of water.
+            const underMask = maskAt(isWater, r, c);
+            const under =
+              themed(`tile-water-${underMask}`, themeId) || themed('tile-water', themeId);
+            if (under) {
+              this.add.image(cx, cy, under).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+            }
+            const horizontal = isWater(r, c - 1) && isWater(r, c + 1);
+            const deck = this.add.image(cx, cy, key).setDepth(1);
+            if (horizontal) deck.setDisplaySize(TILE_SIZE, TILE_SIZE * 0.6);
+            else deck.setDisplaySize(TILE_SIZE * 0.6, TILE_SIZE).setAngle(90);
+            tilesGraphics.lineStyle(2, 0x2a170c, 0.85);
+            if (horizontal) {
+              tilesGraphics.lineBetween(x, cy - TILE_SIZE * 0.3, x + TILE_SIZE, cy - TILE_SIZE * 0.3);
+              tilesGraphics.lineBetween(x, cy + TILE_SIZE * 0.3, x + TILE_SIZE, cy + TILE_SIZE * 0.3);
+            } else {
+              tilesGraphics.lineBetween(cx - TILE_SIZE * 0.3, y, cx - TILE_SIZE * 0.3, y + TILE_SIZE);
+              tilesGraphics.lineBetween(cx + TILE_SIZE * 0.3, y, cx + TILE_SIZE * 0.3, y + TILE_SIZE);
+            }
+            tilesGraphics.lineStyle(1, 0x0a0c12, 0.5);
+            tilesGraphics.strokeRect(x + 1, cy - TILE_SIZE * 0.34, TILE_SIZE - 2, TILE_SIZE * 0.68);
+          } else {
+            this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+          }
         } else if (type === TILE.WATER) {
           const mask = maskAt(isWater, r, c);
-          const key = this.tileTexture(`tile-water-${mask}`) || this.tileTexture('tile-water');
+          const key = themed(`tile-water-${mask}`, themeId) || themed('tile-water', themeId);
           if (key) {
             this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           } else {
@@ -320,7 +384,29 @@ export class GameScene extends Phaser.Scene {
             tilesGraphics.fillStyle(0x15302a);
             tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
           }
-        } else if (type === TILE.GRASS && decorKeys.length) {
+        }
+
+        // 3b. Terrace lip: where this biome meets another one to the south, draw
+        // a soft shadow across the seam. Four hard-edged biomes stacked on one
+        // map read as a colour wheel; a shaded step reads as ground that falls
+        // away, which is what the snowfield giving way to the dunes should look
+        // like without a dedicated transition-tile set.
+        if (themeId && this.biomeGrid) {
+          const south = themeOf(r + 1, c);
+          const north = themeOf(r - 1, c);
+          if (south && south !== themeId) {
+            tilesGraphics.fillStyle(0x05070c, 0.26);
+            tilesGraphics.fillRect(x, y + TILE_SIZE - 7, TILE_SIZE, 7);
+            tilesGraphics.fillStyle(0xffffff, 0.05);
+            tilesGraphics.fillRect(x, y + TILE_SIZE - 9, TILE_SIZE, 2);
+          }
+          if (north && north !== themeId) {
+            tilesGraphics.fillStyle(0xffffff, 0.07);
+            tilesGraphics.fillRect(x, y, TILE_SIZE, 3);
+          }
+        }
+
+        if (type === TILE.GRASS && decorKeys.length) {
           // 3. Scatter: trees are rare landmarks, props fill the meadow.
           const roll = Math.abs(hash) % 100;
           if (roll < 7 && foliageKey) {
@@ -384,6 +470,26 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Difficulty knobs for one spawn.
+   *
+   * Campaign maps are a fixed six-wave script, so the level's own scale is the
+   * whole story. Endless is the one mode that keeps accelerating: health follows
+   * `endlessHealthScale` (uncapped), speed `endlessSpeedScale` (capped so the
+   * horde stays readable) and the bounty tracks the HP ramp, or the player could
+   * never afford the towers the next wave demands.
+   */
+  spawnScaling(waveNumber) {
+    const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
+    const base = this.level.enemyHealthScale || 1;
+    if (!this.level.endless) return { healthScale: base, speedScale: 1, rewardScale: 1 };
+    return {
+      healthScale: base * endlessHealthScale(wave),
+      speedScale: endlessSpeedScale(wave),
+      rewardScale: endlessRewardScale(wave),
+    };
+  }
+
   spawnEnemy(typeKey, waveNumber) {
     const enemy = new Enemy(this, typeKey, waveNumber, this.pathfinding.mainPath, {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
@@ -433,7 +539,7 @@ export class GameScene extends Phaser.Scene {
           });
         }
       },
-    }, { healthScale: this.level.enemyHealthScale, theme: this.theme?.id || this.level.theme });
+    }, { ...this.spawnScaling(waveNumber), theme: this.theme?.id || this.level.theme });
     this.activeEnemies.push(enemy);
     this.gameState.counters.enemiesSpawned++;
 

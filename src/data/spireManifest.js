@@ -4,21 +4,26 @@
  *
  * Frame sizes and frame counts measured from the real Foozle "Spire" PNGs.
  * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.
+ * `facing` is the orientation contract for Enemy.faceTravel(): 'south' and
+ * 'north' name the way the art already points at rotation 0, 'camera' marks
+ * front-on art that must only ever be mirrored.
  */
 
 export const ENEMY_SHEETS = {
-  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7 },
-  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11 },
-  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8 },
-  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13 },
-  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12 },
-  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10 },
-  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12 },
-  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14 },
-  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8 },
-  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10 },
-  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12 },
-  'prismlord': { file: 'enemy-prismlord.png', frameWidth: 192, frameHeight: 192, artWidth: 174, artHeight: 144, idle: 6, move: 4, death: 12 },
+  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7, facing: 'south' },
+  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11, facing: 'south' },
+  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8, facing: 'south' },
+  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13, facing: 'south' },
+  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12, facing: 'north' },
+  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10, facing: 'south' },
+  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12, facing: 'south' },
+  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14, facing: 'south' },
+  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8, facing: 'south' },
+  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10, facing: 'south' },
+  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12, facing: 'south' },
+  'prismlord': { file: 'enemy-prismlord.png', frameWidth: 192, frameHeight: 192, artWidth: 174, artHeight: 144, idle: 6, move: 4, death: 12, facing: 'north' },
+  'obsidian': { file: 'enemy-obsidian.png', frameWidth: 192, frameHeight: 192, artWidth: 150, artHeight: 120, idle: 8, move: 8, death: 13, facing: 'south' },
+  'voidherald': { file: 'enemy-voidherald.png', frameWidth: 192, frameHeight: 192, artWidth: 108, artHeight: 120, idle: 12, move: 8, death: 14, facing: 'south' },
 };
 
 /**
