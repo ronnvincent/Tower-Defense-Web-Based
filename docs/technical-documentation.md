@@ -279,3 +279,80 @@ Bosses are excluded on purpose and keep their single duotone sheet.
 4. `python3 scripts/build_spire_assets.py && npx vitest run`.
 
 The manifest (`src/data/spireManifest.js`) is generated; never edit it by hand.
+
+---
+
+## 8. Addictiveness Systems
+
+Three layers, built in that order: **dopamine** (moment-to-moment), **retention**
+(reasons to come back) and **economy** (something to spend it on). This section
+covers the first layer; the later layers extend it without changing its rules.
+
+### 8.1 Kill chains (`src/systems/ComboMeter.js`)
+
+A pure state machine — it never owns a timer, the caller passes `nowMs` — so the
+windowing rules are testable without a scene.
+
+| Kill chain | Tier | Payout multiplier |
+|---|:---:|:---:|
+| 0–2 | 0 | 1× |
+| 3–5 | 1 | 1.25× |
+| 6–9 | 2 | 1.5× |
+| 10+ | 3 | 2× |
+
+Kills must land within **2.6 s** of the previous one. The bonus is *additive*:
+`comboBonus(base, mult)` returns only the extra gold/score, rounded, so a kill
+can never pay less than its listed bounty. A leak (an enemy reaching the core)
+or the end of a wave resets the live chain; `resetCombo` keeps the wave's best
+chain so the end-of-wave payout still pays out. A cleared wave pays
+`min(90, (best − 2) × 4)` gold for the best chain, and a chain that long also
+raises the HUD chip to its ember tier.
+
+Because chains reward *tempo*, the chain also fights the player's instinct to
+hoard: you must keep killing, which means standing waves down rather than
+letting them trickle in.
+
+### 8.2 Early wave call (`src/systems/WaveManager.js`)
+
+The wave button has two states. In the prep phase it reads **START WAVE**. While
+the last stragglers of a wave are still walking (`clearing`, zero pending spawns,
+`aliveEnemies > 0`) it becomes **CALL EARLY · +Ng** and starts the next wave *on
+top of the leftovers* for `min(70, 6 + 3 × alive)` gold.
+
+The guard rails matter more than the payout:
+
+- **Only in `clearing`.** The spawn queue is per-wave; calling early mid-spawn
+  would silently drop the pending spawns of the wave being replaced. `#beginWave`
+  clears the queue on purpose, so the state check is the safety, not a courtesy.
+- **Never on the final wave** of a fixed campaign (there is no next wave), but
+  always available in Endless.
+- **The settled wave still counts.** `callEarly()` increments `wavesCompleted`
+  and pays that wave's clear bounty immediately; the leftovers keep the new wave
+  alive, which is exactly the risk being bought.
+- The chain payout for the settled wave is paid at the call site, because that
+  wave will never emit `waveComplete`.
+
+### 8.3 Feedback (the juice pass)
+
+| Moment | Feedback |
+|---|---|
+| Kill | tint flash (`Enemy.applyDamage`), biome/brood-tinted spark burst + additive flash ring, bigger with chain tier |
+| 3 / 6 / 10 kills | `audio.playCombo(tier)` triangle stinger, pitch climbing `523.25 × 1.2^(tier−1)` |
+| Early call | `audio.playCallEarly()` square sweep 392 → 587 Hz, toast with the payout, camera-warm pulse on the button |
+| Boss spawn | letterbox bars close in and out, camera kick + warm flash |
+| Wave clear | payout toast that names the best chain when it paid |
+
+All effects are fire-and-forget and wrapped in `try/catch` through
+`reportRuntimeError`, so a missing texture or tween can never freeze the
+simulation loop.
+
+### 8.4 HUD additions
+
+- **Wave preview**: a scout strip under the wave button during the prep phase
+  listing the next wave's composition and flagging a boss. It is absolutely
+  positioned so the top bar never reflows, and it sits below the toast lane.
+- **Combo chip**: multiplier, chain length, last bonus and a draining timer bar.
+  It takes priority over the preview strip — mid-fight the chain is the number
+  the player is chasing.
+- The wave button itself carries the early-call bonus, so the decision is priced
+  on the control that makes it.

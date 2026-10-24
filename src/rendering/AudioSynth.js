@@ -290,6 +290,46 @@ export class AudioSynth {
     osc.stop(now + 0.05);
   }
 
+  /**
+   * Combo stinger. Pitch climbs with the tier, so the third chain step is
+   * audibly "higher" than the first without a new sample.
+   */
+  playCombo(tier = 1) {
+    this.unlock();
+    const g = this.#gain(0.22);
+    if (!g) return;
+    const now = this.ctx.currentTime;
+    const base = 523.25 * Math.pow(1.2, Math.max(0, Math.min(3, tier) - 1)); // C5 -> up
+    [1, 1.5].forEach((ratio, index) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(base * ratio, now + index * 0.02);
+      osc.connect(g);
+      osc.start(now + index * 0.02);
+      osc.stop(now + 0.12);
+    });
+    g.gain.setValueAtTime(0.2 * this.volume, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+  }
+
+  /** Two-note "tempo" flourish for calling the next wave early. */
+  playCallEarly() {
+    this.unlock();
+    const g = this.#gain(0.25);
+    if (!g) return;
+    const now = this.ctx.currentTime;
+    [392, 587.33].forEach((freq, index) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, now + index * 0.08);
+      osc.connect(g);
+      osc.start(now + index * 0.08);
+      osc.stop(now + 0.16 + index * 0.08);
+    });
+    g.gain.setValueAtTime(0.22 * this.volume, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  }
+
   playWaveStart() {
     this.unlock();
     const g = this.#gain(0.35);

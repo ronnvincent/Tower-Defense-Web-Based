@@ -19,6 +19,16 @@ import { countWaveEnemies } from '../data/waveData.js';
  * startNextWave() only works in the idle state, which prevents duplicate or
  * premature wave starts (e.g. double-clicking the button).
  */
+/**
+ * Gold for calling the next wave while the current horde is still alive.
+ * Scaling with the leftovers keeps a 1-enemy call from being a free 6 gold and
+ * makes a 12-enemy call a real risk/reward swing.
+ */
+export function earlyCallBonus(aliveEnemies) {
+  const n = Math.max(0, Math.floor(Number(aliveEnemies) || 0));
+  return Math.min(70, 6 + n * 3);
+}
+
 export const WAVE_STATE = {
   IDLE: 'idle',
   SPAWNING: 'spawning',
@@ -80,9 +90,44 @@ export class WaveManager {
     return this.endless || this.currentIndex + 1 < this.waves.length;
   }
 
+  /**
+   * Can the player call the next wave on top of the horde still on the map?
+   *
+   * Only once every spawn of the current wave is already out (`clearing`): the
+   * queue is per-wave, so calling early *during* spawning would either drop
+   * pending spawns or interleave two waves' cadence. Calling during the clean-up
+   * phase is the interesting decision — trade a few leftover kills for tempo.
+   */
+  canCallEarly(aliveEnemies = 0) {
+    if (this.state !== WAVE_STATE.CLEARING) return false;
+    if (aliveEnemies <= 0) return false;
+    return this.endless || this.currentIndex + 1 < this.waves.length;
+  }
+
   /** @returns {boolean} true if a wave was started */
   startNextWave() {
     if (!this.canStartNextWave()) return false;
+    return this.#beginWave();
+  }
+
+  /**
+   * Settle the current wave and start the next one immediately.
+   *
+   * The leftover enemies stay on the map and now overlap with the new wave; the
+   * current wave still counts as completed (it paid its clear bonus via the
+   * caller) so the run summary and stars stay honest.
+   *
+   * @returns {null | {settledWave:number, bonus:number, wave:number}}
+   */
+  callEarly(aliveEnemies = 0) {
+    if (!this.canCallEarly(aliveEnemies)) return null;
+    const settledWave = this.waveNumber;
+    this.wavesCompleted += 1;
+    if (!this.#beginWave()) return null;
+    return { settledWave, bonus: earlyCallBonus(aliveEnemies), wave: this.waveNumber };
+  }
+
+  #beginWave() {
     this.currentIndex++;
     let wave = this.waveAt(this.currentIndex);
     if (!wave && this.endless && this.waveFactory) {

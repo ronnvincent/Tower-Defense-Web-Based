@@ -207,7 +207,7 @@ run behind the overlay.
 ## 8. Verification
 
 ```bash
-npm test                # 362 tests / 29 suites
+npm test                # 404 tests / 32 suites
 npm run check:contrast  # 36/36 WCAG pairs (gate card, menu pill included)
 npm run build
 ```

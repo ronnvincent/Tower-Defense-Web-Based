@@ -3,6 +3,15 @@ import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { clampPanel, placeInspector } from './panelPlacement.js';
 import { HudLayout } from './hudLayout.js';
+import { ENEMY_TYPES } from '../data/enemyData.js';
+import { COMBO_WINDOW_MS } from '../systems/ComboMeter.js';
+
+/** "1.25" / "2" — never "1.50", which reads like a precision bug. */
+function formatMultiplier(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '1';
+  return String(Number(n.toFixed(2)));
+}
 
 const PAN_HINT_KEY = 'td-dsalgo:camera-hint:v1';
 
@@ -31,6 +40,9 @@ export class HUD {
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
+    this.earlyCallAvailable = false;
+    this.comboActive = false;
+    this.comboTimer = null;
     this.fullscreenState = { supported: true, active: false };
 
     this.initDOM();
@@ -78,10 +90,18 @@ export class HUD {
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
             <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
           </div>
-          <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
-            <span class="btn-glow"></span>
-            <span class="btn-text">START WAVE</span>
-          </button>
+          <div class="hud-wave-stack">
+            <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
+              <span class="btn-glow"></span>
+              <span class="btn-text">START WAVE</span>
+            </button>
+            <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
+          </div>
+          <div id="combo-chip" class="hud-combo hidden" aria-live="polite">
+            <span class="hud-combo-mult" id="combo-mult">×1.25</span>
+            <span class="hud-combo-chain" id="combo-chain">3 KILL CHAIN</span>
+            <span class="hud-combo-bar"><i id="combo-bar-fill"></i></span>
+          </div>
         </div>
 
         <div class="hud-stat-group hud-controls-group">
@@ -322,7 +342,8 @@ export class HUD {
 
     document.getElementById('btn-start-wave')?.addEventListener('click', () => {
       audio.playClick();
-      this.callbacks.onStartWave?.();
+      if (this.earlyCallAvailable) this.callbacks.onCallWaveEarly?.();
+      else this.callbacks.onStartWave?.();
     });
 
     const speedBtn = document.getElementById('btn-speed');
@@ -917,6 +938,8 @@ export class HUD {
       canStartWave,
       isSpawning,
       isPaused,
+      earlyCall,
+      nextWave,
     } = state;
 
     this.coins = coins;
@@ -941,12 +964,25 @@ export class HUD {
     }
 
     const startBtn = document.getElementById('btn-start-wave');
+    this.earlyCallAvailable = Boolean(earlyCall?.available);
     if (startBtn) {
-      startBtn.disabled = !canStartWave;
-      startBtn.classList.toggle('game-btn-pulse', canStartWave);
+      // One button, two jobs: start the next wave, or call it in early on top
+      // of the leftovers for a gold bonus that scales with the risk.
+      const canAct = canStartWave || this.earlyCallAvailable;
+      startBtn.disabled = !canAct;
+      startBtn.classList.toggle('game-btn-pulse', canAct);
+      startBtn.classList.toggle('game-btn-early', this.earlyCallAvailable);
+      startBtn.title = this.earlyCallAvailable
+        ? `Call wave ${earlyCall.wave} now for +${earlyCall.bonus} gold (Space)`
+        : 'Start the next wave (Space)';
       const label = startBtn.querySelector('.btn-text');
-      if (label) label.textContent = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
+      if (label) {
+        if (this.earlyCallAvailable) label.textContent = `CALL EARLY · +${earlyCall.bonus}g`;
+        else label.textContent = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
+      }
     }
+
+    this.setWavePreview(nextWave, canStartWave);
 
     document.querySelectorAll('.build-card').forEach((card) => {
       const def = getBuildDefinition(card.dataset.key);
@@ -965,6 +1001,78 @@ export class HUD {
       if (refund) refund.textContent = this.inspectedTower.sellRefund;
     }
     if (this.selectedBuildKey) this.setPlacementHint(this.selectedBuildKey);
+  }
+
+  /* ------------------------------------------------------- wave preview */
+
+  /**
+   * Prep-phase scout report under the wave button: who is coming next, how
+   * many, and whether a boss is in the pack. Hidden while a wave is running so
+   * the top bar stays quiet mid-fight.
+   */
+  setWavePreview(nextWave, canStartWave) {
+    const el = document.getElementById('wave-preview');
+    if (!el) return;
+    // One strip at a time: a live combo owns the slot, because that is the
+    // number the player is chasing mid-fight.
+    const show = Boolean(nextWave) && Boolean(canStartWave || this.earlyCallAvailable) && !this.comboActive;
+    el.classList.toggle('hidden', !show);
+    if (!show) {
+      if (this.lastPreviewKey) {
+        el.textContent = '';
+        this.lastPreviewKey = null;
+      }
+      return;
+    }
+
+    const key = `${nextWave.number}:${nextWave.total}:${nextWave.boss}:${nextWave.groups
+      .map((g) => `${g.type}${g.count}`)
+      .join(',')}`;
+    if (key === this.lastPreviewKey) return;
+    this.lastPreviewKey = key;
+
+    const chips = nextWave.groups
+      .map((group) => {
+        const name = ENEMY_TYPES[group.type]?.name || group.type;
+        const boss = ENEMY_TYPES[group.type]?.isBoss;
+        return `<span class="wave-preview-chip${boss ? ' boss' : ''}" title="${name}">
+          <b>${group.count}</b> ${name.replace(/^(Goblin|Iron|Shadow|Plague|Aegis|Stone|Abyssal|Crystal)\s+/i, '')}
+        </span>`;
+      })
+      .join('');
+
+    el.innerHTML = `<span class="wave-preview-head">NEXT IN ${nextWave.number}${nextWave.boss ? ' · BOSS' : ''}</span>${chips}`;
+  }
+
+  /* ------------------------------------------------------------- combo */
+
+  /** Show / refresh the kill-chain chip while a chain is running. */
+  showCombo({ chain = 0, multiplier = 1, tier = 0, bonus = 0 } = {}) {
+    const chip = document.getElementById('combo-chip');
+    if (!chip) return;
+    chip.classList.remove('hidden');
+    chip.dataset.tier = String(tier);
+    this.comboActive = true;
+    document.getElementById('wave-preview')?.classList.add('hidden');
+    chip.classList.remove('pop');
+    // restart the pop animation
+    void chip.offsetWidth;
+    chip.classList.add('pop');
+    this.setText('combo-mult', `×${formatMultiplier(multiplier)}`);
+    this.setText('combo-chain', `${chain} KILL CHAIN${bonus > 0 ? ` · +${bonus}g` : ''}`);
+    this.updateComboTimer(COMBO_WINDOW_MS);
+  }
+
+  hideCombo() {
+    document.getElementById('combo-chip')?.classList.add('hidden');
+    this.comboActive = false;
+  }
+
+  updateComboTimer(remainingMs) {
+    const fill = document.getElementById('combo-bar-fill');
+    if (!fill) return;
+    const ratio = Math.max(0, Math.min(1, remainingMs / COMBO_WINDOW_MS));
+    fill.style.transform = `scaleX(${Number(ratio.toFixed(3))})`;
   }
 
   setText(id, value) {

@@ -5,7 +5,16 @@ import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem } from '../systems/PathfindingSystem.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { GameStateManager, STATUS } from '../systems/GameStateManager.js';
-import { WaveManager } from '../systems/WaveManager.js';
+import { WaveManager, earlyCallBonus } from '../systems/WaveManager.js';
+import {
+  comboBonus,
+  createComboState,
+  registerKill,
+  resetCombo,
+  startNewWave,
+  tickCombo,
+  waveComboPayout,
+} from '../systems/ComboMeter.js';
 import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
@@ -64,6 +73,7 @@ export class GameScene extends Phaser.Scene {
     this.activeTowers = [];
     this.activeProjectiles = [];
 
+    this.combo = createComboState();
     this.waveManager = new WaveManager(this.level.endless ? [] : this.level.waves, {
       onSpawn: (type, waveNumber) => this.spawnEnemy(type, waveNumber),
       endless: Boolean(this.level.endless),
@@ -113,6 +123,7 @@ export class GameScene extends Phaser.Scene {
       this.hud.reset();
       this.hud.callbacks = {
         onStartWave: () => this.handleStartWave(),
+        onCallWaveEarly: () => this.handleCallWaveEarly(),
         onToggleSpeed: () => this.handleToggleSpeed(),
         onTogglePause: () => this.handleTogglePause(),
         onOpenCodex: () => this.handleOpenCodex(),
@@ -314,6 +325,7 @@ export class GameScene extends Phaser.Scene {
         this.hud?.showBossBar(e);
         audio.playWarning();
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
+        this.bossEntranceCinematic();
       },
       onBossPhaseChange: (e, phase) => {
         this.hud?.updateBossPhase(e, phase);
@@ -365,6 +377,42 @@ export class GameScene extends Phaser.Scene {
       } catch (error) {
         this.reportRuntimeError(error);
       }
+    }
+  }
+
+  /**
+   * Boss entrance: a short letterbox + camera punch.
+   *
+   * The boss banner alone could be missed mid-fight, so the frame itself reacts
+   * — the bars close in, the camera kicks, and the HUD bar stays untouched.
+   */
+  bossEntranceCinematic() {
+    if (!this.add?.rectangle || !this.cameras?.main) return;
+    try {
+      const cam = this.cameras.main;
+      const { width, height } = cam;
+      const barHeight = Math.max(24, height * 0.07);
+      const bars = [0, 1].map((index) =>
+        this.add
+          .rectangle(index === 0 ? width / 2 : width / 2, index === 0 ? 0 : height, width, 0, 0x000000, 0.82)
+          .setScrollFactor(0)
+          .setDepth(58)
+          .setOrigin(0.5, index === 0 ? 0 : 1)
+      );
+      const [topBar, bottomBar] = bars;
+      this.tweens.add({
+        targets: [topBar, bottomBar],
+        height: barHeight,
+        duration: 220,
+        ease: 'Cubic.easeOut',
+        hold: 760,
+        yoyo: true,
+        onComplete: () => bars.forEach((bar) => bar.destroy()),
+      });
+      cam.shake(420, 0.011);
+      cam.flash(260, 255, 138, 60, false);
+    } catch (error) {
+      this.reportRuntimeError(error);
     }
   }
 
@@ -432,6 +480,11 @@ export class GameScene extends Phaser.Scene {
   handleEnemyReachedBase(enemy) {
     audio.playDefeat();
     this.cameras.main.shake(160, 0.007);
+    // A leak breaks the chain: the combo is a reward for clean clearing.
+    if (this.combo.chain > 0) {
+      resetCombo(this.combo);
+      this.hud?.hideCombo();
+    }
     const destroyed = this.gameState.damageBase(enemy.baseDamage);
     this.gameState.counters.enemiesEscaped++;
 
@@ -447,10 +500,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleEnemyDefeated(enemy) {
+    // Kill chain: each kill inside the window raises the payout multiplier.
+    const kill = registerKill(this.combo, this.time?.now || 0);
+    const comboGold = comboBonus(enemy.reward, kill.multiplier);
+    const comboScore = comboBonus(enemy.score, kill.multiplier);
+
     audio.playCoin();
-    this.economy.earn(enemy.reward + this.rewardKillAuraBonus(enemy));
-    this.economy.addScore(enemy.score);
+    if (kill.tier > 0) audio.playCombo(kill.tier);
+    this.economy.earn(enemy.reward + comboGold + this.rewardKillAuraBonus(enemy));
+    this.economy.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
+
+    this.spawnDeathBurst(enemy.x, enemy.y, kill.tier);
+    if (kill.tier > 0) {
+      this.hud?.showCombo({ chain: kill.chain, multiplier: kill.multiplier, tier: kill.tier, bonus: comboGold });
+    }
 
     if (this.activeBoss === enemy) {
       this.activeBoss = null;
@@ -465,11 +529,45 @@ export class GameScene extends Phaser.Scene {
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
     if (started) {
+      startNewWave(this.combo);
       const wave = this.waveManager.waveNumber;
       this.hud?.showToast(`Wave ${wave}: ${this.waveManager.currentWave.name}!`, 'info');
       this.setBroodColour(wave);
       this.flashWaveBanner(wave, this.waveManager.currentWave.name);
     }
+    this.syncHUD();
+  }
+
+  /**
+   * Call the next wave while the current horde is still on the map.
+   *
+   * The current wave is settled immediately (its clear bonus is paid now) and
+   * the leftovers overlap with the new wave. The gold bonus scales with how many
+   * enemies are still alive, so the greedy call is also the risky one.
+   */
+  handleCallWaveEarly() {
+    const alive = this.activeEnemies.length;
+    const result = this.waveManager.callEarly(alive);
+    if (!result) return;
+
+    const clearCoins = WAVE_CLEAR_COINS.base + WAVE_CLEAR_COINS.perWave * result.settledWave;
+    const clearScore = SCORE.waveClearBase * result.settledWave;
+    // The settled wave never fires waveComplete, so its chain payout is paid
+    // here — otherwise calling early would quietly forfeit the best chain.
+    const comboPayout = waveComboPayout(this.combo.best);
+    const payout = clearCoins + result.bonus + comboPayout;
+    this.economy.earn(payout);
+    this.economy.addScore(clearScore);
+
+    audio.playCallEarly();
+    startNewWave(this.combo);
+    this.hud?.hideCombo();
+    this.hud?.showToast(
+      `Early call! +🪙${payout} · ${alive} leftover${alive === 1 ? '' : 's'} still marching`,
+      'info'
+    );
+    this.setBroodColour(result.wave);
+    this.flashWaveBanner(result.wave, this.waveManager.currentWave?.name || '');
     this.syncHUD();
   }
 
@@ -489,6 +587,42 @@ export class GameScene extends Phaser.Scene {
       (((base & 255) + (accent & 255)) >> 1);
     this.portalSprite?.setTint(mixed);
     this.spawnAccent = accent;
+  }
+
+  /**
+   * Death juice: a short, biome-tinted spark burst plus a bright flash ring.
+   * Stronger chains (tier 0..3) pop harder, so a 10-kill chain *feels* different
+   * from a single kill without changing any damage numbers.
+   */
+  spawnDeathBurst(x, y, tier = 0) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const tint = tier >= 3 ? 0xffd166 : tier >= 2 ? 0xff9d3c : (this.spawnAccent ?? this.theme?.portalTint ?? 0xb388ff);
+    try {
+      const emitter = this.particleEmitter;
+      if (emitter) {
+        emitter.setParticleTint?.(tint);
+        emitter.explode(8 + tier * 5, x, y);
+      }
+      if (this.textures.exists('spark')) {
+        const flash = this.add
+          .image(x, y, 'spark')
+          .setTint(tint)
+          .setDepth(47)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setScale(1.6 + tier * 0.35)
+          .setAlpha(0.9);
+        this.tweens.add({
+          targets: flash,
+          scale: 2.6 + tier * 0.5,
+          alpha: 0,
+          duration: 220 + tier * 40,
+          ease: 'Cubic.easeOut',
+          onComplete: () => flash.destroy(),
+        });
+      }
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
   }
 
   /** Big, short-lived "WAVE 4 — DUNE SWARM" title over the battlefield. */
@@ -1025,6 +1159,45 @@ export class GameScene extends Phaser.Scene {
     return payload;
   }
 
+  /** Early-call availability + its gold bonus, or null when unavailable. */
+  earlyCallInfo() {
+    const alive = this.activeEnemies.length;
+    if (!this.waveManager.canCallEarly(alive)) return null;
+    return { available: true, bonus: earlyCallBonus(alive), wave: this.waveManager.waveNumber + 1, alive };
+  }
+
+  /**
+   * Compact description of the upcoming wave for the HUD preview strip.
+   *
+   * Cached per wave number because the endless factory builds a fresh object on
+   * every call, and syncHUD runs on each game event.
+   */
+  nextWavePreview() {
+    if (!this.waveManager.canStartNextWave() && !this.waveManager.canCallEarly(this.activeEnemies.length)) {
+      return null;
+    }
+    const number = this.waveManager.waveNumber + 1;
+    if (this._previewCache?.number === number && this._previewCache.managerState === this.waveManager.state) {
+      return this._previewCache.preview;
+    }
+    const wave = this.waveManager.nextWave;
+    if (!wave) return null;
+    const counts = new Map();
+    for (const group of wave.groups) {
+      counts.set(group.type, (counts.get(group.type) || 0) + group.count);
+    }
+    const preview = {
+      number,
+      name: wave.name || '',
+      boss: Boolean(wave.bossWave || wave.bossKey),
+      bossKey: wave.bossKey || null,
+      total: [...counts.values()].reduce((sum, n) => sum + n, 0),
+      groups: [...counts.entries()].map(([type, count]) => ({ type, count })),
+    };
+    this._previewCache = { number, managerState: this.waveManager.state, preview };
+    return preview;
+  }
+
   syncHUD() {
     if (!this.hud) return;
     this.hud.update({
@@ -1040,6 +1213,8 @@ export class GameScene extends Phaser.Scene {
       canStartWave: this.waveManager.canStartNextWave(),
       isSpawning: this.waveManager.state === 'spawning',
       isPaused: this.gameState.isPaused(),
+      earlyCall: this.earlyCallInfo(),
+      nextWave: this.nextWavePreview(),
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
   }
@@ -1057,6 +1232,8 @@ export class GameScene extends Phaser.Scene {
         event.preventDefault();
         if (this.waveManager.canStartNextWave()) {
           this.handleStartWave();
+        } else if (this.waveManager.canCallEarly(this.activeEnemies.length)) {
+          this.handleCallWaveEarly();
         } else {
           this.handleTogglePause();
         }
@@ -1094,15 +1271,26 @@ export class GameScene extends Phaser.Scene {
 
     this.gameState.tick(clampedDelta);
 
+    // Kill chain decays on its own clock; the HUD bar follows it.
+    const combo = tickCombo(this.combo, this.time?.now || 0);
+    if (combo.expired) this.hud?.hideCombo();
+    else if (combo.chain > 0) this.hud?.updateComboTimer(combo.remainingMs);
+
     // 1. Wave Manager Update
     const waveEvent = this.waveManager.update(clampedDelta, this.activeEnemies.length);
     if (waveEvent && waveEvent.type === 'waveComplete') {
       audio.playWaveStart();
       const bonusCoins = WAVE_CLEAR_COINS.base + WAVE_CLEAR_COINS.perWave * waveEvent.waveNumber;
       const bonusScore = SCORE.waveClearBase * waveEvent.waveNumber;
-      this.economy.earn(bonusCoins);
+      const comboPayout = waveComboPayout(this.combo.best);
+      this.economy.earn(bonusCoins + comboPayout);
       this.economy.addScore(bonusScore);
-      this.hud?.showToast(`Wave ${waveEvent.waveNumber} Cleared! (+🪙${bonusCoins}, +${bonusScore} pts)`, 'info');
+      const comboNote = comboPayout > 0 ? ` · best chain ${this.combo.best} (+🪙${comboPayout})` : '';
+      this.hud?.showToast(
+        `Wave ${waveEvent.waveNumber} Cleared! (+🪙${bonusCoins + comboPayout}, +${bonusScore} pts)${comboNote}`,
+        'info'
+      );
+      this.hud?.hideCombo();
 
       if (waveEvent.isFinal) {
         this.handleVictory();
