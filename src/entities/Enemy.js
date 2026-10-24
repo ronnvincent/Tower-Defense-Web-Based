@@ -250,12 +250,6 @@ export class Enemy {
     return true;
   }
 
-  reroute(newPath) {
-    if (!newPath || newPath.length === 0) return;
-    this.path = newPath;
-    this.pathIndex = 0;
-  }
-
   /**
    * Applies damage via centralized CombatCalculator.
    * @param {number} rawDamage

@@ -29,6 +29,11 @@ committed, all under `src/assets/spire/` (unmodified sources) and
 
 ![Asset preview](asset-integration/asset-preview.png)
 
+That sheet is generated, not hand-assembled: `python3 scripts/make_asset_preview.py`
+reads the slot geometry from `src/data/towerVisuals.js`, composites every tower
+the way the game does and re-renders the enemy strips straight from
+`src/data/spireManifest.js`, so it can never drift from the shipped art.
+
 The composed battlefield (terrain autotiles, towers, palisade and props, drawn
 by a canvas port of the in-game placement rules):
 
@@ -45,11 +50,18 @@ Game slots are `lvl1 → lvl2 → spec-a / spec-b`. Art data lives in
 | **Ballista Tower** (`archer`) | Tower 01 (L1, L2, L3), Tower 06 (L3) | `t01_l01`, `t01_l02`, `t06_l03`, `t01_l03` | Stone platform + rotating ballista with bolt arms |
 | **Boulder Sling** (`cannon`) | Tower 03 (L1, L2, L3), Tower 04 (L3) | `t03_l01`, `t03_l02`, `t03_l03`, `t04_l03` | Timber platform + counterweight sling; the level-3 branch becomes a wall-mounted swivel gun |
 | **Frost Bastion** (`frost`) | Tower 02 (L1, L2, L3), Tower 05 (L3) | `t02_l01`, `t02_l02`, `t02_l03`, `t05_l03` | Shrine bowl + levitating ice crystal; the level-3 branch is a rune obelisk with a conductor orb |
+| **Hammerforge** (`forge`) | Tower 04 (L1, L2, L3) | `t04_l01` → `t04_l02` → `t04_l03` / `t04_l03` + storm remap | Stone keep with a counterweight hammer; the Thunderforge branch swaps the green gems for electric blue |
+| **Runestone** (`runes`) | Tower 05 (L1, L2, L3) | `t05_l01` → `t05_l02` → `t05_l03` / `t05_l03` + arcane remap | Obsidian rune keep with a levitating orb; the Arcane Nova branch shifts the crimson runes to violet |
+| **Banner Keep** (`banner`) | Tower 06 (L1, L2, L3) | `t06_l01` → `t06_l02` → `t06_l03` / `t06_l03` + gold remap | Limestone keep flying a banner; the Muster Camp branch recolours the blue pennant to royal gold |
 | **Palisade** (`barricade`) | Tileset 1 walkway planks + stone coping | one sprite per tier | Vertical stakes with a stone cap, standing on the road |
 
-Mechanics are untouched: ranges, damage, cooldowns, upgrades, targeting,
-hitboxes and the DSALGO pathfinding all use the same numbers as before the
-restyle. Only presentation changed.
+Tower 04, 05 and 06 each ship a single level-3 sheet, so the two branches of
+those lines share it and are told apart by a palette remap (`STORM_REMAP`,
+`ARCANE_REMAP`, `GOLD_REMAP` in the generator). Remaps are keyed by *output
+stem*, not slot index, so only the second branch is recoloured — `banner-spec-a`
+keeps the stock blue pennant. Mechanics are untouched: ranges, damage,
+cooldowns, upgrades, targeting, hitboxes and the DSALGO pathfinding all use the
+same numbers as before the restyle. Only presentation changed.
 
 ### Placement contract
 

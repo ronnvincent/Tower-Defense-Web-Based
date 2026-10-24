@@ -455,9 +455,6 @@ export const BARRICADE = {
   ],
 };
 
-/** Cells that can be attacked by enemies (everything with hit points). */
-export const SIEGE_TARGETS = new Set(['barricade']);
-
 /** Order of build buttons in the dock (also the keyboard 1–7 order). */
 export const BUILD_OPTIONS = ['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner'];
 

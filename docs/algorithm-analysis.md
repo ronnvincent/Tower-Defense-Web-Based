@@ -93,7 +93,7 @@ Our circular buffer uses `head = (head + 1) % capacity`, which executes in **$O(
 |---|---|:---:|:---:|:---:|---|
 | **Circular Queue** | `enqueue` / `dequeue` | $O(1)$ | $O(1)^*$ | $O(C)$ | Wave spawner & BFS frontier |
 | **Adjacency Graph** | Edge Lookup / Cut | $O(1)$ | $O(d)$ | $O(V + E)$ | Battlefield road network |
-| **Breadth-First Search** | Pathfinding | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Shortest path & Barricade check |
+| **Breadth-First Search** | Pathfinding | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Shortest enemy route & codex visualiser |
 | **Merge Sort** | Leaderboard Rank | $O(n \log n)$ | $O(n \log n)$ | $O(n)$ | Multi-key player score sorting |
 | **Linear Search** | Rank Position | $O(n)$ | $O(n)$ | $O(1)$ | Highlighting player's saved score |
 | **Hash Map** | Occupancy Query | $O(1)$ | $O(n)$ | $O(n)$ | Instant placement validation |

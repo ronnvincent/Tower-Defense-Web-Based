@@ -99,7 +99,7 @@ describe('Module contracts: entities', () => {
   });
 
   it('exposes the palisade siege API used by GameScene callbacks', () => {
-    for (const name of ['getBarricadeAhead', 'updateSiege', 'reroute', 'getNextCellKey', 'getCurrentCellKey']) {
+    for (const name of ['getBarricadeAhead', 'updateSiege', 'getNextCellKey', 'getCurrentCellKey']) {
       expect(typeof Enemy.prototype[name], name).toBe('function');
     }
   });

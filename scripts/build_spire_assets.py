@@ -218,7 +218,7 @@ TOWER_LAYOUT = {
     # Hammerforge branches share its level-3 sheet and are told apart by the
     # STORM recolour; the same trick separates the two Banner Keep branches.
     "forge": [(4, 1), (4, 2), (4, 3), (4, 3)],
-    "runes": [(5, 1), (5, 2), (5, 3), (2, 3)],
+    "runes": [(5, 1), (5, 2), (5, 3), (5, 3)],
     "banner": [(6, 1), (6, 2), (6, 3), (6, 3)],
 }
 
@@ -254,12 +254,12 @@ STORM_REMAP = {
     (0x30, 0x9C, 0x63): 0x2A6A9E,
 }
 
-# Violet shift for the Arcane Nova branch (T02 level 3 green -> arcane).
+# Violet shift for the Arcane Nova branch (T05 level 3 crimson -> arcane).
 ARCANE_REMAP = {
-    (0xB4, 0xD6, 0x45): 0xB07BFF,
-    (0xFC, 0xF9, 0x60): 0xEADCFF,
-    (0x51, 0xC4, 0x3F): 0x7B4FD8,
-    (0x30, 0x9C, 0x63): 0x4B2FA0,
+    (0xDE, 0x6A, 0x38): 0xC3A0FF,
+    (0xC9, 0x30, 0x38): 0x8E6BE8,
+    (0xF7, 0xA4, 0x8B): 0xE3D6FF,
+    (0xC2, 0x71, 0x82): 0x7B5FC4,
 }
 
 # Royal shift for the Muster Camp branch (T06 level 3 leather -> gold/navy).

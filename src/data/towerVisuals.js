@@ -76,7 +76,7 @@ export const TOWER_VISUALS = {
     { file: 'runes', base: 'base_runes.png', weapon: 'weapon_runes.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 88, slotTexture: 'proj-rune' },
     { file: 'runes-lvl2', base: 'base_runes-lvl2.png', weapon: 'weapon_runes-lvl2.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 96, slotTexture: 'proj-rune' },
     { file: 'runes-spec-a', base: 'base_runes-spec-a.png', weapon: 'weapon_runes-spec-a.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 104, slotTexture: 'proj-rune' },
-    { file: 'runes-spec-b', base: 'base_runes-spec-b.png', weapon: 'weapon_runes-spec-b.png', fw: 64, fh: 128, frames: 20, px: 32, py: 64, mount: 83, slotTexture: 'proj-rune' },
+    { file: 'runes-spec-b', base: 'base_runes-spec-b.png', weapon: 'weapon_runes-spec-b.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 104, slotTexture: 'proj-rune' },
   ]),
 
   // T06 limestone keep with banners. The pole is static (it is a banner, not a
@@ -118,7 +118,7 @@ export const MUZZLE_OFFSET = {
   runes: { x: 0, y: -26 },
   'runes-lvl2': { x: 0, y: -30 },
   'runes-spec-a': { x: 0, y: -30 },
-  'runes-spec-b': { x: 0, y: -34 },
+  'runes-spec-b': { x: 0, y: -30 },
   // Banners do not rotate: { x } is the height of the pennant above the pivot.
   banner: { x: 30, y: 0 },
   'banner-lvl2': { x: 38, y: 0 },
