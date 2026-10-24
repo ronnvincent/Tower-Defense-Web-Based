@@ -169,7 +169,8 @@ export class ProgressStore {
    * and the next node unlocks on the first clear.
    *
    * @returns {{ stars:number, previousStars:number, improved:boolean, firstClear:boolean,
-   *             rewards:{gold:number,gems:number}, unlocked:string|null }}
+   *             rewards:{gold:number,gems:number}, unlocked:string|null,
+   *             unlockedAll:string[] }}
    */
   recordVictory(level, { baseHealth, maxBaseHealth, score = 0 }) {
     const stars = starRating({ baseHealth, maxBaseHealth, thresholds: level.stars });
@@ -182,7 +183,7 @@ export class ProgressStore {
     this.profile.gold += rewards.gold;
     this.profile.gems += rewards.gems;
 
-    let unlocked = null;
+    const newlyUnlocked = [];
     if (level.endless) {
       this.profile.campaignComplete = true;
     } else {
@@ -193,7 +194,7 @@ export class ProgressStore {
       for (const id of targets) {
         if (id && !this.isUnlocked(id)) {
           this.profile.unlocked.push(id);
-          unlocked = unlocked || id;
+          newlyUnlocked.push(id);
         }
       }
       if (!next && level.id === LEVELS[LEVELS.length - 1].id) {
@@ -208,7 +209,11 @@ export class ProgressStore {
       improved: stars > previousStars,
       firstClear,
       rewards,
-      unlocked,
+      // A single clear can open two doors (level 2 *and* Endless Siege), so the
+      // result screen gets every id; `unlocked` stays the first one for callers
+      // that only want to announce a single thing.
+      unlocked: newlyUnlocked[0] || null,
+      unlockedAll: newlyUnlocked,
     };
   }
 
@@ -226,10 +231,14 @@ export class ProgressStore {
     return { waveBest, scoreBest, isRecord };
   }
 
-  /** Record a loss; only the endless depth is worth keeping. */
+  /**
+   * Record a loss. Only an endless run is worth keeping (its depth is the
+   * score); a campaign defeat neither earns stars nor beats the level's saved
+   * best, so it reports the stored best rather than the losing score.
+   */
   recordDefeat(level, { wave = 0, score = 0 } = {}) {
     if (level?.endless) return this.recordEndless({ wave, score });
-    return { waveBest: 0, scoreBest: Math.max(this.bestScoreFor(level?.id || ''), score), isRecord: false };
+    return { waveBest: 0, scoreBest: this.bestScoreFor(level?.id || ''), isRecord: false };
   }
 }
 

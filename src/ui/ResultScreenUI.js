@@ -1,4 +1,4 @@
-import { getNextLevel } from '../data/levelData.js';
+import { ALL_LEVELS, getNextLevel } from '../data/levelData.js';
 import { STAR_MAX } from '../systems/Progression.js';
 import { audio } from '../rendering/AudioSynth.js';
 
@@ -10,6 +10,12 @@ import { audio } from '../rendering/AudioSynth.js';
  * shows how far the run got and offers a retry. The leaderboard is still one
  * tap away, so the merge-sort demo keeps its entry point.
  */
+/** Human-readable name for a level id, for unlock announcements. */
+function levelName(id) {
+  if (id === 'endless') return 'Endless Siege';
+  return ALL_LEVELS.find((level) => level.id === id)?.name || 'A new battle';
+}
+
 export class ResultScreenUI {
   /**
    * @param {HTMLElement} container
@@ -67,9 +73,14 @@ export class ResultScreenUI {
     const endless = Boolean(level?.endless);
 
     const nextLevel = !endless && victory ? getNextLevel(level.id) : null;
-    const unlockedName = result.unlocked
-      ? (result.unlocked === 'endless' ? 'Endless Siege' : getNextLevel(level.id)?.name || 'the next battle')
-      : null;
+    // One clear can open two doors at once (level 2 *and* Endless Siege), so
+    // announce every id the store reported instead of only the first.
+    const unlockedIds = Array.isArray(result.unlockedAll) && result.unlockedAll.length
+      ? result.unlockedAll
+      : result.unlocked
+        ? [result.unlocked]
+        : [];
+    const campaignComplete = !endless && victory && level?.index === ALL_LEVELS.filter((l) => !l.endless).length;
 
     const statRows = endless
       ? `
@@ -90,13 +101,17 @@ export class ResultScreenUI {
          </div>`
       : '';
 
-    const unlockRow = unlockedName
-      ? `<p class="result-unlock">🔓 ${unlockedName.toUpperCase()} UNLOCKED</p>`
-      : victory && !endless
-        ? '<p class="result-unlock subtle">Replay for a better star rating.</p>'
-        : outcome === 'defeat' && endless
-          ? `<p class="result-unlock subtle">${result.newRecord ? 'NEW RECORD!' : 'The horde keeps coming.'}</p>`
-          : '';
+    const unlockRow = unlockedIds.length
+      ? unlockedIds
+          .map((id) => `<p class="result-unlock">🔓 ${levelName(id).toUpperCase()} UNLOCKED</p>`)
+          .join('')
+      : campaignComplete
+        ? '<p class="result-unlock">🏆 CAMPAIGN COMPLETE — ENDLESS SIEGE AWAITS</p>'
+        : victory && !endless
+          ? '<p class="result-unlock subtle">Replay for a better star rating.</p>'
+          : outcome === 'defeat' && endless
+            ? `<p class="result-unlock subtle">${result.newRecord ? 'NEW RECORD!' : 'The horde keeps coming.'}</p>`
+            : '';
 
     const actions = [];
     if (victory && nextLevel) {

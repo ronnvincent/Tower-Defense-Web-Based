@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 300 tests across 24 test suites.
-- **Pass Rate:** **100% (300 / 300 Passed)**
+- **Total Automated Unit Tests:** 304 tests across 24 test suites.
+- **Pass Rate:** **100% (304 / 304 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -137,7 +137,7 @@
      ✓ keeps the top bar on a single row on short landscape screens
      ✓ hides the zoom pill on touch devices but keeps reset
 
- ✓ tests/progression.test.js (11 tests)
+ ✓ tests/progression.test.js (12 tests)
      ✓ awards 3 stars at 85% base health, 2 at 50%, 1 for surviving
      ✓ honours per-level thresholds and never crashes on a zeroed core
      ✓ pays the full bounty on a first clear and a bonus gem at 3 stars
@@ -145,12 +145,13 @@
      ✓ starts with only level 1 open
      ✓ unlocks the next level (and Endless) on the first clear
      ✓ keeps the best stars on replay and only pays the stipend
+     ✓ never lets a campaign defeat overwrite the saved best score
      ✓ records endless depth without granting stars
      ✓ a defeat never awards stars but endless keeps the depth reached
      ✓ persists to storage and rehydrates, merging over a fresh profile
      ✓ survives corrupt JSON and a throwing storage
 
- ✓ tests/campaign-ui.test.js (13 tests)
+ ✓ tests/campaign-ui.test.js (16 tests)
      ✓ renders one node per campaign level plus Endless Siege
      ✓ locks every node that has not been unlocked and shows the padlock
      ✓ uses the generated minimap for each theme
@@ -164,6 +165,9 @@
      ✓ hides cleanly and forgets the last result
      ✓ mounts on its own layer between the HUD and the modal dialogs
      ✓ survives another UI replacing the modal container
+     ✓ announces level 2 and Endless Siege when one clear opens both
+     ✓ falls back to the single unlocked id and never prints "A new battle" for it
+     ✓ celebrates a finished campaign on the last level and drops the NEXT button
 
  ✓ tests/boss-abilities.test.js (9 tests)
      ✓ ships three distinct, bigger, multi-phase bosses
@@ -181,7 +185,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  24 passed (24)
-Tests       300 passed (300)
+Tests       304 passed (304)
 Duration    6.7s
 ```
 
@@ -198,8 +202,8 @@ Duration    6.7s
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
 | `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
-| `tests/progression.test.js` | node | 11 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
-| `tests/campaign-ui.test.js` | jsdom | 13 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
+| `tests/progression.test.js` | node | 12 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
+| `tests/campaign-ui.test.js` | jsdom | 16 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
 | `tests/boss-abilities.test.js` | jsdom | 9 | Boss phase data, aura/freeze pulses, speed-boost stacking with slow, tower freeze/thaw, endless boss cadence |
 | `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
 | `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |

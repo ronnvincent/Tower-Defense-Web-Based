@@ -876,6 +876,7 @@ export class GameScene extends Phaser.Scene {
       previousStars: record.previousStars,
       rewards: record.rewards,
       unlocked: record.unlocked,
+      unlockedAll: record.unlockedAll,
       firstClear: record.firstClear,
       score: this.economy.score,
       waves: this.waveManager.wavesCompleted,

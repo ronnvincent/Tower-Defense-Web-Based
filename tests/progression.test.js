@@ -76,6 +76,7 @@ describe('ProgressStore', () => {
     expect(result.stars).toBe(2);
     expect(result.firstClear).toBe(true);
     expect(result.unlocked).toBe('level-2');
+    expect(result.unlockedAll).toEqual(['level-2', 'endless']);
     expect(store.isUnlocked('level-2')).toBe(true);
     expect(store.isUnlocked('endless')).toBe(true);
     expect(store.gold).toBe(getLevel('level-1').reward.gold);
@@ -93,9 +94,21 @@ describe('ProgressStore', () => {
     expect(replay.firstClear).toBe(false);
     expect(replay.improved).toBe(false);
     expect(replay.unlocked).toBeNull();
+    expect(replay.unlockedAll).toEqual([]);
     expect(store.starsFor('level-1')).toBe(3);
     expect(store.bestScoreFor('level-1')).toBe(500);
     expect(store.gold).toBe(goldAfterFirst + Math.round(level.reward.gold * 0.2));
+  });
+
+  it('never lets a campaign defeat overwrite the saved best score', () => {
+    const store = new ProgressStore({ storage: fakeStorage() });
+    const level = getLevel('level-1');
+    store.recordVictory(level, { baseHealth: 25, maxBaseHealth: 25, score: 900 });
+    const loss = store.recordDefeat(level, { wave: 4, score: 4800 });
+    expect(loss.isRecord).toBe(false);
+    expect(loss.scoreBest).toBe(900);
+    expect(store.bestScoreFor('level-1')).toBe(900);
+    expect(store.profile.stars['level-1']).toBe(3);
   });
 
   it('records endless depth without granting stars', () => {

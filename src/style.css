@@ -2865,8 +2865,10 @@ body.is-fullscreen #app::after {
 /* ==========================================================================
    CAMPAIGN UI — world map, victory / defeat modal, HUD level chip
    --------------------------------------------------------------------------
-   These layers live inside #modal-container, which is pointer-events:none so
-   the battlefield keeps receiving drags; every screen re-enables it on itself.
+   The world map and the result screens live in #screen-container (z-index 250),
+   dialogs in #modal-container (z-index 300). Both containers are
+   pointer-events:none so the battlefield keeps receiving drags; every screen
+   re-enables it on itself.
    Sizes are clamped so the same markup works on a 1280 px desktop stage and on
    a 740 px landscape phone.
    ========================================================================== */
@@ -2931,6 +2933,10 @@ body.is-fullscreen #app::after {
 .overlay-shell {
   width: min(1040px, 100%);
   max-height: 100%;
+  /* `margin: auto` centres the shell when it fits and lets a tall shell start
+     at the top instead of clipping under a centred flex item on a 360 px
+     landscape phone. */
+  margin: auto;
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 1.6vh, 18px);

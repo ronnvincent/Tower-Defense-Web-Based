@@ -218,3 +218,49 @@ describe('campaign screen layer', () => {
     expect(document.getElementById('result-next')).not.toBeNull();
   });
 });
+
+describe('result screen announcements', () => {
+  function showResult(payload) {
+    document.body.innerHTML = '<div id="screen-container"></div>';
+    const ui = new ResultScreenUI(document.getElementById('screen-container'));
+    ui.show({
+      score: 1000,
+      waves: 6,
+      totalWaves: 6,
+      timeMs: 120000,
+      stars: 2,
+      rewards: { gold: 150, gems: 4 },
+      ...payload,
+    });
+    return ui;
+  }
+
+  it('announces level 2 and Endless Siege when one clear opens both', () => {
+    const ui = showResult({
+      outcome: 'victory',
+      level: getLevel('level-1'),
+      unlockedAll: ['level-2', 'endless'],
+    });
+    const lines = [...document.querySelectorAll('#result-screen .result-unlock')].map((el) => el.textContent);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('SUNSCORCH MESA');
+    expect(lines[1]).toContain('ENDLESS SIEGE');
+    const next = document.querySelector('#result-next');
+    expect(next).not.toBeNull();
+    next.click();
+    ui.hide();
+    expect(document.getElementById('result-screen')).toBeNull();
+  });
+
+  it('falls back to the single unlocked id and never prints "A new battle" for it', () => {
+    showResult({ outcome: 'victory', level: getLevel('level-1'), unlocked: 'level-2' });
+    const line = document.querySelector('#result-screen .result-unlock');
+    expect(line.textContent).toContain('SUNSCORCH MESA');
+  });
+
+  it('celebrates a finished campaign on the last level and drops the NEXT button', () => {
+    showResult({ outcome: 'victory', level: getLevel('level-3') });
+    expect(document.querySelector('#result-next')).toBeNull();
+    expect(document.querySelector('#result-screen .result-unlock').textContent).toContain('CAMPAIGN COMPLETE');
+  });
+});
