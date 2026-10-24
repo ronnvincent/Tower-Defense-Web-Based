@@ -81,6 +81,9 @@ export class ResultScreenUI {
         ? [result.unlocked]
         : [];
     const campaignComplete = !endless && victory && level?.index === ALL_LEVELS.filter((l) => !l.endless).length;
+    // A replay that beats the saved rating is the one thing a returning player
+    // wants to see; a first clear is already obvious from the stars themselves.
+    const recordRun = victory && !endless && (result.previousStars ?? 0) > 0 && stars > (result.previousStars ?? 0);
 
     const statRows = endless
       ? `
@@ -127,6 +130,7 @@ export class ResultScreenUI {
           <div class="result-ribbon">${victory ? (endless ? 'RUN OVER' : 'VICTORY') : 'DEFEAT'}</div>
           <h1 class="result-heading">${level?.name || 'Bastion'}</h1>
           ${victory && !endless ? this.starMarkup(stars) : '<div class="result-stars defeat-mark" aria-hidden="true">💀</div>'}
+          ${recordRun ? `<p class="result-record">NEW BEST ${result.previousStars}★ → ${stars}★</p>` : ''}
           <div class="result-stats">${statRows}</div>
           ${rewardRow}
           ${unlockRow}

@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 311 tests across 25 test suites.
-- **Pass Rate:** **100% (311 / 311 Passed)**
+- **Total Automated Unit Tests:** 312 tests across 25 test suites.
+- **Pass Rate:** **100% (312 / 312 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -151,7 +151,7 @@
      ✓ persists to storage and rehydrates, merging over a fresh profile
      ✓ survives corrupt JSON and a throwing storage
 
- ✓ tests/campaign-ui.test.js (16 tests)
+ ✓ tests/campaign-ui.test.js (17 tests)
      ✓ renders one node per campaign level plus Endless Siege
      ✓ locks every node that has not been unlocked and shows the padlock
      ✓ uses the generated minimap for each theme
@@ -167,6 +167,7 @@
      ✓ survives another UI replacing the modal container
      ✓ announces level 2 and Endless Siege when one clear opens both
      ✓ falls back to the single unlocked id and never prints "A new battle" for it
+     ✓ shouts about a new best rating only when a replay actually improves it
      ✓ celebrates a finished campaign on the last level and drops the NEXT button
 
  ✓ tests/boss-abilities.test.js (9 tests)
@@ -185,7 +186,7 @@
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  24 passed (24)
-Tests       311 passed (311)
+Tests       312 passed (312)
 Duration    6.7s
 ```
 
@@ -204,7 +205,7 @@ Duration    6.7s
 | `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
 | `tests/campaign-assets.test.js` | node | 7 | Missing biome tiles, a road set that never changed, creeps or bosses without a sheet, animation strips too short for their frames, missing minimaps / star / lock icons |
 | `tests/progression.test.js` | node | 12 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
-| `tests/campaign-ui.test.js` | jsdom | 16 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
+| `tests/campaign-ui.test.js` | jsdom | 17 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
 | `tests/boss-abilities.test.js` | jsdom | 9 | Boss phase data, aura/freeze pulses, speed-boost stacking with slow, tower freeze/thaw, endless boss cadence |
 | `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
 | `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |

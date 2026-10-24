@@ -165,7 +165,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 311 tests / 25 suites (includes the UI + mobile-layout suites)
+npm test                # 312 tests / 25 suites (includes the UI + mobile-layout suites)
 npm run check:contrast  # WCAG audit — 36/36
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle
@@ -224,9 +224,12 @@ Manual checklist for a human browser session:
   only ways out are a node or MAIN MENU.
 
 **Result screen** (`src/ui/ResultScreenUI.js`)
-- Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, three
-  stat chips (score / waves / time), the banked rewards, an unlock line, and
-  Next / Replay / Leaderboard / Main Menu.
+- Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, a
+  pulsing "NEW BEST 2★ → 3★" line when a replay beats the saved rating, three
+  stat chips (score / waves / time), the banked rewards, one unlock line per
+  door that opened (a first level-1 clear opens level 2 *and* Endless Siege),
+  and Next / Replay / Leaderboard / Main Menu. Beating the last stage swaps the
+  unlock line for a CAMPAIGN COMPLETE banner and drops NEXT.
 - Defeat: same shell in crimson, a skull mark instead of stars, RETRY instead of
   Next. Endless swaps the stat chips for WAVE REACHED / BEST WAVE / SCORE and
   reports a new depth record.

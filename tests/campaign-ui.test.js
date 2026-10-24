@@ -258,6 +258,18 @@ describe('result screen announcements', () => {
     expect(line.textContent).toContain('SUNSCORCH MESA');
   });
 
+  it('shouts about a new best rating only when a replay actually improves it', () => {
+    showResult({ outcome: 'victory', level: getLevel('level-1'), stars: 3, previousStars: 2 });
+    expect(document.querySelector('#result-screen .result-record').textContent).toContain('2★ → 3★');
+
+    showResult({ outcome: 'victory', level: getLevel('level-1'), stars: 3, previousStars: 3 });
+    expect(document.querySelector('#result-screen .result-record')).toBeNull();
+
+    // A first clear is obvious from the stars; no "0★ → 3★" noise.
+    showResult({ outcome: 'victory', level: getLevel('level-1'), stars: 3, previousStars: 0 });
+    expect(document.querySelector('#result-screen .result-record')).toBeNull();
+  });
+
   it('celebrates a finished campaign on the last level and drops the NEXT button', () => {
     showResult({ outcome: 'victory', level: getLevel('level-3') });
     expect(document.querySelector('#result-next')).toBeNull();

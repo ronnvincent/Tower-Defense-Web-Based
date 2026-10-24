@@ -874,6 +874,7 @@ export class GameScene extends Phaser.Scene {
       level: this.level,
       stars: record.stars,
       previousStars: record.previousStars,
+      improved: record.improved,
       rewards: record.rewards,
       unlocked: record.unlocked,
       unlockedAll: record.unlockedAll,

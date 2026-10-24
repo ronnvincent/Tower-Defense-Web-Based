@@ -3250,6 +3250,24 @@ body.is-fullscreen #app::after {
   }
 }
 
+.result-record {
+  margin: -4px 0 0;
+  font-size: clamp(9px, 1.2vh, 11px);
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  color: var(--gold-primary);
+  animation: result-record-glow 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes result-record-glow {
+  from {
+    text-shadow: 0 0 0 rgba(245, 196, 81, 0);
+  }
+  to {
+    text-shadow: 0 0 12px rgba(245, 196, 81, 0.55);
+  }
+}
+
 .result-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
