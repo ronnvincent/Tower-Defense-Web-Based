@@ -98,8 +98,15 @@ function startLevel(levelId = 'level-1') {
   hudLayer()?.classList.remove('hidden');
 
   const gameScene = game.scene.getScene('GameScene');
+  const menuScene = game.scene.getScene('MenuScene');
+
   if (gameScene?.scene?.isActive()) {
+    // Next / Replay / a new node picked after a battle: restart in place.
     gameScene.scene.restart({ levelId });
+  } else if (menuScene?.scene?.isActive()) {
+    // ScenePlugin.start() stops the menu first, so its backdrop and embers do
+    // not keep rendering underneath the battlefield.
+    menuScene.scene.start('GameScene', { levelId });
   } else {
     game.scene.start('GameScene', { levelId });
   }
@@ -111,10 +118,12 @@ function openMainMenu() {
   hudLayer()?.classList.add('hidden');
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
-    gameScene.scene.start('MenuScene');
-  } else {
+    gameScene.scene.start('MenuScene'); // stops the battle, then boots the menu
+  } else if (!game.scene.getScene('MenuScene')?.scene?.isActive()) {
     game.scene.start('MenuScene');
   }
+  // else: the menu is already up — the overlay reveal in MenuScene.create() is
+  // not needed because the menu was never torn down.
 }
 
 window.gameFlow = { openLevelSelect, startLevel, openMainMenu };
