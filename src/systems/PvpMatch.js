@@ -31,6 +31,7 @@ export const WIN_REASON = Object.freeze({
   POINTS: 'points',
   CORE: 'core-hp',
   TIME: 'time',
+  FORFEIT: 'forfeit',
 });
 
 /** The other seat. Unknown ids fall back to p2 so a bad message can't crash. */
@@ -248,24 +249,33 @@ export function reportSeat(match, report, now = Date.now()) {
 }
 
 /**
- * Close a match whose remaining seat never reported (disconnect, closed tab).
- * The seat that finished the script takes the win; if neither did, the match is
- * abandoned rather than awarded to a player who did nothing.
+ * Close a match because a seat walked away (quit, closed tab, dropped socket).
+ *
+ * Walking out of a live duel is a loss, full stop: the player who stayed gets
+ * the win and the arena. The alternative — a draw — would reward abandoning a
+ * match you are losing, which is exactly the behaviour a ranked mode cannot
+ * have.
  */
 export function forfeit(match, seatId, now = Date.now()) {
   const seat = getSeat(match, seatId);
   if (!seat || match.status === MATCH_STATUS.OVER) return { match, resolved: null };
   const other = getSeat(match, opponentOf(seatId));
-  const otherCleared = other?.result?.outcome === 'cleared';
   match.status = MATCH_STATUS.OVER;
   match.endedAt = now;
-  match.winner = otherCleared ? other.id : null;
-  match.loser = otherCleared ? seatId : null;
-  match.reason = otherCleared ? WIN_REASON.KNOCKOUT : null;
-  match.draw = !otherCleared;
+  match.winner = other?.id || null;
+  match.loser = seatId;
+  match.reason = WIN_REASON.FORFEIT;
+  match.draw = false;
   return {
     match,
-    resolved: { winner: match.winner, loser: match.loser, reason: match.reason, decided: true, waiting: false, draw: match.draw },
+    resolved: {
+      winner: match.winner,
+      loser: match.loser,
+      reason: match.reason,
+      decided: true,
+      waiting: false,
+      draw: false,
+    },
   };
 }
 
@@ -300,6 +310,8 @@ export function describeResult(match) {
       return `${label} wins on core integrity`;
     case WIN_REASON.TIME:
       return `${label} wins on clear time`;
+    case WIN_REASON.FORFEIT:
+      return `${label} wins by forfeit`;
     default:
       return `${label} wins`;
   }

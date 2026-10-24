@@ -330,15 +330,18 @@ describe('duel match state machine', () => {
     reportSeat(m, cleared('p1'));
     const { resolved } = forfeit(m, 'p2');
     expect(resolved.winner).toBe('p1');
+    expect(resolved.reason).toBe(WIN_REASON.FORFEIT);
     expect(m.status).toBe(MATCH_STATUS.OVER);
   });
 
-  it('abandons the match if nobody finished', () => {
+  it('awards a walk-out to the player who stayed, never a draw', () => {
     const m = match();
     goLive(m);
     const { resolved } = forfeit(m, 'p1');
-    expect(resolved.draw).toBe(true);
-    expect(m.winner).toBeNull();
+    expect(resolved.draw).toBe(false);
+    expect(m.winner).toBe('p2');
+    expect(m.loser).toBe('p1');
+    expect(describeResult(m)).toBe('Challenger wins by forfeit');
   });
 
   it('tracks rival progress without ending the match', () => {

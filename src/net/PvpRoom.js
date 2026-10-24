@@ -27,6 +27,7 @@ import {
   tickLobby,
 } from './LobbyState.js';
 import { MSG, OP, envelope, isValidRoomCode, makeRoomCode, normaliseRoomCode } from './lobbyProtocol.js';
+import { forfeit, opponentOf } from '../systems/PvpMatch.js';
 import { createTransport } from './transports.js';
 
 export const ROOM_EVENTS = Object.freeze({
@@ -240,11 +241,24 @@ export class PvpRoom {
       }
 
       case MSG.BYE: {
-        if (!this.state?.isHost) {
-          this.emit(ROOM_EVENTS.ERROR, 'Your rival left the room');
+        if (this.state?.isHost) {
+          this.#applyRemoteIntent({ clientId: message.from, op: OP.LEAVE, payload: {} });
           return;
         }
-        this.#applyRemoteIntent({ clientId: message.from, op: OP.LEAVE, payload: {} });
+        // A challenger cannot edit the room, but if the host vanishes mid-match
+        // they still deserve a verdict instead of a frozen arena.
+        const seat = this.seat;
+        if (this.state && seat && this.state.status === LOBBY_STATUS.LIVE) {
+          const { resolved } = forfeit(this.state.match, opponentOf(seat), this.now());
+          this.state.status = LOBBY_STATUS.OVER;
+          this.#publish();
+          if (resolved) {
+            this.overEmitted = true;
+            this.emit(ROOM_EVENTS.OVER, { resolved, view: this.view });
+          }
+          return;
+        }
+        this.emit(ROOM_EVENTS.ERROR, 'Your rival left the room');
         return;
       }
 

@@ -18,6 +18,7 @@ const REASON_COPY = {
   points: 'won on points',
   'core-hp': 'won on core integrity',
   time: 'won on clear time',
+  forfeit: 'won by forfeit',
 };
 
 export class DuelResultUI {

@@ -2262,6 +2262,17 @@ kbd {
   .menu-tile {
     min-height: clamp(44px, 8vh, 56px);
   }
+
+  /* The duel row is a mode switch, not a destination: keep it slim so the
+     whole menu still fits a 360-tall landscape phone without scrolling. */
+  .menu-duel {
+    min-height: 38px;
+    border-width: 8px 16px;
+  }
+
+  .menu-duel-kicker {
+    display: none;
+  }
 }
 
 /* Portrait / narrow windows: one column, brand centred above the actions. */

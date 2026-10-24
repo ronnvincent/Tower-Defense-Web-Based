@@ -25,16 +25,20 @@ The mode lives on the main menu as **DUEL · 1v1 LOBBY**.
 
 1. **Knockout.** The first core that reaches 0 loses immediately — even if the
    rival has already finished their waves.
-2. **Points.** If both seats clear all 8 waves, the higher score wins.
-3. **Core integrity.** Equal score → the seat with more core HP wins.
-4. **Clear time.** Still tied → the faster clear wins.
-5. **Draw.** Identical on all four — nobody takes the arena.
+2. **Forfeit.** Walking out of a live match — quit, closed tab, dropped
+   socket — loses it, and the player who stayed is awarded the win.
+3. **Points.** If both seats clear all 8 waves, the higher score wins.
+4. **Core integrity.** Equal score → the seat with more core HP wins.
+5. **Clear time.** Still tied → the faster clear wins.
+6. **Draw.** Identical on all four — nobody takes the arena.
 
 Score is the normal in-run score (kills × kill-chain multiplier, wave clears,
 plus the survival bonus for HP left).
 
 Leaving a live duel from the pause card is a **forfeit**: the seat reports a
-knockout and the room closes, so a rival is never left guarding an empty arena.
+walk-out, the room closes and the player who stayed takes the win — never a
+draw (a draw would reward abandoning a match you are losing). A dropped socket
+is treated the same way, so a rival is never left guarding an empty arena.
 
 ---
 
