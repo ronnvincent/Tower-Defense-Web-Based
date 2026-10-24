@@ -151,11 +151,24 @@ boss and first-clear bounty.
 
 ### Victory / defeat flow
 `GameScene.handleVictory()` → `ProgressStore.recordVictory()` → `ResultScreenUI`
-(stars, rewards, unlock line, Next / Replay / Leaderboard / Main Menu).
-`handleGameOver()` records the defeat (endless keeps the depth reached) and
-shows the same screen without stars. `window.gameFlow` in `src/main.js` owns
-the transitions, so Next and Replay restart the battle with a new `levelId`
-rather than stacking scenes.
+(stars, rewards, one unlock line per door that opened, Next / Replay /
+Leaderboard / Main Menu). `handleGameOver()` records the defeat (endless keeps
+the depth reached, a campaign level keeps its saved best untouched) and shows
+the same screen without stars. `window.gameFlow` in `src/main.js` owns the
+transitions, so Next and Replay restart the battle with a new `levelId` rather
+than stacking scenes.
+
+`recordVictory()` reports `unlocked` (first door, kept for compatibility) and
+`unlockedAll` (every door) because a single level-1 clear opens level 2 *and*
+Endless Siege. `GameScene.init()` re-reads `levelId` from the resolved level, so
+an unknown id can never be carried into a restart.
+
+### Screen layers
+Campaign screens mount into `#screen-container` (z-index 250) and dialogs —
+leaderboard, codex — into `#modal-container` (z-index 300). Both containers are
+`pointer-events: none` so the battlefield keeps its drags, and each screen
+re-enables pointer events on itself. Sharing one container used to let the
+leaderboard's `innerHTML` write wipe the result screen it was opened from.
 
 ---
 
