@@ -2,7 +2,9 @@ import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COIN
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
 import {
+  ENEMY_TYPES,
   endlessHealthScale,
+  endlessBossHealthScale,
   endlessSpeedScale,
   endlessRewardScale,
 } from '../data/enemyData.js';
@@ -479,12 +481,16 @@ export class GameScene extends Phaser.Scene {
    * horde stays readable) and the bounty tracks the HP ramp, or the player could
    * never afford the towers the next wave demands.
    */
-  spawnScaling(waveNumber) {
+  spawnScaling(waveNumber, typeKey = null) {
     const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
     const base = this.level.enemyHealthScale || 1;
     if (!this.level.endless) return { healthScale: base, speedScale: 1, rewardScale: 1 };
+    // Bosses take the gentler, capped ramp: a titan is already a wall of HP, and
+    // the creep curve would turn it into a ninety-thousand-HP timer.
+    const isBoss = Boolean(ENEMY_TYPES[typeKey]?.isBoss);
+    const health = isBoss ? endlessBossHealthScale(wave) : endlessHealthScale(wave);
     return {
-      healthScale: base * endlessHealthScale(wave),
+      healthScale: base * health,
       speedScale: endlessSpeedScale(wave),
       rewardScale: endlessRewardScale(wave),
     };
@@ -539,7 +545,7 @@ export class GameScene extends Phaser.Scene {
           });
         }
       },
-    }, { ...this.spawnScaling(waveNumber), theme: this.theme?.id || this.level.theme });
+    }, { ...this.spawnScaling(waveNumber, typeKey), theme: this.theme?.id || this.level.theme });
     this.activeEnemies.push(enemy);
     this.gameState.counters.enemiesSpawned++;
 

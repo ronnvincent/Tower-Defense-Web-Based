@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 628 tests across 47 test suites.
-- **Pass Rate:** **100% (628 / 628 Passed)**
+- **Total Automated Unit Tests:** 631 tests across 47 test suites.
+- **Pass Rate:** **100% (631 / 631 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -220,7 +220,7 @@ Duration    6.7s
 | `tests/dock-fold.test.js` | jsdom | 8 | The forge toggle not folding/unfolding the cards, an armed defence surviving into a fold, the fold not remembered (or crashing without storage), a duel label leaking into the next campaign battle |
 | `tests/map-margin.test.js` | node | 6 | A spawn or core back on the map edge (half its art clipped), a gate buried under the top bar or the dock, a duel arena whose gates stop mirroring each other, a margin that severs the road network |
 | `tests/enemy-facing.test.js` | jsdom | 10 | A sheet that declares no orientation, south- and north-drawn art turned the wrong way (the "walking backwards" bug), a pose off the 45° grid, a rotated sprite being mirrored as well, a creep that holds its old pose at a corner, a siege swing facing away from the wall, front-on art rotating instead of flipping |
-| `tests/endless-difficulty.test.js` | node | 12 | An endless HP curve that plateaus (the campaign curve caps at 2×), speed past the readability cap, a bounty that stops tracking the ramp, titans spawning before wave 20 or never pairing, waves that spawn unknown art, a horde count that stops growing |
+| `tests/endless-difficulty.test.js` | jsdom | 15 | An endless HP curve that plateaus (the campaign curve caps at 2×), speed past the readability cap, a bounty that stops tracking the ramp, titans spawning before wave 20 or never pairing, waves that spawn unknown art, a horde count that stops growing, a boss that inherits the creep HP ramp from `spawnScaling()`, or a campaign spawn that picks up an endless multiplier |
 | `tests/endless-map.test.js` | node | 7 | The endless map shrinking back under twice a campaign map's area, a road too short (or too slow to walk), water that no lane can cross, a biome grid out of step with the layout, a biome the road never visits, the core off its crystal dais |
 | `tests/relics-blessings.test.js` | jsdom | 21 | Relics bought twice, bonuses lost on reload, cooldown stacking into a stall, blessings bought past their cap or without gold, healing past the core maximum |
 | `tests/daily-challenge.test.js` | node | 17 | A daily that rerolls on refresh, a streak that survives a missed day, win gems farmed by replaying, storage failures |

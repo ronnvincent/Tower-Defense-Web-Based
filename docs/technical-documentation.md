@@ -169,12 +169,16 @@ changed — so wave 20 was wave 5 with a longer queue. Each has its own fix:
 | health | `endlessHealthScale(w)` | $1 + 0.1w + 0.004w^2$ — **uncapped**: 2.2× at 10, 4.3× at 20, 15.5× at 50 |
 | speed | `endlessSpeedScale(w)` | $\min(1.75, 1 + 0.012w + 0.00025w^2)$ — capped so the horde stays readable |
 | bounty | `endlessRewardScale(w)` | $1 + 0.06w$ — a wave-40 grunt worth 7 gold could not fund the wall it breaks |
+| boss health | `endlessBossHealthScale(w)` | $\min(3, 1 + 0.05w)$ — a titan already starts at 7 800 HP; the creep ramp would park a 90 000 HP timer on the lane instead of a fight |
 | bodies | `makeEndlessWave(n)` | +3 bodies per cycle (cap 60) and a cadence multiplier of $\max(0.45, 1 - 0.012n)$ |
 | bosses | `ENDLESS_TITANS` | `voidherald` joins from cycle 3 (wave 20), both titans from cycle 8 (wave 45) |
 
-The scales are applied in `GameScene.spawnScaling(wave)`, which is the single
-place a spawn reads its multipliers from; campaign levels get exactly the level
-definition and nothing else. `tests/endless-difficulty.test.js` pins the curve.
+The scales are applied in `GameScene.spawnScaling(wave, typeKey)`, which is the
+single place a spawn reads its multipliers from; campaign levels get exactly the
+level definition and nothing else. Bosses are the one exception to the health
+curve: `ENEMY_TYPES[typeKey].isBoss` routes them to `endlessBossHealthScale`, so
+a titan stays a four-phase fight (3× at worst) while the escorting creeps keep
+climbing without a ceiling. `tests/endless-difficulty.test.js` pins both curves.
 
 ### Victory / defeat flow
 `GameScene.handleVictory()` → `ProgressStore.recordVictory()` → `ResultScreenUI`

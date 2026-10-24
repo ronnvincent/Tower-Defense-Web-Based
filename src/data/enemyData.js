@@ -587,6 +587,20 @@ export function endlessSpeedScale(waveNumber) {
 }
 
 /**
+ * Endless HP ramp for **bosses only**.
+ *
+ * A titan already carries 7 800–9 000 base HP, and it first walks in on wave 20
+ * where the creep ramp is 4.3×: applying that wholesale would park a 90 000 HP
+ * wall on the lane, which is not a boss fight — it is a timer. Bosses therefore
+ * get a linear ramp capped at 3× (1.95× on wave 20, 2.95× on wave 40), so the
+ * fight stays about the phases and the escorts instead of a health sponge.
+ */
+export function endlessBossHealthScale(waveNumber) {
+  const w = Math.max(0, Math.floor(Number(waveNumber) || 1) - 1);
+  return Math.min(3, 1 + 0.05 * w);
+}
+
+/**
  * Endless bounty ramp. Kill payouts are flat per archetype, so without this a
  * 2000 HP grunt still hands over 7 gold and the player cannot rebuild the wall
  * that the wave just broke.

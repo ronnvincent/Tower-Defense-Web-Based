@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import {
   ENEMY_TYPES,
   waveHealthMultiplier,
   endlessHealthScale,
+  endlessBossHealthScale,
   endlessSpeedScale,
   endlessRewardScale,
 } from '../src/data/enemyData.js';
+import { LEVELS } from '../src/data/levelData.js';
 import {
   ENDLESS_BOSSES,
   ENDLESS_TITANS,
@@ -47,10 +50,70 @@ describe('endless stat ramps', () => {
     }
   });
 
+  it('gives bosses their own capped curve instead of the creep wall', () => {
+    // Wave 20 creep ramp is 4.3x; a titan must not inherit it or the fight
+    // becomes a 90 000 HP sponge. Bosses cap at 3x, creeps never do.
+    expect(endlessBossHealthScale(20)).toBeLessThan(endlessHealthScale(20));
+    expect(endlessBossHealthScale(20)).toBeGreaterThan(1.8);
+    expect(endlessBossHealthScale(50)).toBeLessThanOrEqual(3);
+    expect(endlessBossHealthScale(1)).toBe(1);
+    // Still climbing where it matters, just never without a ceiling.
+    expect(endlessBossHealthScale(10)).toBeGreaterThan(endlessBossHealthScale(1));
+    expect(endlessHealthScale(50)).toBeGreaterThan(endlessBossHealthScale(50));
+  });
+
   it('pays a bounty that tracks the health ramp', () => {
     expect(endlessRewardScale(1)).toBe(1);
     expect(endlessRewardScale(20)).toBeGreaterThan(2);
     expect(endlessRewardScale(40)).toBeGreaterThan(endlessRewardScale(20));
+  });
+});
+
+/**
+ * GameScene extends Phaser.Scene, so the engine needs to exist before the module
+ * is evaluated. `spawnScaling` is pure arithmetic on `this.level`, which makes
+ * it the cheapest way to prove the boss branch is actually wired to the spawn
+ * path and not just sitting in the data file.
+ */
+let GameScene;
+beforeAll(async () => {
+  vi.stubGlobal(
+    'Phaser',
+    new Proxy(
+      { Scene: class Scene { constructor(config) { this.sys = { settings: config }; } } },
+      { get: (target, key) => (key in target ? target[key] : { Scene: target.Scene }[key]) }
+    )
+  );
+  ({ GameScene } = await import('../src/scenes/GameScene.js'));
+});
+
+function scalingFor(level, wave, typeKey) {
+  return GameScene.prototype.spawnScaling.call({ level }, wave, typeKey);
+}
+
+describe('endless stat ramps', () => {
+  it('routes bosses to the capped curve from the real spawn path', () => {
+    const creeps = scalingFor(ENDLESS_LEVEL, 20, 'grunt');
+    const boss = scalingFor(ENDLESS_LEVEL, 20, 'obsidian');
+    const titan = scalingFor(ENDLESS_LEVEL, 20, 'voidherald');
+
+    expect(boss.healthScale).toBeCloseTo(ENDLESS_LEVEL.enemyHealthScale * endlessBossHealthScale(20), 5);
+    expect(boss.healthScale).toBeLessThan(creeps.healthScale);
+    expect(titan.healthScale).toBeCloseTo(boss.healthScale, 5);
+    // Escorts keep the uncapped ramp, so the wave still escalates.
+    expect(creeps.healthScale).toBeCloseTo(ENDLESS_LEVEL.enemyHealthScale * endlessHealthScale(20), 5);
+    // Speed and bounty are shared: a slower boss would be free extra time.
+    expect(boss.speedScale).toBe(creeps.speedScale);
+    expect(boss.rewardScale).toBe(creeps.rewardScale);
+  });
+
+  it('leaves campaign spawns exactly on the level definition', () => {
+    const campaign = scalingFor(LEVELS[0], 4, 'sandwyrm');
+    expect(campaign).toEqual({
+      healthScale: LEVELS[0].enemyHealthScale || 1,
+      speedScale: 1,
+      rewardScale: 1,
+    });
   });
 });
 
