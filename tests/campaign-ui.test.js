@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { LevelSelectUI } from '../src/ui/LevelSelectUI.js';
 import { ResultScreenUI } from '../src/ui/ResultScreenUI.js';
 import { ProgressStore } from '../src/systems/Progression.js';
@@ -180,8 +181,7 @@ describe('ResultScreenUI', () => {
 });
 
 describe('campaign screen layer', () => {
-  it('mounts on its own layer between the HUD and the modal dialogs', async () => {
-    const { readFileSync } = await import('node:fs');
+  it('mounts on its own layer between the HUD and the modal dialogs', () => {
     const html = readFileSync('index.html', 'utf8');
     const css = readFileSync('src/style.css', 'utf8');
 
@@ -196,6 +196,21 @@ describe('campaign screen layer', () => {
     };
     expect(zIndex('#screen-container')).toBeGreaterThan(zIndex('#hud-container'));
     expect(zIndex('#screen-container')).toBeLessThan(zIndex('#modal-container'));
+  });
+
+  it('keeps a tall overlay reachable on a short landscape phone', () => {
+    // A centred flex item taller than its scroll container clips the top in
+    // every browser; `margin: auto` is what makes it start at the top instead.
+    const css = readFileSync('src/style.css', 'utf8');
+    const block = (selector) => new RegExp(`${selector} \\{[^}]*\\}`).exec(css)[0];
+    const screen = block('\\.overlay-screen');
+    const shell = block('\\.overlay-shell');
+
+    expect(screen).toMatch(/inset:\s*0/);
+    expect(screen).toMatch(/overflow:\s*auto/);
+    expect(screen).toMatch(/pointer-events:\s*auto/); // the battlefield below stays dead
+    expect(shell).toMatch(/margin:\s*auto/);
+    expect(shell).toMatch(/max-height:\s*100%/);
   });
 
   it('survives another UI replacing the modal container', () => {
