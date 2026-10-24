@@ -14,6 +14,8 @@ function formatMultiplier(value) {
 }
 
 const PAN_HINT_KEY = 'td-dsalgo:camera-hint:v1';
+/** Remember whether the player folded the forge dock away. */
+const DOCK_STATE_KEY = 'td-dsalgo:dock-collapsed:v1';
 
 const TARGETING_MODES = [
   { mode: 'first', label: 'FIRST', title: 'Target the enemy furthest along the path' },
@@ -44,9 +46,13 @@ export class HUD {
     this.comboActive = false;
     this.comboTimer = null;
     this.fullscreenState = { supported: true, active: false };
+    this.dockCollapsed = false;
 
     this.initDOM();
     this.bindEvents();
+    // Restore the player's dock preference before the first frame so the
+    // measured --dock-clearance is right from the start.
+    this.setDockCollapsed(this.readDockCollapsed(), { persist: false });
     this.bindInspectorDrag();
     this.bindViewport();
 
@@ -226,7 +232,14 @@ export class HUD {
           <span id="placement-hint-text">Placing defence…</span>
           <button id="btn-cancel-placement" class="placement-hint-cancel">ESC</button>
         </div>
-        <div class="dock-title">FORGE DEFENSES</div>
+        <div class="dock-head">
+          <button id="btn-toggle-dock" class="dock-toggle" type="button" aria-expanded="true"
+                  aria-controls="dock-cards-container" title="Hide or show the forge (H)">
+            <span class="dock-toggle-glyph" aria-hidden="true">⚒</span>
+            <span class="dock-title" id="dock-title">FORGE DEFENSES</span>
+            <span class="dock-toggle-chevron" aria-hidden="true">▾</span>
+          </button>
+        </div>
         <div class="dock-cards" id="dock-cards-container"></div>
       </div>
     `;
@@ -294,6 +307,14 @@ export class HUD {
    */
   reset() {
     this.setText('hud-level-name', 'VERDANT MARCHES');
+    // A duel renames the dock ("DUEL · FORGE DEFENCES"); a campaign battle must
+    // never inherit that label.
+    this.setMatchLabel('FORGE DEFENSES');
+    // Keep the player's fold preference, but start every battle from a known
+    // state instead of whatever the last scene left behind. No selection to
+    // clear here: `reset()` is called before the new scene installs its
+    // callbacks, so firing one now would reach into a dead scene.
+    this.setDockCollapsed(Boolean(this.dockCollapsed), { persist: false, clearSelection: false });
     this.inspectedTower = null;
     this.selectedBuildKey = null;
     this.inspectorPinned = false;
@@ -363,8 +384,65 @@ export class HUD {
 
   /** Rename the dock for a duel so the build list never reads as a campaign. */
   setMatchLabel(text) {
-    const title = document.querySelector('.dock-title');
+    const title = document.getElementById('dock-title') || document.querySelector('.dock-title');
     if (title && text) title.textContent = text;
+  }
+
+  /* ================================================================= DOCK */
+
+  /**
+   * Fold the forge dock into a slim handle.
+   *
+   * On a phone in landscape the seven build cards plus the wave button own the
+   * bottom third of the screen, and the player often wants to watch the horde
+   * (or the rival's half in a duel) without the dock in the way. Collapsing
+   * hides the cards but keeps a labelled handle, so the forge is always one tap
+   * away — nothing is lost and the battle never pauses.
+   *
+   * The choice is remembered between battles, and {@link HudLayout} re-measures
+   * the dock so the camera pill and the toast slide back down with it.
+   */
+  setDockCollapsed(collapsed, { persist = true, clearSelection = true } = {}) {
+    const next = Boolean(collapsed);
+    const dock = document.getElementById('hud-bottom-dock');
+    const btn = document.getElementById('btn-toggle-dock');
+    this.dockCollapsed = next;
+    dock?.classList.toggle('collapsed', next);
+    if (btn) {
+      btn.setAttribute('aria-expanded', String(!next));
+      btn.setAttribute('title', next ? 'Show the forge (H)' : 'Hide the forge (H)');
+    }
+    // A folded dock cannot show which card is armed, so drop the selection.
+    if (next && clearSelection) this.clearBuildSelection();
+    if (persist) this.writeDockCollapsed(next);
+    this.layout?.schedule?.();
+    return next;
+  }
+
+  /** Flip the dock between folded and open. */
+  toggleDock() {
+    return this.setDockCollapsed(!this.dockCollapsed);
+  }
+
+  /** Open the dock if it is folded — used by the build hotkeys. */
+  expandDock() {
+    return this.dockCollapsed ? this.setDockCollapsed(false) : false;
+  }
+
+  readDockCollapsed() {
+    try {
+      return window.localStorage.getItem(DOCK_STATE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  writeDockCollapsed(collapsed) {
+    try {
+      window.localStorage.setItem(DOCK_STATE_KEY, collapsed ? '1' : '0');
+    } catch {
+      /* private mode: the preference just does not survive the reload */
+    }
   }
 
   /* ================================================================ EVENTS */
@@ -438,6 +516,11 @@ export class HUD {
     document.getElementById('btn-codex')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onOpenCodex?.();
+    });
+
+    document.getElementById('btn-toggle-dock')?.addEventListener('click', () => {
+      audio.playClick();
+      this.toggleDock();
     });
 
     // Leaving a battle is destructive (the run is not saved), so it takes a
@@ -802,6 +885,9 @@ export class HUD {
 
   toggleBuildSelection(key) {
     audio.playClick();
+    // A hotkey can arm a defence while the dock is folded: open it so the
+    // player can see which card is live.
+    this.expandDock();
     if (this.selectedBuildKey === key) {
       this.clearBuildSelection();
       return;

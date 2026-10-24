@@ -118,12 +118,23 @@ grows the panel upwards instead of covering a card.
 |---|---|
 | ≤ 1180 px | Labels collapse to values, smaller dock cards, tighter top bar |
 | ≤ 900 px | Top bar wraps: stats + icon-only controls on row 1, wave badge + START WAVE on row 2 |
-| ≤ 680 px | Score chip hidden, dock becomes a full-width strip without its title, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
+| ≤ 680 px | Score chip hidden, dock becomes a full-width strip whose title shrinks to the fold handle, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
 | ≤ 620 px height | Desktop labels hidden, 30 px dock icons, 40 vh inspector, camera hint suppressed |
 | ≤ 460 px height | Dock name labels hidden (icon + price only), top bar collapses to one row (wave badge inline, icon-only controls), pause card shrinks to two rows |
 | `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows, zoom pill reduced to its "reset view" button (pinch already zooms the battlefield) |
+| ≤ 900 px or ≤ 560 px height | Boss card drops to a slim strip: `min(360px, 62vw)` wide, 12/10 px frame, 8 px health bar, ellipsised name — it no longer covers a third of the lane |
+| ≤ 430 px height | Boss strip narrows to `min(300px, 54vw)`; the skull and the trait line are dropped (the phase badge still names the phase) |
 
 Type and spacing use `clamp()` so the HUD scales with the window instead of jumping between sizes.
+
+### Folding the forge
+
+The dock title is also a button (`#btn-toggle-dock`, <kbd>H</kbd>). One tap folds the seven build
+cards away into a thin labelled strip — the battlefield is fully visible, the battle keeps running,
+and the same tap brings the cards back. Folded, an armed card is disarmed (a hidden card can no
+longer explain itself), and pressing a build hotkey reopens the dock so the armed card is visible.
+The choice is stored in `localStorage` (`td-dsalgo:dock-collapsed:v1`) and survives reloads; the
+dock's new height is re-measured by `HudLayout`, so the camera pill and the toast slide down with it.
 
 ---
 

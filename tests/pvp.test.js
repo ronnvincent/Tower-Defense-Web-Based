@@ -73,8 +73,8 @@ describe('duel arenas', () => {
   it('mirror the gates: one spawn and one base, each other\'s rotation', () => {
     for (const arena of PVP_ARENAS) {
       const { map } = statsOf(arena);
-      expect(map.spawn, arena.id).toEqual({ row: 7, col: 0 });
-      expect(map.base, arena.id).toEqual({ row: 8, col: 25 });
+      expect(map.spawn, arena.id).toEqual({ row: 7, col: 1 });
+      expect(map.base, arena.id).toEqual({ row: 8, col: 24 });
     }
   });
 

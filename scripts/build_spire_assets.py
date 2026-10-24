@@ -1001,8 +1001,20 @@ def build_ui_icons():
     blit(gem, 64, trimmed, tw, th, (64 - tw) // 2, (64 - th) // 2)
     save(os.path.join(OUT, "ui", "icon_gem.png"), gem, 64, 64, "<- Kenney TD gem")
 
-    # World-map thumbnails: a 6 px-per-cell minimap rendered from the same ASCII
-    # battlefield and the same recoloured tiles the game loads.
+    build_map_thumbnails()
+
+
+def build_map_thumbnails():
+    """World-map thumbnails: a 6 px-per-cell minimap per campaign biome.
+
+    Rendered from the ASCII in `src/data/mapData.js`, so it is also the quickest
+    way to re-shoot the world map after a layout edit:
+
+        python3 scripts/build_spire_assets.py --thumbnails
+
+    Reads the recoloured tiles the game loads, so it needs `public/assets/tiles`
+    (committed) but not the raw Kenney packs.
+    """
     print("map thumbnails")
     layouts = read_map_layouts()
     cell = 6
@@ -1015,9 +1027,11 @@ def build_ui_icons():
             return average_colour(pix, tw2, th2, x, y, size)
 
         grass = tile_colour("grass", 24, 24)
-        # The horde's lane has to read as a lane at thumbnail size; the volcanic
-        # road is nearly as dark as its ash ground, so lift it harder there.
-        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.45, "volcanic": 1.85, "crystal": 1.35}[theme]
+        # The horde's lane has to read as a lane at thumbnail size. Measured
+        # against the average ground colour, the ice road is the worst offender
+        # (65,80,94 vs a 95,118,142 sheet: nearly the same luminance) and the
+        # volcanic road is close behind, so both are lifted harder.
+        boost = {"grassland": 1.15, "desert": 1.05, "ice": 2.2, "volcanic": 1.85, "crystal": 1.35}[theme]
         road = tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24))
         water = tile_colour("water", 24, 24)
         rock = tile_colour("rock", 24, 24)
@@ -1414,6 +1428,10 @@ def write_manifest(enemies, impacts, variants=None):
 
 
 def main():
+    if "--thumbnails" in sys.argv[1:]:
+        build_map_thumbnails()
+        print("done")
+        return
     build_towers()
     build_barricade()
     build_tiles()

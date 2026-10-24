@@ -123,8 +123,9 @@ describe('Game map + PathfindingSystem', () => {
   it('parses a 20×12 map with one spawn and one base', () => {
     expect(map.cols).toBe(20);
     expect(map.rows).toBe(12);
-    expect(map.spawn).toEqual({ row: 5, col: 0 });
-    expect(map.base).toEqual({ row: 5, col: 19 });
+    // Both gates sit one tile inside the frame — see tests/map-margin.test.js.
+    expect(map.spawn).toEqual({ row: 5, col: 1 });
+    expect(map.base).toEqual({ row: 5, col: 18 });
   });
 
   it('rejects malformed layouts', () => {
@@ -133,13 +134,13 @@ describe('Game map + PathfindingSystem', () => {
     expect(() => parseMap(['.##B'])).toThrow(/spawn/);
   });
 
-  it('finds the 24-cell middle route on the real map', () => {
+  it('finds the 22-cell middle route on the real map', () => {
     const pf = new PathfindingSystem(map);
     const res = pf.computeMainPath();
     expect(res.found).toBe(true);
-    expect(res.path[0]).toBe('5,0');
-    expect(res.path[res.path.length - 1]).toBe('5,19');
-    expect(res.stats.pathNodes).toBe(24);
+    expect(res.path[0]).toBe('5,1');
+    expect(res.path[res.path.length - 1]).toBe('5,18');
+    expect(res.stats.pathNodes).toBe(22);
     for (const key of res.path) {
       const [r, c] = key.split(',').map(Number);
       expect(isWalkableTile(map.tiles[r][c])).toBe(true);
@@ -160,7 +161,7 @@ describe('Game map + PathfindingSystem', () => {
     // graph is untouched, so every enemy keeps walking into the wall and has
     // to break it (Enemy.updateSiege) before it can use the road again.
     pf.computeMainPath();
-    expect(pf.mainPath.length).toBe(24);
+    expect(pf.mainPath.length).toBe(22);
     expect(pf.mainPath).toContain('7,9');
     expect(pf.graph.hasNode('7,9')).toBe(true);
   });
@@ -172,9 +173,9 @@ describe('Game map + PathfindingSystem', () => {
     const pf = new PathfindingSystem(map);
     const direct = pf.computeMainPath();
     const detour = bfsShortestPath(pf.graph, pf.spawnKey, pf.baseKey, { blocked: new Set(['7,9']) });
-    expect(direct.stats.pathNodes).toBe(24);
+    expect(direct.stats.pathNodes).toBe(22);
     expect(detour.found).toBe(true);
-    expect(detour.stats.pathNodes).toBe(28);
+    expect(detour.stats.pathNodes).toBe(26);
     expect(detour.path).toContain('1,10');
     expect(pf.graph.hasNode('7,9')).toBe(true); // the blocked set is temporary
   });
@@ -198,6 +199,6 @@ describe('Game map + PathfindingSystem', () => {
     expect(pf.cumulative.runs).toBe(2);
     expect(pf.cumulative.nodesVisited).toBeGreaterThan(0);
     expect(pf.lastRun.start).toBe('5,2');
-    expect(pf.routeLength).toBe(24);
+    expect(pf.routeLength).toBe(22);
   });
 });

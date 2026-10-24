@@ -70,7 +70,8 @@ elemental regrades while the ground carries the new identity.
 
 Every arena has:
 
-- gates at `S(7,0)` and `B(8,25)` — exact rotational images of each other,
+- gates at `S(7,1)` and `B(8,24)` — one tile inside the rock frame, exact
+  rotational images of each other,
 - a water centrepiece that neither side can build on (so the halves mirror),
 - an outer rock border and enough shelf per half to place a full defence.
 

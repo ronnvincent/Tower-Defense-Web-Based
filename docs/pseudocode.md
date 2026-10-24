@@ -10,8 +10,8 @@ This document outlines the high-level pseudocode for the primary data structures
 ALGORITHM BFS_ShortestPath(graph, startNode, goalNode, blockedSet)
   INPUT:
     graph       : Adjacency list representation of road cells
-    startNode   : Spawn cell identifier (e.g., "5,0")
-    goalNode    : Base cell identifier (e.g., "5,19")
+    startNode   : Spawn cell identifier (e.g., "5,1")
+    goalNode    : Base cell identifier (e.g., "5,18")
     blockedSet  : Optional set of nodes temporarily treated as impassable
 
   OUTPUT:
@@ -255,7 +255,7 @@ END ALGORITHM
 ```
 
 > **Why the old `TryBlockCell` algorithm is gone.** It removed the road node from
-> the graph and pushed BFS onto a 28-cell detour whenever a 24-cell lane was
+> the graph and pushed BFS onto a 26-cell detour whenever a 22-cell lane was
 > walled off — i.e. the horde *dodged* the palisade. Players read that as the
 > wall doing nothing. The graph now describes the road network only; walls are
 > physical hit-point objects resolved by `UpdateSiege` above.

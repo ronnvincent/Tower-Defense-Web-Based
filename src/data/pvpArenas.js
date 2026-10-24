@@ -14,6 +14,13 @@
  * about the wave plan is random.
  *
  *   S  spawn   B  base   #  road   .  buildable   x  rock   ~  water
+ *
+ * The gates are inset one tile behind the rock frame. The portal art is 96 px
+ * and the core art 80 px on a 64 px tile, so a gate painted on the outermost
+ * column is sliced in half by the camera bounds — the spawn and the core were
+ * the first things to disappear on a phone. Keeping the whole `x` frame between
+ * the gate and the edge gives both gates a visible margin, and because the
+ * arenas are 180°-symmetric the inset is automatically mirrored for the rival.
  */
 
 import { THEMES } from './levelData.js';
@@ -35,8 +42,8 @@ const CINDER_CROWN = [
   'x....#..............#..#.x',
   'x....#...~~~~~~~~...#..#.x',
   'x....#...~~~~~~~~...#..#.x',
-  'S#####...~~~~~~~~...#..#.x',
-  'x.#..#...~~~~~~~~...#####B',
+  'xS####...~~~~~~~~...#..#.x',
+  'x.#..#...~~~~~~~~...####Bx',
   'x.#..#...~~~~~~~~...#....x',
   'x.#..#...~~~~~~~~...#....x',
   'x.#..#..............#....x',
@@ -54,8 +61,8 @@ const FROSTSPINE = [
   'x..#......##..#########..x',
   'x..#......##..##......#..x',
   'x..#......##..##..~~~.#..x',
-  'S###......##..##..~~~.#..x',
-  'x..#.~~~..##..##......###B',
+  'xS##......##..##..~~~.#..x',
+  'x..#.~~~..##..##......##Bx',
   'x..#.~~~..##..##......#..x',
   'x..#......##..##......#..x',
   'x..#########..##......#..x',
@@ -73,8 +80,8 @@ const DUST_MERIDIAN = [
   'x...#..#.#......#.#....#.x',
   'x...#..#.#~~~~~~#.#....#.x',
   'x...#..#.#~~~~~~#.#....#.x',
-  'S####..#.#......#.#....#.x',
-  'x.#....#.#......#.#..####B',
+  'xS###..#.#......#.#....#.x',
+  'x.#....#.#......#.#..###Bx',
   'x.#....#.#~~~~~~#.#..#...x',
   'x.#....#.#~~~~~~#.#..#...x',
   'x.#....#.#......#.#..#...x',

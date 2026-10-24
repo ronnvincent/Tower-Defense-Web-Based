@@ -112,8 +112,8 @@ describe('PlacementSystem', () => {
     const ps = new PlacementSystem(map);
     expect(ps.validate(BARRICADE, 5, 5, 999).ok).toBe(true);
     expect(ps.validate(BARRICADE, 3, 5, 999).reason).toBe('needs-road');
-    expect(ps.validate(BARRICADE, 5, 0, 999).reason).toBe('endpoint');
-    expect(ps.validate(BARRICADE, 5, 19, 999).reason).toBe('endpoint');
+    expect(ps.validate(BARRICADE, 5, 1, 999).reason).toBe('endpoint');
+    expect(ps.validate(BARRICADE, 5, 18, 999).reason).toBe('endpoint');
   });
   it('refuses palisades on decoy lanes the horde never walks', () => {
     const ps = new PlacementSystem(map);

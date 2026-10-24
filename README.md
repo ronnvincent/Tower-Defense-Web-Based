@@ -57,7 +57,8 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 - **Space Complexity:** $O(V)$
 - **Implementation:** Custom circular queue frontier, `Set` visited tracking, and `Map` parent pointers for reverse path reconstruction.
 - **Gameplay Roles:**
-  - Computes the shortest route from Spawn `(5,0)` to Base `(5,19)` on the 3-route road network; every enemy marches it.
+  - Computes the shortest route from Spawn `(5,1)` to Base `(5,18)` on the 3-route road network; every enemy marches it.
+  - Both gates sit inside the map frame (never on the outer ring), so the portal and the core stay fully visible instead of being clipped by the camera bounds.
   - Powers the live BFS visualiser in the codex and the route lengths shown in the algorithm panel.
   - Runs the spawn → base and cell → base searches that prove the map is solvable before wave 1.
 
@@ -165,6 +166,7 @@ above the wave counter and whose abilities telegraph before they fire.
 | <kbd>F</kbd> | Toggle fullscreen |
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |
 | <kbd>C</kbd> | Toggle DSALGO Technical Codex |
+| <kbd>H</kbd> | Fold / unfold the FORGE DEFENSES dock |
 | <kbd>L</kbd> | View Hall of Champions (Leaderboard) |
 
 ---
@@ -175,6 +177,8 @@ above the wave counter and whose abilities telegraph before they fire.
   maths goes through `cameraMath.screenToWorld`, so building/selecting stays pixel-accurate at any zoom.
 - **Upgrade badges** — every defence shows its next upgrade and price above its roof; gold = affordable,
   grey = not yet, cyan ring = selected. Click one to open the inspector.
+- **Foldable forge** — the dock title doubles as a toggle: one tap (or <kbd>H</kbd>) folds the build
+  cards into a slim strip so the whole battlefield is visible, and the choice is remembered.
 - **Non-blocking panels** — the HUD frame is click-through, the tower inspector is draggable/collapsible
   and anchors itself beside the selected tower, and the DSALGO codex is a live side drawer that never
   stops the battle.

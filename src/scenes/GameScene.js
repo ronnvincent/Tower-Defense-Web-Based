@@ -1532,6 +1532,10 @@ export class GameScene extends Phaser.Scene {
         } else {
           this.handleTogglePause();
         }
+      } else if (event.key.toLowerCase() === 'h') {
+        // Fold the forge dock away to see the whole battlefield, and back again.
+        // (F is taken by fullscreen, C by the codex, L by the leaderboard.)
+        this.hud?.toggleDock();
       } else if (event.key.toLowerCase() === 'c') {
         this.handleOpenCodex();
       } else if (event.key.toLowerCase() === 'l') {

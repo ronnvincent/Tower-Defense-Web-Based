@@ -89,7 +89,7 @@
   /* Fallback heights for the floating UI. src/ui/hudLayout.js measures the
      real panels and overwrites both variables on <html>, so these only apply
      for the first frame (and when JS is disabled). */
-  --dock-clearance: clamp(112px, 17vh, 156px);
+  --dock-clearance: clamp(130px, 19vh, 172px); /* dock + its fold handle */
   --topbar-clearance: clamp(64px, 9vh, 82px);
 
   /* Notch / home-indicator padding. Zero on everything except fullscreen
@@ -824,14 +824,84 @@ body.is-fullscreen::before {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
 }
 
-.dock-title {
+.dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+}
+
+/* The dock title doubles as the fold handle: one tap hides the build cards so
+   the battlefield is fully visible, another brings them back. It stays a real
+   button (focus ring, aria-expanded) because it is the only way back when the
+   cards are gone. */
+.dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 12px;
+  margin: 0;
   font-family: var(--font-heading);
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 2.4px;
   color: var(--ink-gold);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-  margin-bottom: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  transition: background 0.15s ease-out, border-color 0.15s ease-out;
+}
+
+.dock-toggle:hover {
+  background: rgba(8, 11, 16, 0.55);
+  border-color: rgba(198, 158, 88, 0.45);
+}
+
+.dock-toggle:focus-visible {
+  outline: 2px solid var(--cyan-primary);
+  outline-offset: 2px;
+}
+
+.dock-title {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.dock-toggle-glyph {
+  font-size: var(--fs-micro);
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.dock-toggle-chevron {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.85;
+  transition: transform 0.2s ease-out;
+}
+
+/* Folded: the cards are gone, the handle stays as a slim bar. The frame is
+   narrowed here too — the 20/34 px border is what made the open dock tall. */
+.hud-dock.collapsed {
+  padding: clamp(2px, 0.5vh, 6px) clamp(16px, 2vw, 30px);
+  border-image-width: 14px 28px 14px 28px;
+}
+
+.hud-dock.collapsed .dock-head {
+  margin-bottom: 0;
+}
+
+.hud-dock.collapsed .dock-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.hud-dock.collapsed .dock-cards,
+.hud-dock.collapsed #placement-hint {
+  display: none;
 }
 
 .dock-cards {
@@ -1423,6 +1493,103 @@ body.is-fullscreen::before {
 .boss-ability-text {
   font-style: italic;
   color: var(--ink); /* 4.9:1 on the red boss card */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- phones: a compact boss strip, never a full-width card ----------------
+   A 460 px card with a 20 px frame, a 96 px title row and a values row eats a
+   third of a landscape phone and sits right where the lane is. On anything
+   narrow or short the panel drops to a slim strip under the top bar: capped at
+   ~60 % of the width, thinner frame, 8 px bar, one ellipsised values row. The
+   boss name, phase and health stay readable; the play area comes back. */
+@media (max-width: 900px), (max-height: 560px) {
+  /* Still parked under the toast lane, so a "wave cleared" toast never lands on
+     the boss strip — it is only the card itself that shrinks. */
+  #boss-banner {
+    width: min(360px, 62vw);
+  }
+
+  .boss-panel {
+    padding: 5px 12px;
+    gap: 3px;
+    border-image-width: 12px 10px 12px 10px;
+    box-shadow: 0 3px 14px rgba(255, 84, 112, 0.3);
+  }
+
+  .boss-title-row {
+    gap: 6px;
+  }
+
+  .boss-skull {
+    font-size: 11px;
+  }
+
+  .boss-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.6px;
+  }
+
+  .boss-phase-badge {
+    font-size: 9px;
+    padding: 0 5px;
+  }
+
+  .boss-bar-frame {
+    height: 8px;
+    border-radius: 4px;
+  }
+
+  .boss-hp-values {
+    gap: 6px;
+    font-size: 9px;
+  }
+
+  .boss-ability-text {
+    max-width: 55%;
+  }
+}
+
+/* Short landscape phones: the trait name is the first thing to go — the phase
+   badge still tells the player which phase is live. The whole strip is ~46 px
+   tall and 54 vw wide, i.e. a thin band under the top bar instead of a card
+   across the middle of the battlefield. */
+@media (max-height: 430px) {
+  #boss-banner {
+    width: min(300px, 54vw);
+  }
+
+  .boss-skull,
+  .boss-ability-text {
+    display: none;
+  }
+
+  .boss-panel {
+    padding: 3px 9px;
+    gap: 2px;
+    border-image-width: 8px 8px 8px 8px;
+    box-shadow: 0 2px 10px rgba(255, 84, 112, 0.28);
+  }
+
+  .boss-name {
+    font-size: var(--fs-micro);
+    letter-spacing: 0.4px;
+  }
+
+  .boss-bar-frame {
+    height: 6px;
+  }
+
+  .boss-hp-values {
+    font-size: 9px;
+    line-height: 1.1;
+  }
 }
 
 /* ==========================================================================
@@ -3181,7 +3348,19 @@ body.is-fullscreen #app::after {
     border-image-width: 16px 22px 16px 22px;
   }
 
-  .dock-title {
+  /* The title is the fold handle now: on a phone it stays, as a slim strip
+     above the cards, instead of disappearing with the decorative label. */
+  .dock-head {
+    margin-bottom: 3px;
+  }
+
+  .dock-toggle {
+    min-height: 22px;
+    padding: 0 10px;
+    letter-spacing: 1.6px;
+  }
+
+  .dock-toggle-glyph {
     display: none;
   }
 
@@ -3301,8 +3480,14 @@ body.is-fullscreen #app::after {
     padding: 2px 8px;
   }
 
-  .dock-title {
-    display: none;
+  .dock-head {
+    margin-bottom: 3px;
+  }
+
+  .dock-toggle {
+    min-height: 20px;
+    padding: 0 8px;
+    letter-spacing: 1.4px;
   }
 
   .build-card {
@@ -3329,7 +3514,7 @@ body.is-fullscreen #app::after {
   }
 
   :root {
-    --dock-clearance: 100px;
+    --dock-clearance: 118px;
   }
 }
 
@@ -3377,6 +3562,20 @@ body.is-fullscreen #app::after {
     min-height: 28px;
   }
 
+  /* The fold handle is the dock's title, so on a short screen it becomes one
+     thin row: an icon and a chevron, nothing that costs the cards a row. */
+  .dock-head {
+    margin-bottom: 2px;
+  }
+
+  .dock-toggle {
+    min-height: 16px;
+    padding: 0 8px;
+    gap: 5px;
+    letter-spacing: 1.2px;
+    font-size: var(--fs-micro);
+  }
+
   /* Short viewports (phone landscape, or a squat desktop window) get no zoom
      pill either — it reads as browser chrome and it sits on the dock corner.
      Wheel/pinch still zoom, and the reset button stays. */
@@ -3418,7 +3617,7 @@ body.is-fullscreen #app::after {
   }
 
   :root {
-    --dock-clearance: 84px;
+    --dock-clearance: 100px;
   }
 }
 

@@ -57,10 +57,18 @@ On initialization, `buildGridGraph()` scans the map grid and constructs an **und
 - Total nodes: $V \approx 90$ walkable cells. Average degree: $d \le 4$.
 
 ### Barricade Placement on the Marched Route
-The map contains **three distinct routes** from Spawn `(5,0)` to Base `(5,19)`:
-1. **Middle Route:** 24 cells (23 steps) — Natural shortest path.
-2. **North Route:** 28 cells (27 steps).
-3. **South Route:** 30 cells (29 steps).
+The map contains **three distinct routes** from Spawn `(5,1)` to Base `(5,18)`:
+1. **Middle Route:** 22 cells (21 steps) — Natural shortest path.
+2. **North Route:** 26 cells (25 steps).
+3. **South Route:** 28 cells (27 steps).
+
+Every gate sits one tile inside the outer ring. The portal is a 96 px sprite and
+the core platform 80 px, centred on a 64 px tile, so a gate parked on the last
+tile has half its art outside the camera bounds — which is exactly how the spawn
+and the core used to disappear into the edge of the screen. The tile of terrain
+in front of each gate is the visible margin around the battlefield.
+`tests/map-margin.test.js` re-derives the rule from the ASCII for the five
+campaign maps and the three duel arenas.
 
 BFS picks the middle route, so that is the lane the horde walks every time. The
 graph is **never modified** by a palisade: a wall is a physical, damageable
@@ -310,7 +318,7 @@ GameScene ──reportSeat/reportProgress──► PvpRoom ──intent──►
 ```
 
 - **Data** (`src/data/pvpArenas.js`): three 26 × 16 layouts, each generated as a
-  180° rotation pair with gates at `(7,0)` and `(8,25)`, plus one 8-wave script
+  180° rotation pair with gates inset at `(7,1)` and `(8,24)`, plus one 8-wave script
   (mid-boss on wave 4, arena boss on wave 8). `getPvpLevel()` returns a level
   object with the same shape the campaign uses, so `GameScene` needs no second
   code path.

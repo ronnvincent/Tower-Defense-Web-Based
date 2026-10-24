@@ -5,13 +5,27 @@
  *   B  base / goal (walkable)        x  rocks — blocked
  *   #  road (walkable)               ~  water — blocked
  *
+ * Gates never sit on the outermost ring. The portal sprite is 96 px and the
+ * core platform 80 px, both painted over a 64 px tile, so a gate parked on the
+ * edge is physically clipped by the camera bounds — that is what made the spawn
+ * and the core hard to see. Every S / B therefore keeps at least one full tile
+ * of terrain between its own tile and the edge of the map, which reads as a
+ * margin around the battlefield. `tests/map-margin.test.js` enforces the rule
+ * for the campaign and the duel arenas both, so a hand edit cannot bring the
+ * old flush-with-the-screen gates back.
+ *
  * The road network intentionally contains THREE routes from S to B so that the
  * BFS shortest path is meaningful:
- *   - middle route (with a jog through row 7)   → 24 cells (23 steps)  ← shortest
- *   - north route  (row 1)                      → 28 cells
- *   - south route  (row 10)                     → 30 cells
+ *   - middle route (with a jog through row 7)   → 22 cells (21 steps)  ← shortest
+ *   - north route  (row 1)                      → 26 cells
+ *   - south route  (row 10)                     → 28 cells
  * Barricades do NOT reroute the horde: a palisade is a solid wall standing on
  * the road, and enemies stop and break it down instead of taking a detour.
+ *
+ * Gates keep two rows from the top and bottom edges because the portrait of a
+ * landscape phone crops the 5:3 stage and then the top bar and the forge dock
+ * cover the rest: a gate on row 1 or row 10 is behind chrome even though it is
+ * inside the map. Rows 3-8 are the band that is actually on screen.
  */
 export const MAP_LAYOUT = [
   //        1111111111
@@ -21,7 +35,7 @@ export const MAP_LAYOUT = [
   '...#.....xx.....#...', // 2
   '...#............#...', // 3
   '~..#..x.....x...#..~', // 4
-  'S#######....#######B', // 5
+  'xS######....######Bx', // 5  ← both gates one tile inside the frame
   '...#...#....#...#...', // 6
   '...#...######...#...', // 7
   '...#.x..........#...', // 8
@@ -43,7 +57,7 @@ export const MAPS = {
     '...##############...', // 2
     '...#.....xx.....#...', // 3
     '...#..~~~~......#...', // 4
-    'S###............###B', // 5
+    'xS##............##Bx', // 5  ← both gates one tile inside the frame
     '...#............#...', // 6
     '...#............#...', // 7
     '...##############...', // 8
@@ -52,51 +66,51 @@ export const MAPS = {
     '....xx..............', // 11
   ],
   ice: [
-    'xxx...~~............', // 0
-    'x...................', // 1
-    '...##############.x.', // 2
-    'xx.#........~~..#..x', // 3
-    '...#.xxx........#...', // 4
-    '...#~~..........#...', // 5
-    '...#....#########...', // 6
-    '...#....#...xx......', // 7
-    '...#....###########B', // 8
-    '...#~.....xx........', // 9
-    'S###................', // 10
-    '~~~............xxx..', // 11
+    'x....x..............', // 0
+    '...x................', // 1
+    '.......~~...........', // 2
+    '....############....', // 3
+    '....#..xx......#....', // 4
+    '....#..........##B..', // 5  ← core in the HUD-free band
+    '..x.#......x........', // 6
+    '.S###...........x...', // 7  ← gate in the HUD-free band
+    '............x.......', // 8
+    '...x..~~............', // 9
+    '........x.....~.....', // 10
+    'x..............x...x', // 11
   ],
   // Endless Siege keeps its own battlefield: a four-step staircase down the
   // caldera, so the run does not replay the Verdant Marches layout in ash.
   volcanic: [
-    'S####...............', // 0
-    '....#.....xx........', // 1
-    '....#..~~....x...x..', // 2
-    '....#####...........', // 3
-    '..x.....#....x......', // 4
-    '...x....#.....~~....', // 5
-    '..x.....#####.......', // 6
-    '..x.........#.......', // 7
-    '...~~.......#....x..', // 8
-    '............#####.x.', // 9
-    '..x...x....~~...#...', // 10
-    '....x..........~###B', // 11
+    'x...................', // 0
+    '................x...', // 1
+    '..x......~~.........', // 2
+    '.S###...............', // 3  ← gate in the HUD-free band
+    '....#####..x........', // 4
+    '...x....#......~~...', // 5
+    '........#####.x.....', // 6
+    '............######B.', // 7  ← core in the HUD-free band
+    '....~~..........x...', // 8
+    '..x.............x...', // 9
+    '.....x......~~......', // 10
+    'x.......x..........x', // 11
   ],
   // Prism Depths: a four-turn spiral. Every switchback has one water pool and one
   // boulder field beside it, so the long straight runs are the only open build
   // space — the level plays as a corridor fight rather than a wide field.
   crystal: [
-    'S###....x...........', // 0
-    '...#..x.....~~......', // 1
-    '...#....~~....x.....', // 2
-    '...############.....', // 3
-    '..x...........#.....', // 4
-    '.......x......#..x..', // 5
-    '..x...........#.....', // 6
-    '..#############.....', // 7
-    '..#.....x...........', // 8
-    '..#......~~....x....', // 9
-    '..##########........', // 10
-    '.....x.....B....x...', // 11
+    'x.......x...........', // 0
+    '...x.....~~.........', // 1
+    '......x.............', // 2
+    '.S##############....', // 3  ← gate in the HUD-free band
+    '.........x.....#....', // 4
+    '....############....', // 5
+    '....#..x............', // 6
+    '....########B.......', // 7  ← core in the HUD-free band
+    '..x..........~......', // 8
+    '....x............x..', // 9
+    '....x....~~.........', // 10
+    '..x.........x......x', // 11
   ],
 };
 
