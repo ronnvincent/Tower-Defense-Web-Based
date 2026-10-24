@@ -1,10 +1,14 @@
 import { TILE_SIZE } from '../config/gameConfig.js';
 import { parseCellKey } from '../dsa/Graph.js';
 import { ENEMY_TYPES, waveHealthMultiplier } from '../data/enemyData.js';
+import { ENEMY_SHEETS } from '../data/spireManifest.js';
 import { calculateDamage, DAMAGE_TYPE } from '../systems/CombatCalculator.js';
 import { audio } from '../rendering/AudioSynth.js';
 
 let enemyIdCounter = 1;
+
+/** Spire enemies are drawn pointing up (-90°), so offset the heading by +90°. */
+const ENEMY_ART_OFFSET = Math.PI / 2;
 
 export class Enemy {
   /**
@@ -76,14 +80,16 @@ export class Enemy {
     this.shadow = scene.add.image(0, 4, 'shadow').setDisplaySize(this.radius * 2.2, this.radius * 1.1);
     this.container.add(this.shadow);
 
-    // Main sprite
-    this.baseScale = (this.radius * 2.3) / 64;
-    const spriteKey = this.def.spriteKey || `enemy-${this.typeKey}`;
-    this.sprite = scene.add.image(0, 0, spriteKey).setScale(this.baseScale);
-
-    if (this.def.useSlimeAnim && scene.anims.exists('slime-bounce')) {
-      this.sprite.play('slime-bounce');
-    }
+    // Main sprite — the Spire enemy strip, scaled by the *drawn* width of the
+    // art (not the sheet's frame width) so wide and narrow enemies read at the
+    // same size. Hitboxes are unchanged.
+    const sheetDef = ENEMY_SHEETS[this.typeKey];
+    const artSize = sheetDef ? Math.sqrt(sheetDef.artWidth * sheetDef.artHeight) : 64;
+    this.baseScale = (this.radius * 2.3) / artSize;
+    const spriteKey = `enemy-${this.typeKey}`;
+    this.sprite = scene.add.sprite(0, 0, spriteKey, 0).setScale(this.baseScale);
+    this.animPrefix = spriteKey;
+    this.playAnim('move');
     this.container.add(this.sprite);
 
     // Kinetic Shield Visual Barrier (if shielded)
@@ -114,6 +120,19 @@ export class Enemy {
     // Notify scene of boss entrance
     if (this.isBoss && this.callbacks.onBossSpawn) {
       this.callbacks.onBossSpawn(this);
+    }
+  }
+
+  /**
+   * Play one of the pack's clips for this enemy ('idle' | 'move' | 'death').
+   * The strips ship idle/move/death, so the walk cycle is real animation rather
+   * than a tween.
+   */
+  playAnim(clip) {
+    const key = `${this.animPrefix}-${clip}`;
+    if (this.scene.anims.exists(key)) {
+      this.sprite.play(key, true);
+      this.currentAnim = clip;
     }
   }
 
@@ -347,6 +366,23 @@ export class Enemy {
       this.callbacks.onBossDefeated(this);
     }
 
+    // Play the pack's death animation, then remove the sprite. The enemy stops
+    // existing for gameplay immediately (isDead is already set) so rewards and
+    // targeting are untouched.
+    const deathKey = `${this.animPrefix}-death`;
+    if (this.scene.anims.exists(deathKey)) {
+      this.sprite.clearTint();
+      this.sprite.play(deathKey, true);
+      this.shieldBarBg?.setVisible(false);
+      this.shieldBarFill?.setVisible(false);
+      this.healthBarBg?.setVisible(false);
+      this.healthBarFill?.setVisible(false);
+      this.sprite.once('animationcomplete', () => this.destroy());
+      this.container.setDepth(19);
+      this.callbacks.onDefeated(this);
+      return;
+    }
+
     this.callbacks.onDefeated(this);
     this.destroy();
   }
@@ -427,9 +463,10 @@ export class Enemy {
       this.y += (dy / dist) * step;
       this.distanceTraveled += step;
 
-      // Rotate toward direction of travel
+      // Rotate toward direction of travel. The Spire enemy art is drawn facing
+      // UP, so add a quarter turn to align the sprite's nose with the heading.
       const targetAngle = Math.atan2(dy, dx);
-      this.sprite.rotation = targetAngle;
+      this.sprite.rotation = targetAngle + ENEMY_ART_OFFSET;
     }
 
     // Walking wobble animation

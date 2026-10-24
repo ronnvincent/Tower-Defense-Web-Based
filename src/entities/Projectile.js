@@ -1,4 +1,5 @@
 import { audio } from '../rendering/AudioSynth.js';
+import { PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../data/towerVisuals.js';
 
 let projIdCounter = 1;
 
@@ -11,8 +12,9 @@ export class Projectile {
    * @param {import('./Enemy.js').Enemy} target
    * @param {object} stats { damage, speed, damageType, armorPenetration, armorBreak, armorBreakMs, splash, slow, slowMs, chainTargets, chainRange }
    * @param {import('./Enemy.js').Enemy[]} activeEnemies reference to active enemy list
+   * @param {string|null} [textureOverride] art key for upgraded tiers (e.g. 'proj-frost-3')
    */
-  constructor(scene, type, x, y, target, stats, activeEnemies) {
+  constructor(scene, type, x, y, target, stats, activeEnemies, textureOverride = null) {
     this.id = projIdCounter++;
     this.scene = scene;
     this.type = type;
@@ -20,20 +22,24 @@ export class Projectile {
     this.y = y;
     this.target = target;
     this.stats = stats;
+    this.impactKey = stats.impactKey || null;
     this.activeEnemies = activeEnemies;
     this.speed = stats.speed || 480;
     this.isDead = false;
 
     // Sprite
-    const spriteKey = `proj-${type}`;
+    const spriteKey = textureOverride || PROJECTILE_TEXTURES[type] || 'proj-arrow';
     const textureKey = scene.textures.exists(spriteKey) ? spriteKey : 'proj-arrow';
+    this.textureKey = textureKey;
     this.sprite = scene.add.image(x, y, textureKey);
     this.sprite.setDepth(40);
 
-    // Initial orientation
+    // Missiles are drawn pointing UP in the Spire art, so bias the heading by a
+    // quarter turn to make the nose lead the flight path.
     const dx = target.x - x;
     const dy = target.y - y;
-    this.sprite.rotation = Math.atan2(dy, dx);
+    this.artOffset = this.isPointingUp() ? Math.PI / 2 : 0;
+    this.sprite.rotation = Math.atan2(dy, dx) + this.artOffset;
 
     // Arc tracking for cannonball
     this.startX = x;
@@ -42,6 +48,22 @@ export class Projectile {
     this.targetY = target.y;
     this.totalDist = Math.hypot(dx, dy);
     this.traveledDist = 0;
+  }
+
+  /** True when the artwork is a vertical bolt/arrow (taller than it is wide). */
+  isPointingUp() {
+    const frame = this.scene.textures.get ? this.scene.textures.get(this.textureKey) : null;
+    const src = frame?.getSourceImage?.();
+    return !!src && src.height > src.width;
+  }
+
+  /** Spawn the pack's impact animation at the hit point. */
+  spawnImpact(x, y, type) {
+    const key = this.impactKey || IMPACT_TEXTURES[type];
+    if (!key || !this.scene.anims.exists(`${key}-burst`)) return;
+    const puff = this.scene.add.sprite(x, y, key, 0).setDepth(42);
+    puff.play(`${key}-burst`);
+    puff.once('animationcomplete', () => puff.destroy());
   }
 
   update(deltaMs) {
@@ -57,7 +79,7 @@ export class Projectile {
     const step = (this.speed * deltaMs) / 1000;
 
     if (this.type !== 'cannonball') {
-      this.sprite.rotation = Math.atan2(dy, dx);
+      this.sprite.rotation = Math.atan2(dy, dx) + this.artOffset;
     } else {
       this.sprite.rotation += deltaMs * 0.01;
     }
@@ -96,6 +118,8 @@ export class Projectile {
         duration: 220,
         onComplete: () => blast.destroy(),
       });
+
+      this.spawnImpact(impactX, impactY, this.type);
 
       if (this.scene.particleEmitter) {
         this.scene.particleEmitter.explode(16, impactX, impactY);
@@ -145,6 +169,8 @@ export class Projectile {
           this.executeChainLightning(this.target);
         }
       }
+
+      this.spawnImpact(impactX, impactY, this.type);
 
       if (this.scene.particleEmitter) {
         this.scene.particleEmitter.explode(5, impactX, impactY);

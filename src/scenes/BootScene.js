@@ -1,5 +1,15 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
+import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
+import { ENEMY_SHEETS, IMPACT_SHEETS } from '../data/spireManifest.js';
 
+/**
+ * BootScene — loads the Spire art set (CC0) and registers every animation.
+ *
+ * Towers are loaded as two pieces: a static base image and a weapon
+ * *spritesheet* (the packs ship the attack animation as a horizontal strip).
+ * Enemies and impact effects are loaded as spritesheets as well, so the real
+ * pack animations run instead of placeholder tweens.
+ */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
@@ -8,18 +18,18 @@ export class BootScene extends Phaser.Scene {
   preload() {
     const { width, height } = this.scale;
 
-    // Loading background & progress text
     const bg = this.add.graphics();
     bg.fillStyle(0x080b12, 1);
     bg.fillRect(0, 0, width, height);
 
-    const title = this.add.text(width / 2, height / 2 - 40, 'LOADING BASTION ASSETS...', {
-      fontFamily: 'Cinzel, Georgia, serif',
-      fontSize: '22px',
-      color: '#f5c451',
-    }).setOrigin(0.5);
+    this.add
+      .text(width / 2, height / 2 - 40, 'LOADING BASTION ASSETS...', {
+        fontFamily: 'Cinzel, Georgia, serif',
+        fontSize: '22px',
+        color: '#f5c451',
+      })
+      .setOrigin(0.5);
 
-    // Progress bar frame
     const progressBox = this.add.graphics();
     progressBox.fillStyle(0x151b29, 0.8);
     progressBox.lineStyle(2, 0xc99834, 1);
@@ -33,69 +43,65 @@ export class BootScene extends Phaser.Scene {
       progressBar.fillRoundedRect(width / 2 - 156, height / 2 + 4, 312 * value, 16, 4);
     });
 
-    // 1. Environment & Terrain Tiles
+    // 1. Terrain — 16-mask road autotile + grass / rock / water / foliage
     this.load.image('tile-grass', 'assets/tiles/grass.png');
-    this.load.image('tile-road', 'assets/tiles/road.png');
+    for (let mask = 0; mask < 16; mask++) {
+      this.load.image(`tile-road-${mask}`, `assets/tiles/road_${mask}.png`);
+    }
     this.load.image('tile-rock', 'assets/tiles/rock.png');
+    this.load.image('tile-water', 'assets/tiles/water.png');
     this.load.image('tile-foliage', 'assets/tiles/foliage.png');
-    this.load.image('base-platform', 'assets/tiles/base_platform.png');
 
-    // 2. Towers & Upgrades (Levels 1-2 and Level 3 Branching Specializations)
-    this.load.image('tower-base-archer', 'assets/towers/base_archer.png');
-    this.load.image('tower-base-cannon', 'assets/towers/base_cannon.png');
-    this.load.image('tower-base-frost', 'assets/towers/base_frost.png');
+    // 2. Towers — static base + animated weapon sheet per upgrade slot
+    for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
+      for (const slot of SLOTS) {
+        const v = slots[slot];
+        this.load.image(v.baseKey, `assets/towers/${v.base}`);
+        this.load.spritesheet(v.weaponKey, `assets/towers/${v.weapon}`, {
+          frameWidth: v.fw,
+          frameHeight: v.fh,
+        });
+      }
+    }
 
-    this.load.image('tower-top-archer', 'assets/towers/tower_archer_lvl1.png');
-    this.load.image('tower-top-archer-lvl2', 'assets/towers/tower_archer_lvl2.png');
-    this.load.image('tower-top-archer-spec-a', 'assets/towers/tower_archer_spec_a.png'); // Rapid Ranger
-    this.load.image('tower-top-archer-spec-b', 'assets/towers/tower_archer_spec_b.png'); // Sniper Tower
+    // 3. Barricade — two visual tiers
+    for (const tier of Object.values(BARRICADE_VISUALS)) {
+      this.load.image(tier.key, `assets/towers/${tier.file}`);
+    }
 
-    this.load.image('tower-top-cannon', 'assets/towers/tower_cannon_lvl1.png');
-    this.load.image('tower-top-cannon-lvl2', 'assets/towers/tower_cannon_lvl2.png');
-    this.load.image('tower-top-cannon-spec-a', 'assets/towers/tower_cannon_spec_a.png'); // Siege Cannon
-    this.load.image('tower-top-cannon-spec-b', 'assets/towers/tower_cannon_spec_b.png'); // Heavy Artillery
+    // 4. Enemies — animated 9-row strips (idle / move / death x 3 palettes)
+    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
+      this.load.spritesheet(`enemy-${key}`, `assets/enemies/${sheet.file}`, {
+        frameWidth: sheet.frameWidth,
+        frameHeight: sheet.frameHeight,
+      });
+    }
 
-    this.load.image('tower-top-frost', 'assets/towers/tower_frost_lvl1.png');
-    this.load.image('tower-top-frost-lvl2', 'assets/towers/tower_frost_lvl2.png');
-    this.load.image('tower-top-frost-spec-a', 'assets/towers/tower_frost_spec_a.png'); // Blizzard Spire
-    this.load.image('tower-top-frost-spec-b', 'assets/towers/tower_frost_spec_b.png'); // Lightning Conductor
-
-    this.load.image('barricade', 'assets/towers/barricade.png');
-    this.load.image('barricade-lvl2', 'assets/towers/barricade_lvl2.png');
-
-    // 3. Enemies & Boss Encounters
-    this.load.image('enemy-grunt', 'assets/enemies/enemy_grunt.png');
-    this.load.image('enemy-runner', 'assets/enemies/enemy_runner.png');
-    this.load.image('enemy-brute', 'assets/enemies/enemy_brute.png');
-    this.load.image('enemy-swarm', 'assets/enemies/enemy_swarm.png');
-    this.load.image('enemy-healer', 'assets/enemies/enemy_healer.png');
-    this.load.image('enemy-shield', 'assets/enemies/enemy_shield.png');
-    this.load.image('boss-colossus', 'assets/enemies/boss_colossus.png');
-    this.load.image('boss-warlord', 'assets/enemies/boss_warlord.png');
-    this.load.spritesheet('slime-sheet', 'assets/enemies/slime_spritesheet.png', {
-      frameWidth: 24,
-      frameHeight: 24,
-    });
-
-    // 4. Projectiles
-    this.load.image('proj-arrow', 'assets/projectiles/proj_arrow.png');
-    this.load.image('proj-cannonball', 'assets/projectiles/proj_cannonball.png');
-    this.load.image('proj-frost', 'assets/projectiles/proj_frost.png');
-    this.load.image('proj-rapid', 'assets/projectiles/proj_rapid.png');
-    this.load.image('proj-sniper', 'assets/projectiles/proj_sniper.png');
+    // 5. Projectiles
+    for (const key of [
+      'proj-arrow',
+      'proj-rapid',
+      'proj-sniper',
+      'proj-cannonball',
+      'proj-frost',
+      'proj-frost-2',
+      'proj-frost-3',
+      'proj-lightning',
+      'proj-hammer',
+    ]) {
+      this.load.image(key, `assets/projectiles/${key}.png`);
+    }
     this.load.image('coin-sprite', 'assets/projectiles/coin.png');
 
-    // 5. Effects & Particles
-    this.load.image('spark', 'assets/effects/spark.png');
-    this.load.image('smoke', 'assets/effects/smoke.png');
-    this.load.image('flame', 'assets/effects/flame.png');
-    this.load.image('magic', 'assets/effects/magic.png');
-    this.load.image('muzzle', 'assets/effects/muzzle.png');
-    this.load.image('lightning-beam', 'assets/effects/lightning_beam.png');
-    this.load.image('heal-spark', 'assets/effects/heal_spark.png');
-    this.load.image('shield-barrier', 'assets/effects/shield_barrier.png');
+    // 6. Impact animations
+    for (const [key, sheet] of Object.entries(IMPACT_SHEETS)) {
+      this.load.spritesheet(key, `assets/effects/${sheet.file}`, {
+        frameWidth: sheet.frameWidth,
+        frameHeight: sheet.frameHeight,
+      });
+    }
 
-    // 6. Audio Foley
+    // 7. Audio foley
     this.load.audio('sfx-click', 'assets/audio/click.ogg');
     this.load.audio('sfx-toggle', 'assets/audio/toggle.ogg');
     this.load.audio('sfx-wood', 'assets/audio/impact_wood.ogg');
@@ -106,20 +112,92 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    // Generate procedural fallback textures for any missing keys
+    // Procedural fallbacks only fill keys the packs do not provide.
     generateAllTextures(this);
+    this.createTowerAnimations();
+    this.createEnemyAnimations();
+    this.createImpactAnimations();
+    this.scene.start('MenuScene');
+  }
 
-    // Create slime animations if spritesheet exists
-    if (this.textures.exists('slime-sheet')) {
+  /** One looping "idle" (resting pose) and one-shot "fire" clip per tower slot. */
+  createTowerAnimations() {
+    for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
+      for (const slot of SLOTS) {
+        const v = slots[slot];
+        if (!this.textures.exists(v.weaponKey)) continue;
+        const total = this.textures.get(v.weaponKey).frameTotal - 1;
+        if (total > 1) {
+          this.anims.create({
+            key: `${v.weaponKey}-fire`,
+            frames: this.anims.generateFrameNumbers(v.weaponKey, { start: 0, end: total - 1 }),
+            frameRate: 16,
+            repeat: 0,
+          });
+        }
+        this.anims.create({
+          key: `${v.weaponKey}-rest`,
+          frames: [{ key: v.weaponKey, frame: 0 }],
+          frameRate: 1,
+          repeat: -1,
+        });
+      }
+    }
+  }
+
+  /** Idle loop + walk loop + death clip for every enemy archetype. */
+  createEnemyAnimations() {
+    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
+      const textureKey = `enemy-${key}`;
+      if (!this.textures.exists(textureKey)) continue;
+      const cols = this.textures.getTextureKeys
+        ? this.textures.get(textureKey).source[0].width / sheet.frameWidth
+        : sheet.idle;
+
+      // Rows 0-2 are the three palette variants of the idle loop, 3-5 the walk,
+      // 6-8 the death animation; variant 0 (row 0/3/6) is the default.
+      if (sheet.idle > 1) {
+        this.anims.create({
+          key: `enemy-${key}-idle`,
+          frames: this.anims.generateFrameNumbers(textureKey, { start: 0, end: sheet.idle - 1 }),
+          frameRate: 8,
+          repeat: -1,
+        });
+      }
+      if (sheet.move > 1) {
+        this.anims.create({
+          key: `enemy-${key}-move`,
+          frames: this.anims.generateFrameNumbers(textureKey, {
+            start: cols,
+            end: cols + sheet.move - 1,
+          }),
+          frameRate: 10,
+          repeat: -1,
+        });
+      }
+      if (sheet.death > 1) {
+        this.anims.create({
+          key: `enemy-${key}-death`,
+          frames: this.anims.generateFrameNumbers(textureKey, {
+            start: cols * 2,
+            end: cols * 2 + sheet.death - 1,
+          }),
+          frameRate: 12,
+          repeat: 0,
+        });
+      }
+    }
+  }
+
+  createImpactAnimations() {
+    for (const [key, sheet] of Object.entries(IMPACT_SHEETS)) {
+      if (!this.textures.exists(key)) continue;
       this.anims.create({
-        key: 'slime-bounce',
-        frames: this.anims.generateFrameNumbers('slime-sheet', { start: 0, end: 5 }),
-        frameRate: 6,
-        repeat: -1,
+        key: `${key}-burst`,
+        frames: this.anims.generateFrameNumbers(key, { start: 0, end: sheet.frames - 1 }),
+        frameRate: 18,
+        repeat: 0,
       });
     }
-
-    // Transition smoothly to MenuScene
-    this.scene.start('MenuScene');
   }
 }

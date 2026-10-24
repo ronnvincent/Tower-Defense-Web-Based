@@ -24,8 +24,11 @@ const phaserConfig = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   render: {
-    pixelArt: false,
-    antialias: true,
+    // The game art is 64 px pixel art, so textures use nearest-neighbour
+    // filtering and pixel-aligned drawing to stay crisp.
+    pixelArt: true,
+    antialias: false,
+    roundPixels: true,
   },
   scene: [BootScene, MenuScene, GameScene],
 };
