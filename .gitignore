@@ -1,0 +1,26 @@
+# Dependencies — installed by the host (Vercel runs `npm install` on a clean checkout).
+node_modules/
+
+# Build output — produced by `npm run build`.
+dist/
+
+# Local tool caches
+.vite/
+.vitest-cache/
+coverage/
+
+# Vercel CLI metadata
+.vercel/
+
+# Scratch research kept out of the repository (7.5 MB of reference screenshots)
+image-search/
+uploads/
+
+# Python bytecode from the asset pipeline
+__pycache__/
+*.pyc
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.log

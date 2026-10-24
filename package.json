@@ -12,6 +12,9 @@
     "test:watch": "vitest"
   },
   "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "phaser": "^3.90.0"
   },
