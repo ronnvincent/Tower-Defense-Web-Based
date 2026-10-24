@@ -9,6 +9,8 @@
  *   score        – score granted when the enemy is defeated
  *   baseDamage   – base integrity lost if enemy reaches the base
  *   radius       – collision and hit radius in pixels
+ *   siege        – damage per hit dealt to a palisade standing in the way
+ *   siegeInterval– milliseconds between siege hits (default 1000)
  *   isBoss       – true for major boss encounters
  *   bossPhases   – phase thresholds and mechanics for boss encounters
  *   abilities    – archetype specific abilities (e.g. heal pulse, summons)
@@ -30,6 +32,7 @@ export const ENEMY_TYPES = {
     score: 10,
     baseDamage: 1,
     radius: 16,
+    siege: 10,
   },
 
   runner: {
@@ -44,13 +47,14 @@ export const ENEMY_TYPES = {
     score: 12,
     baseDamage: 1,
     radius: 13,
+    siege: 6,
   },
 
   brute: {
     key: 'brute',
     name: 'Iron Brute',
     role: 'Heavily armored juggernaut — 40 Armor reduces physical damage by ~28%. Weak to Magic and Armor Break.',
-    health: 340,
+    health: 320,
     speed: 38,
     armor: 40,
     shield: 0,
@@ -58,6 +62,7 @@ export const ENEMY_TYPES = {
     score: 35,
     baseDamage: 3,
     radius: 22,
+    siege: 34,
   },
 
   swarm: {
@@ -72,13 +77,14 @@ export const ENEMY_TYPES = {
     score: 6,
     baseDamage: 1,
     radius: 12,
+    siege: 4,
     useSlimeAnim: true,
   },
 
   healer: {
     key: 'healer',
     name: 'Plague Shaman',
-    role: 'Support healer — pulses a restoration aura (+40 HP to nearby allies every 2.5s). Priority elimination target.',
+    role: 'Support healer — pulses a restoration aura (+30 HP to nearby allies every 2.5s). Priority elimination target.',
     health: 180,
     speed: 50,
     armor: 10,
@@ -87,10 +93,11 @@ export const ENEMY_TYPES = {
     score: 40,
     baseDamage: 2,
     radius: 18,
+    siege: 8,
     ability: {
       type: 'heal',
       radius: 95,
-      amount: 40,
+      amount: 30,
       intervalMs: 2500,
     },
   },
@@ -107,13 +114,14 @@ export const ENEMY_TYPES = {
     score: 30,
     baseDamage: 2,
     radius: 19,
+    siege: 14,
   },
 
   colossus: {
     key: 'colossus',
     name: 'Stone Colossus',
     role: 'Wave 3 Mid-Boss — 2-phase encounter: Hardened Carapace in Phase 1, Enraged Earth Shatter in Phase 2.',
-    health: 1600,
+    health: 1250,
     speed: 34,
     armor: 35,
     shield: 0,
@@ -121,6 +129,7 @@ export const ENEMY_TYPES = {
     score: 250,
     baseDamage: 8,
     radius: 28,
+    siege: 55,
     isBoss: true,
     bossPhases: [
       {
@@ -151,7 +160,7 @@ export const ENEMY_TYPES = {
     key: 'warlord',
     name: 'Abyssal Warlord',
     role: 'Wave 6 Final Boss — 3-phase epic encounter: Rift Summoning, Kinetic Shield Matrix, and Overdrive Final Stand.',
-    health: 4200,
+    health: 3300,
     speed: 32,
     armor: 25,
     shield: 0,
@@ -159,6 +168,7 @@ export const ENEMY_TYPES = {
     score: 600,
     baseDamage: 12,
     radius: 30,
+    siege: 70,
     isBoss: true,
     bossPhases: [
       {
@@ -193,7 +203,13 @@ export const ENEMY_TYPES = {
   },
 };
 
-/** Health multiplier for wave w (1-based): 1 + 0.12 × (w − 1). */
+/**
+ * Health multiplier for wave w (1-based): 1 + 0.09 × (w − 1), capped at 2×.
+ *
+ * The slope used to be 0.12/wave, which made wave 6 fights drag once the boss
+ * arrives. 9% per wave still ramps the pressure but keeps late waves winnable
+ * with the seven-tower dock.
+ */
 export function waveHealthMultiplier(waveNumber) {
-  return 1 + 0.12 * (waveNumber - 1);
+  return Math.min(2, 1 + 0.09 * (waveNumber - 1));
 }

@@ -70,17 +70,17 @@ describe('Tower Progression & Specialization Architecture', () => {
 
   it('calculates cumulative investment and sell refund accurately across upgrade tiers', () => {
     const archer = TOWER_TYPES.archer; // Cost: 60
-    const lvl2 = archer.levels[1]; // Upgrade cost: 55 -> Total: 115
-    const rapid = archer.specializations.rapid; // Upgrade cost: 95 -> Total: 210
+    const lvl2 = archer.levels[1]; // Upgrade cost: 50 -> Total: 110
+    const rapid = archer.specializations.rapid; // Upgrade cost: 90 -> Total: 200
 
     const baseRefund = calculateSellRefund(archer.cost);
     expect(baseRefund).toBe(Math.floor(60 * 0.7)); // 42
 
     const lvl2Refund = calculateSellRefund(archer.cost + lvl2.upgradeCost);
-    expect(lvl2Refund).toBe(Math.floor(115 * 0.7)); // 80
+    expect(lvl2Refund).toBe(Math.floor(110 * 0.7)); // 77
 
     const specRefund = calculateSellRefund(archer.cost + lvl2.upgradeCost + rapid.upgradeCost);
-    expect(specRefund).toBe(Math.floor(210 * 0.7)); // 147
+    expect(specRefund).toBe(Math.floor(200 * 0.7)); // 140
   });
 });
 

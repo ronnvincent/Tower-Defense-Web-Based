@@ -99,8 +99,9 @@ export class StatisticsPanel {
               </div>
               <p class="telemetry-desc">
                 The road network is an adjacency list; BFS finds the shortest unweighted path from
-                the portal to the core. Barricades are only accepted if BFS still finds a route,
-                and every living enemy is rerouted through it.
+                the portal to the core. Every enemy marches that route — barricades are solid walls
+                standing <em>on</em> it, so the horde has to stop and smash them instead of walking
+                around them.
               </p>
               <div class="telemetry-grid">
                 <div class="tel-box"><span class="tel-lbl">LAST SEARCH PURPOSE</span><span class="tel-val tel-text" id="live-bfs-purpose">—</span></div>
@@ -144,8 +145,9 @@ export class StatisticsPanel {
                 <div class="tel-box"><span class="tel-lbl">DEFEATED</span><span class="tel-val gold-text" id="live-defeated">0</span></div>
                 <div class="tel-box"><span class="tel-lbl">TOWERS BUILT</span><span class="tel-val" id="live-towers">0</span></div>
                 <div class="tel-box"><span class="tel-lbl">UPGRADES</span><span class="tel-val" id="live-upgrades">0</span></div>
-                <div class="tel-box"><span class="tel-lbl">BARRICADES (GRAPH CUT)</span><span class="tel-val" id="live-barricades">0</span></div>
-                <div class="tel-box"><span class="tel-lbl">REJECTED (BFS GUARD)</span><span class="tel-val" id="live-rejected">0</span></div>
+                <div class="tel-box"><span class="tel-lbl">BARRICADES BUILT</span><span class="tel-val" id="live-barricades">0</span></div>
+                <div class="tel-box"><span class="tel-lbl">BARRICADES BREACHED</span><span class="tel-val" id="live-breached">0</span></div>
+                <div class="tel-box"><span class="tel-lbl">REJECTED PLACEMENTS</span><span class="tel-val" id="live-rejected">0</span></div>
               </div>
             </section>
           </div>
@@ -220,6 +222,7 @@ export class StatisticsPanel {
     this.set('live-towers', counters.towersPlaced ?? 0);
     this.set('live-upgrades', counters.towerUpgrades ?? 0);
     this.set('live-barricades', counters.barricadesPlaced ?? 0);
+    this.set('live-breached', counters.barricadesDestroyed ?? 0);
     this.set('live-rejected', counters.barricadesRejected ?? 0);
 
     const toggleVisBtn = document.getElementById('btn-toggle-bfs-vis');

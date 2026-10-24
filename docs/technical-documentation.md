@@ -10,7 +10,7 @@
 ```
        +-------------------------------------------------------------+
        |                         USER INPUT                          |
-       |                (Mouse Pointer, Hotkeys 1-4, C, L)           |
+       |                (Mouse Pointer, Hotkeys 1-7, C, L)           |
        +------------------------------+------------------------------+
                                       |
                                       v
@@ -113,18 +113,25 @@ A.\text{id} \leftrightarrow B.\text{id} & \text{lexicographical total order}
 
 ## 5. Game Balance & Economic Constants
 
+Starting economy: **220 gold**, **25 base HP**, **70% sell refund**.
+Wave-clear payout: $30 + 8w$ gold, $100w$ score.
+
 | Tower | Cost | Range | Cooldown | Damage | Special Capability |
 |---|:---:|:---:|:---:|:---:|---|
-| **Archer** | 🪙 60 | 150 px | 0.65 s | 15 | Balanced single-target; Level 2 (🪙55), Level 3 (🪙90) |
-| **Cannon** | 🪙 110 | 145 px | 1.70 s | 45 | Ballistic trajectory; 62 px Area Splash Damage |
-| **Frost** | 🪙 85 | 135 px | 1.00 s | 6 | 40% Speed Reduction for 1.6s |
-| **Barricade** | 🪙 30 | N/A | N/A | 0 | Road graph node cut; forces BFS reroute |
+| **Ballista (archer)** | 🪙 60 | 155 px | 0.62 s | 16 | Balanced single-target; L2 (🪙50) → Rapid Ranger (🪙90) / Sniper (🪙100) |
+| **Boulder Sling (cannon)** | 🪙 110 | 150 px | 1.65 s | 55 | 70 px splash with distance falloff; L2 (🪙85) → Siege Sling (🪙135) / Stone Hammer (🪙150) |
+| **Frost Bastion** | 🪙 85 | 140 px | 0.95 s | 10 | 40% slow for 1.6 s; L2 (🪙65) → Blizzard (🪙110) / Lightning (🪙120) |
+| **Hammerforge** | 🪙 120 | 140 px | 1.60 s | 60 | Explosive slam (66 px); L2 (🪙85) → Emberforge (🪙130, −20 armour) / Thunderforge (🪙140, 35% pen) |
+| **Runestone** | 🪙 135 | 170 px | 1.10 s | 30 | Magic bolts (75% armour bypass); L2 (🪙95) → Void Lance (🪙130, true damage) / Arcane Nova (🪙140, splash) |
+| **Banner Keep** | 🪙 125 | 155 px | 1.25 s | 16 | Aura: +15% damage, +6% range within 150 px; L2 (🪙85) → Great Warbanner (🪙115) / Muster Camp (🪙120, +gold per kill) |
+| **Palisade** | 🪙 30 | N/A | N/A | N/A | 420 HP wall on the road — enemies must break it; L2 (🪙35) → 900 HP + 20 thorns/s |
 
-| Enemy | Base HP | Speed | Reward | Score | Role |
-|---|:---:|:---:|:---:|:---:|---|
-| **Goblin Grunt** | 70 | 62 px/s | 🪙 7 | 10 pts | Standard foot soldier |
-| **Shadow Runner**| 38 | 120 px/s | 🪙 6 | 12 pts | Agile sprinter |
-| **Iron Brute** | 300 | 40 px/s | 🪙 20 | 35 pts | Heavy armored juggernaut (3 base damage) |
-| **Warlord Boss** | 2600 | 32 px/s | 🪙 150 | 500 pts | Wave 6 Final Boss (10 base damage) |
+| Enemy | Base HP | Speed | Siege | Reward | Score | Role |
+|---|:---:|:---:|:---:|:---:|:---:|---|
+| **Goblin Grunt** | 75 | 62 px/s | 10 | 🪙 7 | 10 pts | Standard foot soldier |
+| **Shadow Runner** | 40 | 125 px/s | 6 | 🪙 6 | 12 pts | Agile sprinter |
+| **Iron Brute** | 320 | 38 px/s | 34 | 🪙 22 | 35 pts | Heavy armored juggernaut (3 base damage) |
+| **Stone Colossus** | 1250 | 34 px/s | 55 | 🪙 100 | 250 pts | Wave 3 mid-boss, 2 phases |
+| **Abyssal Warlord** | 3300 | 32 px/s | 70 | 🪙 200 | 600 pts | Wave 6 final boss, 3 phases |
 
-Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times (1 + 0.12 \times (w - 1))$.
+Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times \min(2, 1 + 0.09 \times (w - 1))$.

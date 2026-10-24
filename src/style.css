@@ -610,7 +610,7 @@ body.is-fullscreen::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: clamp(72px, 7.6vw, 100px);
+  width: clamp(60px, 6.2vw, 88px);
   background: transparent;
   border: none;
   border-image-source: var(--cozy-card-wood);
@@ -703,12 +703,23 @@ body.is-fullscreen::before {
 .sprite-barricade {
   background-image: url('/assets/ui/card_barricade.png');
 }
+.sprite-forge {
+  background-image: url('/assets/ui/card_forge.png');
+}
+.sprite-runes {
+  background-image: url('/assets/ui/card_runes.png');
+}
+.sprite-banner {
+  background-image: url('/assets/ui/card_banner.png');
+}
 
 .card-info {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .card-name {
@@ -716,6 +727,11 @@ body.is-fullscreen::before {
   font-weight: 700;
   color: var(--ink-strong);
   line-height: 1.15;
+  /* "Banner Keep" must never widen the seven-card dock */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-cost {
@@ -2443,7 +2459,8 @@ body.is-fullscreen #app::after {
   }
 
   .build-card {
-    width: clamp(64px, 15vw, 86px);
+    width: clamp(46px, 12.6vw, 74px);
+    min-width: 0;
   }
 
   .card-name {
@@ -2532,8 +2549,9 @@ body.is-fullscreen #app::after {
 
   .build-card {
     flex: 1 1 0;
+    min-width: 0;
     width: auto;
-    max-width: 92px;
+    max-width: 76px;
     padding: 6px 2px 5px;
     border-image-width: 13px 11px 13px 11px;
   }

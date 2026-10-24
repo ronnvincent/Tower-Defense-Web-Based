@@ -80,7 +80,11 @@ describe('HUD markup', () => {
     ]) {
       expect(document.getElementById(id), `missing #${id}`).toBeTruthy();
     }
-    expect(document.querySelectorAll('.build-card')).toHaveLength(4);
+    // 3 starter towers + palisade + the 3 forge lines
+    expect(document.querySelectorAll('.build-card')).toHaveLength(7);
+    for (const key of ['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner']) {
+      expect(document.getElementById(`card-${key}`), `missing #card-${key}`).toBeTruthy();
+    }
   });
 
   it('forwards the primary actions to the game scene', () => {

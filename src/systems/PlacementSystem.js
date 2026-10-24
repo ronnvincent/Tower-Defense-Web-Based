@@ -18,9 +18,8 @@ export const PLACEMENT_ERRORS = {
   occupied: 'This tile is already occupied',
   'no-coins': 'Not enough coins',
   'enemy-on-tile': 'An enemy is on this tile',
-  'blocks-path': 'That would block the only path to the base!',
-  'traps-enemy': 'That would trap an enemy with no route to the base',
   'not-walkable': 'This road tile is not part of the path network',
+  'unknown-type': 'Unknown defence',
   'game-over': 'The match is over',
 };
 
@@ -61,7 +60,8 @@ export class PlacementSystem {
 
   /**
    * Validate the basic rules for building `definition` at (row, col).
-   * (Path-blocking rules for barricades are checked afterwards by BFS.)
+   * GameScene layers the "no wall on top of a living enemy" rule on top of
+   * this (see `GameScene.validateBuild`).
    *
    * @param {{cost:number, placement:'grass'|'road'}} definition
    * @param {number} coins player's current coins

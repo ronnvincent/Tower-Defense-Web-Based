@@ -87,8 +87,8 @@
             <section>
               <h3>OBJECTIVE</h3>
               <p class="modal-note">
-                Defend your Realm Core Base (20 HP) against 6 incoming waves of invaders emerging from the
-                Abyssal Portal. Earn gold by defeating enemies and spend it on defences.
+                Defend your Realm Core Base (25 HP) against 6 incoming waves of invaders emerging from the
+                Abyssal Portal. You start with 220 gold. Earn more by defeating enemies and spend it on defences.
               </p>
             </section>
 
@@ -108,9 +108,24 @@
                   Chills enemies, slowing movement speed by up to 60%.
                 </li>
                 <li>
-                  <strong>Road Barricade (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="" /> 30):</strong>
-                  Placed on the road to cut graph edges, forcing enemies to reroute via BFS. It can never
-                  seal off the only remaining path.
+                  <strong>Hammerforge (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="" /> 120):</strong>
+                  Heavy hammer slams that detonate for explosive splash. Branches into the armour-melting
+                  Emberforge or the long-reach Thunderforge.
+                </li>
+                <li>
+                  <strong>Runestone (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="" /> 135):</strong>
+                  Magic rune bolts that ignore 75% of armour — the answer to Iron Brutes and shielded elites.
+                  Upgrades into the Void Lance (true damage) or the Arcane Nova (splash).
+                </li>
+                <li>
+                  <strong>Banner Keep (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="" /> 125):</strong>
+                  Support keep: every tower in its aura hits harder and further. Specialise into the
+                  Great Warbanner or the gold-generating Muster Camp.
+                </li>
+                <li>
+                  <strong>Palisade (<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="" /> 30):</strong>
+                  A solid wall on the road. Enemies will not walk around it — they stop and break it down,
+                  which buys your defences the time they need. Reinforce it for extra HP and thorns damage.
                 </li>
               </ul>
             </section>
@@ -119,7 +134,7 @@
               <h3>CONTROLS</h3>
               <ul class="modal-list">
                 <li><strong>Camera:</strong> drag the battlefield to pan · mouse wheel or two-finger pinch to zoom · <kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> for keyboard zoom and reset.</li>
-                <li><strong>Build:</strong> click a dock card (or <kbd>1</kbd>–<kbd>4</kbd>), then click a valid tile.</li>
+                <li><strong>Build:</strong> click a dock card (or <kbd>1</kbd>–<kbd>7</kbd>), then click a valid tile.</li>
                 <li><strong>Upgrade:</strong> click the gold badge floating above any defence.</li>
                 <li><strong>Waves:</strong> <kbd>Space</kbd> starts the next wave or pauses · <kbd>Esc</kbd> cancels placement.</li>
                 <li><strong>Codex:</strong> <kbd>C</kbd> opens the live algorithm drawer without stopping the battle.</li>
@@ -134,7 +149,7 @@
               <ul class="modal-list">
                 <li><strong>Circular Queue (O(1)):</strong> powers wave spawning and the BFS frontier without <code>Array.shift()</code> penalties.</li>
                 <li><strong>Adjacency List Graph:</strong> represents walkable road cells and orthogonal movement links.</li>
-                <li><strong>Breadth-First Search (BFS):</strong> computes shortest paths, validates barricade placement and reroutes live enemies.</li>
+                <li><strong>Breadth-First Search (BFS):</strong> computes the shortest route every enemy marches, and the codex visualises it live.</li>
                 <li><strong>Merge Sort (O(n log n)):</strong> ranks the local leaderboard with a student-written sort.</li>
               </ul>
             </section>

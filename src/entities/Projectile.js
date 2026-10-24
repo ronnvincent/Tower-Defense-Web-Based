@@ -6,7 +6,7 @@ let projIdCounter = 1;
 export class Projectile {
   /**
    * @param {Phaser.Scene} scene
-   * @param {string} type 'arrow' | 'cannonball' | 'frost' | 'rapid' | 'sniper' | 'lightning'
+   * @param {string} type 'arrow' | 'cannonball' | 'frost' | 'rapid' | 'sniper' | 'lightning' | 'hammer' | 'rune'
    * @param {number} x
    * @param {number} y
    * @param {import('./Enemy.js').Enemy} target
@@ -105,7 +105,10 @@ export class Projectile {
     if (this.isDead) return;
     this.isDead = true;
 
-    if (this.type === 'cannonball' && this.stats.splash > 0) {
+    // Any projectile carrying a splash radius detonates — the Hammerforge
+    // shells travel under their own type, and gating on 'cannonball' would
+    // silently drop their area damage.
+    if (this.stats.splash > 0) {
       // Area of effect detonation
       audio.playExplosion();
 
@@ -125,7 +128,10 @@ export class Projectile {
         this.scene.particleEmitter.explode(16, impactX, impactY);
       }
 
-      // Distribute splash damage with distance falloff
+      // Distribute splash damage with real distance falloff. Passing the
+      // distance through is what makes `calculateSplashDamage` (100 % at the
+      // centre → 40 % at the rim) actually run; it used to be dead code and
+      // every enemy in the blast took full damage.
       for (const enemy of this.activeEnemies) {
         if (enemy.isDead || enemy.reachedBase) continue;
         const d = Math.hypot(enemy.x - impactX, enemy.y - impactY);
@@ -133,6 +139,8 @@ export class Projectile {
           const res = enemy.applyDamage(this.stats.damage, this.stats.damageType || 'explosive', {
             armorBreak: this.stats.armorBreak || 0,
             armorBreakMs: this.stats.armorBreakMs || 0,
+            distance: d,
+            splashRadius: this.stats.splash,
           });
           if (res.finalDamage > 0) {
             this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0xff7a59);

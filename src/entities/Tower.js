@@ -46,6 +46,11 @@ export class Tower {
     this.currentTarget = null;
     this.turretAngle = 0;
 
+    // Support buffs contributed by Banner Keeps in range (set by the scene).
+    this.buffDamage = 1;
+    this.buffRange = 1;
+    this.buffCooldown = 1;
+
     // Pixel coordinates (center of tile)
     this.x = col * TILE_SIZE + TILE_SIZE / 2;
     this.y = row * TILE_SIZE + TILE_SIZE / 2;
@@ -64,6 +69,14 @@ export class Tower {
         .image(0, TILE_SIZE / 2 + tier.offsetY * 0.25, tier.key)
         .setOrigin(0.5, 1);
       this.container.add(this.sprite);
+
+      // Palisades are attackable: track their structure HP and draw a bar.
+      this.maxHealth = this.def.levels[this.level - 1].health;
+      this.health = this.maxHealth;
+      this.isDestroyed = false;
+      this.healthBar = scene.add.graphics();
+      this.container.add(this.healthBar);
+      this.updateHealthBar();
     } else {
       // Static structure (steps, keep, plinth) anchored to the tile's ground line.
       this.baseSprite = scene.add
@@ -111,12 +124,18 @@ export class Tower {
     return art && art.height ? art.height : TILE_SIZE;
   }
 
-  /** Which upgrade slot the tower currently shows ('lvl1' | 'lvl2' | 'spec-a' | 'spec-b'). */
+  /**
+   * Which upgrade slot the tower currently shows
+   * ('lvl1' | 'lvl2' | 'spec-a' | 'spec-b').
+   *
+   * Driven by the data's `branch` field: hard-coding the starter towers' spec
+   * keys here meant every *new* tower's specialisations silently fell back to
+   * the 'spec-b' art.
+   */
   get visualSlot() {
     if (this.specialization) {
-      return this.specialization === 'rapid' || this.specialization === 'siege' || this.specialization === 'blizzard'
-        ? 'spec-a'
-        : 'spec-b';
+      const spec = this.def.specializations?.[this.specialization];
+      return spec?.branch === 'spec-b' ? 'spec-b' : 'spec-a';
     }
     return this.level === 2 ? 'lvl2' : 'lvl1';
   }
@@ -143,6 +162,80 @@ export class Tower {
       return this.def.specializations[this.specialization];
     }
     return this.def.levels[this.level - 1];
+  }
+
+  /** Attack range including Banner Keep buffs. */
+  get attackRange() {
+    return (this.stats?.range || 0) * this.buffRange;
+  }
+
+  /** Damage per hit including Banner Keep buffs. */
+  get attackDamage() {
+    return Math.round((this.stats?.damage || 0) * this.buffDamage);
+  }
+
+  /** Milliseconds between shots (Banner Keeps can shave the cooldown). */
+  get attackCooldown() {
+    return Math.max(80, (this.stats?.cooldown || 0) * this.buffCooldown);
+  }
+
+  /** Support field of this tower (Banner Keep only). */
+  get aura() {
+    return this.stats?.aura || null;
+  }
+
+  /** Apply the best support aura found in range (1 = unbuffed). */
+  setBuffs({ damage = 1, range = 1, cooldown = 1 } = {}) {
+    const changed = damage !== this.buffDamage || range !== this.buffRange || cooldown !== this.buffCooldown;
+    this.buffDamage = damage;
+    this.buffRange = range;
+    this.buffCooldown = cooldown;
+    if (changed && this.rangeCircle?.visible) this.drawRangeCircle(0x4ee1ff);
+  }
+
+  /**
+   * Structure damage (palisades only). Returns the points actually removed.
+   * The scene owns the "wall fell down" flow — see GameScene.damageBarricade.
+   */
+  takeDamage(amount) {
+    if (!this.isBarricade || this.isDestroyed) return 0;
+    const dealt = Math.max(0, Math.round(amount));
+    if (dealt <= 0) return 0;
+    this.health = Math.max(0, this.health - dealt);
+    this.flashHit();
+    this.updateHealthBar();
+    if (this.health <= 0) this.isDestroyed = true;
+    return dealt;
+  }
+
+  /** Red bar / green bar above the stakes; only shown once damaged. */
+  updateHealthBar() {
+    if (!this.healthBar) return;
+    this.healthBar.clear();
+    if (this.health >= this.maxHealth) return;
+
+    const pct = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
+    const width = 42;
+    const height = 5;
+    const top = TILE_SIZE / 2 - this.artHeight - 10;
+    const color = pct > 0.5 ? 0x5cf2a6 : pct > 0.25 ? 0xf5c451 : 0xff5470;
+
+    this.healthBar.fillStyle(0x11131a, 0.9);
+    this.healthBar.fillRect(-width / 2 - 1, top - 1, width + 2, height + 2);
+    this.healthBar.fillStyle(color, 1);
+    this.healthBar.fillRect(-width / 2, top, width * pct, height);
+  }
+
+  /** Brief red flash so hits on the wall read at a glance. */
+  flashHit() {
+    if (!this.sprite) return;
+    if (this.scene.tweens) {
+      this.scene.tweens.add({ targets: this.sprite, alpha: 0.55, duration: 60, yoyo: true });
+    }
+    this.sprite.setTintFill?.(0xffb0a0);
+    this.scene.time?.delayedCall(70, () => {
+      if (this.sprite?.active) this.sprite.clearTint();
+    });
   }
 
   /**
@@ -225,10 +318,18 @@ export class Tower {
     this.rangeCircle.clear();
     if (this.isBarricade || !this.stats) return;
 
+    const range = this.attackRange;
     this.rangeCircle.lineStyle(2, color, 0.85);
     this.rangeCircle.fillStyle(color, 0.08);
-    this.rangeCircle.strokeCircle(this.x, this.y, this.stats.range);
-    this.rangeCircle.fillCircle(this.x, this.y, this.stats.range);
+    this.rangeCircle.strokeCircle(this.x, this.y, range);
+    this.rangeCircle.fillCircle(this.x, this.y, range);
+
+    // Support towers also advertise the radius their aura reaches.
+    const aura = this.aura;
+    if (aura?.radius) {
+      this.rangeCircle.lineStyle(2, 0xf5c451, 0.7);
+      this.rangeCircle.strokeCircle(this.x, this.y, aura.radius);
+    }
   }
 
   setSelected(selected) {
@@ -269,6 +370,11 @@ export class Tower {
         this.sprite.setTexture(tier.key);
         this.sprite.y = TILE_SIZE / 2 + tier.offsetY * 0.25;
       }
+      // Rebuilding the wall also repairs it — the upgrade is a fresh
+      // reinforcement, not a patch over the holes.
+      this.maxHealth = this.stats.health;
+      this.health = this.maxHealth;
+      this.updateHealthBar();
       return true;
     }
 
@@ -338,7 +444,7 @@ export class Tower {
       // Attack if off cooldown
       if (this.cooldownTimer <= 0) {
         this.fire(this.currentTarget);
-        this.cooldownTimer = this.stats.cooldown;
+        this.cooldownTimer = this.attackCooldown;
       }
     }
   }
@@ -349,14 +455,14 @@ export class Tower {
     for (const e of enemies) {
       if (e.isDead || e.reachedBase) continue;
       const d = Math.hypot(e.x - this.x, e.y - this.y);
-      if (d <= 36) {
+      if (d <= 58) {
         e.applyDamage(thorns, 'physical');
       }
     }
   }
 
   acquireTarget() {
-    const range = this.stats.range;
+    const range = this.attackRange;
     const enemies = this.context.activeEnemies;
 
     // Filter enemies currently within range
@@ -454,7 +560,7 @@ export class Tower {
       originY,
       target,
       {
-        damage: s.damage,
+        damage: this.attackDamage,
         speed: projSpeed,
         damageType: s.damageType || 'physical',
         armorPenetration: s.armorPenetration || 0,
@@ -476,6 +582,8 @@ export class Tower {
   }
 
   destroy() {
+    this.isDestroyed = true;
+    this.healthBar = null;
     if (this.rangeCircle) {
       this.rangeCircle.destroy();
       this.rangeCircle = null;

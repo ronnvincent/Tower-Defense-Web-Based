@@ -10,6 +10,8 @@ import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Tower } from '../entities/Tower.js';
+import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
+import { BUILD_OPTIONS } from '../data/towerData.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { CameraRig } from '../camera/CameraRig.js';
@@ -258,6 +260,8 @@ export class GameScene extends Phaser.Scene {
         audio.playVictory();
         this.hud?.showToast(`🏆 BOSS DEFEATED: ${e.def.name}!`, 'success');
       },
+      getBarricadeAt: (cellKey) => this.getBarricadeAt(cellKey),
+      onBarricadeHit: (wall, damage) => this.damageBarricade(wall, damage),
       onSummonMinions: (typeKey, count) => {
         for (let k = 0; k < count; k++) {
           // Timers fire from Phaser's UPDATE event, outside update()'s guard —
@@ -297,7 +301,7 @@ export class GameScene extends Phaser.Scene {
 
   handleEnemyDefeated(enemy) {
     audio.playCoin();
-    this.economy.earn(enemy.reward);
+    this.economy.earn(enemy.reward + this.rewardKillAuraBonus(enemy));
     this.economy.addScore(enemy.score);
     this.gameState.counters.enemiesDefeated++;
 
@@ -357,6 +361,7 @@ export class GameScene extends Phaser.Scene {
         this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
       }
       this.badges?.pulse(tower);
+      this.refreshTowerAuras();
       this.syncHUD();
       this.updateGhostGraphics();
     }
@@ -367,19 +372,7 @@ export class GameScene extends Phaser.Scene {
     this.economy.earn(refund);
     this.placement.release(tower.row, tower.col);
 
-    if (tower.isBarricade) {
-      // Barricade sold: restore graph node and reroute live enemies
-      const enemyStarts = this.activeEnemies.map((e) => ({ id: e.id, startKey: e.getNextCellKey() }));
-      const newPaths = this.pathfinding.unblockCell(`${tower.row},${tower.col}`, enemyStarts);
-      for (const enemy of this.activeEnemies) {
-        if (newPaths.has(enemy.id)) {
-          enemy.reroute(newPaths.get(enemy.id));
-        }
-      }
-      this.gameState.counters.towersSold++;
-    } else {
-      this.gameState.counters.towersSold++;
-    }
+    this.gameState.counters.towersSold++;
 
     const idx = this.activeTowers.indexOf(tower);
     if (idx !== -1) this.activeTowers.splice(idx, 1);
@@ -387,6 +380,8 @@ export class GameScene extends Phaser.Scene {
 
     this.selectedTower = null;
     this.badges?.setSelected(null);
+    // Removing a support tower must not leave stale buffs behind.
+    this.refreshTowerAuras();
     this.syncHUD();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
   }
@@ -516,70 +511,162 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Single source of truth for "can this be built here?".
+   *
+   * The build ghost and the actual build both call it, so the preview can never
+   * promise a green tile that the click then rejects. (Barricades used to run a
+   * second BFS feasibility pass *after* this check, which is exactly how the
+   * ghost ended up lying.)
+   *
+   * @returns {{ok:boolean, reason:string|null}}
+   */
+  validateBuild(typeKey, row, col) {
+    const def = getBuildDefinition(typeKey);
+    if (!def) return { ok: false, reason: 'unknown-type' };
+
+    const base = this.placement.validate(def, row, col, this.economy.coins);
+    if (!base.ok) return base;
+
+    // A wall cannot be dropped on top of a living enemy (it would trap it
+    // inside the stakes).
+    if (typeKey === 'barricade' && this.isEnemyOnCell(row, col)) {
+      return { ok: false, reason: 'enemy-on-tile' };
+    }
+    return { ok: true, reason: null };
+  }
+
+  /** Is a living enemy standing on (or stepping into) this cell? */
+  isEnemyOnCell(row, col) {
+    const key = `${row},${col}`;
+    for (const enemy of this.activeEnemies) {
+      if (enemy.isDead || enemy.reachedBase) continue;
+      if (enemy.getCurrentCellKey?.() === key || enemy.getNextCellKey?.() === key) return true;
+    }
+    return false;
+  }
+
+  /** Palisade occupying a cell key, or null. O(1) via the placement hash map. */
+  getBarricadeAt(cellKey) {
+    const [row, col] = cellKey.split(',').map(Number);
+    const occupant = this.placement.getOccupant(row, col);
+    return occupant?.isBarricade ? occupant : null;
+  }
+
+  /**
+   * A horde member swung at a palisade. Applies the damage and, when the wall
+   * finally gives, runs the collapse flow.
+   */
+  damageBarricade(wall, amount) {
+    if (!wall || wall.isDestroyed) return;
+    const swing = resolveSiegeSwing(wall, amount);
+    if (swing.dealt <= 0) return;
+    wall.takeDamage(swing.dealt);
+
+    if (this.particleEmitter) {
+      this.particleEmitter.explode(3, wall.x, wall.y - TILE_SIZE * 0.5);
+    }
+    if (swing.destroyed) this.destroyBarricade(wall);
+  }
+
+  /** Collapse: free the tile, remove the wall and let the horde walk on. */
+  destroyBarricade(wall) {
+    const idx = this.activeTowers.indexOf(wall);
+    if (idx !== -1) this.activeTowers.splice(idx, 1);
+    this.placement.release(wall.row, wall.col);
+    if (this.selectedTower === wall) {
+      this.selectedTower = null;
+      this.badges?.setSelected(null);
+      this.hud?.closeInspector();
+    }
+    this.gameState.counters.barricadesDestroyed =
+      (this.gameState.counters.barricadesDestroyed || 0) + 1;
+
+    audio.playExplosion?.();
+    this.cameras.main.shake(180, 0.006);
+    if (this.particleEmitter) {
+      this.particleEmitter.explode(14, wall.x, wall.y - TILE_SIZE * 0.4);
+    }
+    this.hud?.showToast('Palisade breached! The horde pushes through.', 'warning');
+    wall.destroy();
+
+    this.syncHUD();
+    this.updateGhostGraphics();
+  }
+
   attemptBuild(typeKey, row, col) {
     const def = getBuildDefinition(typeKey);
-    const validation = this.placement.validate(def, row, col, this.economy.coins);
+    const validation = this.validateBuild(typeKey, row, col);
 
     if (!validation.ok) {
       audio.playError();
+      if (typeKey === 'barricade') this.gameState.counters.barricadesRejected++;
       const errMsg = PLACEMENT_ERRORS[validation.reason] || 'Invalid location';
       this.hud?.showToast(errMsg, 'error');
       return;
     }
 
-    // Additional path feasibility check for Barricades
-    if (typeKey === 'barricade') {
-      const cell = `${row},${col}`;
-      const enemyStarts = this.activeEnemies.map((e) => ({ id: e.id, startKey: e.getNextCellKey() }));
-      const blockResult = this.pathfinding.tryBlockCell(cell, enemyStarts);
+    this.economy.spend(def.cost);
+    const tower = new Tower(this, typeKey, row, col, {
+      economy: this.economy,
+      gameState: this.gameState,
+      activeEnemies: this.activeEnemies,
+      activeProjectiles: this.activeProjectiles,
+    });
+    this.placement.occupy(row, col, tower);
+    this.activeTowers.push(tower);
 
-      if (!blockResult.ok) {
-        audio.playError();
-        this.gameState.counters.barricadesRejected++;
-        const errMsg = PLACEMENT_ERRORS[blockResult.reason] || 'Cannot place barricade here';
-        this.hud?.showToast(errMsg, 'error');
-        return;
-      }
-
-      // Barricade accepted: deduct coins and reroute enemies
-      this.economy.spend(def.cost);
-      const barricade = new Tower(this, typeKey, row, col, {
-        economy: this.economy,
-        gameState: this.gameState,
-        activeEnemies: this.activeEnemies,
-        activeProjectiles: this.activeProjectiles,
-      });
-      this.placement.occupy(row, col, barricade);
-      this.activeTowers.push(barricade);
+    if (tower.isBarricade) {
       this.gameState.counters.barricadesPlaced++;
-      audio.playPlace();
-
-      // Apply new routes to living enemies
-      for (const enemy of this.activeEnemies) {
-        if (blockResult.enemyPaths.has(enemy.id)) {
-          enemy.reroute(blockResult.enemyPaths.get(enemy.id));
-        }
-      }
-
-      this.hud?.showToast('Barricade placed! Enemies rerouting via BFS...', 'info');
+      this.hud?.showToast('Palisade raised! Enemies must break it down.', 'info');
     } else {
-      // Normal Tower placement
-      this.economy.spend(def.cost);
-      const tower = new Tower(this, typeKey, row, col, {
-        economy: this.economy,
-        gameState: this.gameState,
-        activeEnemies: this.activeEnemies,
-        activeProjectiles: this.activeProjectiles,
-      });
-      this.placement.occupy(row, col, tower);
-      this.activeTowers.push(tower);
       this.gameState.counters.towersPlaced++;
-      audio.playPlace();
     }
+    audio.playPlace();
 
+    this.refreshTowerAuras();
     this.syncHUD();
     this.updateGhostGraphics();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
+  }
+
+  /**
+   * Recompute Banner Keep buffs for every tower.
+   *
+   * Called on build / sell / upgrade instead of every frame: the auras only
+   * change when the tower set changes, so the battlefield stays O(n²) once per
+   * edit instead of 60 times a second.
+   */
+  refreshTowerAuras() {
+    const banners = this.activeTowers.filter((t) => t.aura && !t.isDestroyed);
+    for (const tower of this.activeTowers) {
+      let damage = 1;
+      let range = 1;
+      let cooldown = 1;
+      for (const source of banners) {
+        if (source === tower) continue;
+        const aura = source.aura;
+        const d = Math.hypot(tower.x - source.x, tower.y - source.y);
+        if (d > aura.radius) continue;
+        damage = Math.max(damage, 1 + (aura.damageBonus || 0));
+        range = Math.max(range, 1 + (aura.rangeBonus || 0));
+        cooldown = Math.min(cooldown, 1 - (aura.fireRateBonus || 0));
+      }
+      tower.setBuffs({ damage, range, cooldown });
+    }
+  }
+
+  /** Extra gold from Muster Camps: +1 per kill inside their aura. */
+  rewardKillAuraBonus(enemy) {
+    let bonus = 0;
+    for (const tower of this.activeTowers) {
+      const aura = tower.aura;
+      if (!aura?.coinPerKill || tower.isDestroyed) continue;
+      if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= aura.radius) {
+        bonus += aura.coinPerKill;
+      }
+    }
+    return bonus;
   }
 
   updateGhostGraphics() {
@@ -590,7 +677,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.placement.inBounds(row, col)) return;
 
     const def = getBuildDefinition(this.selectedBuildKey);
-    const valid = this.placement.validate(def, row, col, this.economy.coins).ok;
+    const valid = this.validateBuild(this.selectedBuildKey, row, col).ok;
 
     const x = col * TILE_SIZE;
     const y = row * TILE_SIZE;
@@ -696,10 +783,10 @@ export class GameScene extends Phaser.Scene {
 
   bindKeyboardShortcuts() {
     this.input.keyboard.on('keydown', (event) => {
-      if (event.key === '1') this.hud?.toggleBuildSelection('archer');
-      else if (event.key === '2') this.hud?.toggleBuildSelection('cannon');
-      else if (event.key === '3') this.hud?.toggleBuildSelection('frost');
-      else if (event.key === '4') this.hud?.toggleBuildSelection('barricade');
+      // Hotkeys come from the tower data, so adding a defence to the dock
+      // automatically gives it a working number key.
+      const buildKey = BUILD_OPTIONS.find((key) => getBuildDefinition(key)?.hotkey === event.key);
+      if (buildKey) this.hud?.toggleBuildSelection(buildKey);
       else if (event.key === 'Escape') {
         this.hud?.clearBuildSelection();
         this.handleDeselectTower();

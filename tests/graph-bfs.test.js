@@ -146,60 +146,58 @@ describe('Game map + PathfindingSystem', () => {
     }
   });
 
-  it('a barricade on the middle route forces the 28-cell north route', () => {
+  it('keeps the palisade out of the graph so the horde can never dodge it', () => {
     const pf = new PathfindingSystem(map);
     pf.computeMainPath();
-    const result = pf.tryBlockCell('7,9', []);
-    expect(result.ok).toBe(true);
-    expect(pf.mainPath.length).toBe(28);
-    expect(pf.mainPath).toContain('1,10');
-  });
 
-  it('rejects a barricade that would block the only remaining path', () => {
-    const pf = new PathfindingSystem(map);
+    // 7,9 is a middle-lane road cell — the exact tile a player would wall off.
+    expect(pf.isRoad('7,9')).toBe(true);
+    expect(pf.graph.hasNode('7,9')).toBe(true);
+    expect(pf.mainPath).toContain('7,9');
+
+    // The old design removed the node and pushed BFS onto the 28-cell north
+    // route. That "detour" is precisely the dodge the redesign removed: the
+    // graph is untouched, so every enemy keeps walking into the wall and has
+    // to break it (Enemy.updateSiege) before it can use the road again.
     pf.computeMainPath();
-    expect(pf.tryBlockCell('7,9', []).ok).toBe(true); // middle closed
-    expect(pf.tryBlockCell('1,10', []).ok).toBe(true); // north closed
-    const last = pf.tryBlockCell('10,10', []); // south is the only route left
-    expect(last.ok).toBe(false);
-    expect(last.reason).toBe('blocks-path');
-    expect(pf.graph.hasNode('10,10')).toBe(true); // graph unchanged on rejection
-    expect(pf.mainPath.length).toBe(30);
-  });
-
-  it('rejects a barricade that would trap a living enemy', () => {
-    const pf = new PathfindingSystem(map);
-    pf.computeMainPath();
-    pf.tryBlockCell('1,10', []); // cut north corridor in the middle
-    // Enemy at (1,6) can still go back west then take the middle route
-    expect(pf.tryBlockCell('7,9', [{ id: 1, startKey: '1,6' }]).ok).toBe(true);
-    // Now block (2,3): the enemy at (1,6) would be stuck between (2,3) and (1,10)
-    const res = pf.tryBlockCell('2,3', [{ id: 1, startKey: '1,6' }]);
-    expect(res.ok).toBe(false);
-    expect(res.reason).toBe('traps-enemy');
-  });
-
-  it('cannot block the spawn or the base', () => {
-    const pf = new PathfindingSystem(map);
-    expect(pf.tryBlockCell('5,0', []).reason).toBe('endpoint');
-    expect(pf.tryBlockCell('5,19', []).reason).toBe('endpoint');
-  });
-
-  it('unblocking restores the shortest route', () => {
-    const pf = new PathfindingSystem(map);
-    pf.computeMainPath();
-    pf.tryBlockCell('7,9', []);
-    expect(pf.mainPath.length).toBe(28);
-    pf.unblockCell('7,9', []);
     expect(pf.mainPath.length).toBe(24);
+    expect(pf.mainPath).toContain('7,9');
+    expect(pf.graph.hasNode('7,9')).toBe(true);
+  });
+
+  it('still measures the hypothetical detour at the BFS level', () => {
+    // Kept as documentation of the graph-cut concept: if a wall *were* solid
+    // to BFS the middle lane would cost 4 extra cells. The game uses this only
+    // in the algorithm panel/visualiser, never to steer enemies.
+    const pf = new PathfindingSystem(map);
+    const direct = pf.computeMainPath();
+    const detour = bfsShortestPath(pf.graph, pf.spawnKey, pf.baseKey, { blocked: new Set(['7,9']) });
+    expect(direct.stats.pathNodes).toBe(24);
+    expect(detour.found).toBe(true);
+    expect(detour.stats.pathNodes).toBe(28);
+    expect(detour.path).toContain('1,10');
+    expect(pf.graph.hasNode('7,9')).toBe(true); // the blocked set is temporary
+  });
+
+  it('runs BFS from any road cell to the base and records the run', () => {
+    const pf = new PathfindingSystem(map);
+    pf.computeMainPath();
+    const fromNorthLane = pf.pathToBase('1,10', 'route test');
+    expect(fromNorthLane.found).toBe(true);
+    expect(fromNorthLane.path[0]).toBe('1,10');
+    expect(fromNorthLane.path[fromNorthLane.path.length - 1]).toBe(pf.baseKey);
+    expect(pf.lastRun.purpose).toBe('route test');
+    expect(pf.cumulative.runs).toBe(2);
+    expect(pf.cumulative.nodesVisited).toBeGreaterThan(0);
   });
 
   it('records cumulative BFS statistics across runs', () => {
     const pf = new PathfindingSystem(map);
     pf.computeMainPath();
-    pf.tryBlockCell('7,9', [{ id: 1, startKey: '5,2' }]);
-    expect(pf.cumulative.runs).toBe(3); // main + spawn check + one enemy check
+    pf.pathToBase('5,2');
+    expect(pf.cumulative.runs).toBe(2);
     expect(pf.cumulative.nodesVisited).toBeGreaterThan(0);
-    expect(pf.lastRun.purpose).toContain('enemy');
+    expect(pf.lastRun.start).toBe('5,2');
+    expect(pf.routeLength).toBe(24);
   });
 });

@@ -174,6 +174,11 @@ export class AudioSynth {
     if (type === 'archer' && this.playBuffer('wood', 0.5, 1.6)) return;
     if (type === 'cannon' && this.playBuffer('wood', 0.75, 0.6)) return;
     if (type === 'frost' && this.playBuffer('glass', 0.5, 1.3)) return;
+    // Forge lines reuse the pack foley: a metal clang for the hammer, a glassy
+    // chime for the rune orb and a short wood knock for the banner bolt.
+    if (type === 'forge' && this.playBuffer('metal', 0.7, 0.8)) return;
+    if (type === 'runes' && this.playBuffer('glass', 0.45, 0.9)) return;
+    if (type === 'banner' && this.playBuffer('wood', 0.4, 1.4)) return;
 
     const now = this.ctx?.currentTime;
     if (!now) return;

@@ -10,7 +10,8 @@
  *   - middle route (with a jog through row 7)   → 24 cells (23 steps)  ← shortest
  *   - north route  (row 1)                      → 28 cells
  *   - south route  (row 10)                     → 30 cells
- * Placing barricades on the road forces BFS to pick a longer route.
+ * Barricades do NOT reroute the horde: a palisade is a solid wall standing on
+ * the road, and enemies stop and break it down instead of taking a detour.
  */
 export const MAP_LAYOUT = [
   //        1111111111

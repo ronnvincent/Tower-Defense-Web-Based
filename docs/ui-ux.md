@@ -161,7 +161,7 @@ Bugs this caught and fixed:
 ## 7. Verification
 
 ```bash
-npm test                # 200 tests / 16 suites (includes the 4 UI suites)
+npm test                # 236 tests / 19 suites (includes the 4 UI suites)
 npm run check:contrast  # WCAG audit — 30/30
 npm run verify:camera   # pure camera maths vs a real Phaser camera
 npm run build           # production bundle

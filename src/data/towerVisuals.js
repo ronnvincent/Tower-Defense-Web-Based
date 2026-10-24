@@ -58,13 +58,42 @@ export const TOWER_VISUALS = {
     { file: 'frost-spec-a', base: 'base_frost-spec-a.png', weapon: 'weapon_frost-spec-a.png', fw: 64, fh: 128, frames: 20, px: 32, py: 64, mount: 83, slotTexture: 'proj-frost-3' },
     { file: 'frost-spec-b', base: 'base_frost-spec-b.png', weapon: 'weapon_frost-spec-b.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 92 },
   ]),
+
+  /* ------------------------------------------------------------ forge lines */
+
+  // T04 hammer keep. The two specialisations share the level-3 art; the Storm
+  // tier is recoloured green → electric blue by the asset script so the two
+  // branches still read differently on the battlefield.
+  forge: line('forge', [
+    { file: 'forge', base: 'base_forge.png', weapon: 'weapon_forge.png', fw: 128, fh: 128, frames: 17, px: 64, py: 108, mount: 57, slotTexture: 'proj-forge' },
+    { file: 'forge-lvl2', base: 'base_forge-lvl2.png', weapon: 'weapon_forge-lvl2.png', fw: 128, fh: 128, frames: 17, px: 64, py: 108, mount: 66, slotTexture: 'proj-forge' },
+    { file: 'forge-spec-a', base: 'base_forge-spec-a.png', weapon: 'weapon_forge-spec-a.png', fw: 128, fh: 128, frames: 17, px: 64, py: 116, mount: 69, slotTexture: 'proj-forge' },
+    { file: 'forge-spec-b', base: 'base_forge-spec-b.png', weapon: 'weapon_forge-spec-b.png', fw: 128, fh: 128, frames: 17, px: 64, py: 116, mount: 69, slotTexture: 'proj-forge' },
+  ]),
+
+  // T05 obsidian rune keep with a floating orb staff.
+  runes: line('runes', [
+    { file: 'runes', base: 'base_runes.png', weapon: 'weapon_runes.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 88, slotTexture: 'proj-rune' },
+    { file: 'runes-lvl2', base: 'base_runes-lvl2.png', weapon: 'weapon_runes-lvl2.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 96, slotTexture: 'proj-rune' },
+    { file: 'runes-spec-a', base: 'base_runes-spec-a.png', weapon: 'weapon_runes-spec-a.png', fw: 96, fh: 96, frames: 29, px: 48, py: 61, mount: 104, slotTexture: 'proj-rune' },
+    { file: 'runes-spec-b', base: 'base_runes-spec-b.png', weapon: 'weapon_runes-spec-b.png', fw: 64, fh: 128, frames: 20, px: 32, py: 64, mount: 83, slotTexture: 'proj-rune' },
+  ]),
+
+  // T06 limestone keep with banners. The pole is static (it is a banner, not a
+  // turret), so the whole line is listed in NON_ROTATING_TYPES below.
+  banner: line('banner', [
+    { file: 'banner', base: 'base_banner.png', weapon: 'weapon_banner.png', fw: 64, fh: 64, frames: 6, px: 32, py: 45, mount: 100 },
+    { file: 'banner-lvl2', base: 'base_banner-lvl2.png', weapon: 'weapon_banner-lvl2.png', fw: 96, fh: 96, frames: 6, px: 48, py: 66, mount: 106 },
+    { file: 'banner-spec-a', base: 'base_banner-spec-a.png', weapon: 'weapon_banner-spec-a.png', fw: 96, fh: 96, frames: 6, px: 48, py: 63, mount: 114 },
+    { file: 'banner-spec-b', base: 'base_banner-spec-b.png', weapon: 'weapon_banner-spec-b.png', fw: 96, fh: 96, frames: 6, px: 48, py: 63, mount: 114 },
+  ]),
 };
 
 /**
  * Frost floors keep their crystal bobbing (the original game's frost tower never
  * rotates) — the shard simply hovers over its cradle.
  */
-export const NON_ROTATING_TYPES = new Set(['frost']);
+export const NON_ROTATING_TYPES = new Set(['frost', 'banner']);
 
 /** Where each weapon's projectile leaves the art, relative to the pivot. */
 export const MUZZLE_OFFSET = {
@@ -80,6 +109,21 @@ export const MUZZLE_OFFSET = {
   'frost-lvl2': { x: 0, y: -18 },
   'frost-spec-a': { x: 0, y: -24 },
   'frost-spec-b': { x: 0, y: -30 },
+  // Hammer head sits at the top of the 128 px T04 sheets.
+  forge: { x: 8, y: -54 },
+  'forge-lvl2': { x: 8, y: -58 },
+  'forge-spec-a': { x: 6, y: -62 },
+  'forge-spec-b': { x: 6, y: -62 },
+  // Orb floats just above the staff of the 96 px T05 sheets.
+  runes: { x: 0, y: -26 },
+  'runes-lvl2': { x: 0, y: -30 },
+  'runes-spec-a': { x: 0, y: -30 },
+  'runes-spec-b': { x: 0, y: -34 },
+  // Banners do not rotate: { x } is the height of the pennant above the pivot.
+  banner: { x: 30, y: 0 },
+  'banner-lvl2': { x: 38, y: 0 },
+  'banner-spec-a': { x: 42, y: 0 },
+  'banner-spec-b': { x: 42, y: 0 },
 };
 
 /** Barricade art (level 1 fence bay, level 2 palisade gate). */
@@ -96,6 +140,8 @@ export const PROJECTILE_TEXTURES = {
   cannonball: 'proj-cannonball',
   frost: 'proj-frost',
   lightning: 'proj-lightning',
+  hammer: 'proj-forge',
+  rune: 'proj-rune',
 };
 
 /** Impact puff spawned on hit, chosen from the damage family. */
@@ -106,4 +152,6 @@ export const IMPACT_TEXTURES = {
   cannonball: 'impact-cannon',
   frost: 'impact-frost',
   lightning: 'impact-lightning',
+  hammer: 'impact-hammer',
+  rune: 'impact-lightning',
 };

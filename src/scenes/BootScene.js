@@ -88,6 +88,8 @@ export class BootScene extends Phaser.Scene {
       'proj-frost-3',
       'proj-lightning',
       'proj-hammer',
+      'proj-forge',
+      'proj-rune',
     ]) {
       this.load.image(key, `assets/projectiles/${key}.png`);
     }

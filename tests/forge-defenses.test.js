@@ -1,0 +1,194 @@
+import { describe, it, expect } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  TOWER_TYPES,
+  BARRICADE,
+  BUILD_OPTIONS,
+  getBuildDefinition,
+} from '../src/data/towerData.js';
+import { Tower } from '../src/entities/Tower.js';
+import { TOWER_VISUALS, SLOTS, PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../src/data/towerVisuals.js';
+import { IMPACT_SHEETS } from '../src/data/spireManifest.js';
+import { ENEMY_TYPES, waveHealthMultiplier } from '../src/data/enemyData.js';
+import { STARTING_COINS, STARTING_BASE_HEALTH, WAVE_CLEAR_COINS } from '../src/config/gameConfig.js';
+
+const FORGE_LINES = ['forge', 'runes', 'banner'];
+const DAMAGE_TYPES = new Set(['physical', 'explosive', 'piercing', 'magic', 'lightning', 'true']);
+
+describe('Forge defences (the three extra lines)', () => {
+  it('adds exactly three new tower lines to the build dock', () => {
+    expect(Object.keys(TOWER_TYPES)).toEqual(['archer', 'cannon', 'frost', 'forge', 'runes', 'banner']);
+    expect(BUILD_OPTIONS).toEqual(['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner']);
+  });
+
+  it('gives every dock entry a unique hotkey that matches its position', () => {
+    const hotkeys = BUILD_OPTIONS.map((key) => getBuildDefinition(key).hotkey);
+    expect(hotkeys).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+    expect(new Set(hotkeys).size).toBe(hotkeys.length);
+  });
+
+  it.each(FORGE_LINES)('%s is a complete line: 2 levels + 2 specialisations', (key) => {
+    const def = TOWER_TYPES[key];
+    expect(def).toBeDefined();
+    expect(def.name.length).toBeGreaterThan(3);
+    expect(def.cost).toBeGreaterThan(0);
+    expect(def.levels).toHaveLength(2);
+    expect(Object.keys(def.specializations)).toHaveLength(2);
+
+    for (const level of def.levels) {
+      expect(DAMAGE_TYPES.has(level.damageType)).toBe(true);
+      expect(level.damage).toBeGreaterThan(0);
+      expect(level.range).toBeGreaterThan(0);
+      expect(level.cooldown).toBeGreaterThanOrEqual(200);
+      expect(PROJECTILE_TEXTURES[level.projectile || def.projectile]).toBeTruthy();
+    }
+
+    const specs = Object.values(def.specializations);
+    for (const spec of specs) {
+      expect(spec.branch).toBe(spec.branch === 'spec-a' ? 'spec-a' : 'spec-b');
+      expect(spec.upgradeCost).toBeGreaterThan(0);
+      expect(spec.range).toBeGreaterThanOrEqual(def.levels[1].range);
+      expect(DAMAGE_TYPES.has(spec.damageType)).toBe(true);
+      // A specialisation must actually be an upgrade over level 2.
+      expect(spec.damage).toBeGreaterThan(def.levels[1].damage);
+    }
+
+    // Level 2 has to beat level 1, otherwise the upgrade is a trap.
+    expect(def.levels[1].damage).toBeGreaterThan(def.levels[0].damage);
+    expect(def.levels[1].upgradeCost).toBeGreaterThan(0);
+  });
+
+  it('gives the Hammerforge an explosive identity and the Runestone an armour-breaking one', () => {
+    const forge = TOWER_TYPES.forge;
+    expect(forge.levels.every((l) => l.splash > 0 && l.damageType === 'explosive')).toBe(true);
+    expect(forge.specializations.ember.armorBreak).toBeGreaterThan(0);
+    expect(forge.specializations.thunder.armorPenetration).toBeGreaterThan(0);
+
+    const runes = TOWER_TYPES.runes;
+    expect(runes.levels.every((l) => l.damageType === 'magic')).toBe(true);
+    // Void Lance is the anti-armour answer: true damage ignores armour entirely.
+    expect(runes.specializations.void.damageType).toBe('true');
+    expect(runes.specializations.nova.splash).toBeGreaterThan(0);
+  });
+
+  it('makes the Banner Keep a force multiplier with a growing aura', () => {
+    const banner = TOWER_TYPES.banner;
+    const [lvl1, lvl2] = banner.levels;
+    expect(lvl1.aura.damageBonus).toBeGreaterThan(0);
+    expect(lvl2.aura.damageBonus).toBeGreaterThan(lvl1.aura.damageBonus);
+    expect(lvl2.aura.radius).toBeGreaterThan(lvl1.aura.radius);
+
+    const { warbanner, muster } = banner.specializations;
+    expect(warbanner.aura.damageBonus).toBeGreaterThan(lvl2.aura.damageBonus);
+    expect(muster.aura.fireRateBonus).toBeGreaterThan(0);
+    expect(muster.aura.coinPerKill).toBe(1);
+  });
+
+  it('maps every specialisation to the right art slot through its branch field', () => {
+    const slotOf = Object.getOwnPropertyDescriptor(Tower.prototype, 'visualSlot').get;
+    for (const key of Object.keys(TOWER_TYPES)) {
+      const def = TOWER_TYPES[key];
+      // Level 1 / level 2 slots
+      expect(slotOf.call({ specialization: null, level: 1, def })).toBe('lvl1');
+      expect(slotOf.call({ specialization: null, level: 2, def })).toBe('lvl2');
+
+      for (const [specKey, spec] of Object.entries(def.specializations)) {
+        const slot = slotOf.call({ specialization: specKey, level: 3, def });
+        expect(slot, `${key}.${specKey}`).toBe(spec.branch);
+      }
+
+      // The two branches must not share art, otherwise the upgrade is invisible.
+      expect(TOWER_VISUALS[key]['spec-a'].base).not.toBe(TOWER_VISUALS[key]['spec-b'].base);
+    }
+  });
+
+  it('ships an icon, base and weapon sheet for every slot of every tower', () => {
+    for (const key of Object.keys(TOWER_TYPES)) {
+      const slots = TOWER_VISUALS[key];
+      expect(slots, `${key} has no visual line`).toBeTruthy();
+      for (const slot of SLOTS) {
+        const v = slots[slot];
+        expect(v, `${key}.${slot} missing`).toBeTruthy();
+        expect(existsSync(join('public/assets/towers', v.base)), `${v.base} missing`).toBe(true);
+        expect(existsSync(join('public/assets/towers', v.weapon)), `${v.weapon} missing`).toBe(true);
+        expect(v.fw).toBeGreaterThan(0);
+        expect(v.fh).toBeGreaterThan(0);
+        expect(v.px).toBeGreaterThan(0);
+        expect(v.py).toBeGreaterThan(0);
+        expect(v.mount).toBeGreaterThan(0);
+      }
+      expect(existsSync(join('public/assets/ui', `card_${key}.png`)), `card_${key}.png missing`).toBe(true);
+    }
+    // Every projectile texture is listed in BootScene; impact strips come from
+    // the generated manifest.
+    const boot = readFileSync('src/scenes/BootScene.js', 'utf8');
+    for (const texture of new Set(Object.values(PROJECTILE_TEXTURES))) {
+      expect(boot.includes(`'${texture}'`), `${texture} not loaded by BootScene`).toBe(true);
+      expect(existsSync(join('public/assets/projectiles', `${texture}.png`)), `${texture}.png missing`).toBe(true);
+    }
+    for (const texture of new Set(Object.values(IMPACT_TEXTURES))) {
+      expect(IMPACT_SHEETS[texture], `${texture} missing from the impact manifest`).toBeTruthy();
+      expect(existsSync(join('public/assets/effects', IMPACT_SHEETS[texture].file))).toBe(true);
+    }
+  });
+
+  it('has a dock sprite rule for every build card', () => {
+    const css = readFileSync('src/style.css', 'utf8');
+    for (const key of BUILD_OPTIONS) {
+      expect(css.includes(`.sprite-${key} {`), `missing .sprite-${key}`).toBe(true);
+    }
+  });
+});
+
+describe('Difficulty rebalance (the campaign is meant to be gentler)', () => {
+  it('starts the player with enough gold for two defences and 25 base HP', () => {
+    expect(STARTING_COINS).toBe(220);
+    expect(STARTING_BASE_HEALTH).toBe(25);
+    expect(STARTING_COINS).toBeGreaterThanOrEqual(TOWER_TYPES.archer.cost * 2);
+    expect(STARTING_COINS).toBeGreaterThanOrEqual(TOWER_TYPES.forge.cost);
+  });
+
+  it('pays a meaningful wave-clear bonus', () => {
+    expect(WAVE_CLEAR_COINS.base).toBe(30);
+    expect(WAVE_CLEAR_COINS.perWave).toBe(8);
+    // Wave 3 clear = 30 + 24 = 54 gold, enough to buy a Runestone upgrade path.
+    expect(WAVE_CLEAR_COINS.base + WAVE_CLEAR_COINS.perWave * 3).toBe(54);
+  });
+
+  it('scales enemy health gently and caps the ramp', () => {
+    expect(waveHealthMultiplier(1)).toBe(1);
+    expect(waveHealthMultiplier(2)).toBeCloseTo(1.09, 5);
+    expect(waveHealthMultiplier(6)).toBeCloseTo(1.45, 5);
+    expect(waveHealthMultiplier(50)).toBe(2); // hard cap keeps late waves sane
+  });
+
+  it('softens the two boss health pools', () => {
+    expect(ENEMY_TYPES.colossus.health).toBeLessThanOrEqual(1300);
+    expect(ENEMY_TYPES.warlord.health).toBeLessThanOrEqual(3400);
+    expect(ENEMY_TYPES.warlord.health).toBeGreaterThan(ENEMY_TYPES.colossus.health);
+  });
+});
+
+describe('Palisade: a wall the horde has to break', () => {
+  it('is cheap, tanky and upgrades into thorns', () => {
+    expect(BARRICADE.cost).toBe(30);
+    expect(BARRICADE.placement).toBe('road');
+    const [lvl1, lvl2] = BARRICADE.levels;
+    expect(lvl1.health).toBeGreaterThan(0);
+    expect(lvl2.health).toBeGreaterThan(lvl1.health);
+    expect(lvl1.thornsDamage).toBe(0);
+    expect(lvl2.thornsDamage).toBeGreaterThan(0);
+    expect(lvl2.upgradeCost).toBeGreaterThan(0);
+  });
+
+  it('gives every enemy a siege attack so no archetype can be walled off forever', () => {
+    for (const [key, def] of Object.entries(ENEMY_TYPES)) {
+      expect(def.siege, `${key} cannot damage a palisade`).toBeGreaterThan(0);
+    }
+    // Bigger units break walls faster than chaff.
+    expect(ENEMY_TYPES.brute.siege).toBeGreaterThan(ENEMY_TYPES.grunt.siege);
+    expect(ENEMY_TYPES.colossus.siege).toBeGreaterThan(ENEMY_TYPES.brute.siege);
+    expect(ENEMY_TYPES.warlord.siege).toBeGreaterThan(ENEMY_TYPES.colossus.siege);
+  });
+});

@@ -9,8 +9,13 @@ export const MAP_ROWS = 12;
 export const GAME_WIDTH = TILE_SIZE * MAP_COLS; // 1280
 export const GAME_HEIGHT = TILE_SIZE * MAP_ROWS; // 768
 
-export const STARTING_COINS = 160;
-export const STARTING_BASE_HEALTH = 20;
+/**
+ * Starting economy. Raised from 160 gold / 20 HP after play-testing: a fresh
+ * player could not afford a second tower before wave 2 and every early leak was
+ * fatal. 220 gold buys two defences on turn one, 25 HP absorbs a mistake.
+ */
+export const STARTING_COINS = 220;
+export const STARTING_BASE_HEALTH = 25;
 
 /** Refund ratio when selling a tower (70% of everything spent on it). */
 export const SELL_REFUND_RATIO = 0.7;
@@ -24,8 +29,12 @@ export const SCORE = {
   victoryPerBaseHp: 50,
 };
 
-/** Coins granted when a wave is cleared: base + perWave × wave number. */
-export const WAVE_CLEAR_COINS = { base: 20, perWave: 5 };
+/**
+ * Coins granted when a wave is cleared: base + perWave × wave number.
+ * Bumped from 20 + 5×wave so the seven-tower dock (three new forge lines)
+ * stays affordable without selling defences between waves.
+ */
+export const WAVE_CLEAR_COINS = { base: 30, perWave: 8 };
 
 /** Colour palette shared by Phaser rendering (hex numbers). */
 export const COLORS = {

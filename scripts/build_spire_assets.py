@@ -17,6 +17,7 @@ Geometry conventions used by the game (see src/entities/Tower.js):
 
 import re
 import os
+import shutil
 import struct
 import sys
 import zlib
@@ -212,7 +213,15 @@ TOWER_LAYOUT = {
     "archer": [(1, 1), (1, 2), (6, 3), (1, 3)],
     "cannon": [(3, 1), (3, 2), (3, 3), (4, 3)],
     "frost": [(2, 1), (2, 2), (2, 3), (5, 3)],
+    # Forge lines — the three extra defences from the "make it gentler" pass.
+    # T04 (hammer keep) is the only family with a hammer weapon, so the two
+    # Hammerforge branches share its level-3 sheet and are told apart by the
+    # STORM recolour; the same trick separates the two Banner Keep branches.
+    "forge": [(4, 1), (4, 2), (4, 3), (4, 3)],
+    "runes": [(5, 1), (5, 2), (5, 3), (2, 3)],
+    "banner": [(6, 1), (6, 2), (6, 3), (6, 3)],
 }
+
 
 SLOT_SUFFIX = {0: "", 1: "-lvl2", 2: "-spec-a", 3: "-spec-b"}
 
@@ -235,6 +244,37 @@ LIGHTNING_REMAP = {
     (0xC9, 0x30, 0x38): 0x8E6BE8,
     (0x85, 0x2D, 0x66): 0x4B3A9E,
     (0xDE, 0x6A, 0x38): 0xC3A0FF,
+}
+
+# Storm-blue shift for the Thunderforge branch (T04 level 3 green -> electric).
+STORM_REMAP = {
+    (0xB4, 0xD6, 0x45): 0x5FD8FF,
+    (0xFC, 0xF9, 0x60): 0xE9FBFF,
+    (0x51, 0xC4, 0x3F): 0x3FA9D8,
+    (0x30, 0x9C, 0x63): 0x2A6A9E,
+}
+
+# Violet shift for the Arcane Nova branch (T02 level 3 green -> arcane).
+ARCANE_REMAP = {
+    (0xB4, 0xD6, 0x45): 0xB07BFF,
+    (0xFC, 0xF9, 0x60): 0xEADCFF,
+    (0x51, 0xC4, 0x3F): 0x7B4FD8,
+    (0x30, 0x9C, 0x63): 0x4B2FA0,
+}
+
+# Royal shift for the Muster Camp branch (T06 level 3 leather -> gold/navy).
+GOLD_REMAP = {
+    (0xB5, 0x80, 0x57): 0xF0C060,
+    (0x8A, 0x50, 0x3E): 0xB8862F,
+    (0x2B, 0x2E, 0x42): 0x2E3F73,
+}
+
+# Keyed by output file stem (`<game_key><suffix>`) so only the *second*
+# specialisation is recoloured — banner-spec-a keeps the stock blue banner.
+TOWER_SLOT_REMAPS = {
+    "forge-spec-b": STORM_REMAP,
+    "runes-spec-b": ARCANE_REMAP,
+    "banner-spec-b": GOLD_REMAP,
 }
 
 ENEMY_SOURCES = {
@@ -280,6 +320,10 @@ def build_towers():
             if game_key == "frost" and idx == 3:
                 base = recolour(base, LIGHTNING_REMAP)
                 wsheet = recolour(wsheet, LIGHTNING_REMAP)
+            slot_remap = TOWER_SLOT_REMAPS.get(f"{game_key}{suffix}")
+            if slot_remap:
+                base = recolour(base, slot_remap)
+                wsheet = recolour(wsheet, slot_remap)
 
             # --- base: trimmed, 64 wide, bottom row = tile bottom
             tb, bw, bh = trim(base, fw, fh)
@@ -536,6 +580,16 @@ def build_projectiles():
         save(os.path.join(OUT, "projectiles", f"{key}.png"), out, tw + pad * 2, th + pad * 2,
              f"{note} ({len(runs)} frames in strip)")
 
+    # The forge lines borrow pack art that already reads correctly, under names
+    # that say which tower fires them.
+    for alias, source, note in [
+        ("proj-forge", "proj-lightning", "hammer throw (T05 impact glyph)"),
+        ("proj-rune", "proj-cannonball", "rune orb (magenta sphere)"),
+    ]:
+        dst = os.path.join(OUT, "projectiles", f"{alias}.png")
+        shutil.copyfile(os.path.join(OUT, "projectiles", f"{source}.png"), dst)
+        print(f"  {os.path.relpath(dst, ROOT):58s} alias of {source}   {note}")
+
 
 # ---------------------------------------------------------------------- enemies
 
@@ -585,7 +639,7 @@ def build_ui_cards():
     print("ui cards")
     layout = read_slot_layout()
     size = 64
-    for key, slot in (("archer", "archer"), ("cannon", "cannon"), ("frost", "frost")):
+    for key, slot in [(k, k) for k in TOWER_LAYOUT]:
         v = layout[slot]
         bw, bh, base = read_png(os.path.join(OUT, "towers", v["base"]))
         ww, wh, wep = read_png(os.path.join(OUT, "towers", v["weapon"]))

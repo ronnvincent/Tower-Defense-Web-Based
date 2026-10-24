@@ -501,14 +501,21 @@ export class HUD {
     if (tower.isBarricade) {
       targetingGroup.style.display = 'none';
       const thorns = tower.stats?.thornsDamage || 0;
+      const hp = Math.max(0, Math.round(tower.health ?? tower.stats?.health ?? 0));
+      const maxHp = Math.max(1, Math.round(tower.maxHealth ?? tower.stats?.health ?? 1));
+      const pct = Math.round((hp / maxHp) * 100);
       statsGrid.innerHTML = `
         <div class="stat-cell full-width">
           <span class="lbl">ROLE</span>
-          <span class="val">Cuts the road graph — enemies reroute via BFS</span>
+          <span class="val">Solid wall — enemies stop and break it down</span>
+        </div>
+        <div class="stat-cell full-width">
+          <span class="lbl">STRUCTURE</span>
+          <span class="val">${hp} / ${maxHp} HP (${pct}%)</span>
         </div>
         <div class="stat-cell full-width">
           <span class="lbl">THORNS RETALIATION</span>
-          <span class="val">${thorns > 0 ? `${thorns} damage on contact` : 'None at level 1'}</span>
+          <span class="val">${thorns > 0 ? `${thorns} damage per second to attackers` : 'None at level 1'}</span>
         </div>
       `;
     } else {
@@ -535,6 +542,14 @@ export class HUD {
   }
 
   describeSpecial(s) {
+    if (s.aura?.radius) {
+      const bits = [];
+      if (s.aura.damageBonus) bits.push(`+${Math.round(s.aura.damageBonus * 100)}% damage`);
+      if (s.aura.rangeBonus) bits.push(`+${Math.round(s.aura.rangeBonus * 100)}% range`);
+      if (s.aura.fireRateBonus) bits.push(`+${Math.round(s.aura.fireRateBonus * 100)}% fire rate`);
+      if (s.aura.coinPerKill) bits.push(`+${s.aura.coinPerKill} gold per kill`);
+      return `Aura ${s.aura.radius}px · ${bits.join(', ')}`;
+    }
     if (s.splash) return `Area splash · ${s.splash}px radius`;
     if (s.slow) return `Slows ${Math.round(s.slow * 100)}% for ${(s.slowMs / 1000).toFixed(1)}s`;
     if (s.armorBreak) return `Armour break −${s.armorBreak} for ${(s.armorBreakMs / 1000).toFixed(1)}s`;
@@ -686,8 +701,9 @@ export class HUD {
     const coins = Number(this.coins) || 0;
     const affordable = coins >= def.cost;
     const where = key === 'barricade' ? 'a road tile' : 'a grass tile';
+    const role = key === 'barricade' ? ' · enemies must break it' : '';
     text.textContent = affordable
-      ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold — click ${where} · ESC to cancel`
+      ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold${role} — click ${where} · ESC to cancel`
       : `NEED ${def.cost} GOLD FOR ${def.name.toUpperCase()} · kill enemies to earn more`;
     hint.classList.toggle('unaffordable', !affordable);
     hint.classList.remove('hidden');

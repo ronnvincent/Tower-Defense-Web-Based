@@ -2,10 +2,10 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 200 tests across 16 test suites.
-- **Pass Rate:** **100% (200 / 200 Passed)**
+- **Total Automated Unit Tests:** 236 tests across 19 test suites.
+- **Pass Rate:** **100% (236 / 236 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
-- **Manual End-to-End Verification:** Verified via automated Chromium browser subagent across the full game loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Barricade Cut $\to$ Codex Telemetry).
+- **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
 ---
 
@@ -16,8 +16,9 @@
 | **TC-01** | **Gameplay & Tower Placement** | Player places Archer Tower on a valid, unbuilt grass tile with sufficient coins. | Current Coins = 160. Click Archer card (🪙60), click Grass tile `(3, 5)`. | Tile occupied; coins decrease to 100; Archer tower rendered with range circle; placement sound plays. | Tower placed at `(3, 5)`; coins deducted to 100; sound played; occupancy registered. | **PASS** |
 | **TC-02** | **Economy Constraints** | Player attempts to build a Cannon Tower without sufficient coins. | Current Coins = 40. Click Cannon card (🪙110), click valid Grass tile `(2, 5)`. | Placement rejected; coins remain 40; HUD toast displays *"Not enough coins"*; error audio plays. | Placement denied; coins unchanged at 40; toast notification displayed; error audio triggered. | **PASS** |
 | **TC-03** | **Placement Collision Rules** | Player attempts to place a tower on invalid terrain (Water/Rocks/Road). | Click Archer card, click Water tile `(0, 2)` or Road tile `(5, 5)`. | Placement rejected; HUD toast displays *"Rocks and water cannot be built on"* or *"Towers cannot be built on the road"*. | Placement denied; occupied status prevented; correct error banner shown. | **PASS** |
-| **TC-04** | **BFS Feasibility Guard (Edge Case)** | Player attempts to place a road barricade that would completely cut off the only path to the base. | Cut Middle route at `(7, 9)`, cut North route at `(1, 10)`. Attempt to cut South route at `(10, 10)`. | `tryBlockCell()` returns `{ ok: false, reason: 'blocks-path' }`; graph retains node `(10, 10)`; placement rejected. | Placement denied with toast *"That would block the only path to the base!"*; shortest path remains valid at 30 steps. | **PASS** |
-| **TC-05** | **Dynamic BFS Enemy Rerouting** | Place a barricade on the active path while living enemies are traveling on it. | Place barricade at `(7, 9)` while Goblin Grunts are at `(5, 2)`. | BFS calculates alternate route via North path; living enemies receive new waypoint list and change direction. | Enemies smoothly turned North; waypoint sequence updated without pausing or glitching. | **PASS** |
+| **TC-04** | **Palisade placement guard** | Player tries to drop a palisade on the tile a living enemy occupies. | Enemy standing on `(7, 9)`; click Palisade card, click `(7, 9)`. | `GameScene.validateBuild()` returns `{ ok: false, reason: 'enemy-on-tile' }`; ghost renders red; placement rejected. | Preview turned red *before* the click and the build was rejected with *"An enemy is on this tile"*. | **PASS** |
+| **TC-05** | **Palisade is not dodgeable** | Place a palisade on the shortest (middle) route while enemies are marching it. | Place palisade at `(7, 9)` while Goblin Grunts are at `(5, 2)`. | The BFS route is unchanged (24 cells, still contains `7,9`); enemies walk up to the wall and attack it, taking ~42 grunt swings to breach 420 HP. | Route stays 24 cells and still contains `7,9` (`tests/graph-bfs.test.js`); the siege geometry, cadence and breach maths are covered by `tests/barricade-siege.test.js`. | **PASS** |
+| **TC-05b** | **Forge defences** | Build each of the three new lines and upgrade every branch. | Buy Hammerforge 🪙120, Runestone 🪙135, Banner Keep 🪙125; upgrade each to level 3 in both branches. | All 7 dock cards render with icons, hotkeys 1–7 select them, and every slot loads its generated base + weapon art. | All cards, hotkeys and 12 new sprite slots verified by `tests/forge-defenses.test.js`. | **PASS** |
 | **TC-06** | **Base Damage & Defeat Trigger** | Enemy reaches the base monolith at `(5, 19)`. | Enemy traverses entire path into Base tile. | Base health decreases by enemy base damage (1 HP); screen shakes; enemy removed without duplicate coin award. | Base HP decreased from 20 to 19; screen shake fired; no coins awarded; enemy cleanly purged from memory. | **PASS** |
 | **TC-07** | **Leaderboard Sorting (Merge Sort)** | Leaderboard ranks multiple records including duplicate scores and tie-breaking. | Records submitted: Alice (500 pts, 4 waves), Bob (900 pts), Charlie (500 pts, 3 waves, 40s), Dave (500 pts, 3 waves, 25s). | Ranked list: 1. Bob (900), 2. Alice (500, 4 waves), 3. Dave (500, 3 waves, 25s), 4. Charlie (500, 3 waves, 40s). | Displayed order strictly matches multi-key tie-breaker; Merge Sort comparison stats collected accurately. | **PASS** |
 | **TC-08** | **Circular Queue Edge Cases** | Circular buffer wraps around the array boundary and dynamically resizes. | Enqueue 4 items in capacity 4, dequeue 2 items, enqueue 3 more items (wrapping indices), then enqueue 1 more to trigger growth. | Queue wraps indices without shifting elements; on growth, doubles capacity to 8 and preserves exact FIFO order. | FIFO sequence `[1, 2, 3, 4, 5, 6]` preserved across growth; `head` reset to 0; no data loss. | **PASS** |
@@ -75,7 +76,7 @@
      ✓ compactInPlace removes items in one pass and preserves order
      ✓ swapRemove removes a single item in O(1) after locating it
 
- ✓ tests/graph-bfs.test.js (21 tests)
+ ✓ tests/graph-bfs.test.js (19 tests)
      ✓ adds nodes and undirected edges without duplicates
      ✓ removeNode deletes the node and every edge touching it
      ✓ builds 4-directional edges only between walkable cells
@@ -91,16 +92,30 @@
      ✓ parses a 20×12 map with one spawn and one base
      ✓ rejects malformed layouts
      ✓ finds the 24-cell middle route on the real map
-     ✓ a barricade on the middle route forces the 28-cell north route
-     ✓ rejects a barricade that would block the only remaining path
-     ✓ rejects a barricade that would trap a living enemy
-     ✓ cannot block the spawn or the base
-     ✓ unblocking restores the shortest route
+     ✓ keeps the palisade out of the graph so the horde can never dodge it
+     ✓ still measures the hypothetical detour at the BFS level
+     ✓ runs BFS from any road cell to the base and records the run
      ✓ records cumulative BFS statistics across runs
 
-Test Files  16 passed (16)
-Tests       200 passed (200)
-Duration    5.82s
+ ✓ tests/forge-defenses.test.js (15 tests)
+     ✓ adds exactly three new tower lines to the build dock
+     ✓ gives every dock entry a unique hotkey that matches its position
+     ✓ ships an icon, base and weapon sheet for every slot of every tower
+     ✓ starts the player with enough gold for two defences and 25 base HP
+     ✓ gives every enemy a siege attack so no archetype can be walled off forever
+
+ ✓ tests/barricade-siege.test.js (10 tests)
+     ✓ stops the attacker outside the wall tile instead of letting it walk through
+     ✓ a lone grunt cannot chew through a palisade in seconds, a pack can
+     ✓ resolves a swing without ever over-killing the wall
+
+ ✓ tests/module-contracts.test.js (10 tests)
+     ✓ does not call the removed BFS barricade API any more
+     ✓ keeps Projectile splash gated on the splash radius, not the art type
+
+Test Files  19 passed (19)
+Tests       236 passed (236)
+Duration    6.7s
 ```
 
 ---

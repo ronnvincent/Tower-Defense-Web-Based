@@ -39,7 +39,7 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 ### 2. Adjacency-List Graph (`src/dsa/Graph.js`)
 - **Structure:** `Map<string, string[]>` mapping cell keys (`"row,col"`) to an array of orthogonally adjacent walkable neighbor coordinates.
 - **Why an Adjacency List?** In a 240-tile grid with only ~90 road cells (maximum degree 4), an adjacency list stores only existing edges ($O(V + E)$ space) instead of an $O(V^2)$ sparse adjacency matrix.
-- **Dynamic Graph Cuts:** Palisades physically remove nodes from the graph, dynamically rerouting enemies in real-time.
+- **Solid Obstacles, Stable Routes:** Palisades no longer cut graph nodes. The BFS route stays the *shortest road route* and a palisade is a physical wall standing on it — enemies stop and break it down instead of taking a scenic detour around it.
 
 ### 3. Arrays with $O(1)$ Swap Removal & In-Place Compaction (`src/utils/arrayUtils.js`)
 - Manages active collections: `activeEnemies[]`, `activeTowers[]`, `activeProjectiles[]`.
@@ -57,9 +57,9 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 - **Space Complexity:** $O(V)$
 - **Implementation:** Custom circular queue frontier, `Set` visited tracking, and `Map` parent pointers for reverse path reconstruction.
 - **Gameplay Roles:**
-  - Computes the shortest route from Spawn `(5,0)` to Base `(5,19)` on the 3-route road network.
-  - Validates Barricade placement: guards against blocking the only path or stranding living enemies.
-  - Dynamically reroutes live enemies when the road layout changes.
+  - Computes the shortest route from Spawn `(5,0)` to Base `(5,19)` on the 3-route road network; every enemy marches it.
+  - Powers the live BFS visualiser in the codex and the route lengths shown in the algorithm panel.
+  - Runs the spawn → base and cell → base searches that prove the map is solvable before wave 1.
 
 ### 2. Merge Sort for Leaderboard (`src/dsa/MergeSort.js`)
 - **Time Complexity:** $O(n \log n)$ across all cases (Best, Average, Worst).
@@ -79,13 +79,16 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 ## 🎮 How to Play & Controls
 
 ### Objective
-Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders. Earn gold coins by eliminating enemies and construct defensive towers on grass tiles or tactical barricades on road tiles.
+Defend the **Guardian Core Base (25 HP)** against 6 escalating waves of invaders. You start with **220 gold**; earn more by eliminating enemies and spend it on defensive towers on grass tiles or palisades on the road.
 
 ### Defense Arsenal
 1. **Ballista Tower (🪙 60):** Balanced single-target bolt fire. Branches into Rapid Ranger or Sniper.
-2. **Boulder Sling (🪙 110):** Lobbed stone artillery with splash damage. Branches into Siege Sling or Stone Hammer.
+2. **Boulder Sling (🪙 110):** Lobbed stone artillery with real distance-falloff splash. Branches into Siege Sling or Stone Hammer.
 3. **Frost Bastion (🪙 85):** Crystal tower casting slowing frost (up to 60% slow). Branches into Blizzard Spire or Lightning Conductor.
-4. **Palisade (🪙 30):** Placed directly on the road to cut graph edges and force enemy rerouting. Cannot seal off the only path.
+4. **Palisade (🪙 30):** A solid wall on the road. Enemies **do not walk around it** — they stop and hammer it down (420 HP, 900 HP reinforced with contact thorns), buying your towers the time they need.
+5. **Hammerforge (🪙 120):** Heavy hammer slams with explosive splash. Branches into the armour-melting **Emberforge** (−20 armour for 3.5 s) or the long-reach **Thunderforge** (35% armour penetration).
+6. **Runestone (🪙 135):** Rune bolts that bypass 75% of armour. Branches into the **Void Lance** (true damage, ignores armour completely) or the **Arcane Nova** (magic splash).
+7. **Banner Keep (🪙 125):** Support keep that buffs every tower in its aura (+damage, +range) while still firing. Branches into the **Great Warbanner** (+32% damage, +14% range) or the **Muster Camp** (+15% fire rate and +1 gold per kill inside the aura).
 
 ### Camera & Mouse Controls
 | Input | Action |
@@ -108,6 +111,9 @@ Defend the **Guardian Core Base (20 HP)** against 6 escalating waves of invaders
 | <kbd>2</kbd> | Select Cannon Battery |
 | <kbd>3</kbd> | Select Frost Spire |
 | <kbd>4</kbd> | Select Palisade |
+| <kbd>5</kbd> | Select Hammerforge |
+| <kbd>6</kbd> | Select Runestone |
+| <kbd>7</kbd> | Select Banner Keep |
 | <kbd>Space</kbd> | Start Next Wave / Toggle Pause |
 | <kbd>F</kbd> | Toggle fullscreen |
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |
@@ -248,7 +254,7 @@ tower-defense-dsalgo/
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (200 tests / 16 suites)
+└── tests/                      # Automated Vitest test suites (236 tests / 19 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js

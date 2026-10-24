@@ -3,6 +3,7 @@ import { parseCellKey } from '../dsa/Graph.js';
 import { ENEMY_TYPES, waveHealthMultiplier } from '../data/enemyData.js';
 import { ENEMY_SHEETS } from '../data/spireManifest.js';
 import { calculateDamage, DAMAGE_TYPE } from '../systems/CombatCalculator.js';
+import { siegeStep, siegeDamage, siegeInterval } from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
 
 let enemyIdCounter = 1;
@@ -23,6 +24,8 @@ export class Enemy {
    * @param {(enemy:Enemy) => void} [callbacks.onBossSpawn]
    * @param {(enemy:Enemy) => void} [callbacks.onBossDefeated]
    * @param {(type:string, count:number) => void} [callbacks.onSummonMinions]
+   * @param {(cellKey:string) => object|null} [callbacks.getBarricadeAt] palisade standing on a cell
+   * @param {(wall:object, damage:number, enemy:Enemy) => void} [callbacks.onBarricadeHit] siege swing landed
    */
   constructor(scene, typeKey, waveNumber, path, callbacks) {
     this.id = enemyIdCounter++;
@@ -62,6 +65,11 @@ export class Enemy {
     this.armorBreak = 0;
     this.armorBreakTimer = 0;
     this.abilityTimer = 0;
+
+    // Siege state — set while a palisade blocks the next waypoint
+    this.isSieging = false;
+    this.siegeTarget = null;
+    this.siegeTimer = 0;
 
     // States
     this.isDead = false;
@@ -176,6 +184,72 @@ export class Enemy {
     return this.path[this.pathIndex] || this.getCurrentCellKey();
   }
 
+  /** Wall standing on the next waypoint, if the horde has to break through. */
+  getBarricadeAhead() {
+    const key = this.path?.[this.pathIndex];
+    if (!key || !this.callbacks.getBarricadeAt) return null;
+    const wall = this.callbacks.getBarricadeAt(key);
+    if (!wall || wall.isDestroyed || wall.health <= 0) return null;
+    return wall;
+  }
+
+  /**
+   * Palisade interaction. Returns true when the enemy spent this frame laying
+   * siege to a wall (so the caller skips normal waypoint movement).
+   *
+   * The attacker walks to a spot one stop-distance outside the wall, never
+   * inside its tile, then swings every `siegeInterval` ms. This is what makes
+   * barricades un-dodgeable: the BFS route does not change, the wall simply has
+   * to be broken down.
+   *
+   * Contact is decided by the *radial* distance to the wall, not by reaching an
+   * exact point: the queue offset pushes each attacker sideways, so aiming for
+   * a precise pixel left offset lanes hovering 0.1 px outside their target and
+   * attacking nothing at all.
+   */
+  updateSiege(deltaMs) {
+    const wall = this.getBarricadeAhead();
+    if (!wall) {
+      this.isSieging = false;
+      this.siegeTarget = null;
+      this.siegeTimer = 0;
+      return false;
+    }
+
+    this.isSieging = true;
+    this.siegeTarget = wall;
+
+    const step = siegeStep(
+      { x: this.x, y: this.y },
+      { x: wall.x, y: wall.y },
+      { id: this.id, speed: this.speed, deltaMs }
+    );
+    this.x = step.x;
+    this.y = step.y;
+
+    // Face the wall while hammering it.
+    this.sprite.rotation = step.facing + ENEMY_ART_OFFSET;
+
+    if (step.attack) {
+      // In contact: swing on the archetype's siege cadence.
+      this.siegeTimer += deltaMs;
+      const interval = siegeInterval(this.def);
+      if (this.siegeTimer >= interval) {
+        this.siegeTimer -= interval;
+        this.callbacks.onBarricadeHit?.(wall, siegeDamage(this.def), this);
+      }
+    }
+
+    // Heavy, fast breathing wobble reads as "hitting something".
+    this.wobbleTimer += deltaMs * (this.isSieging ? 0.03 : 0.012);
+    const scaleY = this.baseScale * (1 + Math.sin(this.wobbleTimer) * 0.12);
+    this.sprite.setScale(this.baseScale, scaleY);
+
+    this.container.setPosition(this.x, this.y);
+    this.container.setDepth(20 + this.y * 0.001);
+    return true;
+  }
+
   reroute(newPath) {
     if (!newPath || newPath.length === 0) return;
     this.path = newPath;
@@ -186,7 +260,7 @@ export class Enemy {
    * Applies damage via centralized CombatCalculator.
    * @param {number} rawDamage
    * @param {string} [damageType] key in DAMAGE_TYPE
-   * @param {object} [options] { armorPenetration, armorBreak, armorBreakMs }
+   * @param {object} [options] { armorPenetration, armorBreak, armorBreakMs, distance, splashRadius }
    * @returns {{ isDefeated: boolean, finalDamage: number, shieldAbsorbed: number, damageDealtToHealth: number }}
    */
   applyDamage(rawDamage, damageType = DAMAGE_TYPE.PHYSICAL, options = {}) {
@@ -202,6 +276,8 @@ export class Enemy {
       armorPenetration: options.armorPenetration || 0,
       armorBreak: this.armorBreak,
       activeShield: this.shield,
+      distance: options.distance || 0,
+      splashRadius: options.splashRadius || 0,
     });
 
     // 1. Absorb into shield barrier
@@ -438,7 +514,10 @@ export class Enemy {
       }
     }
 
-    // 5. Waypoint Movement
+    // 5. A palisade on the next waypoint stops the march: break it down.
+    if (this.updateSiege(deltaMs)) return;
+
+    // 6. Waypoint Movement
     if (this.pathIndex >= this.path.length) {
       this.reachBase();
       return;

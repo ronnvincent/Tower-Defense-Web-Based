@@ -34,6 +34,7 @@ export class GameStateManager {
       towerUpgrades: 0,
       barricadesPlaced: 0,
       barricadesRejected: 0,
+      barricadesDestroyed: 0,
       projectilesFired: 0,
     };
   }
