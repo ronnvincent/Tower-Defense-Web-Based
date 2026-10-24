@@ -15,6 +15,9 @@ export const ENEMY_SHEETS = {
   'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10 },
   'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12 },
   'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14 },
+  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8 },
+  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10 },
+  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12 },
 };
 
 export const IMPACT_SHEETS = {

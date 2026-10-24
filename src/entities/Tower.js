@@ -43,6 +43,8 @@ export class Tower {
     this.totalInvested = this.def.cost;
     this.cooldownTimer = 0;
     this.thornsCooldown = 0;
+    // Boss freeze effects (Frost Warden's Glacial Pulse) switch a tower off.
+    this.disabledTimer = 0;
     this.currentTarget = null;
     this.turretAngle = 0;
 
@@ -405,6 +407,24 @@ export class Tower {
     return true;
   }
 
+  /** True while a boss freeze pulse is suppressing this defence. */
+  get isDisabled() {
+    return this.disabledTimer > 0;
+  }
+
+  /**
+   * Switch the tower off for `durationMs`. Palisades are structures, not
+   * machinery, so they are immune — the freeze is aimed at your damage.
+   * @returns {boolean} true when the tower was actually disabled
+   */
+  disable(durationMs = 2500) {
+    if (this.isBarricade || this.isDestroyed) return false;
+    this.disabledTimer = Math.max(this.disabledTimer, durationMs);
+    this.topSprite?.setTint?.(0x7fd4ff);
+    this.container?.setAlpha?.(0.72);
+    return true;
+  }
+
   update(deltaMs) {
     // Barricade Level 2 contact thorns mechanic
     if (this.isBarricade) {
@@ -414,6 +434,17 @@ export class Tower {
           this.checkBarricadeThorns();
           this.thornsCooldown = 1000; // Check every 1s
         }
+      }
+      return;
+    }
+
+    // Boss freeze: no acquisition, no firing, no aura while suppressed.
+    if (this.disabledTimer > 0) {
+      this.disabledTimer -= deltaMs;
+      if (this.disabledTimer <= 0) {
+        this.disabledTimer = 0;
+        this.topSprite?.clearTint?.();
+        this.container?.setAlpha?.(1);
       }
       return;
     }

@@ -103,6 +103,26 @@ size plus the frame count of each animation band.
 | `shield` | Magma Crab | `enemy-shield.png` | 8 / 8 / 10 |
 | `boss-colossus` | Firewasp | `enemy-colossus.png` (96×96 frames) | 12 / 8 / 12 |
 | `boss-warlord` | Flying Locust | `enemy-warlord.png` | 12 / 8 / 14 |
+| `boss-sandwyrm` | Scorpion, **2×** | `enemy-sandwyrm.png` (128×128 frames) | 8 / 8 / 8 |
+| `boss-frostwarden` | Magma Crab, **2×** | `enemy-frostwarden.png` (128×128 frames) | 8 / 8 / 10 |
+| `boss-magmalord` | Firewasp, **2×** | `enemy-magmalord.png` (192×192 frames) | 12 / 8 / 12 |
+
+### Boss sheets
+The three campaign bosses reuse the elite silhouettes, upscaled 2× with
+nearest-neighbour (so the pixel grid survives) and **duotoned** onto a
+per-boss ramp — `duotone()` in the generator maps every pixel's luminance
+through four stops:
+
+| Boss | Ramp (dark → light) |
+|---|---|
+| Dune Tyrant | `#2A1A0C → #8A5A2A → #FFD98A → #FFF3D0` |
+| Frost Warden | `#10202E → #33607F → #9FD4EF → #F2FBFF` |
+| Magma Regent | `#1E0806 → #8C2A0E → #FFA23C → #FFE9B0` |
+
+A hue rotation alone was not enough: the source sheets carry several hue
+families (carapace, eyes, highlights), so rotating them kept the original
+identity. Dropping to one ramp makes a boss read as its own creature at a
+glance while keeping the pack's shape language.
 
 Each strip holds nine rows: idle, walk and death, each in three colour
 variants. The game plays variant 0. Frame size differs per creature (the
@@ -124,6 +144,27 @@ Every tile is 64×64 and derived from `tileset/grass.png` / `water.png`:
 - `rock.png`, `water.png` — obstacles and hazards
 - `foliage.png` — scattered decoration on grass tiles
 
+### Biome variants
+The same 21 tiles are re-graded per theme into `grass-desert.png`,
+`road_7-ice.png`, … `foliage-volcanic.png`. `build_tiles()` collects the
+grassland set once, then builds a colour LUT per theme: every source colour is
+tagged with a role (ground / road / stone / accent / water / ink) and projected
+onto that role's three-stop ramp by its own lightness, so shading survives.
+`THEME_RAMPS` in the generator holds the nine ramps; the grassland keeps the
+untouched pack art. `GameScene.tileTexture(base)` asks for
+`<base><theme.tileSuffix>` and falls back to the grassland texture, so a missing
+variant degrades instead of crashing.
+
+### UI art
+- `star_gold.png` / `star_empty.png` / `lock.png` — Kenney *Game Icons* white
+  silhouettes, tinted (`tint_pixels`) gold, slate and parchment.
+- `icon_gem.png` — the Kenney top-down gem prop (`towerDefense_tile183`),
+  hue-shifted to violet and centred on a 64 px canvas.
+- `map_<theme>.png` — 120×72 minimaps rendered from the *same* ASCII
+  battlefields in `src/data/mapData.js` and the *same* themed tiles the game
+  loads: one 6 px block per cell, road cells brightened so the lane reads at
+  thumbnail size. Adding a level therefore adds a thumbnail for free.
+
 ## 5. Known gaps and deliberate choices
 
 1. **No dedicated barricade prop.** Spire Tileset 1 has no single-tile fence or
@@ -140,6 +181,9 @@ Every tile is 64×64 and derived from `tileset/grass.png` / `water.png`:
 5. **Cropped, not repainted.** Bases are trimmed to 64 px wide and weapons are
    recoloured only for the frost/lightning branches (hue remap in the
    generator), so no art is invented.
+6. **Every Kenney `towerDefense_tile` is Adam7-interlaced.** The in-repo PNG
+   decoder handles all seven passes; a decoder that ignores the interlace byte
+   silently returns rainbow noise instead of art (this bit the gem icon first).
 
 ## 6. Regenerating the art
 

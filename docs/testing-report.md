@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 264 tests across 21 test suites.
-- **Pass Rate:** **100% (264 / 264 Passed)**
+- **Total Automated Unit Tests:** 298 tests across 24 test suites.
+- **Pass Rate:** **100% (298 / 298 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -18,12 +18,17 @@
 | **TC-03** | **Placement Collision Rules** | Player attempts to place a tower on invalid terrain (Water/Rocks/Road). | Click Archer card, click Water tile `(0, 2)` or Road tile `(5, 5)`. | Placement rejected; HUD toast displays *"Rocks and water cannot be built on"* or *"Towers cannot be built on the road"*. | Placement denied; occupied status prevented; correct error banner shown. | **PASS** |
 | **TC-04** | **Palisade placement guard** | Player tries to drop a palisade on the tile a living enemy occupies. | Enemy standing on `(7, 9)`; click Palisade card, click `(7, 9)`. | `GameScene.validateBuild()` returns `{ ok: false, reason: 'enemy-on-tile' }`; ghost renders red; placement rejected. | Preview turned red *before* the click and the build was rejected with *"An enemy is on this tile"*. | **PASS** |
 | **TC-05** | **Palisade is not dodgeable** | Place a palisade on the shortest (middle) route while enemies are marching it. | Place palisade at `(7, 9)` while Goblin Grunts are at `(5, 2)`. | The BFS route is unchanged (24 cells, still contains `7,9`); enemies walk up to the wall and attack it, taking ~42 grunt swings to breach 420 HP. | Route stays 24 cells and still contains `7,9` (`tests/graph-bfs.test.js`); the siege geometry, cadence and breach maths are covered by `tests/barricade-siege.test.js`. | **PASS** |
+| **TC-05c** | **Palisade goes only where the horde walks** | Player tries to plant a palisade on a road lane the BFS route never uses. | Click Palisade card, hover road tile `(1, 5)` (north decoy lane), then click. | Ghost renders red; `PlacementSystem.validate()` returns `{ ok: false, reason: 'off-route' }`; toast shows *"No enemies march through this tile"*. | Rejected off-route at `(1, 5)` while every cell of the 24-cell middle route stays buildable (`tests/systems.test.js`). | **PASS** |
 | **TC-05b** | **Forge defences** | Build each of the three new lines and upgrade every branch. | Buy Hammerforge 🪙120, Runestone 🪙135, Banner Keep 🪙125; upgrade each to level 3 in both branches. | All 7 dock cards render with icons, hotkeys 1–7 select them, and every slot loads its generated base + weapon art. | All cards, hotkeys and 12 new sprite slots verified by `tests/forge-defenses.test.js`. | **PASS** |
-| **TC-06** | **Base Damage & Defeat Trigger** | Enemy reaches the base monolith at `(5, 19)`. | Enemy traverses entire path into Base tile. | Base health decreases by enemy base damage (1 HP); screen shakes; enemy removed without duplicate coin award. | Base HP decreased from 20 to 19; screen shake fired; no coins awarded; enemy cleanly purged from memory. | **PASS** |
+| **TC-06** | **Base Damage & Defeat Trigger** | Enemy reaches the base monolith at `(5, 19)`. | Enemy traverses entire path into Base tile. | Base health decreases by enemy base damage (1 HP); screen shakes; enemy removed without duplicate coin award. | Base HP decreased from 25 to 24; screen shake fired; no coins awarded; enemy cleanly purged from memory. | **PASS** |
 | **TC-07** | **Leaderboard Sorting (Merge Sort)** | Leaderboard ranks multiple records including duplicate scores and tie-breaking. | Records submitted: Alice (500 pts, 4 waves), Bob (900 pts), Charlie (500 pts, 3 waves, 40s), Dave (500 pts, 3 waves, 25s). | Ranked list: 1. Bob (900), 2. Alice (500, 4 waves), 3. Dave (500, 3 waves, 25s), 4. Charlie (500, 3 waves, 40s). | Displayed order strictly matches multi-key tie-breaker; Merge Sort comparison stats collected accurately. | **PASS** |
 | **TC-08** | **Circular Queue Edge Cases** | Circular buffer wraps around the array boundary and dynamically resizes. | Enqueue 4 items in capacity 4, dequeue 2 items, enqueue 3 more items (wrapping indices), then enqueue 1 more to trigger growth. | Queue wraps indices without shifting elements; on growth, doubles capacity to 8 and preserves exact FIFO order. | FIFO sequence `[1, 2, 3, 4, 5, 6]` preserved across growth; `head` reset to 0; no data loss. | **PASS** |
 | **TC-09** | **LocalStorage Corruption Fallback** | LocalStorage contains malformed or corrupted JSON string. | Set `localStorage['td-dsalgo:leaderboard:v1'] = "{corrupt json..."`. Initialize `Leaderboard`. | Game survives without crashing; moves corrupted data to backup key; returns clean empty array. | `loadStatus` marked as `'corrupt'`; corrupted string backed up; game launches smoothly with empty table. | **PASS** |
 | **TC-10** | **Terminal Game State Guard** | Base reaches 0 HP simultaneously as wave ends. | Trigger Base Health = 0. Call `gameState.end('gameover')` followed by `gameState.end('victory')`. | Once a terminal state is set, subsequent terminal calls are rejected; only Game Over is registered. | State remains `gameover`; double-triggering victory modal is prevented. | **PASS** |
+| **TC-11** | **World map & unlocks** | Player clears Level 1 and returns to the world map. | Win `level-1`, then open PLAY → world map. | `level-2` and Endless Siege become selectable; the cleared node shows its 1–3 stars; locked nodes render a padlock and stay disabled. | `ProgressStore.recordVictory()` unlocked `level-2` + `endless`, node markup re-rendered with earned stars (`tests/campaign-ui.test.js`). | **PASS** |
+| **TC-12** | **Star rating & rewards** | Finish a level with different core health. | Core at 100 % / 52 % / 48 % on clear. | 3★ / 2★ / 1★; first clear pays the full bounty (+1 gem at 3★), replays pay a 20 % gold stipend. | Boundary maths covered by `tests/progression.test.js`; the victory modal renders earned vs empty stars and the reward row. | **PASS** |
+| **TC-13** | **Endless Siege** | Survive as long as possible in the endless mode. | Clear `level-1` to unlock Endless, start it, lose the core. | Waves are generated forever (5-wave cycle, boss every 5th), `totalWaves` is ∞, and the run only ends on defeat, keeping the best wave/score. | `WaveManager` endless branch covered by `tests/wave-flow.test.js`; `recordEndless()` keeps the depth reached and the result modal shows WAVE REACHED / BEST WAVE. | **PASS** |
+| **TC-14** | **Boss abilities** | Fight each level's boss. | Reach wave 6 / 7 / 8. | Boss bar + warning; Dune Tyrant hastes nearby enemies, Frost Warden freezes towers, Magma Regent summons swarms and hastes itself. | Ability dispatch (`summon` / `speedAura` / `disableTowers`), phase thresholds and tower freeze/thaw are covered by the boss-phase and module-contract suites; art ships as 2× duotone sheets. | **PASS** |
 
 ---
 
@@ -60,7 +65,7 @@
      ✓ sanitizeName trims, strips control characters and limits length
      ✓ normalizeRecord rejects negative scores and arrays
 
- ✓ tests/systems.test.js (14 tests)
+ ✓ tests/systems.test.js (15 tests)
      ✓ never lets coins go negative
      ✓ ignores invalid amounts
      ✓ cannot be both game over and victory
@@ -70,9 +75,12 @@
      ✓ does not start a wave twice (duplicate trigger protection)
      ✓ does not complete a wave while enemies are alive
      ✓ a long frame releases several due spawns
+     ✓ (endless) never runs out of waves and never reports a final wave
+     ✓ (endless) caches generated waves instead of mutating the level definition
      ✓ accepts a tower on free grass with enough coins
      ✓ rejects towers on road, rocks, water, occupied tiles and with too few coins
      ✓ barricades must go on road tiles, never on spawn or base
+     ✓ refuses palisades on decoy lanes the horde never walks
      ✓ compactInPlace removes items in one pass and preserves order
      ✓ swapRemove removes a single item in O(1) after locating it
 
@@ -129,12 +137,49 @@
      ✓ keeps the top bar on a single row on short landscape screens
      ✓ hides the zoom pill on touch devices but keeps reset
 
+ ✓ tests/progression.test.js (11 tests)
+     ✓ awards 3 stars at 85% base health, 2 at 50%, 1 for surviving
+     ✓ honours per-level thresholds and never crashes on a zeroed core
+     ✓ pays the full bounty on a first clear and a bonus gem at 3 stars
+     ✓ pays only a 20% gold stipend on replays
+     ✓ starts with only level 1 open
+     ✓ unlocks the next level (and Endless) on the first clear
+     ✓ keeps the best stars on replay and only pays the stipend
+     ✓ records endless depth without granting stars
+     ✓ a defeat never awards stars but endless keeps the depth reached
+     ✓ persists to storage and rehydrates, merging over a fresh profile
+     ✓ survives corrupt JSON and a throwing storage
+
+ ✓ tests/campaign-ui.test.js (11 tests)
+     ✓ renders one node per campaign level plus Endless Siege
+     ✓ locks every node that has not been unlocked and shows the padlock
+     ✓ uses the generated minimap for each theme
+     ✓ selecting an open node reports its id, a locked node reports nothing
+     ✓ shows earned stars and unlocks the next node after a victory
+     ✓ back button closes the overlay and reports it
+     ✓ renders the star rating, rewards and the unlock line on a win
+     ✓ offers Next Level only when there is a next level, and replays the current one
+     ✓ a defeat shows the retry path and no star rating
+     ✓ an endless run reports the wave reached and the record
+     ✓ hides cleanly and forgets the last result
+
+ ✓ tests/boss-abilities.test.js (9 tests)
+     ✓ ships three distinct, bigger, multi-phase bosses
+     ✓ gives each boss its signature ability
+     ✓ fires on its interval and hands the scene a radius + multiplier
+     ✓ multiplies movement speed for the duration, then expires
+     ✓ stacks with a slow instead of overwriting it
+     ✓ the Frost Warden pulses disableTowers and the scene can freeze towers
+     ✓ a disabled tower stops firing and thaws after its timer
+     ✓ a palisade cannot be frozen — it is not a firing tower
+     ✓ waves every fifth wave carries a boss
+
  ✓ tests/module-contracts.test.js (10 tests)
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  21 passed (21)
-Tests       264 passed (264)
+Test Files  24 passed (24)
+Tests       298 passed (298)
 Duration    6.7s
 ```
 
@@ -150,7 +195,10 @@ Duration    6.7s
 | `tests/hud-dom.test.js` | jsdom | 14 | HUD controls missing, buttons not forwarding callbacks, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
-| `tests/wave-flow.test.js` | node | 5 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point |
+| `tests/wave-flow.test.js` | node | 7 | Spawn stalls, waves that never complete, wave 5 outgrowing the 32-slot queue, bosses spawning at the wrong point, endless waves never ending |
+| `tests/progression.test.js` | node | 11 | Star boundaries, reward payouts, unlock graph, endless records, corrupt/throwing storage |
+| `tests/campaign-ui.test.js` | jsdom | 11 | World-map nodes/locks/minimaps, star display, next/replay/menu routing, defeat & endless result copy |
+| `tests/boss-abilities.test.js` | jsdom | 9 | Boss phase data, aura/freeze pulses, speed-boost stacking with slow, tower freeze/thaw, endless boss cadence |
 | `tests/display-mode.test.js` | node | 17 | Orientation maths, handheld detection (incl. iPadOS desktop UA), gate policy, Fullscreen API vendor selection |
 | `tests/orientation-gate.test.js` | node | 18 | Rotate→unlock, re-block on rotate-back, debounce, skip/re-arm, unsupported fullscreen, first-gesture arming, toggle |
 | `tests/display-gate-dom.test.js` | jsdom | 14 | Real index.html gate markup, gates outside #app, inert/aria transitions, button callbacks, focus, HUD ⛶ mirroring |
@@ -204,5 +252,9 @@ processed. Waves 4–5 look fine only because they contain no boss; wave 6 has o
   with `Missing HUD methods: ["HUD.showBossBar"]` when the bug is reintroduced (verified).
 - `tests/hud-boss-bar.test.js` exercises the real DOM banner: reveal, HP/shield updates, hide, and a
   bare `{}` boss object.
+- `tests/progression.test.js` pins the star boundaries (85 % / 50 %), the first-clear vs replay
+  payouts, the unlock graph (`level-1` → `level-2` → `endless`) and the save-file merge/corruption paths.
+- `tests/campaign-ui.test.js` renders the world map and the result modal in jsdom and asserts the
+  node states, minimap URLs, star markup and the Next / Replay / Main Menu routing.
 - `tests/wave-flow.test.js` plays all six waves through `WaveManager` and asserts every spawn is
   released in order, the queue grows past its initial 32 slots, and each wave reports completion.

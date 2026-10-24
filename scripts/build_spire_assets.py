@@ -24,34 +24,23 @@ import zlib
 from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "src", "assets", "spire")
+ASSETS = os.path.join(ROOT, "src", "assets")
+SRC = os.path.join(ASSETS, "spire")
 OUT = os.path.join(ROOT, "public", "assets")
 
 # ---------------------------------------------------------------- PNG helpers
 
 
-def read_png(path):
-    """Minimal RGBA PNG decoder (8-bit, non-interlaced) -> (w, h, bytearray)."""
-    data = open(path, "rb").read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", path
-    pos, idat, w, h, bitdepth, colourtype = 8, b"", 0, 0, 8, 6
-    while pos < len(data):
-        length = struct.unpack(">I", data[pos : pos + 4])[0]
-        ctype = data[pos + 4 : pos + 8]
-        chunk = data[pos + 8 : pos + 8 + length]
-        if ctype == b"IHDR":
-            w, h, bitdepth, colourtype = struct.unpack(">IIBB", chunk[:10])
-        elif ctype == b"IDAT":
-            idat += chunk
-        pos += 12 + length
-    assert bitdepth == 8, f"unsupported bit depth {bitdepth} in {path}"
-    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colourtype]
-    raw = zlib.decompress(idat)
-    stride = w * channels
-    out = bytearray()
+ADAM7 = ((0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2))
+
+
+def _unfilter_rows(raw, offset, width, height, channels):
+    """Undo the per-scanline PNG filters for one (sub)image."""
+    stride = width * channels
+    rows = []
     prev = bytearray(stride)
-    i = 0
-    for _ in range(h):
+    i = offset
+    for _ in range(height):
         filt = raw[i]
         i += 1
         line = bytearray(raw[i : i + stride])
@@ -75,14 +64,61 @@ def read_png(path):
                 pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
                 pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
                 line[x] = (line[x] + pr) & 255
-        out += line
+        rows.append(line)
         prev = line
+    return rows, i
+
+
+def read_png(path):
+    """Minimal RGBA PNG decoder (8-bit) -> (w, h, bytearray).
+
+    Handles the three layouts the CC0 packs actually ship: RGBA, RGB and
+    Adam7 interlacing (every Kenney "towerDefense_tile" is interlaced, so
+    skipping this decodes them into rainbow noise instead of art).
+    """
+    data = open(path, "rb").read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", path
+    pos, idat, w, h, bitdepth, colourtype, interlace = 8, b"", 0, 0, 8, 6, 0
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        ctype = data[pos + 4 : pos + 8]
+        chunk = data[pos + 8 : pos + 8 + length]
+        if ctype == b"IHDR":
+            w, h, bitdepth, colourtype, _, _, interlace = struct.unpack(">IIBBBBB", chunk[:13])
+        elif ctype == b"IDAT":
+            idat += chunk
+        pos += 12 + length
+    assert bitdepth == 8, f"unsupported bit depth {bitdepth} in {path}"
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colourtype]
+    raw = zlib.decompress(idat)
+
+    if interlace == 0:
+        rows, _ = _unfilter_rows(raw, 0, w, h, channels)
+        out = b"".join(rows)
+    else:
+        merged = bytearray(w * h * channels)
+        offset = 0
+        for x0, y0, dx, dy in ADAM7:
+            pw = (w - x0 + dx - 1) // dx
+            ph = (h - y0 + dy - 1) // dy
+            if pw <= 0 or ph <= 0:
+                continue
+            rows, offset = _unfilter_rows(raw, offset, pw, ph, channels)
+            for ry, row in enumerate(rows):
+                dst_y = y0 + ry * dy
+                for rx in range(pw):
+                    dst_x = x0 + rx * dx
+                    di = (dst_y * w + dst_x) * channels
+                    merged[di : di + channels] = row[rx * channels : (rx + 1) * channels]
+        out = bytes(merged)
+
     if channels == 3:
         rgba = bytearray(w * h * 4)
         for i in range(w * h):
             rgba[i * 4 : i * 4 + 3] = out[i * 3 : i * 3 + 3]
             rgba[i * 4 + 3] = 255
         return w, h, rgba
+    assert channels == 4, f"unsupported colour type {colourtype} in {path}"
     return w, h, bytes(out)
 
 
@@ -156,6 +192,128 @@ def recolour(pixels, mapping):
         key = (out[i], out[i + 1], out[i + 2])
         if key in lut:
             out[i], out[i + 1], out[i + 2] = lut[key]
+    return out
+
+
+def hsl(r, g, b):
+    """RGB (0-255) -> (hue 0..1, saturation 0..1, lightness 0..1)."""
+    rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(rf, gf, bf), min(rf, gf, bf)
+    l = (mx + mn) / 2
+    if mx == mn:
+        return 0.0, 0.0, l
+    d = mx - mn
+    sat = d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+    if mx == rf:
+        h = ((gf - bf) / d) % 6
+    elif mx == gf:
+        h = (bf - rf) / d + 2
+    else:
+        h = (rf - gf) / d + 4
+    return h / 6.0, sat, l
+
+
+def rgb_from_hsl(h, s, l):
+    if s <= 0:
+        v = round(max(0.0, min(1.0, l)) * 255)
+        return v, v, v
+    q = l * (1 + s) if l < 0.5 else l + s - l * s
+    p = 2 * l - q
+
+    def channel(t):
+        t %= 1.0
+        if t < 1 / 6:
+            v = p + (q - p) * 6 * t
+        elif t < 1 / 2:
+            v = q
+        elif t < 2 / 3:
+            v = p + (q - p) * (2 / 3 - t) * 6
+        else:
+            v = p
+        return round(max(0.0, min(1.0, v)) * 255)
+
+    return channel(h + 1 / 3), channel(h), channel(h - 1 / 3)
+
+
+def hex_to_rgb(value):
+    return (value >> 16) & 255, (value >> 8) & 255, value & 255
+
+
+def mix(stops, t):
+    """Sample a dark -> light ramp of `stops` (RGB tuples) at t in [0, 1]."""
+    t = max(0.0, min(1.0, t))
+    pos = t * (len(stops) - 1)
+    i = min(len(stops) - 2, int(pos))
+    f = pos - i
+    a, b = stops[i], stops[i + 1]
+    return tuple(round(a[k] + (b[k] - a[k]) * f) for k in range(3))
+
+
+def scale_pixels(pixels, w, h, factor):
+    """Nearest-neighbour upscale — keeps the pixel-art grid intact."""
+    nw, nh = w * factor, h * factor
+    out = bytearray(nw * nh * 4)
+    for y in range(nh):
+        row = (y // factor) * w
+        for x in range(nw):
+            si = (row + x // factor) * 4
+            di = (y * nw + x) * 4
+            out[di : di + 4] = pixels[si : si + 4]
+    return nw, nh, out
+
+
+def tint_pixels(pixels, value, alpha=255):
+    """Replace RGB with a flat colour, optionally scaling the source alpha."""
+    r, g, b = hex_to_rgb(value)
+    out = bytearray(pixels)
+    for i in range(0, len(out), 4):
+        out[i], out[i + 1], out[i + 2] = r, g, b
+        out[i + 3] = out[i + 3] * alpha // 255
+    return out
+
+
+def hue_transform(pixels, dh, sat_scale=1.0, light_add=0.0, light_scale=1.0):
+    """Rotate every pixel's hue and re-grade it — a whole-sheet palette shift.
+
+    Used for the bosses: the same silhouettes as the elite creeps, recoloured
+    into their own element so a boss never reads as "a big grunt".
+    """
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            h, s, l = hsl(*key)
+            h = (h + dh) % 1.0
+            s = max(0.0, min(1.0, s * sat_scale))
+            l = max(0.0, min(1.0, l * light_scale + light_add))
+            rgb = rgb_from_hsl(h, s, l)
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+def duotone(pixels, stops):
+    """Re-grade a sheet onto a single dark -> light ramp (alpha untouched).
+
+    Bosses use this: the elite silhouettes keep their shape but lose their
+    original colours, so a 2x giant never reads as "the same creep again".
+    """
+    ramp = [hex_to_rgb(value) for value in stops]
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            rgb = mix(ramp, hsl(*key)[2])
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
     return out
 
 
@@ -432,12 +590,111 @@ def build_barricade():
 # ---------------------------------------------------------------------- terrain
 
 
+# ---------------------------------------------------------------- terrain themes
+
+# Every colour the two Spire terrain sheets use, tagged with its job. Terrain
+# needs per-role ramps (a road must stay a road), so a blanket hue rotation is
+# not an option; instead each role is re-graded onto the level's own ramp.
+TERRAIN_ROLES = {
+    "ground": [0x63AB3F, 0x3B7D4F, 0xC8D45D],
+    "road": [0xFFAE70, 0xCF752B, 0xAB5130],
+    "stone": [0xA3A7C2, 0x686F99, 0x404973, 0x2C354D, 0x14182E],
+    "accent": [0xBD6A62, 0x8F4D57, 0x7D3833],
+    "water": [0x92E8C0, 0xD7F8DC, 0xAFEECB, 0xC4F3D4],
+    "ink_dark": [0x21181B, 0x3B2027, 0x52333F, 0x2F5753],
+    "ink_light": [0xDFE0E8, 0xF5FFE8],
+}
+
+# dark -> mid -> light per role. The grassland keeps the untouched artwork.
+THEME_RAMPS = {
+    "desert": {
+        "ground": [0x5E5326, 0x8C7C3C, 0xC9B063],
+        "road": [0x7A4B24, 0xC08A4E, 0xF2D9A6],
+        "stone": [0x6E6355, 0x9E9078, 0xE8D8B6],
+        "accent": [0x5E2417, 0x9C4026, 0xD9784A],
+        "water": [0x2F7E74, 0x53A996, 0x9FDFC6],
+        "ink_dark": [0x1E150C, 0x332515, 0x4A3720],
+        "ink_light": [0xE8D9B8, 0xF7EDD6, 0xFFF8E8],
+    },
+    "ice": {
+        "ground": [0x4E6273, 0x8AA3B8, 0xE4F1FA],
+        "road": [0x6C8496, 0x9FB6C9, 0xE9F6FF],
+        "stone": [0x4B5A66, 0x7E93A2, 0xD9E9F3],
+        "accent": [0x473A5C, 0x6E5A8F, 0xB79BD8],
+        "water": [0x1B4A6E, 0x2E6D96, 0x4E93BD],
+        "ink_dark": [0x0D161E, 0x1B2A36, 0x2C3F4E],
+        "ink_light": [0xE6F3FB, 0xF6FCFF, 0xFFFFFF],
+    },
+    "volcanic": {
+        "ground": [0x1E181B, 0x3A3036, 0x5E5258],
+        "road": [0x4A2418, 0x7E3A22, 0xB5613A],
+        "stone": [0x322C30, 0x554B51, 0x877A80],
+        "accent": [0x6E1508, 0xC03A15, 0xFFAE5C],
+        "water": [0x5E0F05, 0xB83410, 0xFF8A3C],
+        "ink_dark": [0x080506, 0x120C0E, 0x1E151A],
+        "ink_light": [0xD9C6B8, 0xF0DFCD, 0xFFF0DE],
+    },
+}
+
+ROLE_OF_COLOUR = {}
+for _role, _colours in TERRAIN_ROLES.items():
+    for _hex in _colours:
+        ROLE_OF_COLOUR[hex_to_rgb(_hex)] = _role
+
+
+def role_of(rgb):
+    role = ROLE_OF_COLOUR.get(rgb)
+    if role:
+        return role
+    h, sat, light = hsl(*rgb)
+    if light > 0.88 and sat < 0.25:
+        return "ink_light"
+    if light < 0.14:
+        return "ink_dark"
+    deg = h * 360
+    if 65 <= deg <= 175:
+        return "ground"
+    if 15 <= deg < 65:
+        return "road"
+    if deg >= 300 or deg < 15:
+        return "accent"
+    if 175 <= deg < 235:
+        return "water"
+    return "stone"
+
+
+def theme_mapping(sheets, ramps):
+    """Build a {(r,g,b): 0xRRGGBB} LUT that re-grades a whole tileset."""
+    colours = set()
+    for pixels in sheets:
+        for i in range(0, len(pixels), 4):
+            if pixels[i + 3]:
+                colours.add((pixels[i], pixels[i + 1], pixels[i + 2]))
+
+    groups = {}
+    for colour in colours:
+        groups.setdefault(role_of(colour), []).append(colour)
+
+    mapping = {}
+    for role, members in groups.items():
+        stops = [hex_to_rgb(value) for value in ramps[role]]
+        if role in ("ink_light", "ink_dark"):
+            for colour in members:
+                mapping[colour] = mix(stops, hsl(*colour)[2])
+            continue
+        lights = [hsl(*colour)[2] for colour in members]
+        lo, hi = min(lights), max(lights)
+        for colour in members:
+            light = hsl(*colour)[2]
+            t = 0.5 if hi - lo < 1e-6 else (light - lo) / (hi - lo)
+            mapping[colour] = mix(stops, t)
+    return {colour: (v[0] << 16 | v[1] << 8 | v[2]) for colour, v in mapping.items()}
+
+
 def build_tiles():
     print("terrain")
     gw, gh, grass = read_png(os.path.join(SRC, "tileset", "grass.png"))
-
-    def tile(x, y, name, note=""):
-        save(os.path.join(OUT, "tiles", f"{name}.png"), crop(grass, gw, x, y, 64, 64), 64, 64, note)
+    ww, wh, water = read_png(os.path.join(SRC, "tileset", "water.png"))
 
     SAND = crop(grass, gw, 384, 128, 64, 64)          # plain, borderless sand
     STRIP = {                                          # one ragged sand/grass edge
@@ -487,23 +744,188 @@ def build_tiles():
             return overlay(CORNER[pair], STRIP[missing])
         return overlay(SAND, STRIP[grass_sides[0]])
 
-    for mask in range(16):
-        save(os.path.join(OUT, "tiles", f"road_{mask}.png"), road_tile(mask), 64, 64, f"mask {mask:04b}")
-
-    # Seamless plain grass / rock / foliage.
-    tile(128, 64, "grass", "seamless")
+    # 1. Compose the grassland set once, in memory.
+    tiles = {f"road_{mask}": road_tile(mask) for mask in range(16)}
+    tiles["grass"] = crop(grass, gw, 128, 64, 64, 64)   # seamless
 
     rock = crop(grass, gw, 848, 845, 33, 36)
     rock_out = blank(64, 64)
     blit(rock_out, 64, rock, 33, 36, 15, 18)
-    save(os.path.join(OUT, "tiles", "rock.png"), rock_out, 64, 64, "<- boulder prop")
+    tiles["rock"] = rock_out
 
     # Water: a plain, borderless lake fill taken from inside the shoreline module.
-    ww, wh, water = read_png(os.path.join(SRC, "tileset", "water.png"))
-    save(os.path.join(OUT, "tiles", "water.png"), crop(water, ww, 184, 72, 64, 64), 64, 64, "lake fill")
+    tiles["water"] = crop(water, ww, 184, 72, 64, 64)
 
     # Foliage: oak tree prop
-    save(os.path.join(OUT, "tiles", "foliage.png"), crop(grass, gw, 832, 384, 64, 64), 64, 64, "tree prop")
+    tiles["foliage"] = crop(grass, gw, 832, 384, 64, 64)
+
+    sheets = [tiles["road_15"], tiles["grass"], tiles["water"], tiles["rock"], tiles["foliage"]]
+
+    # 2. Write grassland under the plain keys, then one recoloured set per theme.
+    for name, pixels in tiles.items():
+        note = "seamless" if name == "grass" else ""
+        save(os.path.join(OUT, "tiles", f"{name}.png"), pixels, 64, 64, note)
+
+    for theme, ramps in THEME_RAMPS.items():
+        lut = theme_mapping(sheets, ramps)
+        for name, pixels in tiles.items():
+            save(
+                os.path.join(OUT, "tiles", f"{name}-{theme}.png"),
+                recolour(pixels, lut),
+                64,
+                64,
+                f"{theme} variant",
+            )
+
+
+# ------------------------------------------------------------------------ bosses
+
+# Bosses are the same Foozle strips as the elite creeps, pulled bigger and
+# re-graded into their own element: the player reads "that one is different"
+# from the silhouette + colour at a glance, without a second art pack.
+# key: (source sprite, source frame width, rows, upscale, duotone ramp)
+BOSS_SOURCES = {
+    "sandwyrm": ("scorpion", 64, 9, 2, (0x2A1A0C, 0x8A5A2A, 0xFFD98A, 0xFFF3D0)),
+    "frostwarden": ("magma_crab", 64, 9, 2, (0x10202E, 0x33607F, 0x9FD4EF, 0xF2FBFF)),
+    "magmalord": ("firewasp", 96, 9, 2, (0x1E0806, 0x8C2A0E, 0xFFA23C, 0xFFE9B0)),
+}
+
+
+def build_bosses():
+    print("bosses")
+    for key, (sprite, fw, rows, scale, ramp) in BOSS_SOURCES.items():
+        path = os.path.join(SRC, "enemies", f"{sprite}.png")
+        w, h, sheet = read_png(path)
+        assert w % fw == 0, (path, w, fw)
+        graded = duotone(sheet, ramp)
+        nw, nh, big = scale_pixels(graded, w, h, scale)
+        save(
+            os.path.join(OUT, "enemies", f"enemy-{key}.png"),
+            big,
+            nw,
+            nh,
+            f"<- {sprite} x{scale} ({fw * scale}px frames)",
+        )
+
+
+# ----------------------------------------------------------------------- UI art
+
+def read_map_layouts():
+    """Pull the ASCII battlefields out of src/data/mapData.js (single source)."""
+    src = open(os.path.join(ROOT, "src", "data", "mapData.js")).read()
+    base = re.search(r"export const MAP_LAYOUT = \[(.*?)\n\];", src, re.S).group(1)
+    layouts = {"grassland": re.findall(r"'([^']*)'", base)}
+    body = re.search(r"export const MAPS = \{(.*?)\n\};", src, re.S).group(1)
+    parts = re.split(r"\n\s{2}(\w+):\s*", "\n" + body)
+    for i in range(1, len(parts) - 1, 2):
+        name, chunk = parts[i], parts[i + 1]
+        if "MAP_LAYOUT" in chunk:
+            layouts[name] = layouts["grassland"]
+        else:
+            layouts[name] = re.findall(r"'([^']*)'", chunk)
+    return layouts
+
+
+def average_colour(pixels, w, h, x0, y0, size):
+    r = g = b = n = 0
+    for y in range(y0, min(h, y0 + size)):
+        for x in range(x0, min(w, x0 + size)):
+            i = (y * w + x) * 4
+            if pixels[i + 3] < 200:
+                continue
+            r += pixels[i]
+            g += pixels[i + 1]
+            b += pixels[i + 2]
+            n += 1
+    if not n:
+        return (24, 22, 28)
+    return (r // n, g // n, b // n)
+
+
+def build_ui_icons():
+    """Stars / lock / gem for the campaign screens, all from the CC0 packs."""
+    print("ui icons")
+    icons = os.path.join(ASSETS, "kenney_game-icons", "PNG", "White", "1x")
+    for name, source, tint, alpha in (
+        ("star_gold", "star.png", 0xF5C451, 255),
+        ("star_empty", "star.png", 0x5C544A, 170),
+        ("lock", "locked.png", 0xE9D9AE, 255),
+    ):
+        w, h, pixels = read_png(os.path.join(icons, source))
+        save(
+            os.path.join(OUT, "ui", f"{name}.png"),
+            tint_pixels(pixels, tint, alpha),
+            w,
+            h,
+            f"<- {source}",
+        )
+
+    # Gem: the blue diamond prop from the Kenney top-down set, re-graded to a
+    # violet/cyan gem and centred on a square canvas.
+    tile = os.path.join(
+        ASSETS, "kenney_tower-defense-top-down", "PNG", "Default size", "towerDefense_tile183.png"
+    )
+    w, h, pixels = read_png(tile)
+    pixels = hue_transform(pixels, 0.44, 1.9, -0.02, 1.0)
+    trimmed, tw, th = trim(pixels, w, h)
+    gem = blank(64, 64)
+    blit(gem, 64, trimmed, tw, th, (64 - tw) // 2, (64 - th) // 2)
+    save(os.path.join(OUT, "ui", "icon_gem.png"), gem, 64, 64, "<- Kenney TD gem")
+
+    # World-map thumbnails: a 6 px-per-cell minimap rendered from the same ASCII
+    # battlefield and the same recoloured tiles the game loads.
+    print("map thumbnails")
+    layouts = read_map_layouts()
+    cell = 6
+    for theme in ("grassland", "desert", "ice", "volcanic"):
+        layout = layouts["grassland" if theme == "volcanic" else theme]
+        suffix = "" if theme == "grassland" else f"-{theme}"
+
+        def tile_colour(name, x, y, size=16):
+            tw2, th2, pix = read_png(os.path.join(OUT, "tiles", f"{name}{suffix}.png"))
+            return average_colour(pix, tw2, th2, x, y, size)
+
+        grass = tile_colour("grass", 24, 24)
+        # The horde's lane has to read as a lane at thumbnail size; the volcanic
+        # road is nearly as dark as its ash ground, so lift it harder there.
+        boost = {"grassland": 1.15, "desert": 1.05, "ice": 1.1, "volcanic": 1.85}[theme]
+        road = tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24))
+        water = tile_colour("water", 24, 24)
+        rock = tile_colour("rock", 24, 24)
+        tree = tile_colour("foliage", 24, 24)
+        spawn = (0xB3, 0x88, 0xFF)
+        base = (0xF5, 0xC4, 0x51)
+
+        cols = max(len(row) for row in layout)
+        rows = len(layout)
+        width, height = cols * cell, rows * cell
+        out = blank(width, height)
+        for r, line in enumerate(layout):
+            for c, ch in enumerate(line):
+                if ch == "S":
+                    colour = spawn
+                elif ch == "B":
+                    colour = base
+                elif ch == "#":
+                    colour = road
+                elif ch == "~":
+                    colour = water
+                elif ch == "x":
+                    colour = rock
+                else:
+                    folliage = (r * 3 + c * 5) % 9 == 0
+                    colour = tree if folliage else grass
+                # A touch of checker shading keeps a flat minimap from reading
+                # like a solid blob at 120 px.
+                f = 0.92 if (r + c) % 2 else 1.0
+                for y in range(r * cell, (r + 1) * cell):
+                    for x in range(c * cell, (c + 1) * cell):
+                        i = (y * width + x) * 4
+                        out[i] = min(255, round(colour[0] * f))
+                        out[i + 1] = min(255, round(colour[1] * f))
+                        out[i + 2] = min(255, round(colour[2] * f))
+                        out[i + 3] = 255
+        save(os.path.join(OUT, "ui", f"map_{theme}.png"), out, width, height, "<- battlefield minimap")
 
 
 # ------------------------------------------------------------------- projectiles
@@ -701,7 +1123,9 @@ def build_enemy_manifest():
     """Measure every enemy strip: 9 rows = idle/move/death x 3 colour variants."""
     print("enemy manifest")
     manifest = {}
-    for key, (sprite, fw, rows) in ENEMY_SOURCES.items():
+    jobs = [(key, fw, rows) for key, (sprite, fw, rows) in ENEMY_SOURCES.items()]
+    jobs += [(key, fw * scale, rows) for key, (sprite, fw, rows, scale, ramp) in BOSS_SOURCES.items()]
+    for key, fw, rows in jobs:
         path = os.path.join(OUT, "enemies", f"enemy-{key}.png")
         w, h, pix = read_png(path)
         fh = h // rows
@@ -779,9 +1203,11 @@ def main():
     build_towers()
     build_barricade()
     build_tiles()
+    build_bosses()
     build_projectiles()
     build_enemies()
     build_ui_cards()
+    build_ui_icons()
     impacts = build_effects()
     enemies = build_enemy_manifest()
     write_manifest(enemies, impacts)

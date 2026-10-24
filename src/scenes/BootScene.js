@@ -52,6 +52,19 @@ export class BootScene extends Phaser.Scene {
     this.load.image('tile-water', 'assets/tiles/water.png');
     this.load.image('tile-foliage', 'assets/tiles/foliage.png');
 
+    // 1b. Biome variants — the same Foozle autotiles re-graded per level theme.
+    // GameScene.tileTexture() asks for `<key><tileSuffix>` and falls back to the
+    // grassland art, so a missing variant can never break a level.
+    for (const suffix of ['-desert', '-ice', '-volcanic']) {
+      this.load.image(`tile-grass${suffix}`, `assets/tiles/grass${suffix}.png`);
+      for (let mask = 0; mask < 16; mask++) {
+        this.load.image(`tile-road-${mask}${suffix}`, `assets/tiles/road_${mask}${suffix}.png`);
+      }
+      this.load.image(`tile-rock${suffix}`, `assets/tiles/rock${suffix}.png`);
+      this.load.image(`tile-water${suffix}`, `assets/tiles/water${suffix}.png`);
+      this.load.image(`tile-foliage${suffix}`, `assets/tiles/foliage${suffix}.png`);
+    }
+
     // 2. Towers — static base + animated weapon sheet per upgrade slot
     for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
       for (const slot of SLOTS) {

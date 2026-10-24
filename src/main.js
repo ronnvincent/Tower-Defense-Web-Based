@@ -7,6 +7,10 @@ import { HUD } from './ui/HUD.js';
 import { LeaderboardUI } from './ui/LeaderboardUI.js';
 import { StatisticsPanel } from './ui/StatisticsPanel.js';
 import { Leaderboard } from './systems/Leaderboard.js';
+import { LevelSelectUI } from './ui/LevelSelectUI.js';
+import { ResultScreenUI } from './ui/ResultScreenUI.js';
+import { ProgressStore } from './systems/Progression.js';
+import { getNextLevel } from './data/levelData.js';
 import { audio } from './rendering/AudioSynth.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
@@ -40,6 +44,10 @@ const phaserConfig = {
 
 const game = new Phaser.Game(phaserConfig);
 
+// Campaign progress outlives any single battle: GameScene.init() reads it for
+// the level definition, the unlock graph and the saved star ratings.
+window.gameProgress = new ProgressStore();
+
 // 3. Mount UI Layers into DOM
 const hudContainer = document.getElementById('hud-container');
 const modalContainer = document.getElementById('modal-container');
@@ -58,6 +66,81 @@ window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, 
       gameScene.scene.start('MenuScene');
     }
   },
+});
+
+// ---------------------------------------------------------------------------
+// 3b. CAMPAIGN FLOW — world map ⇄ battlefield
+// ---------------------------------------------------------------------------
+// One owner for "where are we now": MenuScene, the world map and the result
+// screen all route through these three helpers, so a missing overlay can never
+// strand the player on a dead scene.
+
+const menuOverlay = () => document.getElementById('main-menu-overlay');
+const hudLayer = () => document.getElementById('hud-container');
+
+/** World map. The main menu is its own overlay, so hide that first. */
+function openLevelSelect() {
+  audio.playClick();
+  window.gameResultScreen?.hide?.();
+  menuOverlay()?.classList.add('hidden');
+  hudLayer()?.classList.add('hidden');
+  window.gameLevelSelect?.show();
+}
+
+/**
+ * Enter a battle. `init()` receives `{ levelId }`, and a running battle is
+ * restarted in place so Next / Replay never stack scenes.
+ */
+function startLevel(levelId = 'level-1') {
+  window.gameResultScreen?.hide?.();
+  window.gameLevelSelect?.hide?.();
+  menuOverlay()?.classList.add('hidden');
+  hudLayer()?.classList.remove('hidden');
+
+  const gameScene = game.scene.getScene('GameScene');
+  if (gameScene?.scene?.isActive()) {
+    gameScene.scene.restart({ levelId });
+  } else {
+    game.scene.start('GameScene', { levelId });
+  }
+}
+
+function openMainMenu() {
+  window.gameResultScreen?.hide?.();
+  window.gameLevelSelect?.hide?.();
+  hudLayer()?.classList.add('hidden');
+  const gameScene = game.scene.getScene('GameScene');
+  if (gameScene?.scene?.isActive()) {
+    gameScene.scene.start('MenuScene');
+  } else {
+    game.scene.start('MenuScene');
+  }
+}
+
+window.gameFlow = { openLevelSelect, startLevel, openMainMenu };
+
+window.gameLevelSelect = new LevelSelectUI(modalContainer, window.gameProgress, {
+  onSelectLevel: (levelId) => startLevel(levelId),
+  onClose: () => {
+    menuOverlay()?.classList.remove('hidden');
+    hudLayer()?.classList.add('hidden');
+  },
+});
+
+window.gameResultScreen = new ResultScreenUI(modalContainer, {
+  onNext: () => {
+    const level = window.gameResultScreen?.result?.level;
+    startLevel(getNextLevel(level?.id)?.id || 'level-1');
+  },
+  onReplay: () => startLevel(window.gameResultScreen?.result?.level?.id || 'level-1'),
+  onMenu: () => openMainMenu(),
+  onLeaderboard: (result) =>
+    window.gameLeaderboardUI.show({
+      status: result.outcome,
+      score: result.score,
+      waves: result.waves,
+      timeMs: result.timeMs,
+    }),
 });
 
 // Setup Statistics Panel (Codex)
@@ -235,10 +318,8 @@ game.events.once('ready', bindGateToGameScene);
 document.getElementById('menu-btn-play')?.addEventListener('click', () => {
   // Must happen synchronously inside the click handler to count as a gesture.
   void fullscreen.request();
-  const menuScene = game.scene.getScene('MenuScene');
-  if (menuScene && menuScene.scene.isActive()) {
-    menuScene.startGame();
-  }
+  // PLAY opens the world map; the map is where a level is actually chosen.
+  openLevelSelect();
 });
 
 document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => {

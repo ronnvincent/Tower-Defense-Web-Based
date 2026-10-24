@@ -67,7 +67,10 @@ export const WAVES = [
   },
 ];
 
-/** Total enemies a wave will spawn (used for HUD "remaining" counter). */
+/**
+ * Total enemies a wave will spawn (used for HUD "remaining" counter).
+ * Works for generated endless waves too — they are plain wave objects.
+ */
 export function countWaveEnemies(wave) {
   let total = 0;
   for (const group of wave.groups) total += group.count;

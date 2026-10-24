@@ -56,19 +56,28 @@ On initialization, `buildGridGraph()` scans the map grid and constructs an **und
 - Orthogonally adjacent walkable neighbors (top, bottom, left, right) are connected via undirected edges.
 - Total nodes: $V \approx 90$ walkable cells. Average degree: $d \le 4$.
 
-### Dynamic Barricade Edge Cutting & Enemy Rerouting
+### Barricade Placement on the Marched Route
 The map contains **three distinct routes** from Spawn `(5,0)` to Base `(5,19)`:
 1. **Middle Route:** 24 cells (23 steps) — Natural shortest path.
 2. **North Route:** 28 cells (27 steps).
 3. **South Route:** 30 cells (29 steps).
 
-When the player attempts to construct a **Palisade**:
-1. `tryBlockCell(key, enemyStarts)` simulates blocking the node using a temporary `blocked` Set.
-2. BFS runs to verify that:
-   - A valid path still exists from Spawn `(5,0)` to Base `(5,19)`.
-   - A valid path still exists from every living enemy's current cell to Base `(5,19)`.
-3. If either search returns `found: false`, placement is rejected (*"That would block the only path to the base!"*), and the graph remains unaltered.
-4. On validation success, `graph.removeNode(key)` cuts the node and its connected edges. Living enemies are immediately assigned the newly computed shortest sub-paths.
+BFS picks the middle route, so that is the lane the horde walks every time. The
+graph is **never modified** by a palisade: a wall is a physical, damageable
+object standing on a road cell, resolved by `Enemy.updateSiege()` (see
+`docs/pseudocode.md` §4). Two rules keep the placement honest:
+
+1. **On the road.** `PlacementSystem.validate()` requires `TILE.ROAD` and
+   rejects the portal/base cells (`needs-road` / `endpoint`).
+2. **On the marched route.** `GameScene` builds `routeCells = Set(mainPath)`
+   right after `computeMainPath()` and hands it to the validator. A road cell
+   that the horde never enters is rejected with *"No enemies march through this
+   tile"* (`off-route`) instead of silently eating the 30 gold.
+
+Because every legal palisade sits on the one route the queue follows, an enemy
+is guaranteed to reach it and start swinging — the wall can never be walked
+around. When the last hit lands, `damageBarricade()` collapses it and the road
+reopens.
 
 ---
 
@@ -111,9 +120,49 @@ A.\text{id} \leftrightarrow B.\text{id} & \text{lexicographical total order}
 
 ---
 
-## 5. Game Balance & Economic Constants
+## 5. Campaign, Level Data & Progression
 
-Starting economy: **220 gold**, **25 base HP**, **70% sell refund**.
+`src/data/levelData.js` is the single source of truth for the campaign; the
+scene never hard-codes "six waves" any more. Each level owns its battlefield,
+theme, economy seed, core HP, enemy health scale, wave list, star thresholds,
+boss and first-clear bounty.
+
+| Level | Theme / map | Waves | Start gold | Core HP | Enemy HP scale | Boss |
+|---|---|:-:|:-:|:-:|:-:|---|
+| `level-1` Verdant Marches | grassland | 6 | 220 | 25 | 1.00× | Abyssal Warlord |
+| `level-2` Sunscorch Mesa | desert | 7 | 240 | 25 | 1.15× | Dune Tyrant |
+| `level-3` Frostbite Hollow | ice | 8 | 260 | 25 | 1.30× | Frost Warden |
+| `endless` Endless Siege | volcanic | ∞ | 260 | 25 | 1.20× | rotating every 5th wave |
+
+### Stars, rewards and unlocks (`src/systems/Progression.js`)
+- **Star rating** — core HP kept: $\ge 85\%$ → 3★, $\ge 50\%$ → 2★, else 1★.
+  Thresholds live on the level (`stars.two` / `stars.three`) so a future level
+  can be stricter without touching the UI.
+- **Rewards** — the first clear pays the level bounty and one extra gem for a
+  3★; replays pay a 20% gold stipend and no gems.
+- **Unlock graph** — a first clear unlocks `getNextLevel(id)`; the first win on
+  `level-1` also opens `endless`. `ProgressStore` merges an older save over a
+  fresh profile, keeps the best stars/score, and falls back to an in-memory
+  store when `localStorage` throws (private mode, quota).
+- **Endless** — `WaveManager` accepts `{ endless, waveFactory }`; wave *n* is
+  generated on demand (5-wave cycle, boss on every 5th) and cached in
+  `generated[]` instead of mutating the level definition. `totalWaves` reports
+  `Infinity` and `isFinal` is never set, so the run can only end on a defeat.
+
+### Victory / defeat flow
+`GameScene.handleVictory()` → `ProgressStore.recordVictory()` → `ResultScreenUI`
+(stars, rewards, unlock line, Next / Replay / Leaderboard / Main Menu).
+`handleGameOver()` records the defeat (endless keeps the depth reached) and
+shows the same screen without stars. `window.gameFlow` in `src/main.js` owns
+the transitions, so Next and Replay restart the battle with a new `levelId`
+rather than stacking scenes.
+
+---
+
+## 6. Game Balance & Economic Constants
+
+Starting economy: **220 gold**, **25 base HP**, **70% sell refund** on `level-1`;
+levels 2 and 3 start at 240 / 260 gold (see the campaign table above).
 Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 
 | Tower | Cost | Range | Cooldown | Damage | Special Capability |
@@ -132,6 +181,14 @@ Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 | **Shadow Runner** | 40 | 125 px/s | 6 | 🪙 6 | 12 pts | Agile sprinter |
 | **Iron Brute** | 320 | 38 px/s | 34 | 🪙 22 | 35 pts | Heavy armored juggernaut (3 base damage) |
 | **Stone Colossus** | 1250 | 34 px/s | 55 | 🪙 100 | 250 pts | Wave 3 mid-boss, 2 phases |
-| **Abyssal Warlord** | 3300 | 32 px/s | 70 | 🪙 200 | 600 pts | Wave 6 final boss, 3 phases |
+| **Abyssal Warlord** | 3300 | 32 px/s | 70 | 🪙 200 | 600 pts | `level-1` final boss, 3 phases |
+| **Dune Tyrant** (`sandwyrm`) | 2600 | 46 px/s | 60 | 🪙 180 | 500 pts | `level-2` boss: Sandstorm Aura (+35% speed, 190 px) every 7 s; Razor Winds below 45% HP |
+| **Frost Warden** (`frostwarden`) | 3600 | 28 px/s | 75 | 🪙 220 | 600 pts | `level-3` boss: freezes towers in 170 px, shields itself below 55%, immune to slow below 22% |
+| **Magma Regent** (`magmalord`) | 4200 | 30 px/s | 85 | 🪙 260 | 700 pts | Endless boss: summons swarms, hastes the horde, then burns immune to slow |
+
+Boss abilities are dispatched from one shared `abilityTimer` in
+`Enemy.update()` (`summon` / `speedAura` / `disableTowers`); `GameScene`
+answers them with `handleBossSpeedAura()` (haste pulse + toast + shake) and
+`handleBossDisableTowers()` (freeze pulse, tower tint, refreshed auras).
 
 Wave Health Scaling: $\text{HP}(w) = \text{BaseHP} \times \min(2, 1 + 0.09 \times (w - 1))$.

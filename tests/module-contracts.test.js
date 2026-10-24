@@ -26,9 +26,70 @@ function walk(dir) {
   });
 }
 
+/**
+ * Drop comments (and only comments) before grepping call sites.
+ *
+ * The receiver patterns below are deliberately loose — `wall`, `tower`,
+ * `barricade` — so a plain-English comment such as "the horde dodges the
+ * wall. if it can" reads as a `wall.if(...)` call and fails the contract with
+ * a method that never existed. Quoted strings are preserved, so real calls
+ * inside template literals still count.
+ */
+function stripComments(code) {
+  let out = '';
+  let mode = null; // null | "'" | '"' | '`' | 'line' | 'block'
+  let i = 0;
+  while (i < code.length) {
+    const ch = code[i];
+    const next = code[i + 1];
+    if (mode === 'line') {
+      if (ch === '\n') {
+        mode = null;
+        out += ch;
+      }
+      i += 1;
+      continue;
+    }
+    if (mode === 'block') {
+      if (ch === '*' && next === '/') {
+        mode = null;
+        i += 2;
+        continue;
+      }
+      i += 1;
+      continue;
+    }
+    if (mode) {
+      out += ch;
+      if (ch === '\\') {
+        out += code[i + 1] ?? '';
+        i += 2;
+        continue;
+      }
+      if (ch === mode) mode = null;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      mode = 'line';
+      i += 2;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      mode = 'block';
+      i += 2;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') mode = ch;
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
 const sources = walk('src')
   .filter((file) => file.endsWith('.js'))
-  .map((file) => ({ file, code: readFileSync(file, 'utf8') }));
+  .map((file) => ({ file, code: stripComments(readFileSync(file, 'utf8')) }));
 
 function collectCalls(receiverPattern) {
   const regex = new RegExp(`(?:${receiverPattern})\\s*\\??\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\??\\(`, 'g');

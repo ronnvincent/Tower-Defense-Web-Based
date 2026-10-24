@@ -140,3 +140,45 @@ describe('WaveManager: full 6-wave campaign', () => {
     expect(event?.isFinal).toBe(false);
   });
 });
+
+describe('WaveManager: endless mode', () => {
+  const factory = (n) => ({
+    name: `Endless wave ${n}`,
+    groups: [{ type: 'grunt', count: 1, interval: 0 }],
+  });
+
+  it('never runs out of waves and never reports a final wave', () => {
+    const manager = new WaveManager([], {
+      onSpawn: () => {},
+      endless: true,
+      waveFactory: factory,
+    });
+
+    expect(manager.totalWaves).toBe(Infinity);
+    expect(manager.canStartNextWave()).toBe(true);
+
+    for (let wave = 1; wave <= 25; wave += 1) {
+      const { spawned, event } = runWave(manager);
+      expect(spawned).toHaveLength(1);
+      expect(event.type).toBe('waveComplete');
+      expect(event.isFinal).toBe(false);
+      expect(manager.waveNumber).toBe(wave);
+      expect(manager.canStartNextWave()).toBe(true);
+    }
+  });
+
+  it('caches generated waves instead of mutating the level definition', () => {
+    const levelWaves = [];
+    const manager = new WaveManager(levelWaves, {
+      onSpawn: () => {},
+      endless: true,
+      waveFactory: factory,
+    });
+
+    manager.startNextWave();
+    expect(levelWaves).toHaveLength(0);
+    expect(manager.currentWave.name).toBe('Endless wave 1');
+    expect(manager.generated[0].name).toBe('Endless wave 1');
+    expect(manager.nextWave.name).toBe('Endless wave 2');
+  });
+});

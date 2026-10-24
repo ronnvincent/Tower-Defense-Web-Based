@@ -39,7 +39,7 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 ### 2. Adjacency-List Graph (`src/dsa/Graph.js`)
 - **Structure:** `Map<string, string[]>` mapping cell keys (`"row,col"`) to an array of orthogonally adjacent walkable neighbor coordinates.
 - **Why an Adjacency List?** In a 240-tile grid with only ~90 road cells (maximum degree 4), an adjacency list stores only existing edges ($O(V + E)$ space) instead of an $O(V^2)$ sparse adjacency matrix.
-- **Solid Obstacles, Stable Routes:** Palisades no longer cut graph nodes. The BFS route stays the *shortest road route* and a palisade is a physical wall standing on it — enemies stop and break it down instead of taking a scenic detour around it.
+- **Solid Obstacles, Stable Routes:** Palisades no longer cut graph nodes. The BFS route stays the *shortest road route* and a palisade is a physical wall standing on it — enemies stop and break it down instead of taking a scenic detour around it. Palisades may only be planted on that marched route (`off-route`), so the wall can never be walked around.
 
 ### 3. Arrays with $O(1)$ Swap Removal & In-Place Compaction (`src/utils/arrayUtils.js`)
 - Manages active collections: `activeEnemies[]`, `activeTowers[]`, `activeProjectiles[]`.
@@ -78,14 +78,32 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 
 ## 🎮 How to Play & Controls
 
+### Campaign
+Three hand-built battles plus an endless mode, chained by a star-rated world map:
+
+| # | Level | Biome | Waves | Boss | First-clear bounty |
+|:-:|---|---|:-:|---|---|
+| 1 | **Verdant Marches** | Grassland | 6 | **The Warlord** — armoured juggernaut | 150 🪙 · 4 💎 |
+| 2 | **Sunscorch Mesa** | Desert | 7 | **Dune Tyrant** — Sandstorm Aura haste, Razor Winds below 45% | 200 🪙 · 6 💎 |
+| 3 | **Frostbite Hollow** | Ice | 8 | **Frost Warden** — freezes towers, shields itself, immune to slow when cornered | 260 🪙 · 8 💎 |
+| ∞ | **Endless Siege** | Volcanic | ∞ | Rotating bosses every 5th wave | depth record only |
+
+Clearing a level unlocks the next node; the first victory also opens Endless Siege. Each clear is
+rated **1–3 stars** on the core health you kept (≥ 85 % = 3★, ≥ 50 % = 2★), pays the level bounty
+(plus a bonus gem at 3★), and replays pay a 20 % stipend. Progress is saved in `localStorage`
+(`td-dsalgo:progress:v1`) by `src/systems/Progression.js`.
+
 ### Objective
-Defend the **Guardian Core Base (25 HP)** against 6 escalating waves of invaders. You start with **220 gold**; earn more by eliminating enemies and spend it on defensive towers on grass tiles or palisades on the road.
+Defend the **Guardian Core Base** on the level's own battlefield. Every level has its own starting
+gold (**220 / 240 / 260**), core HP (**25** on every field so the star thresholds stay fair),
+enemy health scaling (**1.0× / 1.15× / 1.3×**) and wave list; the final wave of each level is led by that level's unique boss, whose health bar sits
+above the wave counter and whose abilities telegraph before they fire.
 
 ### Defense Arsenal
 1. **Ballista Tower (🪙 60):** Balanced single-target bolt fire. Branches into Rapid Ranger or Sniper.
 2. **Boulder Sling (🪙 110):** Lobbed stone artillery with real distance-falloff splash. Branches into Siege Sling or Stone Hammer.
 3. **Frost Bastion (🪙 85):** Crystal tower casting slowing frost (up to 60% slow). Branches into Blizzard Spire or Lightning Conductor.
-4. **Palisade (🪙 30):** A solid wall on the road. Enemies **do not walk around it** — they stop and hammer it down (420 HP, 900 HP reinforced with contact thorns), buying your towers the time they need.
+4. **Palisade (🪙 30):** A solid wall on the road. Enemies **do not walk around it** — they stop and hammer it down (420 HP, 900 HP reinforced with contact thorns), buying your towers the time they need. It can only be planted on the lane the horde actually marches, so the gold is never wasted on a road they skip.
 5. **Hammerforge (🪙 120):** Heavy hammer slams with explosive splash. Branches into the armour-melting **Emberforge** (−20 armour for 3.5 s) or the long-reach **Thunderforge** (35% armour penetration).
 6. **Runestone (🪙 135):** Rune bolts that bypass 75% of armour. Branches into the **Void Lance** (true damage, ignores armour completely) or the **Arcane Nova** (magic splash).
 7. **Banner Keep (🪙 125):** Support keep that buffs every tower in its aura (+damage, +range) while still firing. Branches into the **Great Warbanner** (+32% damage, +14% range) or the **Muster Camp** (+15% fire rate and +1 gold per kill inside the aura).
@@ -167,7 +185,7 @@ npm run dev
 
 ### Running Unit Tests
 ```bash
-# Run all 200 automated unit tests (16 suites, incl. jsdom HUD tests)
+# Run all 298 automated unit tests (24 suites, incl. jsdom HUD tests)
 npm test
 
 # WCAG 2.1 contrast audit of the HUD palette (36/36 pairs)
@@ -244,17 +262,20 @@ tower-defense-dsalgo/
 │   │   ├── EconomyManager.js   # Safe gold/score balance invariants
 │   │   ├── GameStateManager.js # State machine (playing/paused/gameover/victory)
 │   │   ├── Leaderboard.js      # LocalStorage persistence & MergeSort ranking
-│   │   ├── PathfindingSystem.js# Graph/BFS glue & live barricade rerouting
+│   │   ├── PathfindingSystem.js# Graph/BFS glue: route solving & BFS telemetry
+│   │   ├── Progression.js      # Stars, rewards, unlocks & the save file
 │   │   ├── PlacementSystem.js  # Hash map occupancy & rule verification
 │   │   └── WaveManager.js      # Queue-driven wave spawner
 │   ├── ui/
 │   │   ├── HUD.js              # Status bar, build dock & tower inspector
+│   │   ├── LevelSelectUI.js    # Star-rated world map / stage nodes
+│   │   ├── ResultScreenUI.js   # Victory, defeat & endless summary modal
 │   │   ├── LeaderboardUI.js    # High-score modal & name submission
 │   │   └── StatisticsPanel.js  # Live DSALGO telemetry & BFS overlay
 │   └── utils/
 │       ├── arrayUtils.js       # In-place compaction & swap-and-pop removal
 │       └── storage.js          # Crash-proof LocalStorage with in-memory fallback
-└── tests/                      # Automated Vitest test suites (264 tests / 21 suites)
+└── tests/                      # Automated Vitest test suites (298 tests / 24 suites)
     ├── graph-bfs.test.js
     ├── queue.test.js
     ├── sorting-leaderboard.test.js

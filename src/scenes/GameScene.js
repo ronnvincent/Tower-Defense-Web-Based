@@ -1,6 +1,6 @@
 import { TILE_SIZE, MAP_COLS, MAP_ROWS, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
-import { parseMap, TILE } from '../data/mapData.js';
-import { WAVES } from '../data/waveData.js';
+import { parseMap, getMapLayout, TILE } from '../data/mapData.js';
+import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem } from '../systems/PathfindingSystem.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
@@ -16,22 +16,38 @@ import { compactInPlace } from '../utils/arrayUtils.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
+import { ProgressStore } from '../systems/Progression.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
   }
 
+  /**
+   * Phaser calls init(data) before create(). `data.levelId` selects the
+   * campaign node; everything else (map, waves, economy, theme, boss) is
+   * derived from it, so a restart is just another `scene.start`.
+   */
+  init(data) {
+    this.levelId = data?.levelId || 'level-1';
+    this.level = getLevel(this.levelId);
+    this.theme = THEMES[this.level.theme] || THEMES.grassland;
+    this.progress = window.gameProgress || new ProgressStore();
+  }
+
   create() {
     const { width, height } = this.scale;
 
-    // 1. Initialize Systems & Managers
-    this.map = parseMap();
+    // 1. Initialize Systems & Managers — all scoped to the selected level.
+    this.map = parseMap(getMapLayout(this.level.map));
     this.pathfinding = new PathfindingSystem(this.map);
     this.pathfinding.computeMainPath();
+    // Hash set of the cells the horde marches (row,col). Palisades may only be
+    // planted on this route — see PlacementSystem.validate.
+    this.routeCells = new Set(this.pathfinding.mainPath);
 
-    this.economy = new EconomyManager(STARTING_COINS);
-    this.gameState = new GameStateManager(STARTING_BASE_HEALTH);
+    this.economy = new EconomyManager(this.level.startingCoins);
+    this.gameState = new GameStateManager(this.level.baseHealth);
     this.placement = new PlacementSystem(this.map);
     this.leaderboard = new Leaderboard();
 
@@ -39,8 +55,10 @@ export class GameScene extends Phaser.Scene {
     this.activeTowers = [];
     this.activeProjectiles = [];
 
-    this.waveManager = new WaveManager(WAVES, {
+    this.waveManager = new WaveManager(this.level.endless ? [] : this.level.waves, {
       onSpawn: (type, waveNumber) => this.spawnEnemy(type, waveNumber),
+      endless: Boolean(this.level.endless),
+      waveFactory: (n) => makeEndlessWave(n),
     });
 
     // Speed & simulation controls
@@ -128,8 +146,19 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Theme-aware texture key with a graceful fallback to the base art. */
+  tileTexture(base) {
+    const themed = `${base}${this.theme?.tileSuffix || ''}`;
+    if (this.textures.exists(themed)) return themed;
+    return this.textures.exists(base) ? base : null;
+  }
+
   renderBattlefieldMap() {
     const tilesGraphics = this.add.graphics().setDepth(3);
+    const grassKey = this.tileTexture('tile-grass');
+    const rockKey = this.tileTexture('tile-rock');
+    const waterKey = this.tileTexture('tile-water');
+    const foliageKey = this.tileTexture('tile-foliage');
     const isRoadCell = (r, c) =>
       r >= 0 &&
       r < this.map.rows &&
@@ -149,8 +178,8 @@ export class GameScene extends Phaser.Scene {
 
         // Every cell starts as grass — the Spire road tiles carry their own
         // ragged grass edges, so a single draw call per tile is enough.
-        if (this.textures.exists('tile-grass')) {
-          this.add.image(cx, cy, 'tile-grass').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+        if (grassKey) {
+          this.add.image(cx, cy, grassKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
         } else {
           tilesGraphics.fillStyle((r + c) % 2 === 0 ? 0x1c3a33 : 0x1f4038);
           tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
@@ -163,30 +192,27 @@ export class GameScene extends Phaser.Scene {
             (isRoadCell(r, c + 1) ? 2 : 0) |
             (isRoadCell(r + 1, c) ? 4 : 0) |
             (isRoadCell(r, c - 1) ? 8 : 0);
-          const key = `tile-road-${mask}`;
-          this.add
-            .image(cx, cy, this.textures.exists(key) ? key : 'tile-road-15')
-            .setDisplaySize(TILE_SIZE, TILE_SIZE)
-            .setDepth(1);
+          const key = this.tileTexture(`tile-road-${mask}`) || 'tile-road-15';
+          this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
         } else if (type === TILE.ROCK) {
-          if (this.textures.exists('tile-rock')) {
-            this.add.image(cx, cy, 'tile-rock').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2);
+          if (rockKey) {
+            this.add.image(cx, cy, rockKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2);
           } else {
             tilesGraphics.fillStyle(0x15302a);
             tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
           }
         } else if (type === TILE.WATER) {
-          if (this.textures.exists('tile-water')) {
-            this.add.image(cx, cy, 'tile-water').setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+          if (waterKey) {
+            this.add.image(cx, cy, waterKey).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           } else {
             tilesGraphics.fillStyle(0x133854, 1);
             tilesGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
           }
         } else if (type === TILE.GRASS) {
           // Natural environmental foliage
-          if ((r * 11 + c * 17) % 5 === 0 && this.textures.exists('tile-foliage')) {
+          if ((r * 11 + c * 17) % 5 === 0 && foliageKey) {
             this.add
-              .image(cx + (r % 3 - 1) * 8, cy + (c % 3 - 1) * 8, 'tile-foliage')
+              .image(cx + (r % 3 - 1) * 8, cy + (c % 3 - 1) * 8, foliageKey)
               .setScale(0.9)
               .setAlpha(0.95)
               .setDepth(2);
@@ -212,6 +238,7 @@ export class GameScene extends Phaser.Scene {
     const spawnX = spawn.col * TILE_SIZE + TILE_SIZE / 2;
     const spawnY = spawn.row * TILE_SIZE + TILE_SIZE / 2;
     this.portalSprite = this.add.image(spawnX, spawnY, 'portal').setDepth(10);
+    if (this.theme?.portalTint) this.portalSprite.setTint(this.theme.portalTint);
     this.tweens.add({
       targets: this.portalSprite,
       rotation: Math.PI * 2,
@@ -224,6 +251,7 @@ export class GameScene extends Phaser.Scene {
     const baseY = base.row * TILE_SIZE + TILE_SIZE / 2;
     this.basePlatform = this.add.image(baseX, baseY, 'base-platform').setDepth(10);
     this.baseCrystal = this.add.image(baseX, baseY - 12, 'base-crystal').setDepth(11);
+    if (this.theme?.baseTint) this.baseCrystal.setTint(this.theme.baseTint);
 
     this.tweens.add({
       targets: this.baseCrystal,
@@ -262,6 +290,10 @@ export class GameScene extends Phaser.Scene {
       },
       getBarricadeAt: (cellKey) => this.getBarricadeAt(cellKey),
       onBarricadeHit: (wall, damage) => this.damageBarricade(wall, damage),
+      onSpeedAura: (boss, radius, multiplier, durationMs) =>
+        this.handleBossSpeedAura(boss, radius, multiplier, durationMs),
+      onDisableTowers: (boss, radius, durationMs) =>
+        this.handleBossDisableTowers(boss, radius, durationMs),
       onSummonMinions: (typeKey, count) => {
         for (let k = 0; k < count; k++) {
           // Timers fire from Phaser's UPDATE event, outside update()'s guard —
@@ -277,9 +309,70 @@ export class GameScene extends Phaser.Scene {
           });
         }
       },
-    });
+    }, { healthScale: this.level.enemyHealthScale });
     this.activeEnemies.push(enemy);
     this.gameState.counters.enemiesSpawned++;
+  }
+
+  /** Expanding ring used by boss pulses so the player can read the radius. */
+  bossPulse(x, y, radius, color = 0xffb45c) {
+    if (!this.add?.circle) return;
+    const ring = this.add.circle(x, y, 12, color, 0.12).setDepth(24);
+    ring.setStrokeStyle(3, color, 0.8);
+    this.tweens.add({
+      targets: ring,
+      radius,
+      alpha: 0,
+      duration: 520,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  /**
+   * Sandstorm Aura: haste every other enemy inside the ring.
+   * @returns {number} how many enemies were affected (test-visible)
+   */
+  handleBossSpeedAura(boss, radius, multiplier, durationMs) {
+    if (!boss) return 0;
+    let affected = 0;
+    for (const enemy of this.activeEnemies) {
+      if (enemy === boss || enemy.isDead || enemy.reachedBase) continue;
+      if (Math.hypot(enemy.x - boss.x, enemy.y - boss.y) <= radius) {
+        enemy.applySpeedBoost(multiplier, durationMs);
+        affected += 1;
+      }
+    }
+    this.bossPulse(boss.x, boss.y, radius, 0xffb45c);
+    this.cameras.main.shake(160, 0.004);
+    if (affected > 0) {
+      this.hud?.showToast(`🌪️ ${boss.def.name}: ${affected} enemies hastened!`, 'warning');
+    }
+    return affected;
+  }
+
+  /**
+   * Glacial Pulse: freeze every tower inside the ring for `durationMs`.
+   * Palisades are structures and stay immune (see Tower.disable).
+   * @returns {number} how many towers were frozen
+   */
+  handleBossDisableTowers(boss, radius, durationMs) {
+    if (!boss) return 0;
+    let affected = 0;
+    for (const tower of this.activeTowers) {
+      if (tower.isBarricade || tower.isDestroyed) continue;
+      if (Math.hypot(tower.x - boss.x, tower.y - boss.y) <= radius) {
+        if (tower.disable(durationMs)) affected += 1;
+      }
+    }
+    this.bossPulse(boss.x, boss.y, radius, 0x7fd4ff);
+    this.cameras.main.shake(160, 0.004);
+    if (affected > 0) {
+      // Frozen banners stop projecting their aura until they thaw.
+      this.refreshTowerAuras();
+      this.hud?.showToast(`❄️ ${boss.def.name}: ${affected} defences frozen!`, 'warning');
+    }
+    return affected;
   }
 
   handleEnemyReachedBase(enemy) {
@@ -525,7 +618,9 @@ export class GameScene extends Phaser.Scene {
     const def = getBuildDefinition(typeKey);
     if (!def) return { ok: false, reason: 'unknown-type' };
 
-    const base = this.placement.validate(def, row, col, this.economy.coins);
+    const base = this.placement.validate(def, row, col, this.economy.coins, {
+      route: this.routeCells,
+    });
     if (!base.ok) return base;
 
     // A wall cannot be dropped on top of a living enemy (it would trap it
@@ -638,7 +733,8 @@ export class GameScene extends Phaser.Scene {
    * edit instead of 60 times a second.
    */
   refreshTowerAuras() {
-    const banners = this.activeTowers.filter((t) => t.aura && !t.isDestroyed);
+    // A frozen Banner Keep stops projecting until it thaws.
+    const banners = this.activeTowers.filter((t) => t.aura && !t.isDestroyed && !t.isDisabled);
     for (const tower of this.activeTowers) {
       let damage = 1;
       let range = 1;
@@ -661,7 +757,7 @@ export class GameScene extends Phaser.Scene {
     let bonus = 0;
     for (const tower of this.activeTowers) {
       const aura = tower.aura;
-      if (!aura?.coinPerKill || tower.isDestroyed) continue;
+      if (!aura?.coinPerKill || tower.isDestroyed || tower.isDisabled) continue;
       if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= aura.radius) {
         bonus += aura.coinPerKill;
       }
@@ -733,40 +829,85 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleGameOver() {
+    if (this.gameState.isOver()) return;
     this.gameState.end(STATUS.GAME_OVER);
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     audio.playDefeat();
-    if (window.gameLeaderboardUI) {
-      window.gameLeaderboardUI.show({
-        status: 'defeat',
-        score: this.economy.score,
-        waves: this.waveManager.wavesCompleted,
-        timeMs: this.gameState.elapsedMs,
-      });
-    }
+
+    const score = this.economy.score;
+    const record = this.progress.recordDefeat(this.level, {
+      wave: this.waveManager.waveNumber,
+      score,
+    });
+
+    this.showResult({
+      outcome: 'defeat',
+      level: this.level,
+      score,
+      waves: this.waveManager.wavesCompleted,
+      totalWaves: this.level.endless ? null : this.waveManager.totalWaves,
+      timeMs: this.gameState.elapsedMs,
+      wave: this.waveManager.waveNumber,
+      bestWave: this.progress.profile.endlessBestWave,
+      newRecord: Boolean(record?.isRecord),
+    });
   }
 
   handleVictory() {
+    if (this.gameState.isOver()) return;
     this.gameState.end(STATUS.VICTORY);
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     // Base health survival score bonus
     this.economy.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
     audio.playVictory();
-    if (window.gameLeaderboardUI) {
-      window.gameLeaderboardUI.show({
-        status: 'victory',
-        score: this.economy.score,
-        waves: this.waveManager.wavesCompleted,
-        timeMs: this.gameState.elapsedMs,
-      });
+
+    const record = this.progress.recordVictory(this.level, {
+      baseHealth: this.gameState.baseHealth,
+      maxBaseHealth: this.gameState.maxBaseHealth,
+      score: this.economy.score,
+    });
+
+    this.showResult({
+      outcome: 'victory',
+      level: this.level,
+      stars: record.stars,
+      previousStars: record.previousStars,
+      rewards: record.rewards,
+      unlocked: record.unlocked,
+      firstClear: record.firstClear,
+      score: this.economy.score,
+      waves: this.waveManager.wavesCompleted,
+      totalWaves: this.waveManager.totalWaves,
+      timeMs: this.gameState.elapsedMs,
+    });
+  }
+
+  /**
+   * Hand the run summary to the result screen. Falls back to the leaderboard
+   * modal so a missing UI layer can never strand the player on a dead scene.
+   */
+  showResult(payload) {
+    this.lastResult = payload;
+    if (window.gameResultScreen?.show) {
+      window.gameResultScreen.show(payload);
+      return payload;
     }
+    window.gameLeaderboardUI?.show?.({
+      status: payload.outcome,
+      score: payload.score,
+      waves: payload.waves,
+      timeMs: payload.timeMs,
+    });
+    return payload;
   }
 
   syncHUD() {
     if (!this.hud) return;
     this.hud.update({
+      levelName: this.level.name,
+      endless: Boolean(this.level.endless),
       baseHealth: this.gameState.baseHealth,
       maxBaseHealth: this.gameState.maxBaseHealth,
       coins: this.economy.coins,

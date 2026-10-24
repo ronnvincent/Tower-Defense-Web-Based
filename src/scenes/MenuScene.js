@@ -50,13 +50,12 @@ export class MenuScene extends Phaser.Scene {
     window.gameHUD?.reset?.();
   }
 
+  /**
+   * PLAY — hand control to the world map, the campaign's real entry point.
+   * `main.js` owns the transition (`window.gameFlow`) because it also has to
+   * close the result screen, swap the HUD layer and restart a live battle.
+   */
   startGame() {
-    audio.playClick();
-    const menuOverlay = document.getElementById('main-menu-overlay');
-    if (menuOverlay) menuOverlay.classList.add('hidden');
-
-    document.getElementById('hud-container')?.classList.remove('hidden');
-
-    this.scene.start('GameScene');
+    window.gameFlow?.openLevelSelect?.();
   }
 }

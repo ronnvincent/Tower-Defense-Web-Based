@@ -31,11 +31,18 @@ export class WaveManager {
    * @param {Array} waves wave definitions (see data/waveData.js)
    * @param {object} callbacks
    * @param {(type:string, waveNumber:number) => void} callbacks.onSpawn
+   * @param {boolean} [callbacks.endless] generate waves forever
+   * @param {(n:number) => object} [callbacks.waveFactory] endless wave builder
    */
-  constructor(waves, { onSpawn }) {
+  constructor(waves, { onSpawn, endless = false, waveFactory = null }) {
     this.waves = waves;
     this.onSpawn = onSpawn;
-    this.state = waves.length > 0 ? WAVE_STATE.IDLE : WAVE_STATE.FINISHED;
+    this.endless = Boolean(endless);
+    this.waveFactory = waveFactory;
+    // Endless runs start idle with an empty list; generated waves are cached
+    // here rather than pushed into the (shared, immutable) level data.
+    this.generated = [];
+    this.state = waves.length > 0 || this.endless ? WAVE_STATE.IDLE : WAVE_STATE.FINISHED;
     this.currentIndex = -1; // index of the wave in progress / last started
     this.spawnQueue = new Queue(32);
     this.spawnTimer = 0;
@@ -45,7 +52,12 @@ export class WaveManager {
   }
 
   get totalWaves() {
-    return this.waves.length;
+    return this.endless ? Infinity : this.waves.length;
+  }
+
+  /** Wave definition at `index`, falling back to the endless generator. */
+  waveAt(index) {
+    return this.waves[index] ?? this.generated[index] ?? null;
   }
 
   /** 1-based number of the wave in progress (0 before the first wave). */
@@ -54,22 +66,34 @@ export class WaveManager {
   }
 
   get currentWave() {
-    return this.waves[this.currentIndex] ?? null;
+    return this.waveAt(this.currentIndex);
   }
 
   get nextWave() {
-    return this.waves[this.currentIndex + 1] ?? null;
+    // `currentIndex` is a 0-based array index, so the *next* wave's 1-based
+    // number is currentIndex + 2.
+    return this.waveAt(this.currentIndex + 1) || (this.endless ? this.waveFactory?.(this.currentIndex + 2) : null);
   }
 
   canStartNextWave() {
-    return this.state === WAVE_STATE.IDLE && this.currentIndex + 1 < this.waves.length;
+    if (this.state !== WAVE_STATE.IDLE) return false;
+    return this.endless || this.currentIndex + 1 < this.waves.length;
   }
 
   /** @returns {boolean} true if a wave was started */
   startNextWave() {
     if (!this.canStartNextWave()) return false;
     this.currentIndex++;
-    const wave = this.waves[this.currentIndex];
+    let wave = this.waveAt(this.currentIndex);
+    if (!wave && this.endless && this.waveFactory) {
+      // The factory takes a 1-based wave number; the cache is index-keyed.
+      wave = this.waveFactory(this.currentIndex + 1);
+      this.generated[this.currentIndex] = wave;
+    }
+    if (!wave) {
+      this.state = WAVE_STATE.FINISHED;
+      return false;
+    }
 
     this.spawnQueue.clear();
     let previousInterval = 0;
@@ -124,7 +148,7 @@ export class WaveManager {
 
     if (this.state === WAVE_STATE.CLEARING && aliveEnemies === 0) {
       this.wavesCompleted++;
-      const isFinal = this.currentIndex + 1 >= this.waves.length;
+      const isFinal = this.endless ? false : this.currentIndex + 1 >= this.waves.length;
       this.state = isFinal ? WAVE_STATE.FINISHED : WAVE_STATE.IDLE;
       return { type: 'waveComplete', waveNumber: this.waveNumber, isFinal };
     }

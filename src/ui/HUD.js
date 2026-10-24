@@ -114,6 +114,10 @@ export class HUD {
         </div>
       </div>
 
+      <div id="hud-level-chip" class="hud-panel hud-level-chip" aria-live="polite">
+        <span class="hud-level-name" id="hud-level-name">VERDANT MARCHES</span>
+      </div>
+
       <div id="pause-chip" class="pause-chip hidden">⏸ SIMULATION PAUSED</div>
 
       <div id="boss-banner" class="boss-panel hud-panel hidden">
@@ -252,6 +256,7 @@ export class HUD {
    * destroyed tower used to be able to call upgrade() on it.
    */
   reset() {
+    this.setText('hud-level-name', 'VERDANT MARCHES');
     this.inspectedTower = null;
     this.selectedBuildKey = null;
     this.inspectorPinned = false;
@@ -851,6 +856,8 @@ export class HUD {
 
   update(state) {
     const {
+      levelName,
+      endless,
       baseHealth,
       maxBaseHealth,
       coins,
@@ -867,7 +874,11 @@ export class HUD {
     this.setText('val-base-hp', `${baseHealth} / ${maxBaseHealth}`);
     this.setText('val-coins', coins);
     this.setText('val-score', score);
-    this.setText('val-wave', `${waveNumber} / ${totalWaves}`);
+    this.setText('val-wave', endless ? `${waveNumber}` : `${waveNumber} / ${totalWaves}`);
+    if (levelName) {
+      this.setText('hud-level-name', String(levelName).toUpperCase());
+      document.getElementById('hud-level-chip')?.classList.toggle('endless', Boolean(endless));
+    }
     this.setText(
       'val-enemies-left',
       isSpawning ? `${enemiesRemaining} spawning…` : `${enemiesRemaining} left`

@@ -201,6 +201,166 @@ export const ENEMY_TYPES = {
       },
     ],
   },
+
+  /**
+   * Level 2 boss — buffs the horde instead of tanking alone.
+   * The aura makes every nearby enemy sprint, so the answer is to kill the
+   * escorts *before* the pulse lands, or to burst the Tyrant down early.
+   */
+  sandwyrm: {
+    key: 'sandwyrm',
+    name: 'Dune Tyrant',
+    role: 'Sunscorch Mesa boss — pulses a Sandstorm Aura (+35% speed nearby) every 7s, hardening into Razor Winds below 45% HP.',
+    health: 2600,
+    speed: 46,
+    armor: 20,
+    shield: 0,
+    reward: 180,
+    score: 500,
+    baseDamage: 10,
+    radius: 30,
+    siege: 60,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Sandstorm Aura',
+        thresholdPct: 1.0,
+        ability: {
+          type: 'speedAura',
+          radius: 190,
+          multiplier: 1.35,
+          durationMs: 3500,
+          intervalMs: 7000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Razor Winds',
+        thresholdPct: 0.45,
+        speedMultiplier: 1.3,
+        ability: {
+          type: 'speedAura',
+          radius: 220,
+          multiplier: 1.5,
+          durationMs: 4000,
+          intervalMs: 6000,
+        },
+        onEnterText: 'PHASE 2: RAZOR WINDS!',
+      },
+    ],
+  },
+
+  /**
+   * Level 3 boss — shuts down the player's answer instead of out-statting it.
+   * Glacial Pulse freezes towers inside its radius, so a defence that leans on
+   * one kill-box gets switched off while the escorts walk through.
+   */
+  frostwarden: {
+    key: 'frostwarden',
+    name: 'Frost Warden',
+    role: 'Frostbite Hollow boss — Glacial Pulse disables every tower within 170 px for 2.6s, then raises an Absolute Zero barrier below 55% HP.',
+    health: 3600,
+    speed: 28,
+    armor: 30,
+    shield: 0,
+    reward: 220,
+    score: 650,
+    baseDamage: 12,
+    radius: 32,
+    siege: 75,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Glacial Pulse',
+        thresholdPct: 1.0,
+        ability: {
+          type: 'disableTowers',
+          radius: 170,
+          durationMs: 2600,
+          intervalMs: 8000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Absolute Zero',
+        thresholdPct: 0.55,
+        grantShield: 600,
+        ability: {
+          type: 'disableTowers',
+          radius: 190,
+          durationMs: 3200,
+          intervalMs: 6500,
+        },
+        onEnterText: 'PHASE 2: ABSOLUTE ZERO!',
+      },
+      {
+        phase: 3,
+        name: 'Whiteout',
+        thresholdPct: 0.22,
+        speedMultiplier: 1.4,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: WHITEOUT!',
+      },
+    ],
+  },
+
+  /**
+   * Endless Siege boss — summons, speeds the pack up, then erupts.
+   * Appears every fifth wave with the other bosses in rotation.
+   */
+  magmalord: {
+    key: 'magmalord',
+    name: 'Magma Regent',
+    role: 'Endless Siege boss — opens the rift for swarm reinforcements, then erupts into a faster, shielded third phase.',
+    health: 4200,
+    speed: 30,
+    armor: 25,
+    shield: 0,
+    reward: 260,
+    score: 800,
+    baseDamage: 14,
+    radius: 34,
+    siege: 85,
+    isBoss: true,
+    bossPhases: [
+      {
+        phase: 1,
+        name: 'Cinder Command',
+        thresholdPct: 1.0,
+        ability: {
+          type: 'summon',
+          enemyKey: 'swarm',
+          count: 3,
+          intervalMs: 6000,
+        },
+      },
+      {
+        phase: 2,
+        name: 'Eruption',
+        thresholdPct: 0.6,
+        grantShield: 500,
+        speedMultiplier: 1.15,
+        ability: {
+          type: 'speedAura',
+          radius: 200,
+          multiplier: 1.4,
+          durationMs: 3000,
+          intervalMs: 7000,
+        },
+        onEnterText: 'PHASE 2: ERUPTION!',
+      },
+      {
+        phase: 3,
+        name: 'Caldera Core',
+        thresholdPct: 0.25,
+        speedMultiplier: 1.35,
+        immuneToSlow: true,
+        onEnterText: 'PHASE 3: CALDERA CORE!',
+      },
+    ],
+  },
 };
 
 /**

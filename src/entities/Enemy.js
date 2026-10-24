@@ -26,20 +26,26 @@ export class Enemy {
    * @param {(type:string, count:number) => void} [callbacks.onSummonMinions]
    * @param {(cellKey:string) => object|null} [callbacks.getBarricadeAt] palisade standing on a cell
    * @param {(wall:object, damage:number, enemy:Enemy) => void} [callbacks.onBarricadeHit] siege swing landed
+   * @param {(boss:Enemy, radius:number, multiplier:number, durationMs:number) => void} [callbacks.onSpeedAura] boss haste pulse
+   * @param {(boss:Enemy, radius:number, durationMs:number) => void} [callbacks.onDisableTowers] boss freeze pulse
+   * @param {{ healthScale?: number }} [options] level difficulty multiplier
    */
-  constructor(scene, typeKey, waveNumber, path, callbacks) {
+  constructor(scene, typeKey, waveNumber, path, callbacks, options = {}) {
     this.id = enemyIdCounter++;
     this.scene = scene;
     this.typeKey = typeKey;
     this.def = ENEMY_TYPES[typeKey] || ENEMY_TYPES.grunt;
     this.callbacks = callbacks || {};
 
-    // Health calculation with wave scaling
-    const mult = waveHealthMultiplier(waveNumber);
+    // Health calculation: per-wave ramp × the level's own difficulty scale.
+    const mult = waveHealthMultiplier(waveNumber) * (options.healthScale || 1);
     this.maxHealth = Math.round(this.def.health * mult);
     this.health = this.maxHealth;
     this.baseSpeed = this.def.speed;
     this.speed = this.baseSpeed;
+    // Boss haste pulses (Sandstorm Aura) stack on top of slow effects.
+    this.speedBuff = 1;
+    this.speedBuffTimer = 0;
     this.armor = this.def.armor || 0;
     this.maxShield = Math.round((this.def.shield || 0) * mult);
     this.shield = this.maxShield;
@@ -391,6 +397,19 @@ export class Enemy {
     this.sprite.setTint(0x7fe9ff);
   }
 
+  /**
+   * Boss haste pulse. Kept as a method (not a direct `speed` write) so the
+   * slow/aura interaction stays in one place and is covered by tests.
+   */
+  applySpeedBoost(multiplier = 1.35, durationMs = 3000) {
+    if (this.isDead || this.reachedBase) return;
+    const mult = Math.max(1, multiplier);
+    this.speedBuff = Math.max(this.speedBuff, mult);
+    this.speedBuffTimer = Math.max(this.speedBuffTimer, durationMs);
+    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff;
+    this.sprite?.setTint?.(0xffb45c);
+  }
+
   heal(amount) {
     if (this.isDead || this.reachedBase || this.health >= this.maxHealth) return;
     this.health = Math.min(this.maxHealth, this.health + amount);
@@ -467,16 +486,22 @@ export class Enemy {
   update(deltaMs) {
     if (this.isDead || this.reachedBase) return;
 
-    // 1. Handle slow status decay
+    // 1. Handle status decay: slow (frost) and haste (boss aura) multiply.
     if (this.slowTimer > 0) {
       this.slowTimer -= deltaMs;
-      this.speed = this.baseSpeed * (1 - this.slowFactor);
       if (this.slowTimer <= 0) {
         this.slowFactor = 0;
-        this.speed = this.baseSpeed;
         this.sprite.clearTint();
       }
     }
+    if (this.speedBuffTimer > 0) {
+      this.speedBuffTimer -= deltaMs;
+      if (this.speedBuffTimer <= 0) {
+        this.speedBuff = 1;
+        if (this.slowTimer <= 0 && this.armorBreakTimer <= 0) this.sprite.clearTint();
+      }
+    }
+    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff;
 
     // 2. Handle armor-break debuff decay
     if (this.armorBreakTimer > 0) {
@@ -496,14 +521,26 @@ export class Enemy {
       }
     }
 
-    // 4. Boss Summon Ability (e.g. Abyssal Warlord Rift Commander)
+    // 4. Boss abilities — summon adds bodies, the other two debuff the player's
+    // side of the board. Every ability shares one timer: two pulses of the same
+    // phase never fire in the same frame.
     const currentPhase = this.bossPhases[this.currentPhaseIndex];
-    if (currentPhase?.ability?.type === 'summon') {
+    const ability = currentPhase?.ability;
+    if (ability) {
       this.abilityTimer += deltaMs;
-      if (this.abilityTimer >= (currentPhase.ability.intervalMs || 6000)) {
+      if (this.abilityTimer >= (ability.intervalMs || 6000)) {
         this.abilityTimer = 0;
-        if (this.callbacks.onSummonMinions) {
-          this.callbacks.onSummonMinions(currentPhase.ability.enemyKey, currentPhase.ability.count);
+        if (ability.type === 'summon') {
+          this.callbacks.onSummonMinions?.(ability.enemyKey, ability.count);
+        } else if (ability.type === 'speedAura') {
+          this.callbacks.onSpeedAura?.(
+            this,
+            ability.radius ?? 180,
+            ability.multiplier ?? 1.35,
+            ability.durationMs ?? 3000
+          );
+        } else if (ability.type === 'disableTowers') {
+          this.callbacks.onDisableTowers?.(this, ability.radius ?? 170, ability.durationMs ?? 2500);
         }
       }
     }

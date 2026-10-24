@@ -238,6 +238,13 @@ ALGORITHM ValidateBuild(typeKey, row, col)
 
   IF basic.ok IS FALSE THEN RETURN basic END IF
 
+  // A wall only pays off on the lane the horde actually marches. The map's
+  // decoy lanes would otherwise swallow the 30 gold and read as a dodge.
+  routeCells <- Set(PathfindingSystem.mainPath)      // computed once on load
+  IF typeKey == "barricade" AND NOT routeCells.has(cellKey(row, col)) THEN
+    RETURN { ok: false, reason: "off-route" }
+  END IF
+
   // A wall may not be dropped on top of a living enemy.
   IF typeKey == "barricade" AND anyLivingEnemyOccupies(row, col) THEN
     RETURN { ok: false, reason: "enemy-on-tile" }

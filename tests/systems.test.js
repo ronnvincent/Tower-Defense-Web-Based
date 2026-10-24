@@ -4,6 +4,7 @@ import { GameStateManager, STATUS } from '../src/systems/GameStateManager.js';
 import { WaveManager, WAVE_STATE } from '../src/systems/WaveManager.js';
 import { PlacementSystem } from '../src/systems/PlacementSystem.js';
 import { parseMap } from '../src/data/mapData.js';
+import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 import { WAVES, countWaveEnemies } from '../src/data/waveData.js';
 import { TOWER_TYPES, BARRICADE } from '../src/data/towerData.js';
 import { compactInPlace, swapRemove } from '../src/utils/arrayUtils.js';
@@ -113,6 +114,21 @@ describe('PlacementSystem', () => {
     expect(ps.validate(BARRICADE, 3, 5, 999).reason).toBe('needs-road');
     expect(ps.validate(BARRICADE, 5, 0, 999).reason).toBe('endpoint');
     expect(ps.validate(BARRICADE, 5, 19, 999).reason).toBe('endpoint');
+  });
+  it('refuses palisades on decoy lanes the horde never walks', () => {
+    const ps = new PlacementSystem(map);
+    const pf = new PathfindingSystem(map);
+    const route = new Set(pf.computeMainPath().path);
+    // Row 1 is a real road, but BFS marches the middle lane on row 5.
+    expect(ps.validate(BARRICADE, 1, 5, 999, { route }).reason).toBe('off-route');
+    expect(ps.validate(BARRICADE, 5, 5, 999, { route }).ok).toBe(true);
+    // Every cell of the actual route stays buildable, so a wall can always be
+    // planted where the monsters are guaranteed to meet it.
+    for (const key of route) {
+      const [row, col] = key.split(',').map(Number);
+      if (map.tiles[row][col] !== 'road') continue;
+      expect(ps.validate(BARRICADE, row, col, 999, { route }).ok).toBe(true);
+    }
   });
 });
 

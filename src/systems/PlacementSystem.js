@@ -18,6 +18,7 @@ export const PLACEMENT_ERRORS = {
   occupied: 'This tile is already occupied',
   'no-coins': 'Not enough coins',
   'enemy-on-tile': 'An enemy is on this tile',
+  'off-route': 'No enemies march through this tile',
   'not-walkable': 'This road tile is not part of the path network',
   'unknown-type': 'Unknown defence',
   'game-over': 'The match is over',
@@ -65,9 +66,10 @@ export class PlacementSystem {
    *
    * @param {{cost:number, placement:'grass'|'road'}} definition
    * @param {number} coins player's current coins
+   * @param {{route?: Set<string>}} [options] `route` = cells the horde actually marches
    * @returns {{ok:boolean, reason:string|null}}
    */
-  validate(definition, row, col, coins) {
+  validate(definition, row, col, coins, options = {}) {
     if (!this.inBounds(row, col)) return fail('out-of-bounds');
     const type = this.map.tiles[row][col];
 
@@ -77,6 +79,14 @@ export class PlacementSystem {
     } else {
       if (type === TILE.ROCK || type === TILE.WATER) return fail('blocked-tile');
       if (type !== TILE.GRASS) return fail('road-tile');
+    }
+
+    // A wall only does its job on the road the horde actually walks. The map
+    // ships decoy lanes the BFS route never uses; without this check a player
+    // could pay 30 gold for a palisade the monsters simply stroll past, which
+    // reads exactly like the horde "dodging" the wall.
+    if (definition.placement === 'road' && options.route && !options.route.has(cellKey(row, col))) {
+      return fail('off-route');
     }
 
     if (this.isOccupied(row, col)) return fail('occupied');

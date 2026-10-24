@@ -30,6 +30,43 @@ export const MAP_LAYOUT = [
   'xx~.....xxx.....~~xx', // 11
 ];
 
+/**
+ * Named battlefields for the campaign. Grassland keeps the original three-route
+ * map; the desert mesa forks around a central plateau, and the ice hollow is a
+ * single serpentine canyon where one good palisade is worth a whole tower.
+ */
+export const MAPS = {
+  grassland: MAP_LAYOUT,
+  desert: [
+    'xxx......~~......x..', // 0
+    '......xxx.........x.', // 1
+    '...##############...', // 2
+    '...#.....xx.....#...', // 3
+    '...#..~~~~......#...', // 4
+    'S###............###B', // 5
+    '...#............#...', // 6
+    '...#............#...', // 7
+    '...##############...', // 8
+    '......xx.....~......', // 9
+    '...~........xx......', // 10
+    '....xx..............', // 11
+  ],
+  ice: [
+    'xxx...~~............', // 0
+    'x...................', // 1
+    '...##############.x.', // 2
+    'xx.#........~~..#..x', // 3
+    '...#.xxx........#...', // 4
+    '...#~~..........#...', // 5
+    '...#....#########...', // 6
+    '...#....#...xx......', // 7
+    '...#....###########B', // 8
+    '...#~.....xx........', // 9
+    'S###................', // 10
+    '~~~............xxx..', // 11
+  ],
+};
+
 export const TILE = {
   GRASS: 'grass',
   ROAD: 'road',
@@ -84,6 +121,14 @@ export function parseMap(layout = MAP_LAYOUT) {
   if (!spawn) throw new Error('Map has no spawn (S)');
   if (!base) throw new Error('Map has no base (B)');
   return { rows, cols, tiles, spawn, base };
+}
+
+/**
+ * Resolve a map id to its layout, falling back to the original battlefield so a
+ * typo in a level definition can never crash the scene.
+ */
+export function getMapLayout(mapId) {
+  return MAPS[mapId] || MAP_LAYOUT;
 }
 
 /** Road-like tiles that enemies can walk on (graph nodes). */
