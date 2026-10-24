@@ -506,8 +506,11 @@ export class GameScene extends Phaser.Scene {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
       onDefeated: (e) => this.handleEnemyDefeated(e),
       onBossSpawn: (e) => {
+        // `add` answers with the boss that owns the strip, which is not
+        // necessarily the newcomer: an anchor arriving behind a titan must not
+        // yank the panel (or reset its phase badge) away from the titan.
         this.activeBoss = this.bossRoster.add(e);
-        this.hud?.showBossBar(this.activeBoss, this.bossRoster.extras);
+        this.syncBossPanel();
         audio.playWarning();
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
         this.bossEntranceCinematic();
