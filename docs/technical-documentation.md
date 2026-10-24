@@ -272,6 +272,16 @@ biome hue and grows an ember contour one pixel outwards, so the champion's
 stakes a ground ring under champions so a wave tier reads even at a glance.
 Bosses are excluded on purpose and keep their single duotone sheet.
 
+**Facing rule.** The pack's horde art is drawn *facing the camera* (a 3/4
+top-down view: head at the top of the frame, feet at the bottom). Rotating the
+sprite by the travel heading — the obvious thing to do — therefore laid every
+creep on its side on a horizontal lane and turned it upside down on the long
+march south. `Enemy.faceTravel(dx)` keeps the body upright and only mirrors it
+above a 0.2 px deadzone, and both the walking and the siege paths pin
+`rotation = 0`, so no state (siege swing, phase change, status tint) can leave a
+creep crooked. `tests/enemy-facing.test.js` walks a four-leg lap and fails if any
+frame is rotated.
+
 ### 7.4 Adding a look
 1. Add or edit a ramp in `terrain.py` (`RAMPS` / `ROAD_RAMPS` / `WATER_RAMPS`).
 2. Add a landmark in `build_foliage` if the biome needs one.

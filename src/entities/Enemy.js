@@ -9,8 +9,16 @@ import { audio } from '../rendering/AudioSynth.js';
 
 let enemyIdCounter = 1;
 
-/** Spire enemies are drawn pointing up (-90°), so offset the heading by +90°. */
-const ENEMY_ART_OFFSET = Math.PI / 2;
+/**
+ * Spire's horde art is drawn **facing the camera** (a 3/4 top-down view: head
+ * up-frame, mandibles/feet at the bottom edge). Rotating it by the travel angle
+ * therefore turned every creep sideways on a horizontal lane and upside down on
+ * a downward one — "walking with its back to us".
+ *
+ * The horde walks upright, and only mirrors left/right to look toward the lane
+ * it is taking. See `faceTravel()`.
+ */
+const ENEMY_FLIP_DEADZONE = 0.2;
 
 export class Enemy {
   /**
@@ -256,8 +264,10 @@ export class Enemy {
     this.x = step.x;
     this.y = step.y;
 
-    // Face the wall while hammering it.
-    this.sprite.rotation = step.facing + ENEMY_ART_OFFSET;
+    // Face the wall while hammering it: mirror toward it, never rotate. The
+    // siege solver's `facing` is a heading, which this art cannot wear.
+    this.faceTravel(wall.x - this.x);
+    this.sprite.rotation = 0;
 
     if (step.attack) {
       // In contact: swing on the archetype's siege cadence.
@@ -596,10 +606,11 @@ export class Enemy {
       this.y += (dy / dist) * step;
       this.distanceTraveled += step;
 
-      // Rotate toward direction of travel. The Spire enemy art is drawn facing
-      // UP, so add a quarter turn to align the sprite's nose with the heading.
-      const targetAngle = Math.atan2(dy, dx);
-      this.sprite.rotation = targetAngle + ENEMY_ART_OFFSET;
+      // The art already faces the camera, so the body stays upright; only the
+      // horizontal heading mirrors the sprite. Rotating it (the old behaviour)
+      // laid every creep on its side on a left/right lane and turned it upside
+      // down on the long march south.
+      this.faceTravel(dx);
     }
 
     // Walking wobble animation
@@ -609,6 +620,19 @@ export class Enemy {
 
     this.container.setPosition(this.x, this.y);
     this.container.setDepth(20 + this.y * 0.001);
+  }
+
+  /**
+   * Mirror the upright sprite toward a horizontal heading.
+   *
+   * A deadzone keeps the sprite from flickering while the path jitters by a
+   * fraction of a pixel, and `rotation` is pinned to 0 so no code path (siege,
+   * phase change, status effect) can leave the creep lying on its side.
+   */
+  faceTravel(dx) {
+    if (!this.sprite) return;
+    if (Math.abs(dx) > ENEMY_FLIP_DEADZONE) this.sprite.setFlipX(dx < 0);
+    this.sprite.rotation = 0;
   }
 
   /**

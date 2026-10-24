@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 473 tests across 37 test suites.
-- **Pass Rate:** **100% (473 / 473 Passed)**
+- **Total Automated Unit Tests:** 478 tests across 38 test suites.
+- **Pass Rate:** **100% (478 / 478 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -187,8 +187,8 @@
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  37 passed (37)
-Tests       473 passed (473)
+Test Files  38 passed (38)
+Tests       478 passed (478)
 Duration    6.7s
 ```
 
@@ -204,6 +204,7 @@ Duration    6.7s
 | `tests/hud-dom.test.js` | jsdom | 16 | HUD controls missing, buttons not forwarding callbacks, destructive controls back on the top bar, a single tap leaving the battle, the pause card not opening/closing, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 5 | Boss banner not appearing/updating, or throwing on an incomplete boss object |
+| `tests/enemy-facing.test.js` | jsdom | 5 | Creeps rotating into the travel heading (sideways on a lane, upside down walking south), a siege swing tilting the body, a boss sprite left rotated |
 | `tests/relics-blessings.test.js` | jsdom | 21 | Relics bought twice, bonuses lost on reload, cooldown stacking into a stall, blessings bought past their cap or without gold, healing past the core maximum |
 | `tests/daily-challenge.test.js` | node | 17 | A daily that rerolls on refresh, a streak that survives a missed day, win gems farmed by replaying, storage failures |
 | `tests/achievements.test.js` | node | 17 | Duplicate/unreachable achievements, gems paid twice, peak stats summed instead of maxed, saves losing the checklist |
