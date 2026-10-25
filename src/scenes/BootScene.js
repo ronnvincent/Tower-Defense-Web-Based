@@ -1,6 +1,7 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
 import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_PALETTES, IMPACT_SHEETS } from '../data/spireManifest.js';
+import { FX_SHEETS, FX_PARTICLES } from '../data/fxManifest.js';
 import { THEMES } from '../data/levelData.js';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
@@ -132,6 +133,23 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    // 6b. Kenney effect library (CC0): elemental impact strips, shockwave,
+    // nova, ground blast, level-up burst and the particle singles the emitters
+    // draw with. Missing art is tolerated — Vfx checks before it plays.
+    for (const [key, sheet] of Object.entries(FX_SHEETS)) {
+      if (sheet.frames > 1) {
+        this.load.spritesheet(key, `assets/fx/${sheet.file}`, {
+          frameWidth: sheet.frameWidth,
+          frameHeight: sheet.frameHeight,
+        });
+      } else {
+        this.load.image(key, `assets/fx/${sheet.file}`);
+      }
+    }
+    for (const [key, file] of Object.entries(FX_PARTICLES)) {
+      this.load.image(key, `assets/fx/${file}`);
+    }
+
     // 7. Audio foley
     this.load.audio('sfx-click', 'assets/audio/click.ogg');
     this.load.audio('sfx-toggle', 'assets/audio/toggle.ogg');
@@ -153,6 +171,7 @@ export class BootScene extends Phaser.Scene {
     this.createTowerAnimations();
     this.createEnemyAnimations();
     this.createImpactAnimations();
+    this.createFxAnimations();
     this.scene.start('MenuScene');
   }
 
@@ -237,6 +256,27 @@ export class BootScene extends Phaser.Scene {
         frames: this.anims.generateFrameNumbers(textureKey, { start, end: start + frames - 1 }),
         frameRate,
         repeat,
+      });
+    }
+  }
+
+  /**
+   * Register one `<key>-play` clip per effect strip.
+   *
+   * The frame rate comes from the manifest rather than a constant: a 9-frame
+   * explosion that runs at 28 fps reads as a blast, while the same strip at
+   * 18 fps reads as a smokescreen. The generated atlas keeps each element's
+   * authored speed.
+   */
+  createFxAnimations() {
+    for (const [key, sheet] of Object.entries(FX_SHEETS)) {
+      if (!this.textures.exists(key) || sheet.frames <= 1) continue;
+      if (this.anims.exists(`${key}-play`)) continue;
+      this.anims.create({
+        key: `${key}-play`,
+        frames: this.anims.generateFrameNumbers(key, { start: 0, end: sheet.frames - 1 }),
+        frameRate: sheet.frameRate || 26,
+        repeat: 0,
       });
     }
   }

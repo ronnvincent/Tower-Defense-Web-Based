@@ -1,5 +1,6 @@
 import { TILE_SIZE, SELL_REFUND_RATIO } from '../config/gameConfig.js';
 import { TOWER_TYPES, BARRICADE } from '../data/towerData.js';
+import { MAX_LEVEL, ascensionTier, nextAscension } from '../data/towerAscension.js';
 import {
   TOWER_VISUALS,
   BARRICADE_VISUALS,
@@ -138,7 +139,12 @@ export class Tower {
   get visualSlot() {
     if (this.specialization) {
       const spec = this.def.specializations?.[this.specialization];
-      return spec?.branch === 'spec-b' ? 'spec-b' : 'spec-a';
+      const branch = spec?.branch === 'spec-b' ? 'spec-b' : 'spec-a';
+      // Level 4/5 keep the branch silhouette but switch to the ascended
+      // atlas: same geometry, hotter palette, additional power ring.
+      if (this.level >= 5) return `${branch}3`;
+      if (this.level >= 4) return `${branch}2`;
+      return branch;
     }
     return this.level === 2 ? 'lvl2' : 'lvl1';
   }
@@ -162,7 +168,9 @@ export class Tower {
       return this.def.levels[this.level - 1];
     }
     if (this.specialization) {
-      return this.def.specializations[this.specialization];
+      const spec = this.def.specializations[this.specialization];
+      const tier = ascensionTier(this.typeKey, this.specialization, this.level);
+      return tier ? { ...spec, ...tier } : spec;
     }
     return this.def.levels[this.level - 1];
   }
@@ -177,9 +185,16 @@ export class Tower {
     return Math.round((this.stats?.damage || 0) * this.buffDamage);
   }
 
-  /** Milliseconds between shots (Banner Keeps can shave the cooldown). */
+  /**
+   * Milliseconds between shots.
+   *
+   * Three multipliers stack: the tower's own tier, the Banner Keep aura, and
+   * the global Overcharge window. Overcharge is read from the shared powerup
+   * state so a single button can speed up every defence on the map.
+   */
   get attackCooldown() {
-    return Math.max(80, (this.stats?.cooldown || 0) * this.buffCooldown);
+    const globalScale = this.context?.powerups?.cooldownScale ?? 1;
+    return Math.max(80, (this.stats?.cooldown || 0) * this.buffCooldown * globalScale);
   }
 
   /** Support field of this tower (Banner Keep only). */
@@ -261,6 +276,10 @@ export class Tower {
       const specs = this.def.specializations;
       return Object.values(specs).map((s) => ({ key: s.specKey, ...s }));
     }
+    if (this.specialization && this.level >= 3 && this.level < MAX_LEVEL) {
+      const next = nextAscension(this.typeKey, this.specialization, this.level);
+      return next ? [next] : [];
+    }
     return [];
   }
 
@@ -308,7 +327,13 @@ export class Tower {
 
   updateLevelIndicator() {
     if (!this.levelText || this.isBarricade) return;
-    if (this.specialization) {
+    if (this.level >= 5) {
+      this.levelText.setText('★5');
+      this.levelText.setColor('#ffb347');
+    } else if (this.level === 4) {
+      this.levelText.setText('★4');
+      this.levelText.setColor('#ffd98a');
+    } else if (this.specialization) {
       this.levelText.setText('★3');
       this.levelText.setColor('#4ee1ff');
     } else {
@@ -386,6 +411,9 @@ export class Tower {
     } else if (this.level === 2) {
       this.level = 3;
       this.specialization = targetOpt.specKey || choiceKey;
+    } else {
+      // Levels 3 → 4 → 5 stay inside the branch that was chosen at level 3.
+      this.level = Math.min(MAX_LEVEL, this.level + 1);
     }
 
     // Both halves of the tower change with the upgrade: the pack's level art is
@@ -405,7 +433,31 @@ export class Tower {
         yoyo: true,
       });
     }
+    this.scene.vfx?.levelUp?.(this.x, this.y - 10);
+    if (this.level >= MAX_LEVEL) this.createAscensionAura();
     return true;
+  }
+
+  /**
+   * Max-tier aura: a slow gold pulse under the keep plus a ring on the tile.
+   *
+   * Level 5 has to be recognisable across the map — a player counting their
+   * gold should be able to see which towers are finished without clicking them.
+   */
+  createAscensionAura() {
+    if (this.ascensionGlow || !this.scene?.add?.image) return;
+    this.ascensionGlow = this.scene.vfx?.aura?.(this) || null;
+    if (this.scene.textures?.exists?.('fx-aura-ring') && this.container) {
+      const ring = this.scene.add.image(0, TILE_SIZE / 2 - 6, 'fx-aura-ring');
+      ring.setScale(0.62).setAlpha(0.5).setBlendMode('ADD').setTint(0xffd79a);
+      this.container.addAt(ring, 0);
+      this.scene.tweens.add({
+        targets: ring,
+        angle: 360,
+        duration: 9000,
+        repeat: -1,
+      });
+    }
   }
 
   /** True while a boss freeze pulse is suppressing this defence. */
@@ -592,32 +644,54 @@ export class Tower {
     const originX = muzzlePos.x;
     const originY = muzzlePos.y;
 
-    const proj = new Projectile(
-      this.scene,
-      projType,
-      originX,
-      originY,
-      target,
-      {
-        damage: this.attackDamage,
-        speed: projSpeed,
-        damageType: s.damageType || 'physical',
-        armorPenetration: s.armorPenetration || 0,
-        armorBreak: s.armorBreak || 0,
-        armorBreakMs: s.armorBreakMs || 0,
-        splash: s.splash || 0,
-        slow: s.slow || 0,
-        slowMs: s.slowMs || 0,
-        chainTargets: s.chainTargets || 0,
-        chainRange: s.chainRange || 0,
-        stunMs: s.stunMs || 0,
-        impactKey: this.visual.slotImpact || null,
-      },
-      this.context.activeEnemies,
-      // Upgrade tiers can carry their own projectile and impact art.
-      this.visual.slotTexture || null
-    );
-    this.context.activeProjectiles.push(proj);
+    // Element-coloured flash at the barrel tip — the single cheapest change
+    // that makes a tower feel like it is *firing* rather than emitting.
+    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical');
+
+    const shots = Math.max(1, s.ability?.shots || 1);
+    const stats = {
+      damage: this.attackDamage,
+      speed: projSpeed,
+      damageType: s.damageType || 'physical',
+      armorPenetration: s.armorPenetration || 0,
+      armorBreak: s.armorBreak || 0,
+      armorBreakMs: s.armorBreakMs || 0,
+      splash: s.splash || 0,
+      slow: s.slow || 0,
+      slowMs: s.slowMs || 0,
+      chainTargets: s.chainTargets || 0,
+      chainRange: s.chainRange || 0,
+      stunMs: s.stunMs || 0,
+      nova: s.nova || 0,
+      impactKey: this.visual.slotImpact || null,
+    };
+
+    const launch = (shotIndex) => {
+      const victim = shotIndex === 0 || !this.currentTarget || this.currentTarget.isDead ? target : this.currentTarget;
+      if (!victim || victim.isDead) return;
+      const proj = new Projectile(
+        this.scene,
+        projType,
+        originX,
+        originY,
+        victim,
+        stats,
+        this.context.activeEnemies,
+        // Upgrade tiers can carry their own projectile and impact art.
+        this.visual.slotTexture || null
+      );
+      this.context.activeProjectiles.push(proj);
+    };
+
+    launch(0);
+
+    // Level-4/5 signature: extra bolts leave the same barrel a beat apart, each
+    // re-acquiring so the volley spreads across the lane instead of stacking on
+    // a corpse. `shots` is data, so a new tower gets the ability for free.
+    for (let i = 1; i < shots; i += 1) {
+      const delay = Math.round(this.attackCooldown * 0.12 * i);
+      this.scene.time?.delayedCall?.(delay, () => launch(i));
+    }
   }
 
   destroy() {

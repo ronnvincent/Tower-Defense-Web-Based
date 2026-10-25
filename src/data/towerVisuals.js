@@ -23,19 +23,58 @@
  * so no sprite is ever scaled.
  */
 
-export const SLOTS = ['lvl1', 'lvl2', 'spec-a', 'spec-b'];
+/**
+ * Eight visual slots per line.
+ *
+ *   lvl1 / lvl2        the two shop tiers
+ *   spec-a / spec-b    the two level-3 branches
+ *   spec-a2 / spec-a3  levels 4 and 5 of branch a
+ *   spec-b2 / spec-b3  levels 4 and 5 of branch b
+ *
+ * The ascended slots reuse the branch's geometry (pivot, mount, muzzle) and
+ * differ only in their textures, which the asset script re-grades into a hotter
+ * palette and adds a power ring to. That keeps every measurement calibrated
+ * once and still lets a maxed tower look like a different building.
+ */
+export const SLOTS = [
+  'lvl1',
+  'lvl2',
+  'spec-a',
+  'spec-b',
+  'spec-a2',
+  'spec-a3',
+  'spec-b2',
+  'spec-b3',
+];
 
-/** Build the four visual variants of one tower line. */
+const SLOT_SUFFIX = {
+  lvl1: '',
+  lvl2: '-lvl2',
+  'spec-a': '-spec-a',
+  'spec-b': '-spec-b',
+  'spec-a2': '-spec-a2',
+  'spec-a3': '-spec-a3',
+  'spec-b2': '-spec-b2',
+  'spec-b3': '-spec-b3',
+};
+
+/** Build the eight visual variants of one tower line. */
 function line(typeKey, entries) {
   const out = {};
-  SLOTS.forEach((slot, i) => {
-    const suffix = { lvl1: '', lvl2: '-lvl2', 'spec-a': '-spec-a', 'spec-b': '-spec-b' }[slot];
+  const [lvl1, lvl2, specA, specB] = entries;
+  const base = { lvl1, lvl2, 'spec-a': specA, 'spec-b': specB };
+  for (const slot of SLOTS) {
+    const origin = base[slot] || (slot.startsWith('spec-a') ? specA : specB);
+    const file = `${typeKey}${SLOT_SUFFIX[slot]}`;
     out[slot] = {
-      ...entries[i],
-      baseKey: `tower-base-${typeKey}${suffix}`,
-      weaponKey: `tower-top-${typeKey}${suffix}`,
+      ...origin,
+      file,
+      base: `base_${file}.png`,
+      weapon: `weapon_${file}.png`,
+      baseKey: `tower-base-${file}`,
+      weaponKey: `tower-top-${file}`,
     };
-  });
+  }
   return out;
 }
 
@@ -135,6 +174,21 @@ export const MUZZLE_OFFSET = {
   'banner-spec-a': { x: 0, y: -42 },
   'banner-spec-b': { x: 0, y: -42 },
 };
+
+// Levels 4 and 5 are the same weapon mounted on a bigger plinth, so the muzzle
+// keeps its offset from the branch it grew out of. Deriving them here means a
+// new tower only has to be measured once, at the branch.
+for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
+  for (const [slot, suffix] of Object.entries(SLOT_SUFFIX)) {
+    if (!suffix.endsWith('2') && !suffix.endsWith('3')) continue;
+    const origin = slots[slot.startsWith('spec-a') ? 'spec-a' : 'spec-b'];
+    const file = `${typeKey}${suffix}`;
+    const branchFile = origin.file;
+    if (!MUZZLE_OFFSET[file] && MUZZLE_OFFSET[branchFile]) {
+      MUZZLE_OFFSET[file] = MUZZLE_OFFSET[branchFile];
+    }
+  }
+}
 
 /** Barricade art (level 1 fence bay, level 2 palisade gate). */
 export const BARRICADE_VISUALS = {

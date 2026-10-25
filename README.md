@@ -22,7 +22,7 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 - **Build System:** [Vite 7.3.7](https://vite.dev/) (Instant HMR local development and optimized production bundling).
 - **Testing Framework:** [Vitest 5.0.5](https://vitest.dev/) (Automated headless unit testing in Node.js environment).
 - **Audio:** Web Audio API synthesis for the UI cues, plus CC0 foley clips.
-- **Art:** [Foozle "Spire"](https://foozlecc.itch.io/) pixel-art towers, enemies and terrain (CC0 1.0) — see [docs/asset-integration.md](docs/asset-integration.md).
+- **Art:** [Foozle "Spire"](https://foozlecc.itch.io/) pixel-art towers, enemies and terrain (CC0 1.0), [Kenney](https://kenney.nl/) explosion and particle packs (CC0 1.0) for every impact, muzzle flash and nova — see [docs/asset-integration.md](docs/asset-integration.md).
 - **Styling:** Vanilla CSS3 with bespoke dark fantasy / arcane bastion art direction.
 
 ---
@@ -162,6 +162,9 @@ above the wave counter and whose abilities telegraph before they fire.
 | <kbd>5</kbd> | Select Hammerforge |
 | <kbd>6</kbd> | Select Runestone |
 | <kbd>7</kbd> | Select Banner Keep |
+| <kbd>Q</kbd> | Powerup: Meteor Strike (then tap a tile) |
+| <kbd>E</kbd> | Powerup: Overcharge (all towers +70% fire rate, 7 s) |
+| <kbd>R</kbd> | Powerup: Fortify (repair palisades, +40 core) |
 | <kbd>Space</kbd> | Start Next Wave / Toggle Pause |
 | <kbd>F</kbd> | Toggle fullscreen |
 | <kbd>Esc</kbd> | Deselect Tower / Close Inspector |

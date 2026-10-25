@@ -1,5 +1,6 @@
 import { audio } from '../rendering/AudioSynth.js';
 import { PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../data/towerVisuals.js';
+import { ELEMENT_BY_DAMAGE } from '../systems/Vfx.js';
 
 let projIdCounter = 1;
 
@@ -57,8 +58,24 @@ export class Projectile {
     return !!src && src.height > src.width;
   }
 
-  /** Spawn the pack's impact animation at the hit point. */
-  spawnImpact(x, y, type) {
+  /**
+   * The elemental impact.
+   *
+   * Two libraries are in play: the Spire pack's small impact strips (still used
+   * as a fallback so a texture hiccup is cosmetic) and the Kenney effect set,
+   * which is what actually sells the hit — a separate burst per damage type,
+   * sparks, and a smoke puff behind them.
+   */
+  spawnImpact(x, y, type, options = {}) {
+    const element = ELEMENT_BY_DAMAGE[this.stats.damageType] || 'physical';
+    const vfx = this.scene.vfx;
+    if (vfx?.impact) {
+      vfx.impact(x, y, element, {
+        scale: options.scale ?? 1,
+        splash: options.splash ?? 0,
+      });
+      return;
+    }
     const key = this.impactKey || IMPACT_TEXTURES[type];
     if (!key || !this.scene.anims.exists(`${key}-burst`)) return;
     const puff = this.scene.add.sprite(x, y, key, 0).setDepth(42);
@@ -112,17 +129,14 @@ export class Projectile {
       // Area of effect detonation
       audio.playExplosion();
 
-      const blast = this.scene.add.circle(impactX, impactY, this.stats.splash, 0xff7a59, 0.35);
-      blast.setDepth(35);
-      this.scene.tweens.add({
-        targets: blast,
-        alpha: 0,
-        scale: 1.25,
-        duration: 220,
-        onComplete: () => blast.destroy(),
+      // The blast used to be a flat orange circle. It is now the effect
+      // library's ground burst plus a scorch ring, sized to the real splash
+      // radius so the area of effect is legible at a glance.
+      this.scene.vfx?.groundBlast?.(impactX, impactY, Math.max(0.7, this.stats.splash / 70));
+      this.spawnImpact(impactX, impactY, this.type, {
+        scale: Math.max(1, this.stats.splash / 60),
+        splash: this.stats.splash,
       });
-
-      this.spawnImpact(impactX, impactY, this.type);
 
       if (this.scene.particleEmitter) {
         this.scene.particleEmitter.explode(16, impactX, impactY);
@@ -176,9 +190,17 @@ export class Projectile {
         if (this.stats.chainTargets > 0) {
           this.executeChainLightning(this.target);
         }
+
+        // Level-5 frost: the bolt detonates as a nova, freezing everything in
+        // the ring instead of only the creep it hit.
+        if (this.stats.nova > 0) {
+          this.frostNova(this.target.x, this.target.y);
+        }
       }
 
-      this.spawnImpact(impactX, impactY, this.type);
+      this.spawnImpact(impactX, impactY, this.type, {
+        scale: this.stats.damage >= 120 ? 1.35 : 1,
+      });
 
       if (this.scene.particleEmitter) {
         this.scene.particleEmitter.explode(5, impactX, impactY);
@@ -186,6 +208,31 @@ export class Projectile {
     }
 
     this.destroy();
+  }
+
+  /**
+   * Ice nova: damage every creep inside the radius and chill it.
+   *
+   * The visual is the effect library's shard burst; the gameplay effect is the
+   * same slow the tower already applies, so a nova tower is a stronger Blizzard
+   * rather than a new mechanic to learn.
+   */
+  frostNova(x, y) {
+    const radius = this.stats.nova;
+    this.scene.vfx?.nova?.(x, y, Math.min(1.8, radius / 90));
+    this.scene.cameras?.main?.shake?.(70, 0.0022);
+    for (const enemy of this.activeEnemies) {
+      if (enemy.isDead || enemy.reachedBase) continue;
+      const d = Math.hypot(enemy.x - x, enemy.y - y);
+      if (d > radius) continue;
+      if (this.stats.slow && this.stats.slowMs) {
+        enemy.applySlow(this.stats.slow, this.stats.slowMs);
+      }
+      const res = enemy.applyDamage(Math.round(this.stats.damage * 0.4), 'frost', { distance: d, splashRadius: radius });
+      if (res.finalDamage > 0) {
+        this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0x9fe6ff);
+      }
+    }
   }
 
   executeChainLightning(primaryTarget) {

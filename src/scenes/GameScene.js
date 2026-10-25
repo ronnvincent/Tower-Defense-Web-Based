@@ -24,6 +24,8 @@ import {
   waveComboPayout,
 } from '../systems/ComboMeter.js';
 import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js';
+import { Vfx } from '../systems/Vfx.js';
+import { PowerupState, POWERUPS, METEOR } from '../systems/Powerups.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Tower } from '../entities/Tower.js';
@@ -153,6 +155,14 @@ export class GameScene extends Phaser.Scene {
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
     this.createParticleSystems();
+    // Effects library: elemental impacts, muzzle flashes, novas and the
+    // max-tier aura. Created after the particle systems so `spark` fallbacks
+    // still exist if the Kenney atlases failed to load.
+    this.vfx = new Vfx(this);
+    // Three hand-played powerups (meteor / overcharge / fortify). State is pure
+    // data; the HUD renders it and this scene executes the effects.
+    this.powerups = new PowerupState(this.time?.now || 0);
+    this.pendingMeteor = false;
     this.createPortalAndBase();
 
     // Visual overlay graphics
@@ -206,6 +216,7 @@ export class GameScene extends Phaser.Scene {
         onZoomIn: () => this.cameraRig.zoomBy(1.25),
         onZoomOut: () => this.cameraRig.zoomBy(1 / 1.25),
         onZoomReset: () => this.cameraRig.reset(),
+        onPowerup: (key) => this.handlePowerup(key),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
       this.hud.showCameraHintOnce();
@@ -230,6 +241,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.cameraRig?.destroy();
       this.badges?.clear();
+      this.vfx?.destroy();
     });
   }
 
@@ -853,6 +865,7 @@ export class GameScene extends Phaser.Scene {
    */
   spawnDeathBurst(x, y, tier = 0) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.vfx?.death?.(x, y, 'physical', tier >= 2 ? 1.6 : 1);
     const tint = tier >= 3 ? 0xffd166 : tier >= 2 ? 0xff9d3c : (this.spawnAccent ?? this.theme?.portalTint ?? 0xb388ff);
     try {
       const emitter = this.particleEmitter;
@@ -1055,6 +1068,13 @@ export class GameScene extends Phaser.Scene {
 
     const { row, col, worldX, worldY } = this.tileAtScreen(pointer.x, pointer.y);
 
+    // 0a. A meteor waiting for a target: the next tap on the map spends it.
+    if (this.pendingMeteor) {
+      this.pendingMeteor = false;
+      this.castMeteor(worldX, worldY);
+      return;
+    }
+
     // 0. Upgrade badge above a defence?
     const badgeTower = this.badges?.hitTest(worldX, worldY);
     if (badgeTower) {
@@ -1232,6 +1252,8 @@ export class GameScene extends Phaser.Scene {
       gameState: this.gameState,
       activeEnemies: this.activeEnemies,
       activeProjectiles: this.activeProjectiles,
+      // Overcharge is a global cooldown multiplier read by Tower.attackCooldown.
+      powerups: this.powerups,
     });
     this.placement.occupy(row, col, tower);
     this.activeTowers.push(tower);
@@ -1657,10 +1679,107 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Execute one of the three powerups.
+   *
+   * The state machine decides whether it is legal (cooldown), this method
+   * decides what it *does*. Every branch is wrapped so a missing system in a
+   * test harness cannot break the wave loop.
+   */
+  handlePowerup(key) {
+    const powerup = POWERUPS.find((entry) => entry.key === key);
+    if (!powerup) return false;
+    if (!this.powerups?.use(key)) {
+      audio.playError();
+      return false;
+    }
+
+    if (key === 'meteor') {
+      this.pendingMeteor = true;
+      this.hud?.showToast('METEOR READY — tap a tile to call it down', 'info');
+      audio.playWarning();
+      return true;
+    }
+
+    if (key === 'overcharge') {
+      this.hud?.showToast('OVERCHARGE — every tower fires 70% faster for 7s', 'info');
+      audio.playCombo(3);
+      this.tintTowers(0x8fe8ff, 0.35);
+      return true;
+    }
+
+    if (key === 'fortify') {
+      let healed = 0;
+      for (const tower of this.activeTowers) {
+        if (!tower.isBarricade || tower.isDestroyed) continue;
+        tower.health = tower.maxHealth;
+        tower.updateHealthBar?.();
+        healed += 1;
+      }
+      this.gameState.healBase?.(40);
+      this.hud?.showToast(`FORTIFY — ${healed} palisade(s) rebuilt, core +40`, 'info');
+      audio.playPlace();
+      return true;
+    }
+    return true;
+  }
+
+  /** Flash every tower in a colour for a beat (overcharge feedback). */
+  tintTowers(colour, alpha = 0.4) {
+    for (const tower of this.activeTowers) {
+      if (!tower.topSprite?.setTint) continue;
+      tower.topSprite.setTint(colour);
+      this.time?.delayedCall?.(1200, () => tower.topSprite?.clearTint?.());
+    }
+    if (alpha > 0) this.cameras?.main?.flash?.(90, 60, 140, 255);
+  }
+
+  /**
+   * The meteor itself: a ground burst, a real damage number and a screen
+   * shake. Damage falls off from the centre so a perfect drop is worth aiming.
+   */
+  castMeteor(x, y) {
+    const { radius, damage } = METEOR;
+    const element = 'explosive';
+    this.vfx?.groundBlast?.(x, y, 1.6);
+    this.vfx?.impact?.(x, y, element, { scale: 1.8, splash: radius });
+    this.cameras?.main?.shake?.(260, 0.012);
+    this.cameras?.main?.flash?.(120, 255, 170, 90);
+
+    let hits = 0;
+    for (const enemy of this.activeEnemies) {
+      if (enemy.isDead || enemy.reachedBase) continue;
+      const distance = Math.hypot(enemy.x - x, enemy.y - y);
+      if (distance > radius) continue;
+      const falloff = 1 - 0.45 * (distance / radius);
+      const result = enemy.applyDamage(Math.round(damage * falloff), element, {
+        distance,
+        splashRadius: radius,
+      });
+      if (result?.finalDamage > 0) hits += 1;
+    }
+    audio.playExplosion();
+    this.hud?.showToast(hits > 0 ? `METEOR — ${hits} hit` : 'METEOR — empty ground', 'info');
+  }
+
+  /** Push the current cooldowns into the HUD rail (cheap: 3 class writes). */
+  refreshPowerupRail() {
+    if (!this.hud?.setPowerups || !this.powerups) return;
+    const now = this.time?.now || 0;
+    if (this.lastPowerupPaint && now - this.lastPowerupPaint < 120) return;
+    this.lastPowerupPaint = now;
+    this.hud.setPowerups(this.powerups.snapshot());
+  }
+
   bindKeyboardShortcuts() {
     this.input.keyboard.on('keydown', (event) => {
       // Hotkeys come from the tower data, so adding a defence to the dock
       // automatically gives it a working number key.
+      const powerupKey = POWERUPS.find((entry) => entry.hotkey.toLowerCase() === event.key.toLowerCase());
+      if (powerupKey && !event.ctrlKey && !event.metaKey) {
+        this.handlePowerup(powerupKey.key);
+        return;
+      }
       const buildKey = BUILD_OPTIONS.find((key) => getBuildDefinition(key)?.hotkey === event.key);
       if (buildKey) this.hud?.toggleBuildSelection(buildKey);
       else if (event.key === 'Escape') {
@@ -1718,6 +1837,11 @@ export class GameScene extends Phaser.Scene {
     if (combo.expired) this.hud?.hideCombo();
     else if (combo.chain > 0) this.hud?.updateComboTimer(combo.remainingMs);
 
+    // Powerup cooldowns run on the same clock as the simulation, so pausing the
+    // game does not silently recharge the meteor.
+    this.powerups.tick(this.time?.now || 0);
+    this.refreshPowerupRail();
+
     // 1. Wave Manager Update
     const waveEvent = this.waveManager.update(clampedDelta, this.activeEnemies.length);
     if (waveEvent && waveEvent.type === 'waveComplete') {
@@ -1735,6 +1859,10 @@ export class GameScene extends Phaser.Scene {
       );
       this.hud?.hideCombo();
 
+      // Clearing a wave pays part of every cooldown back — the reward for
+      // holding the line is the next trick, not just gold.
+      this.powerups.onWaveClear();
+      this.refreshPowerupRail();
       if (this.level.endless) this.payEndlessMilestones(waveEvent.waveNumber);
       this.syncAchievements();
 

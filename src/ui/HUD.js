@@ -228,6 +228,8 @@ export class HUD {
         <span class="rival-state" id="rival-state">LIVE</span>
       </div>
 
+      <div id="powerup-rail" class="hud-panel powerup-rail" role="group" aria-label="Powerups"></div>
+
       <div id="hud-bottom-dock" class="hud-panel hud-dock">
         <div id="placement-hint" class="placement-hint hidden">
           <span id="placement-hint-text">Placing defence…</span>
@@ -247,6 +249,52 @@ export class HUD {
 
     this.renderBuildCards();
     this.setZoomState(this.zoomState);
+  }
+
+  /**
+   * Powerup rail.
+   *
+   * Three circular buttons stacked above the dock. The cooldown is a conic
+   * gradient driven by `--charge`, so the sweep is CSS-only and the per-frame
+   * cost is one style write per button instead of a redraw.
+   */
+  setPowerups(list) {
+    const rail = document.getElementById('powerup-rail');
+    if (!rail || !Array.isArray(list)) return;
+    if (rail.dataset.built !== '1') {
+      rail.innerHTML = list
+        .map(
+          (powerup) => `
+          <button class="powerup-btn" data-powerup="${powerup.key}" title="${powerup.description}"
+                  aria-label="${powerup.name} (${powerup.hotkey})">
+            <span class="powerup-glyph" aria-hidden="true">${powerup.glyph}</span>
+            <span class="powerup-key">${powerup.hotkey}</span>
+            <span class="powerup-sweep" aria-hidden="true"></span>
+            <span class="powerup-timer"></span>
+          </button>`
+        )
+        .join('');
+      rail.dataset.built = '1';
+      rail.querySelectorAll('.powerup-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          this.callbacks.onPowerup?.(button.dataset.powerup);
+        });
+      });
+    }
+    for (const powerup of list) {
+      const button = rail.querySelector(`[data-powerup="${powerup.key}"]`);
+      if (!button) continue;
+      button.classList.toggle('ready', Boolean(powerup.ready));
+      button.classList.toggle('targeting', Boolean(powerup.targeting && powerup.ready));
+      button.style.setProperty('--charge', String(Math.max(0, Math.min(1, powerup.progress))));
+      button.style.setProperty('--accent', powerup.accent || '#f5c451');
+      const timer = button.querySelector('.powerup-timer');
+      if (timer) {
+        timer.textContent = powerup.ready
+          ? ''
+          : `${Math.ceil((powerup.remainingMs || 0) / 1000)}s`;
+      }
+    }
   }
 
   renderBuildCards() {
@@ -710,8 +758,10 @@ export class HUD {
     if (!panel) return;
     panel.classList.remove('hidden');
 
+    // The badge shows the real tier: since levels 4 and 5 exist, a hard-coded
+    // ★3 would have labelled a maxed tower as a fresh specialisation.
     const titleStr = tower.specialization
-      ? `★3 ${tower.stats?.title || ''}`.trim()
+      ? `★${tower.level} ${tower.stats?.title || ''}`.trim()
       : tower.isBarricade
         ? tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade')
         : `★ Level ${tower.level}`;
@@ -753,6 +803,7 @@ export class HUD {
         <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s</span></div>
         <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
+        <div class="stat-cell full-width"><span class="lbl">SIGNATURE</span><span class="val">${this.describeAbility(s)}</span></div>
       `;
     }
 
@@ -780,6 +831,22 @@ export class HUD {
     if (s.armorPenetration) return `Armour penetration ${Math.round(s.armorPenetration * 100)}%`;
     if (s.chainTargets > 1) return `Chain lightning · ${s.chainTargets} targets`;
     return '—';
+  }
+
+  /**
+   * Signature ability line for the inspector.
+   *
+   * Levels 4 and 5 add a named ability ("Frost Nova", "Twin Volley"); showing
+   * the name next to the numbers is what tells the player the upgrade they just
+   * bought is a new behaviour, not a +10 damage.
+   */
+  describeAbility(s) {
+    const ability = s?.ability;
+    if (!ability) return '—';
+    const bits = [];
+    if (ability.shots > 1) bits.push(`${ability.shots} shots per attack`);
+    if (ability.nova) bits.push(`${ability.nova}px frost nova on hit`);
+    return bits.length ? `${ability.label} · ${bits.join(', ')}` : ability.label;
   }
 
   renderUpgradeActions(tower) {

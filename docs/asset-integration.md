@@ -27,6 +27,37 @@ The original archives stay outside the repository. Only the files below are
 committed, all under `src/assets/spire/` (unmodified sources) and
 `public/assets/` (cropped/derived runtime art).
 
+### Effect packs (Kenney, CC0)
+
+The Spire packs ship nine small impact puffs and nothing else, so every hit in
+the game looked the same. Two more packs fill that gap — both CC0, fetched from
+the `shorepine/kenney` mirror at a pinned commit:
+
+| Pack | What we use | Runtime |
+| --- | --- | --- |
+| [Explosion Pack](https://kenney.nl/assets/explosion-pack) | Regular, Simple, Sonic, Pixel and Ground explosion (9 frames each) | `fx-impact-<element>.png`, `fx-ground-blast.png`, `fx-shockwave.png` |
+| [Particle Pack](https://kenney.nl/assets/particle-pack) | muzzle, fire, flame, spark, star, circle, light, magic, smoke, trace, twirl, dirt, scorch, symbol | 18 `fx-*` particle textures for the emitters |
+
+Raw frames live in `src/assets/kenney/fx/` (1.4 MB, provenance in
+`PROVENANCE.json`, licence in `LICENSE-CC0.txt`). `scripts/build_fx_assets.py`
+downsamples the 512 px particle singles, lays each explosion set into one strip
+on a uniform frame box, and re-grades every strip through an element ramp. The
+result is `public/assets/fx/` plus the generated `src/data/fxManifest.js`.
+
+| Element | Source set | Frame | Why this ramp |
+| --- | --- | --- | --- |
+| `physical` | Pixel explosion | 96 px | crisp, tiny — an arrow should not explode |
+| `explosive` | Regular explosion | 192 px | gold/orange star burst sized to a splash radius |
+| `fire` | Simple explosion | 160 px | ember ring, reads as molten stone |
+| `frost` | Regular explosion | 176 px | ice blue, keeps the star silhouette |
+| `lightning` | Simple explosion | 160 px | white-yellow, snappier frame rate |
+| `arcane` | Simple explosion | 176 px | violet, slower playback |
+| `true` | Regular explosion | 176 px | magenta — the "ignores armour" colour |
+
+`fx-shockwave` and `fx-implosion` are the same Sonic sheet forward and reversed;
+`fx-nova` (ice shards) and `fx-levelup` (gold ring + glyph) are generated
+procedurally in the build script.
+
 ![Asset preview](asset-integration/asset-preview.png)
 
 That sheet is generated, not hand-assembled: `python3 scripts/make_asset_preview.py`
@@ -63,6 +94,25 @@ keeps the stock blue pennant. Mechanics are untouched: ranges, damage,
 cooldowns, upgrades, targeting, hitboxes and the DSALGO pathfinding all use the
 same numbers as before the restyle. Only presentation changed.
 
+### Ascended tiers (levels 4–5)
+
+Levels 4 and 5 keep their branch's silhouette but ship their own textures:
+`base_<line>-spec-a2.png`, `-spec-a3.png` and the matching weapons. The script
+re-grades the level-3 art through the line's element ramp, adds a rim light and,
+at level 5, paints a power ring on the plinth.
+
+Rebuilding the keeps from the source packs was rejected on purpose: every pivot,
+mount height and muzzle offset in `towerVisuals.js` is calibrated to the
+level-3 sheet (`fw`/`fh`/`px`/`py`/`mount`), and a new canvas size would mean
+re-measuring 48 sprites by hand. A re-grade keeps the geometry exact while
+still reading as a different building on the battlefield. In motion the tier is
+sold by the effects — muzzle flash, elemental impact and the max-tier aura —
+not by pixels alone.
+
+`TOWER_VISUALS` derives the four ascended slots from `spec-a`/`spec-b`, so
+`SLOTS` is eight entries per line and `BootScene` loads them without a special
+case.
+
 ### Placement contract
 
 `TOWER_VISUALS[type][slot]` gives, per slot:
@@ -87,6 +137,11 @@ centre. Frost crystals never rotate (`NON_ROTATING_TYPES`) and simply bob.
 | `cannonball` | `proj-cannonball` (Tower 03) | `impact-cannon` |
 | `frost` | `proj-frost`, `-2`, `-3` per tier (Tower 02) | `impact-frost`, `-2`, `-3` |
 | `lightning` | `proj-lightning` (Tower 05) | `impact-lightning` |
+
+The Spire impact strips are the fallback. The shipped effects come from the
+Kenney library above (`src/systems/Vfx.js`), which picks a strip by *damage
+type* rather than by projectile art, so a repainted tower still lands with the
+right element.
 
 ## 3. Enemies
 

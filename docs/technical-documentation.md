@@ -229,6 +229,56 @@ Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 | **Banner Keep** | 🪙 125 | 155 px | 1.25 s | 16 | Aura: +15% damage, +6% range within 150 px; L2 (🪙85) → Great Warbanner (🪙115) / Muster Camp (🪙120, +gold per kill) |
 | **Palisade** | 🪙 30 | N/A | N/A | N/A | 420 HP wall on the road — enemies must break it; L2 (🪙35) → 900 HP + 20 thorns/s |
 
+### The five-tier ladder (`src/data/towerAscension.js`)
+
+Every line upgrades **1 → 2 → branch (3) → 4 → 5**. The shop tiers stay in
+`towerData.js`; the two tiers above the branch live in `towerAscension.js` and
+are merged over the specialisation they belong to, so a tier only declares what
+it changes.
+
+| Line / branch | L3 DPS | L4 DPS (cost) | L5 DPS (cost) | Capstone signature |
+| --- | ---: | ---: | ---: | --- |
+| archer · rapid | 109 | 254 (🪙170) | 450 (🪙300) | 3-shot **Arrow Storm** |
+| archer · sniper | 115 | 235 (🪙180) | 452 (🪙320) | 2-shot, 80% pen **Twin Lance** |
+| cannon · siege | 115 | 197 (🪙190) | 352 (🪙340) | 2-shell **Twin Bombard**, 128 px blast |
+| cannon · artillery | 130 | 179 (🪙200) | 311 (🪙360) | 560-hit **Titanfall**, −40 armour |
+| frost · blizzard | 31 | 47 (🪙175) | 73 (🪙330) | **Frost Nova**: every hit detonates 96 px |
+| frost · lightning | 66 | 105 (🪙185) | 169 (🪙340) | 6-target **Chain Storm** |
+| forge · ember | 111 | 164 (🪙190) | 338 (🪙350) | 2-slam **Eruption**, −34 armour |
+| forge · thunder | 82 | 121 (🪙195) | 185 (🪙355) | 118 px **Skyfall**, 60% pen |
+| runes · void | 61 | 100 (🪙185) | 231 (🪙345) | 2-lance **Twin Oblivion** |
+| runes · nova | 52 | 88 (🪙180) | 209 (🪙340) | 2-rune **Rune Split**, 96 px |
+| banner · warbanner | 26 | 36 (🪙165) | 51 (🪙320) | +55% dmg / +24% range aura |
+| banner · muster | 21 | 29 (🪙170) | 42 (🪙330) | +28% fire rate, +3 gold per kill |
+
+The ladder is deliberately **not** linear in DPS: a capstone is 2.0–4.1× its
+branch, and the multiplier is carried by a named behaviour (`ability.shots`,
+`ability.nova`) rather than by a bigger number. `Tower.fire` reads `shots`,
+`Projectile.impact` reads `nova`, and the HUD inspector prints the ability name
+under `SIGNATURE` — so a new tower gets the system for free.
+
+Tier 4/5 art is generated (`build_tower_ascension()`): the branch textures are
+re-graded through the line's element ramp, rim-lit, and at level 5 given a power
+ring on the plinth. Geometry is inherited, so pivots and muzzle offsets stay
+calibrated; `TOWER_VISUALS` expands `SLOTS` to eight per line.
+
+### Powerups (`src/systems/Powerups.js`)
+
+Three hand-played tricks with independent cooldowns, on `Q` / `E` / `R` (the
+rail sits above the dock, left edge — outside the dock so `--dock-clearance`
+never has to grow):
+
+| Powerup | Effect | Cooldown |
+| --- | --- | --- |
+| Meteor Strike | 520 explosive damage in a 120 px crater, 45% falloff at the rim | 26 s |
+| Overcharge | every tower fires 70% faster for 7 s (`cooldownScale 0.59`) | 34 s |
+| Fortify | repairs every palisade and restores 40 core integrity | 42 s |
+
+Clearing a wave refunds 8 s of every cooldown, and the state machine is pure
+(no Phaser, no DOM) so the rules are unit tested. `Tower.attackCooldown`
+multiplies in `powerups.cooldownScale`, which is how one button reaches every
+defence on the map.
+
 | Enemy | Base HP | Speed | Siege | Reward | Score | Role |
 |---|:---:|:---:|:---:|:---:|:---:|---|
 | **Goblin Grunt** | 75 | 62 px/s | 10 | 🪙 7 | 10 pts | Standard foot soldier |
@@ -504,6 +554,11 @@ The guard rails matter more than the payout:
 | Early call | `audio.playCallEarly()` square sweep 392 → 587 Hz, toast with the payout, camera-warm pulse on the button |
 | Boss spawn | letterbox bars close in and out, camera kick + warm flash |
 | Wave clear | payout toast that names the best chain when it paid |
+| Every shot | muzzle flash in the tower's element, sparks thrown along the barrel |
+| Every hit | 9-frame elemental burst + falling debris + smoke puff; splash adds a ground shockwave and a camera kick |
+| Frost capstone | 96 px ice nova with crystal shards |
+| Upgrade | gold ring + glyph burst over the keep; level 5 leaves a breathing aura ring |
+| Powerup | meteor: ground blast + 12 ms screen shake + orange flash; overcharge: cyan flash on every tower |
 
 All effects are fire-and-forget and wrapped in `try/catch` through
 `reportRuntimeError`, so a missing texture or tween can never freeze the

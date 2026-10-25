@@ -702,6 +702,96 @@ def drop_shadow(sheet, w, h, cx, cy, rx, ry, alpha):
     return out
 
 
+# --------------------------------------------------------------- tower ascent
+
+# The two ascended tiers are re-grades of the level-3 branch art: same silhouette,
+# hotter palette, a rim light and (at level 5) a glowing power ring painted on
+# the plinth. Rebuilding the keeps from scratch would mean re-measuring every
+# pivot and muzzle in `towerVisuals.js`; a re-grade keeps all of that intact and
+# still gives a maxed tower a look the player can read across the map.
+TOWER_ASCENT = {
+    "archer": (0xFFD166, ("#241804", "#8A6A18", "#FFD166", "#FFF6DA")),
+    "cannon": (0xFF8A2B, ("#241206", "#8A4212", "#FF8A2B", "#FFE0B8")),
+    "frost": (0x8FE8FF, ("#061A24", "#1E6480", "#8FE8FF", "#F0FDFF")),
+    "forge": (0xFF6A2B, ("#240A06", "#8A2A12", "#FF6A2B", "#FFD9B8")),
+    "runes": (0xB08CFF, ("#100822", "#4A2E8C", "#B08CFF", "#F0E6FF")),
+    "banner": (0xFFD166, ("#241A04", "#8A6A18", "#FFD166", "#FFF6DA")),
+}
+
+TOWER_ASCENT_TIERS = {
+    2: {"grade": 0.24, "saturation": 1.22, "lift": 1.07, "rim": 0.45, "thickness": 1, "ring": None},
+    3: {"grade": 0.40, "saturation": 1.44, "lift": 1.14, "rim": 0.62, "thickness": 2, "ring": 0.55},
+}
+
+
+def power_ring(pixels, w, h, colour, strength):
+    """Paint a glowing ellipse band near the bottom of a keep.
+
+    Drawn additively so it reads as light on the ground rather than paint on the
+    stone; the ellipse is squashed to the tile's perspective (a circle on the
+    floor would look like a wall of light).
+    """
+    out = bytearray(pixels)
+    cx, cy = w / 2, h - 6
+    rx, ry = w * 0.44, max(4.0, w * 0.15)
+    for y in range(h):
+        for x in range(w):
+            dx = (x - cx) / rx
+            dy = (y - cy) / ry
+            d = (dx * dx + dy * dy) ** 0.5
+            band = max(0.0, 1.0 - abs(d - 1.0) * 5.0)
+            if band <= 0:
+                continue
+            i = (y * w + x) * 4
+            a = out[i + 3] / 255
+            add = band * strength * (0.35 if a > 0.5 else 1.0)
+            for k in range(3):
+                value = out[i + k] + colour[k] * add
+                out[i + k] = min(255, round(value))
+            out[i + 3] = min(255, round(out[i + 3] + 255 * add * 0.55))
+    return out
+
+
+def build_tower_ascension():
+    print("tower ascension")
+    for line_key, (accent, stops) in TOWER_ASCENT.items():
+        ramp_stops = stops
+        for branch in ("spec-a", "spec-b"):
+            for tier, spec in TOWER_ASCENT_TIERS.items():
+                src_base = os.path.join(OUT, "towers", f"base_{line_key}-{branch}.png")
+                src_weapon = os.path.join(OUT, "towers", f"weapon_{line_key}-{branch}.png")
+                if not os.path.exists(src_base) or not os.path.exists(src_weapon):
+                    continue
+
+                bw, bh, base = read_png(src_base)
+                base = grade_toward(base, ramp_stops, spec["grade"])
+                base = saturated(base, spec["saturation"], spec["lift"])
+                base = rim_light(
+                    base, bw, bh, rgb_tuple(accent),
+                    strength=spec["rim"], thickness=spec["thickness"],
+                )
+                if spec["ring"]:
+                    base = power_ring(base, bw, bh, rgb_tuple(accent), spec["ring"])
+                save(
+                    os.path.join(OUT, "towers", f"base_{line_key}-{branch}{tier}.png"),
+                    base, bw, bh,
+                    f"<- {line_key} {branch} level {tier + 2}",
+                )
+
+                ww, wh, weapon = read_png(src_weapon)
+                weapon = grade_toward(weapon, ramp_stops, spec["grade"])
+                weapon = saturated(weapon, spec["saturation"], spec["lift"])
+                weapon = rim_light(
+                    weapon, ww, wh, rgb_tuple(accent),
+                    strength=spec["rim"], thickness=spec["thickness"],
+                )
+                save(
+                    os.path.join(OUT, "towers", f"weapon_{line_key}-{branch}{tier}.png"),
+                    weapon, ww, wh,
+                    f"<- {line_key} {branch} level {tier + 2} weapon",
+                )
+
+
 def build_barricade():
     """Road obstacle.
 
@@ -1608,6 +1698,7 @@ def main():
         print("done")
         return
     build_towers()
+    build_tower_ascension()
     build_barricade()
     build_tiles()
     build_bosses()
