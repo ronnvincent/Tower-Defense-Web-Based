@@ -70,7 +70,12 @@ describe('Forge defences (the three extra lines)', () => {
   it('gives the Hammerforge an explosive identity and the Runestone an armour-breaking one', () => {
     const forge = TOWER_TYPES.forge;
     expect(forge.levels.every((l) => l.splash > 0 && l.damageType === 'explosive')).toBe(true);
-    expect(forge.specializations.ember.armorBreak).toBeGreaterThan(0);
+    // The two branches split the physical answer in half: the Emberforge carries
+    // the blast (crowds), the Thunderforge carries the armour penetration
+    // (plate). Giving the Emberforge armour break as well made it strictly
+    // better than its sibling at every tier, which is why the break moved.
+    expect(forge.specializations.ember.splash).toBeGreaterThan(forge.specializations.thunder.splash);
+    expect(forge.specializations.ember.armorBreak).toBeUndefined();
     expect(forge.specializations.thunder.armorPenetration).toBeGreaterThan(0);
 
     const runes = TOWER_TYPES.runes;

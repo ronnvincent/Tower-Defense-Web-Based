@@ -146,19 +146,24 @@ above the wave counter and whose abilities telegraph before they fire.
 2. **Boulder Sling (🪙 110):** Lobbed stone artillery with real distance-falloff splash. Branches into Siege Sling or Stone Hammer.
 3. **Frost Bastion (🪙 85):** Crystal tower casting slowing frost (up to 60% slow). Branches into Blizzard Spire or Lightning Conductor.
 4. **Palisade (🪙 30):** A solid wall on the road. Enemies **do not walk around it** — they stop and hammer it down (420 HP, 900 HP reinforced with contact thorns), buying your towers the time they need. It can only be planted on the lane the horde actually marches, so the gold is never wasted on a road they skip.
-5. **Hammerforge (🪙 120):** Heavy hammer slams with explosive splash. Branches into the armour-melting **Emberforge** (−20 armour for 3.5 s) or the long-reach **Thunderforge** (35% armour penetration).
+5. **Hammerforge (🪙 120):** Heavy hammer slams with explosive splash. Branches into the blast-first **Emberforge** (92 px slam) or the **Thunderforge** (long reach, 35% armour penetration). The two branches split the job: one clears a pack, one opens plate.
 6. **Runestone (🪙 135):** Rune bolts that bypass 75% of armour. Branches into the **Void Lance** (true damage, ignores armour completely) or the **Arcane Nova** (magic splash).
-7. **Banner Keep (🪙 125):** Support keep that buffs every tower in its aura (+damage, +range) while still firing. Branches into the **Great Warbanner** (+32% damage, +14% range) or the **Muster Camp** (+15% fire rate and +1 gold per kill inside the aura).
+7. **Banner Keep (🪙 125):** Support keep that buffs every tower in its aura (+damage, +range) while still firing. Branches into the **Great Warbanner** (+32% damage, +14% range — the damage standard) or the **Muster Camp** (+15% fire rate and +1 gold per kill inside the aura — the economy standard).
 
 The dock is paged into two tabs — **KEEPS** (1–7) and **ENGINEER** (8, 9, 0, −, =) — so a phone
 never has to fit twelve cards in one row.
 
 #### Engineer line (gunpowder, fire, poison and rope)
-8. **Iron Crossbow (🪙 70):** Slow, armoured-piercing bolts. Branches into the **Repeater** (3.8 bolts/s) or the **Siege Arbalest** (65% armour pen, +25% vs bosses).
-9. **Clockwork Repeater (🪙 125):** Short-range six-barrel gun, the highest sustained DPS in the game. Branches into the **Storm Repeater** (11 rounds/s) or the **Shredder** (strips 8 armour per burst).
-0. **Pitchfire Siphon (🪙 95):** Close cone of burning pitch with a real burn DoT. Branches into the **Inferno Siphon** (hotter, faster ticks) or the **Napalm Mortar** (80 px burning pool).
-−. **Venom Still (🪙 105):** Poison that ignores armour completely. Branches into the **Plague Vat** (poison spreads to the pack) or the **Corrosive Still** (−20 armour while the poison works).
+8. **Iron Crossbow (🪙 70):** Slow, armoured-piercing bolts. Branches into the **Repeater** (4.3 bolts/s — the crowd answer) or the **Siege Arbalest** (65% armour pen, +25% vs bosses — the titan answer).
+9. **Clockwork Repeater (🪙 125):** Short-range six-barrel gun, the highest sustained DPS in the game. Branches into the **Storm Repeater** (11 rounds/s) or the **Shredder** (strips 30 armour per burst — what makes plate killable).
+0. **Pitchfire Siphon (🪙 95):** Close cone of burning pitch with a real burn DoT. Branches into the **Inferno Siphon** (concentrated, hotter ticks) or the **Napalm Mortar** (110 px burning pool).
+−. **Venom Still (🪙 105):** Poison that ignores armour completely. Branches into the **Plague Vat** (poison spreads to the pack) or the **Corrosive Still** (−30 armour while the poison works).
 =. **Harpoon Winch (🪙 115):** Barbed spear with a stun and bonus boss damage. Branches into the **Siege Harpoon** (+50% vs bosses) or the **Grapple Winch** (700 ms stun, then a slow).
+
+Every specialisation is a real choice: each branch wins one job outright and loses the other.
+The full model, the numbers behind it and the (previously dominated) branches that had to be
+rebalanced live in [`docs/balance.md`](docs/balance.md), and `tests/branch-niche.test.js` fails if a
+branch stops earning its gold.
 
 Every line reaches **level 5** and changes its *drawing* at every tier — the keeps grow a crown,
 pennants, braziers and floating shards, and each engineer tower grows turrets, boilers, fuel drums

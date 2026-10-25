@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 765 tests across 60 test suites.
-- **Pass Rate:** **100% (765 / 765 Passed)**
+- **Total Automated Unit Tests:** 778 tests across 62 test suites.
+- **Pass Rate:** **100% (778 / 778 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -450,4 +450,58 @@ the bug in the test runner:
 
 The suite also pins the arrow-key contract, so "the handler exists" and "the
 player can reach it" are now two separate assertions.
+
+## 8. Root-cause fix: the second branch was never a choice
+
+**Symptom:** seven of the eleven lines shipped two branches, and one of them was
+worse on every axis. The clearest example was the archer: the Rapid Ranger
+advertises *"blistering fire rate — shreds unarmored runners and swarms"*, and the
+Sniper beat it on crowds (115 vs 109 dps), on armour (115 vs 78) and on bosses
+(115 vs 64) while reaching 70 px further. Buying the crowd-clearer for a crowd
+was a trap. The same pattern held for the Thunderforge, the Repeater, the
+Shredder, the Napalm Mortar, the Corrosive Still and the Muster Camp.
+
+**Root cause:** the numbers were never compared against each other. Each branch
+was authored on its own, in isolation, against a vague idea of its role; no
+mechanism in the project ever put the two halves of a choice side by side. The
+one balance test that existed measured *maxed* power per gold across all lines
+with a hand-rolled weighting (aura x2.6, chain x2.0) — it could not see a
+within-line dominance, and it compared a support standard to a DPS turret, which
+is not a balance question.
+
+**Fix:** a declared niche per branch, and the data moved until the niche was
+true.
+
+1. `tests/helpers/balance.js` mirrors the runtime instead of inventing a second
+   model: `CombatCalculator` armour curves, per-type penetration, persistent
+   armour break (`Enemy.applyDamage`), splash falloff and body coverage
+   (`Projectile`), chain damage, DoT sustain (`Enemy.applyDot`) and boss bonus.
+   Four targets: crowds, single, armour 40, and the Obsidian titan.
+2. `tests/branch-niche.test.js` (6 tests) declares what each branch is for —
+   crowds / single / armour / bosses / control / support — and fails when a
+   branch does not beat its sibling on its own column by 8 % at levels 3, 4 *and*
+   5. Control and support branches are held to a different contract (they must
+   carry the slow or the aura the sibling cannot), so a deliberate utility
+   trade is allowed and a lazy one is not.
+3. Data rebalanced to match: the Rapid Ranger gained two and three bolts per
+   draw, the Emberforge lost its armour break (it already had the widest blast —
+   that combination was what made it unbeatable), the Repeater went to 4.3
+   bolts/s, the Shredder traded shell for 30–40 armour stripped per burst, the
+   Napalm Mortar's pool grew to 140 px, the Corrosive Still became a heavy acid
+   dose, and the Titan Breaker gained the damage its description claimed.
+4. The old power-per-gold test was rebuilt on the shared model and split into the
+   three families that actually compete: damage (4.2x band), control (2.5x),
+   support (1.5x).
+5. `tests/description-truth.test.js` (4 tests) parses every tier's prose and
+   compares any quoted radius, armour break or raw damage against the stat block
+   it sits on. It immediately caught a Kraken Harpoon advertising 880 damage
+   while dealing 800.
+
+**Live effect:** the choice now changes the answer. On a grunt pack the Rapid
+Ranger leads its sibling 392 to 330 dps at level 5; against the Obsidian
+Behemoth (armour 70) the Siege Arbalest does **2.2x** what the Rapid Ranger does
+(512 vs 231); against a Brute's armour 40 the Shredder edges the Storm Repeater
+260 to 236, and it does that while stripping 40 armour for everything else on the
+field. Full tables: `docs/balance.md`, regenerated with
+`node scripts/balance-report.mjs`.
 

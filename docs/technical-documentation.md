@@ -224,15 +224,20 @@ Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 | **Ballista (archer)** | 🪙 60 | 155 px | 0.62 s | 16 | Balanced single-target; L2 (🪙50) → Rapid Ranger (🪙90) / Sniper (🪙100) |
 | **Boulder Sling (cannon)** | 🪙 110 | 150 px | 1.65 s | 55 | 70 px splash with distance falloff; L2 (🪙85) → Siege Sling (🪙135) / Stone Hammer (🪙150) |
 | **Frost Bastion** | 🪙 85 | 140 px | 0.95 s | 10 | 40% slow for 1.6 s; L2 (🪙65) → Blizzard (🪙110) / Lightning (🪙120) |
-| **Hammerforge** | 🪙 120 | 140 px | 1.60 s | 60 | Explosive slam (66 px); L2 (🪙85) → Emberforge (🪙130, −20 armour) / Thunderforge (🪙140, 35% pen) |
+| **Hammerforge** | 🪙 120 | 140 px | 1.60 s | 60 | Explosive slam (66 px); L2 (🪙85) → Emberforge (🪙130, 92 px blast, crowds) / Thunderforge (🪙140, 72 px blast, 35% pen) |
 | **Runestone** | 🪙 135 | 170 px | 1.10 s | 30 | Magic bolts (75% armour bypass); L2 (🪙95) → Void Lance (🪙130, true damage) / Arcane Nova (🪙140, splash) |
-| **Banner Keep** | 🪙 125 | 155 px | 1.25 s | 16 | Aura: +15% damage, +6% range within 150 px; L2 (🪙85) → Great Warbanner (🪙115) / Muster Camp (🪙120, +gold per kill) |
+| **Banner Keep** | 🪙 125 | 155 px | 1.25 s | 16 | Aura: +15% damage, +6% range within 150 px; L2 (🪙85) → Great Warbanner (🪙115, damage) / Muster Camp (🪙120, fire rate + gold per kill) |
 | **Palisade** | 🪙 30 | N/A | N/A | N/A | 420 HP wall on the road — enemies must break it; L2 (🪙35) → 900 HP + 20 thorns/s |
-| **Iron Crossbow** | 🪙 70 | 175 px | 0.95 s | 34 | Piercing bolts (20% pen); L2 (🪙60) → Repeater (🪙105, 3.8/s) / Siege Arbalest (🪙115, 65% pen, +25% boss) |
-| **Clockwork Repeater** | 🪙 125 | 118 px | 0.15 s | 8 | Shortest range, highest sustained DPS; L2 (🪙95) → Storm (🪙130, 11/s) / Shredder (🪙135, −8 armour per burst) |
-| **Pitchfire Siphon** | 🪙 95 | 105 px | 0.90 s | 18 | 34 px cone + burn DoT; L2 (🪙75) → Inferno (🪙115) / Napalm Mortar (🪙120, 80 px pool) |
-| **Venom Still** | 🪙 105 | 165 px | 1.10 s | 16 | Poison DoT that ignores armour; L2 (🪙85) → Plague Vat (🪙120, spreads) / Corrosive Still (🪙125, −20 armour) |
+| **Iron Crossbow** | 🪙 70 | 175 px | 0.95 s | 34 | Piercing bolts (20% pen); L2 (🪙60) → Repeater (🪙105, 4.3/s, crowds) / Siege Arbalest (🪙115, 65% pen, +25% boss) |
+| **Clockwork Repeater** | 🪙 125 | 118 px | 0.15 s | 8 | Shortest range, highest sustained DPS; L2 (🪙95) → Storm (🪙130, 11/s, crowds) / Shredder (🪙135, −30 armour per burst, plate) |
+| **Pitchfire Siphon** | 🪙 95 | 105 px | 0.90 s | 18 | 34 px cone + burn DoT; L2 (🪙75) → Inferno (🪙115, single target) / Napalm Mortar (🪙120, 110 px pool, crowds) |
+| **Venom Still** | 🪙 105 | 165 px | 1.10 s | 16 | Poison DoT that ignores armour; L2 (🪙85) → Plague Vat (🪙120, spreads) / Corrosive Still (🪙125, −30 armour, plate) |
 | **Harpoon Winch** | 🪙 115 | 200 px | 2.20 s | 75 | 150 ms stun, 30% pen; L2 (🪙90) → Siege Harpoon (🪙145, +50% boss) / Grapple Winch (🪙140, 700 ms stun + slow) |
+
+Every branch declares **one job** — crowds, single target, armour, bosses, control
+or support — and the numbers are held to it by `tests/branch-niche.test.js`. The
+full effective-damage tables (and the method behind them) are generated into
+[`balance.md`](balance.md) by `node scripts/balance-report.mjs`.
 
 ### The five-tier ladder (`src/data/towerAscension.js`)
 

@@ -1,4 +1,5 @@
 import { BUILD_OPTIONS, BUILD_GROUPS, getBuildDefinition, groupForBuild } from '../data/towerData.js';
+import { dps } from '../data/towerAscension.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { clampPanel, placeInspector } from './panelPlacement.js';
@@ -942,9 +943,10 @@ export class HUD {
    */
   describeDps(s) {
     if (!s) return '—';
-    const seconds = Math.max(0.06, (s.cooldown || 0) / 1000);
-    const shots = Math.max(1, s.ability?.shots || 1);
-    const direct = Math.round(((s.damage || 0) * shots) / seconds);
+    // One formula for DPS in the whole project: `towerAscension.dps()` is what
+    // the balance model and the balance report use, so the number under the
+    // tower's name cannot drift away from the number the tests assert on.
+    const direct = Math.round(dps(s));
     if (!s.dot?.damage || !s.dot?.tickMs) return `${direct}`;
     const kind = s.dot.kind === 'poison' ? 'poison' : 'burn';
     const dotRate = Math.round(s.dot.damage / (Math.max(100, s.dot.tickMs) / 1000));

@@ -21,6 +21,7 @@ import { ENGINEER_ART } from '../src/data/engineerTowerArt.js';
 import { FX_SHEETS } from '../src/data/fxManifest.js';
 import { IMPACT_SHEETS } from '../src/data/spireManifest.js';
 import { ASCENSION, ascensionTier, dps, MAX_LEVEL } from '../src/data/towerAscension.js';
+import { NICHE, costAt, statsAt, TARGETS, throughput } from './helpers/balance.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { Enemy } from '../src/entities/Enemy.js';
 import { Projectile } from '../src/entities/Projectile.js';
@@ -361,47 +362,62 @@ describe('stun and boss damage', () => {
 });
 
 describe('balance guardrails', () => {
-  /** Everything a maxed tower does, in one comparable number. */
-  function capPower(line, specKey) {
-    const def = TOWER_TYPES[line];
-    const spec = def.specializations[specKey];
-    const cap = { ...spec, ...ascensionTier(line, specKey, 4), ...ascensionTier(line, specKey, 5) };
-    const dot = cap.dot ? (cap.dot.damage / cap.dot.tickMs) * 1000 : 0;
-    const effective = dps(cap) + dot;
-    let weight = 1;
-    if (cap.aura) weight = 2.6;
-    else if (cap.chainTargets) weight = 2.0;
-    else if (cap.dot && cap.splash) weight = 2.1;
-    else if (cap.dot) weight = 1.8;
-    else if (cap.splash) weight = 1.55;
-    else if (cap.slow && !cap.splash) weight = 1.7;
-    else if (cap.stunMs) weight = 1.5;
-    const boss = 1 + (cap.bossBonus || 0) * 0.15;
-    const cost =
-      def.cost +
-      def.levels[1].upgradeCost +
-      spec.upgradeCost +
-      ascensionTier(line, specKey, 4).upgradeCost +
-      ascensionTier(line, specKey, 5).upgradeCost;
-    return { power: effective * weight * boss, cost, effective };
+  /**
+   * Power per gold, measured the same way the niche contract measures it.
+   *
+   * The old version of this block carried its own private weighting — aura x2.6,
+   * chain x2.0, dot x1.8 — which made a support standard and a DPS turret
+   * comparable and then complained when they were not. A banner buffs the whole
+   * field and a gatling shoots things; dividing one by the other is not a
+   * balance question.
+   *
+   * So the band is now checked inside the two families that actually compete:
+   * damage branches against each other, utility branches against each other.
+   */
+  const families = () =>
+    Object.entries(TOWER_TYPES).flatMap(([line, def]) =>
+      Object.keys(def.specializations || {}).map((specKey) => {
+        const niche = NICHE[line][specKey];
+        const stats = statsAt(line, specKey, 5);
+        const cost = costAt(line, specKey, 5);
+        // "Power" is what the tower does to a single target plus what it does to
+        // a crowd, averaged — a tower with splash is not twice a tower.
+        const power = (throughput(stats, TARGETS.single) + throughput(stats, TARGETS.pack)) / 2;
+        const family = niche === 'control' ? 'control' : niche === 'support' ? 'support' : 'damage';
+        return { key: `${line}.${specKey}`, ratio: power / cost, cost, family };
+      })
+    );
+
+  /** Best-to-worst spread inside one family. */
+  function band(family) {
+    const rows = families()
+      .filter((row) => row.family === family)
+      .sort((a, b) => b.ratio - a.ratio);
+    expect(rows.length, `${family} family is empty`).toBeGreaterThanOrEqual(2);
+    return { best: rows[0], worst: rows[rows.length - 1], spread: rows[0].ratio / rows[rows.length - 1].ratio };
   }
 
-  it('every line stays inside the same power-per-gold band', () => {
-    const rows = [];
-    for (const line of Object.keys(TOWER_TYPES)) {
-      for (const specKey of Object.keys(TOWER_TYPES[line].specializations)) {
-        const { power, cost } = capPower(line, specKey);
-        rows.push({ key: `${line}.${specKey}`, ratio: power / cost, cost });
-      }
-    }
-    rows.sort((a, b) => b.ratio - a.ratio);
-    const best = rows[0];
-    const worst = rows[rows.length - 1];
-    // A support banner and a pure-DPS gatling are not the same thing, but the
-    // spread must stay inside roughly a 4x band or one line is simply "the
-    // right choice" every game.
-    expect(best.ratio / worst.ratio, `${best.key} dwarfs ${worst.key}`).toBeLessThan(4.2);
-    // And no maxed tower costs an absurd amount compared to the field.
+  it('keeps every damage branch inside the same power-per-gold band', () => {
+    const { best, worst, spread } = band('damage');
+    // Roughly a 4x band, so no line is simply "the right choice" in every game.
+    expect(spread, `${best.key} dwarfs ${worst.key}`).toBeLessThan(4.2);
+  });
+
+  it('keeps the control towers comparable to each other', () => {
+    // Both still shoot; the slow is a bonus, not a substitute for damage.
+    const { best, worst, spread } = band('control');
+    expect(spread, `${best.key} dwarfs ${worst.key}`).toBeLessThan(2.5);
+  });
+
+  it('keeps the two standards comparable to each other', () => {
+    // Neither shoots for a living, so they must be close — the reason to pick
+    // one is the aura, not a hidden DPS difference.
+    const { best, worst, spread } = band('support');
+    expect(spread, `${best.key} dwarfs ${worst.key}`).toBeLessThan(1.5);
+  });
+
+  it('never asks an absurd amount of gold for a maxed tower', () => {
+    const rows = Object.values(families());
     const costs = rows.map((r) => r.cost);
     expect(Math.max(...costs) / Math.min(...costs)).toBeLessThan(1.9);
   });
