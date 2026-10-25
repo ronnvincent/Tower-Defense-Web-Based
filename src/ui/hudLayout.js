@@ -82,8 +82,15 @@ export class HudLayout {
     const dockPx = dockClearance(dock?.getBoundingClientRect?.(), viewportHeight);
     if (dockPx != null) root.style.setProperty(DOCK_CLEARANCE_VAR, `${dockPx}px`);
 
+    // The run rail hangs below the top bar but is not part of its box, so it
+    // has to be measured too — otherwise a toast lands across a mode's chips.
     const topbar = this.doc.getElementById('hud-top-bar');
-    const topPx = topClearance(topbar?.getBoundingClientRect?.());
+    let topPx = topClearance(topbar?.getBoundingClientRect?.());
+    const rail = this.doc.getElementById('run-strip');
+    if (rail && rail.offsetParent !== null) {
+      const railPx = topClearance(rail.getBoundingClientRect?.());
+      if (railPx != null) topPx = Math.max(topPx ?? 0, railPx);
+    }
     if (topPx != null) root.style.setProperty(TOPBAR_CLEARANCE_VAR, `${topPx}px`);
   }
 

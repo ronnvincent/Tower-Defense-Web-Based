@@ -1022,7 +1022,7 @@ export class GameScene extends Phaser.Scene {
       this.setWaveLane(wave);
       // One toast, not two: `showToast` replaces the banner, so a second call
       // would bury the wave name under the lane hint.
-      const rule = this.activeAnomaly ? ` · ${this.activeAnomaly.icon} ${this.activeAnomaly.name}` : '';
+      const rule = this.activeAnomaly ? ` · ${this.activeAnomaly.name}` : '';
       this.hud?.showToast(
         `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}${rule}`,
         'info'
@@ -1080,9 +1080,9 @@ export class GameScene extends Phaser.Scene {
     return {
       mode: this.modeId || null,
       chips: summariseMods(this.runMods || this.cardMods).map((row) => row.label),
-      anomaly: this.activeAnomaly
-        ? `${this.activeAnomaly.icon} ${this.activeAnomaly.name}`
-        : null,
+      // Name only: the HUD prints its own label, and an emoji icon from the
+      // data table renders as a hollow box in Chromium.
+      anomaly: this.activeAnomaly ? this.activeAnomaly.name : null,
       clockMs: this.mode?.timeAttack ? this.timeLeftMs : null,
     };
   }

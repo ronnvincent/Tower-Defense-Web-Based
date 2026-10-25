@@ -585,9 +585,10 @@ body.is-fullscreen::before {
 
 .wave-preview {
   position: absolute;
-  /* Sits below the toast lane (toasts are pinned at --topbar-clearance), so a
-     "wave cleared" toast and the scout report never cover each other. */
-  top: calc(100% + 54px);
+  /* Below the toast lane, which is pinned at --topbar-clearance — and that
+     number already includes the run rail, so a mode's chips, its toast and the
+     scout report stack instead of covering each other. */
+  top: calc(var(--topbar-clearance) + 46px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -596,11 +597,15 @@ body.is-fullscreen::before {
   align-items: center;
   gap: 4px 8px;
   max-width: min(74vw, 460px);
-  padding: 4px 10px;
-  background: rgba(18, 12, 8, 0.82);
-  border: 1px solid rgba(245, 196, 81, 0.38);
-  border-radius: 999px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  padding: 4px 12px;
+  /* Same iron-and-brass language as the rest of the HUD: a squat plate with a
+     hairline, not a rounded pill. */
+  background: linear-gradient(180deg, rgba(30, 25, 17, 0.94), rgba(10, 9, 7, 0.96));
+  border: 1px solid rgba(245, 196, 81, 0.32);
+  border-radius: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 18px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   font-size: var(--fs-micro);
   line-height: 1.2;
@@ -3378,17 +3383,31 @@ body.is-fullscreen #app::after {
   align-items: center;
   gap: 12px;
   text-align: center;
-  padding: 26px 24px 22px;
-  border-radius: 18px;
+  padding: 22px 22px 20px;
+  /* The same iron-and-brass frame as the Forge and the Codex: the gates are the
+     first surface a phone shows, so they must not read as a web dialog. */
+  border-radius: 0;
   background:
     linear-gradient(180deg, rgba(34, 25, 17, 0.97), rgba(15, 12, 9, 0.99)),
     var(--bg-deep);
-  border: 2px solid var(--gold-line);
+  border: 16px solid transparent;
+  border-image-source: var(--ui-panel);
+  border-image-slice: 50;
+  border-image-width: 16px;
+  border-image-repeat: stretch;
   box-shadow:
     0 26px 70px rgba(0, 0, 0, 0.78),
-    inset 0 1px 0 rgba(255, 233, 201, 0.1),
-    0 0 60px rgba(245, 196, 81, 0.08);
+    inset 0 1px 0 rgba(255, 233, 201, 0.08);
   animation: gateCardRise 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.18);
+}
+
+/* An engraved hairline inside the frame, so the fill is not one flat slab. */
+.gate-card::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  pointer-events: none;
+  border: 1px solid rgba(245, 196, 81, 0.16);
 }
 
 @keyframes gateCardRise {
@@ -3476,10 +3495,27 @@ body.is-fullscreen #app::after {
 }
 
 .gate-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
   font-size: 46px;
   line-height: 1;
   color: var(--gold-primary);
   text-shadow: 0 0 24px var(--gold-glow);
+}
+
+/* Drawn, not typed: a font icon here fell back to a hollow box on any system
+   without the glyph, which is the first thing a phone shows. */
+.gate-icon-svg {
+  width: 38px;
+  height: 38px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 14px var(--gold-glow));
 }
 
 .gate-primary {
@@ -7332,7 +7368,14 @@ body.is-fullscreen #app::after {
   }
 }
 
-/* ============================================================ WAR ROOM ==== */
+/* ==========================================================================
+   WAR ROOM — the mode list
+   --------------------------------------------------------------------------
+   Same shell as the Forge and the Codex (overlay-shell + frame_panel), and
+   every entry is a slice of the game's own `card_iron` art inside a riveted
+   slot. A mode list should read as a wall of plaques bolted to the bastion,
+   not as a grid of divs with a 1 px border.
+   ========================================================================== */
 
 /* The menu's fourth door. Same plate language as the Duel button, gold instead
    of crimson, so the eye reads "third mode" rather than "danger". */
@@ -7358,9 +7401,11 @@ body.is-fullscreen #app::after {
   transition: transform 0.1s ease, filter 0.1s ease;
 }
 
-.menu-modes:hover {
+.menu-modes:hover,
+.menu-modes:focus-visible {
   transform: translateY(-1px);
   filter: brightness(1.12);
+  outline: none;
 }
 
 .menu-modes-icon {
@@ -7383,14 +7428,14 @@ body.is-fullscreen #app::after {
   font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 2.2px;
-  color: var(--ink-gold);
+  color: #3c2c0c;
 }
 
 .menu-modes-title {
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.6px;
-  color: var(--ink-strong);
+  color: #1d1508;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7402,95 +7447,191 @@ body.is-fullscreen #app::after {
   font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 1.6px;
-  color: var(--ink-gold);
-  border: 1px solid rgba(245, 196, 81, 0.42);
-  background: rgba(10, 6, 6, 0.55);
+  color: #f7e3ad;
+  border: 1px solid rgba(60, 44, 12, 0.5);
+  background: rgba(22, 16, 6, 0.72);
 }
 
-/* --- the War Room overlay ------------------------------------------------ */
+@media (max-width: 560px) {
+  .menu-modes-cta {
+    display: none;
+  }
+}
 
-.modes-card {
-  width: min(880px, 94vw);
-  max-height: min(86vh, 780px);
+.modes-shell {
+  width: min(1040px, 100%);
+  max-height: 100%;
+  min-height: 0;
+}
+
+.modes-head {
+  position: relative;
+  text-align: center;
+}
+
+/* The title is struck between two tapers, the way a banner hangs from a rail:
+   the same trick the pause and result cards use, so the War Room reads as part
+   of the same hall rather than a page of its own. */
+.modes-head .overlay-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.4vw, 18px);
+}
+
+.modes-head .overlay-title::before,
+.modes-head .overlay-title::after {
+  content: '';
+  flex: 1 1 auto;
+  min-width: 18px;
+  max-width: 190px;
+  height: 1px;
+}
+
+.modes-head .overlay-title::before {
+  background: linear-gradient(90deg, transparent, rgba(245, 196, 81, 0.42));
+}
+
+.modes-head .overlay-title::after {
+  background: linear-gradient(90deg, rgba(245, 196, 81, 0.42), transparent);
+}
+
+.modes-head .btn-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.modes-ledger {
+  gap: 8px;
+}
+
+.modes-ledger .wallet {
+  padding: 2px 10px;
+  font-size: clamp(10px, 1.3vh, 12px);
+}
+
+/* The list owns the scroll: the shell itself never scrolls, so the header and
+   the footer buttons stay put on a short landscape phone. */
+.modes-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.modes-card .modal-body {
+  gap: clamp(6px, 1.2vh, 12px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  /* Fade the last few pixels instead of guillotining a plaque at the fold —
+     on a 390 px-tall phone a hard clip reads as a broken layout. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 16px), transparent 100%);
+  padding-bottom: 2px;
 }
 
-.modes-intro {
-  margin: 0 0 12px;
-  font-size: var(--fs-small);
-  line-height: 1.5;
+.modes-lede {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(11px, 1.5vh, 13px);
+  letter-spacing: 0.4px;
   color: var(--ink-muted);
 }
 
 .modes-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.modes-back {
-  margin-bottom: 10px;
+  gap: clamp(8px, 1.2vh, 12px);
+  align-content: start;
 }
 
 .mode-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  min-height: 84px;
-  padding: 10px 12px;
-  text-align: left;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(8px, 1.1vw, 13px);
+  min-height: clamp(72px, 9.6vh, 92px);
+  padding: clamp(6px, 1vh, 10px) clamp(8px, 1vw, 12px);
+  border: none;
+  border-style: solid;
+  border-image-source: var(--ui-card);
+  border-image-slice: 35 30 35 30 fill;
+  border-image-width: 16px 15px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink-strong);
-  background: linear-gradient(180deg, rgba(28, 24, 34, 0.92), rgba(12, 10, 16, 0.94));
-  border: 1px solid rgba(245, 196, 81, 0.28);
-  border-radius: 4px;
+  text-align: left;
+  font-family: var(--font-body);
   cursor: var(--ui-cursor) 16 16, pointer;
-  transition: transform 0.1s ease, border-color 0.1s ease, filter 0.1s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* A plaque lit from above: the card art supplies the notched frame and its
+   rivets, this supplies the shading that stops the fill reading as flat navy. */
+.mode-card::before,
+.draft-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(140% 80% at 50% -10%, rgba(245, 196, 81, 0.06), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%, rgba(0, 0, 0, 0.32));
 }
 
 .mode-card:hover,
 .mode-card:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(245, 196, 81, 0.7);
-  filter: brightness(1.08);
+  transform: translateY(-2px);
+  filter: brightness(1.12);
   outline: none;
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.5),
+    0 0 26px rgba(245, 196, 81, 0.14);
 }
 
-.mode-icon {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+.mode-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--gold-primary), 0 0 22px rgba(245, 196, 81, 0.35);
+}
+
+.mode-card:active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+
+/* The crest is the HUD's own slot 9-slice, so a mode icon sits in the same
+   bezel as the gold counter and the wave counter in battle. */
+.mode-crest {
+  width: clamp(40px, 6.4vh, 50px);
+  height: clamp(40px, 6.4vh, 50px);
   display: grid;
   place-items: center;
-  font-size: 20px;
-  line-height: 1;
-  border: 1px solid rgba(245, 196, 81, 0.35);
-  background: rgba(245, 196, 81, 0.08);
-  color: var(--ink-gold);
+  flex: 0 0 auto;
+  border: none;
+  border-style: solid;
+  border-image-source: var(--ui-slot);
+  border-image-slice: 20 20 20 20 fill;
+  border-image-width: 10px;
+  border-image-repeat: stretch;
 }
 
-/* 64 px kit sprites: nearest-neighbour so the pixel edges stay square. */
 .mode-art {
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
+  width: clamp(22px, 3.2vh, 28px);
+  height: auto;
   image-rendering: pixelated;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
 }
 
-.mode-icon.is-numeral {
-  font-family: var(--font-display, inherit);
-  font-size: 15px;
+.mode-crest.is-numeral {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(13px, 1.9vh, 16px);
   font-weight: 700;
   letter-spacing: 0.5px;
-  color: var(--ink-dim);
+  color: var(--gold-primary);
+  text-shadow: 0 2px 8px rgba(245, 196, 81, 0.35);
 }
 
 .mode-body {
@@ -7498,140 +7639,241 @@ body.is-fullscreen #app::after {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .mode-tag {
-  font-size: var(--fs-micro);
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.6px;
+  letter-spacing: 1.7px;
   color: var(--ink-gold);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mode-name {
-  font-size: var(--fs-body);
+  font-family: 'Cinzel', serif;
+  font-size: clamp(13px, 1.9vh, 16px);
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  color: var(--ink-strong);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mode-blurb {
-  font-size: var(--fs-micro);
-  line-height: 1.45;
+  font-size: clamp(10px, 1.4vh, 12px);
+  line-height: 1.35;
   color: var(--ink-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.mode-go {
+/* A small steel plate that turns gold under the cursor: the deploy affordance
+   without eight gold buttons shouting at once. */
+/* A chamfered steel tab, not a rounded web button. It turns gold under the
+   cursor: the deploy affordance without eight gold plates shouting at once. */
+.mode-cta {
   flex: 0 0 auto;
-  align-self: center;
-  font-size: 16px;
+  margin-left: 2px;
+  padding: 5px clamp(8px, 1vw, 11px);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   color: var(--ink-gold);
+  background: linear-gradient(180deg, rgba(48, 40, 24, 0.96), rgba(12, 11, 7, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(245, 196, 81, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
-@media (max-width: 560px) {
+.mode-card:hover .mode-cta,
+.mode-card:focus-visible .mode-cta {
+  color: #1a1206;
+  background: linear-gradient(180deg, #f7d98a, #c79a35);
+  box-shadow: inset 0 0 0 1px rgba(255, 244, 214, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* The footer is a shelf, not empty space: a struck rule keeps the buttons from
+   floating and gives the scrolled list a clear edge to disappear behind. */
+.modes-actions {
+  flex: 0 0 auto;
+  padding-top: clamp(8px, 1.5vh, 14px);
+  background-image: linear-gradient(90deg, transparent, rgba(245, 196, 81, 0.32), transparent);
+  background-size: 72% 1px;
+  background-position: top center;
+  background-repeat: no-repeat;
+}
+
+/* --- responsive ---------------------------------------------------------- */
+
+/* Portrait phones and narrow windows: one plaque per row. */
+@media (max-width: 760px) {
   .modes-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
 
-  .mode-card {
-    min-height: 76px;
+@media (max-width: 520px) {
+  .mode-cta {
+    display: none;
+  }
+  .mode-tag {
+    letter-spacing: 1.2px;
   }
 }
 
-/* --- draft / ascension cards --------------------------------------------- */
+/* Short landscape (a phone on its side, 390-430 px tall): the header shrinks
+   so the list still shows three rows before scrolling. */
+@media (max-height: 520px) {
+  .modes-shell {
+    gap: 6px;
+    padding: 4px 6px;
+    border-width: 16px;
+  }
+  .modes-head .overlay-title {
+    font-size: clamp(15px, 4.4vh, 21px);
+    letter-spacing: 2px;
+  }
+  .modes-ledger {
+    display: none;
+  }
+  .modes-lede {
+    display: none;
+  }
+  .mode-card {
+    min-height: 64px;
+  }
+  .mode-blurb {
+    -webkit-line-clamp: 2;
+    font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-card,
+  .mode-cta {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   DRAFT / ASCENSION — the run-choice cards
+   --------------------------------------------------------------------------
+   A pick is a card: `card_crimson` for a rare offer, `card_iron` for the rest,
+   the glyph standing in a riveted slot. Keeping the art means the draft reads
+   as loot, not as a settings list.
+   ========================================================================== */
 
 .draft-shell {
-  width: min(760px, 94vw);
-  max-height: min(90vh, 820px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  width: min(720px, 100%);
+  max-height: 100%;
+  min-height: 0;
+}
+
+.draft-head {
+  text-align: center;
 }
 
 .draft-title {
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .draft-subtitle {
-  margin: 0 0 14px;
-  font-size: var(--fs-small);
-  line-height: 1.45;
+  margin: 0;
+  font-size: clamp(11px, 1.5vh, 13px);
+  line-height: 1.4;
   color: var(--ink-muted);
 }
 
 .draft-cards {
-  display: grid;
-  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.2vh, 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .draft-card {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: clamp(8px, 1.2vw, 12px);
   width: 100%;
-  min-height: 84px;
-  padding: 12px 14px;
-  text-align: left;
+  min-height: clamp(72px, 10vh, 92px);
+  padding: clamp(7px, 1.1vh, 11px) clamp(9px, 1.2vw, 14px);
+  border: none;
+  border-style: solid;
+  border-image-source: var(--ui-card);
+  border-image-slice: 35 30 35 30 fill;
+  border-image-width: 16px 16px;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background: transparent;
   color: var(--ink-strong);
-  background: linear-gradient(180deg, rgba(26, 24, 34, 0.95), rgba(10, 9, 14, 0.96));
-  border: 1px solid var(--rarity-edge, rgba(159, 179, 200, 0.45));
-  border-left-width: 4px;
-  border-radius: 4px;
+  text-align: left;
+  font-family: var(--font-body);
   cursor: var(--ui-cursor) 16 16, pointer;
-  transition: transform 0.1s ease, filter 0.1s ease, border-color 0.1s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.draft-card.rarity-rare {
+  border-image-source: var(--ui-card-crimson);
 }
 
 .draft-card:hover,
 .draft-card:focus-visible {
-  transform: translateY(-1px);
-  filter: brightness(1.1);
+  transform: translateY(-2px);
+  filter: brightness(1.12);
   outline: none;
-  border-color: var(--rarity-edge, rgba(159, 179, 200, 0.8));
 }
 
-.draft-card.rarity-common {
-  --rarity-edge: rgba(159, 179, 200, 0.5);
-}
-
-.draft-card.rarity-uncommon {
-  --rarity-edge: rgba(127, 215, 255, 0.62);
-}
-
-.draft-card.rarity-rare {
-  --rarity-edge: rgba(255, 209, 102, 0.85);
-  box-shadow: inset 0 0 24px rgba(255, 209, 102, 0.08);
+.draft-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--gold-primary), 0 0 22px rgba(245, 196, 81, 0.35);
 }
 
 .draft-key {
-  flex: 0 0 auto;
   width: 22px;
   height: 22px;
   display: grid;
   place-items: center;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  color: var(--ink-dim);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.3);
+  background: rgba(6, 6, 9, 0.6);
 }
 
 .draft-icon {
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
+  width: clamp(38px, 6vh, 46px);
+  height: clamp(38px, 6vh, 46px);
   display: grid;
   place-items: center;
-  font-size: 21px;
-  line-height: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: none;
+  border-style: solid;
+  border-image-source: var(--ui-slot);
+  border-image-slice: 20 20 20 20 fill;
+  border-image-width: 10px;
+  border-image-repeat: stretch;
 }
 
 .draft-art {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
+  width: clamp(20px, 3vh, 26px);
+  height: auto;
   image-rendering: pixelated;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
 }
 
 .draft-body {
@@ -7639,25 +7881,35 @@ body.is-fullscreen #app::after {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .draft-rarity {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.8px;
-  color: var(--rarity-edge, var(--ink-gold));
+  color: var(--ink-muted);
+}
+
+.draft-card.rarity-uncommon .draft-rarity {
+  color: #7fd7ff;
+}
+
+.draft-card.rarity-rare .draft-rarity {
+  color: var(--gold-primary);
 }
 
 .draft-name {
-  font-size: var(--fs-body);
+  font-family: 'Cinzel', serif;
+  font-size: clamp(13px, 1.9vh, 16px);
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  color: var(--ink-strong);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.75);
 }
 
 .draft-blurb {
-  font-size: var(--fs-micro);
-  line-height: 1.45;
+  font-size: clamp(10px, 1.4vh, 12px);
+  line-height: 1.35;
   color: var(--ink-muted);
 }
 
@@ -7665,33 +7917,131 @@ body.is-fullscreen #app::after {
   flex: 0 0 auto;
   padding: 4px 9px;
   font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.6px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   color: var(--ink-gold);
-  border: 1px solid rgba(245, 196, 81, 0.45);
-  background: rgba(10, 6, 6, 0.6);
+  border: 1px solid rgba(245, 196, 81, 0.32);
+  background: linear-gradient(180deg, rgba(28, 24, 16, 0.9), rgba(10, 9, 6, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.draft-skip {
-  margin-top: 12px;
-  width: 100%;
+.draft-card:hover .draft-pick,
+.draft-card:focus-visible .draft-pick {
+  color: #1a1206;
+  border-color: #f7d98a;
+  background: linear-gradient(180deg, #f7d98a, #c79a35);
+}
+
+.draft-shell.is-choice .draft-card {
+  min-height: clamp(78px, 11vh, 98px);
 }
 
 @media (max-width: 560px) {
   .draft-card {
-    min-height: 76px;
-    padding: 10px 11px;
-    gap: 9px;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    min-height: 70px;
+  }
+  .draft-pick {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) {
+  .draft-shell {
+    gap: 6px;
+    padding: 4px 6px;
+    border-width: 16px;
+  }
+  .draft-subtitle {
+    display: none;
+  }
+  .draft-card {
+    min-height: 64px;
+  }
+}
+
+/* --- wide screens: the offer is laid out as three cards, not three rows ---- */
+@media (min-width: 900px) and (min-height: 620px) {
+  .draft-shell {
+    width: min(820px, 100%);
+  }
+
+  .draft-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: clamp(10px, 1.4vw, 16px);
+    overflow: visible;
+  }
+
+  .draft-shell.is-choice .draft-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .draft-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    justify-items: center;
+    align-content: start;
+    text-align: center;
+    min-height: clamp(216px, 30vh, 272px);
+    padding: clamp(18px, 2.6vh, 26px) clamp(10px, 1.3vw, 16px) clamp(10px, 1.4vh, 14px);
+    gap: clamp(6px, 1.2vh, 11px);
+  }
+
+  .draft-shell.is-choice .draft-card {
+    min-height: clamp(190px, 26vh, 236px);
+  }
+
+  .draft-key {
+    position: absolute;
+    top: 9px;
+    left: 11px;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
   }
 
   .draft-icon {
-    width: 32px;
-    height: 32px;
-    font-size: 18px;
+    width: clamp(56px, 8.2vh, 74px);
+    height: clamp(56px, 8.2vh, 74px);
   }
 
+  .draft-art {
+    width: clamp(32px, 4.8vh, 42px);
+  }
+
+  /* The copy owns the free space between the crest and the foot plate, so a
+     two-word card and a long one both sit balanced inside the frame. */
+  .draft-body {
+    align-items: center;
+    justify-content: center;
+    gap: clamp(3px, 0.7vh, 6px);
+  }
+
+  .draft-name {
+    font-size: clamp(15px, 2.2vh, 19px);
+    line-height: 1.2;
+  }
+
+  .draft-blurb {
+    max-width: 27ch;
+    font-size: clamp(11px, 1.5vh, 13px);
+  }
+
+  /* The plate spans the card foot, so the whole card is the target and the
+     label reads as the card's bottom edge rather than a floating button. */
   .draft-pick {
-    display: none;
+    width: 100%;
+    margin-top: auto;
+    padding: 7px 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .draft-card.rarity-rare {
+    box-shadow: 0 0 26px rgba(214, 74, 56, 0.22);
   }
 }
 
@@ -7701,68 +8051,181 @@ html.draft-open body {
   overflow: hidden;
 }
 
-/* --- run chrome in the HUD ----------------------------------------------- */
+/* ==========================================================================
+   RUN CHROME — the mode rail under the top bar
+   --------------------------------------------------------------------------
+   A campaign level has nothing extra to say, so the rail is absent. A mode run
+   hangs one brass rail beneath the bar: the mode stamped on the left, its rule
+   chips in the middle, the clock at the far right. The rail is inert — it is a
+   readout, so no tap ever lands on it and the map keeps whole.
+   ========================================================================== */
+
+.run-strip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(94vw, 780px);
+  padding: clamp(2px, 0.4vh, 4px) clamp(8px, 1.2vw, 14px);
+  border: 7px solid transparent;
+  border-image-source: var(--ui-bar);
+  border-image-slice: 40 60 40 60 fill;
+  border-image-width: 9px 14px;
+  border-image-repeat: stretch;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.62));
+}
+
+/* The mode's name, struck into the rail like a maker's mark. */
+.run-strip-cap {
+  flex: 0 0 auto;
+  font-family: 'Cinzel', serif;
+  font-size: clamp(9px, 1.35vh, 11px);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--gold-primary);
+  white-space: nowrap;
+  text-shadow: 0 1px 6px rgba(245, 196, 81, 0.3);
+  padding-right: 8px;
+  margin-right: 2px;
+  border-right: 1px solid rgba(245, 196, 81, 0.24);
+}
 
 .run-status {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  max-width: min(46vw, 420px);
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.run-chip {
-  padding: 1px 5px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: var(--ink-gold);
-  border: 1px solid rgba(245, 196, 81, 0.32);
-  background: rgba(10, 8, 6, 0.5);
+/* Rule chips: small brass tags, not second-class buttons. They never move a
+   pixel once drawn — a chip appearing must not shove the clock sideways. */
+.run-chip,
+.run-anomaly {
+  display: inline-flex;
+  align-items: center;
+  height: clamp(17px, 2.4vh, 21px);
+  padding: 0 clamp(6px, 0.8vw, 9px);
+  font-size: clamp(8px, 1.15vh, 10px);
+  font-weight: 800;
+  letter-spacing: 0.9px;
   white-space: nowrap;
+  border-radius: 0;
+  border: 1px solid rgba(245, 196, 81, 0.28);
+  background:
+    linear-gradient(180deg, rgba(58, 47, 28, 0.94), rgba(16, 14, 10, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  color: var(--ink-gold);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .run-anomaly {
-  padding: 1px 6px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: #ffd9a8;
-  border: 1px solid rgba(255, 157, 107, 0.55);
-  background: rgba(60, 24, 10, 0.62);
-  white-space: nowrap;
+  color: #ffcaae;
+  border-color: rgba(196, 68, 52, 0.55);
+  background:
+    linear-gradient(180deg, rgba(96, 30, 24, 0.95), rgba(28, 10, 9, 0.96));
 }
 
 .run-clock {
-  font-family: var(--font-display, inherit);
-  font-size: var(--fs-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  height: clamp(19px, 2.7vh, 24px);
+  margin-left: 2px;
+  padding: 0 clamp(8px, 1vw, 12px);
+  font-family: 'Cinzel', serif;
+  font-size: clamp(11px, 1.7vh, 14px);
   font-weight: 700;
-  letter-spacing: 1.4px;
-  color: var(--ink-gold);
-  padding: 1px 8px;
-  border: 1px solid rgba(245, 196, 81, 0.4);
-  background: rgba(10, 8, 6, 0.55);
+  letter-spacing: 1.8px;
+  color: #1b1305;
+  background:
+    linear-gradient(180deg, #f7d98a, #c89a37 62%, #9d7423);
+  border: 1px solid #f3d591;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 14px rgba(245, 196, 81, 0.22);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .run-clock.is-low {
-  color: #ff8f7a;
-  border-color: rgba(255, 96, 72, 0.65);
+  color: #fff0e8;
+  background:
+    linear-gradient(180deg, #e8553d, #a01f14 62%, #6d120b);
+  border-color: #ff9d84;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 18px rgba(232, 85, 61, 0.55);
   animation: run-clock-pulse 0.9s ease-in-out infinite;
 }
 
 @keyframes run-clock-pulse {
   50% {
-    filter: brightness(1.45);
+    filter: brightness(1.35);
   }
 }
 
-@media (max-width: 720px) {
-  .run-status {
-    max-width: 40vw;
+@media (prefers-reduced-motion: reduce) {
+  .run-clock.is-low {
+    animation: none;
   }
+}
 
+/* A narrow window: drop the two oldest chips so the rail never wraps. */
+@media (max-width: 1180px) {
   .run-chip:nth-child(n + 4) {
     display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .run-chip:nth-child(n + 3) {
+    display: none;
+  }
+  .run-strip {
+    max-width: 94vw;
+  }
+}
+
+@media (max-width: 620px) {
+  .run-strip-cap {
+    display: none;
+  }
+  .run-chip:nth-child(n + 2) {
+    display: none;
+  }
+}
+
+/* Short landscape: the rail tightens so it never reaches the playfield centre. */
+@media (max-height: 480px) {
+  .run-strip {
+    top: calc(100% + 3px);
+    gap: 4px;
+    padding: 1px 8px;
+    border-width: 7px;
+    border-image-width: 7px 12px;
+  }
+  .run-strip-cap {
+    font-size: 8px;
+    letter-spacing: 1.2px;
+    padding-right: 6px;
+  }
+  .run-chip,
+  .run-anomaly {
+    height: 15px;
+    font-size: 8px;
+    padding: 0 6px;
+  }
+  .run-clock {
+    min-width: 50px;
+    height: 17px;
+    font-size: 10px;
+    letter-spacing: 1.2px;
   }
 }

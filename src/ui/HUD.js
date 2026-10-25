@@ -24,6 +24,24 @@ const DOCK_STATE_KEY = 'td-dsalgo:dock-collapsed:v1';
 /** Remember which defence tab the player last used. */
 const DOCK_GROUP_KEY = 'td-dsalgo:dock-group:v1';
 
+/**
+ * Mode ids (`GameScene#runModeLabel`) → the brass cap printed on the run rail.
+ *
+ * Kept here rather than in each mode's data because the HUD only ever gets the
+ * id: a rail that reads "TIME-ATTACK" is a debug string, "TIME ATTACK" is UI.
+ */
+const RUN_MODE_LABELS = Object.freeze({
+  rogue: 'ROGUE SIEGE',
+  anomaly: 'ANOMALY WAVES',
+  titan: 'TITAN RUSH',
+  contracts: 'CONTRACT BOARD',
+  blueprint: 'BLUEPRINT',
+  puzzle: 'BLUEPRINT',
+  'time-attack': 'TIME ATTACK',
+  ascension: 'ASCENSION',
+  coop: 'CO-OP SIEGE',
+});
+
 const TARGETING_MODES = [
   { mode: 'first', label: 'FIRST', title: 'Target the enemy furthest along the path' },
   { mode: 'strongest', label: 'STRONG', title: 'Target the enemy with the highest current health' },
@@ -172,8 +190,6 @@ export class HUD {
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
             <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
             <span class="hud-wave-best hidden" id="val-endless-best">BEST 0</span>
-            <span class="run-status hidden" id="run-status" aria-live="polite"></span>
-            <span class="run-clock hidden" id="run-clock" role="timer">3:00</span>
           </div>
           <div class="hud-wave-stack">
             <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
@@ -181,7 +197,6 @@ export class HUD {
               <span class="btn-text">START WAVE</span>
               <span class="btn-sub" id="start-wave-sub"></span>
             </button>
-            <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
           </div>
           <div id="combo-chip" class="hud-combo hidden" aria-live="polite">
             <span class="hud-combo-mult" id="combo-mult">×1.25</span>
@@ -210,7 +225,15 @@ export class HUD {
             </svg>
           </button>
         </div>
+
+        <div id="run-strip" class="run-strip hidden">
+          <span class="run-strip-cap hidden" id="run-strip-cap"></span>
+          <span class="run-status hidden" id="run-status" aria-live="polite"></span>
+          <span class="run-clock hidden" id="run-clock" role="timer">3:00</span>
+        </div>
       </div>
+
+      <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
 
       <div id="hud-level-chip" class="hud-panel hud-level-chip" aria-live="polite">
         <span class="hud-level-name" id="hud-level-name">VERDANT MARCHES</span>
@@ -746,10 +769,20 @@ export class HUD {
     if (!el) return;
     const chips = Array.isArray(status.chips) ? status.chips : [];
     const parts = [];
-    if (status.anomaly) parts.push(`<b class="run-anomaly">${escapeStatus(status.anomaly)}</b>`);
-    for (const chip of chips.slice(0, 5)) parts.push(`<span class="run-chip">${escapeStatus(chip)}</span>`);
+    // No emoji here: the anomaly used to be prefixed with its data-table icon,
+    // which Chromium renders as a hollow box in the brass rail.
+    if (status.anomaly) parts.push(`<b class="run-anomaly">ANOMALY · ${escapeStatus(status.anomaly)}</b>`);
+    for (const chip of chips.slice(0, 4)) parts.push(`<span class="run-chip">${escapeStatus(chip)}</span>`);
     el.innerHTML = parts.join('');
     el.classList.toggle('hidden', parts.length === 0);
+
+    const cap = document.getElementById('run-strip-cap');
+    if (cap) {
+      const label = RUN_MODE_LABELS[status.mode] || '';
+      cap.textContent = label;
+      cap.classList.toggle('hidden', !label);
+    }
+
     this.setRunClock(status.clockMs ?? null);
     this.runSignature = `${status.anomaly || ''}|${chips.join(',')}`;
   }
@@ -761,6 +794,7 @@ export class HUD {
     if (ms == null) {
       el.classList.add('hidden');
       this.clockLabel = null;
+      this.syncRunStrip();
       return;
     }
     const total = Math.max(0, Math.ceil(Number(ms) / 1000));
@@ -771,6 +805,30 @@ export class HUD {
       el.textContent = label;
     }
     el.classList.toggle('is-low', total <= 30);
+    this.syncRunStrip();
+  }
+
+  /**
+   * Show the run rail only while it has something to say.
+   *
+   * The rail hangs under the top bar and is inert (`pointer-events: none`), so
+   * an empty one would still leave a stray brass plate over the map.
+   */
+  syncRunStrip() {
+    const strip = document.getElementById('run-strip');
+    if (!strip) return;
+    const status = document.getElementById('run-status');
+    const clock = document.getElementById('run-clock');
+    const cap = document.getElementById('run-strip-cap');
+    const hasChips = Boolean(status && !status.classList.contains('hidden'));
+    const hasClock = Boolean(clock && !clock.classList.contains('hidden'));
+    const hasCap = Boolean(cap && !cap.classList.contains('hidden'));
+    const visible = hasChips || hasClock || hasCap;
+    strip.classList.toggle('hidden', !visible);
+    // The rail is an overhang: the scout report has to duck under it, and the
+    // toast lane needs re-measuring so nothing lands across the chips.
+    document.documentElement.classList.toggle('has-run-rail', visible);
+    this.layout?.schedule?.();
   }
 
   setMatchLabel(text) {

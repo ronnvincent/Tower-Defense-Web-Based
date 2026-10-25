@@ -56,7 +56,7 @@ export const DRAFT_CARDS = Object.freeze([
   },
   {
     id: 'ledger',
-    art: '/assets/ui/icon_coin.png',
+    art: '/assets/ui-kit/glyph_medal.png',
     name: 'BOUNTY LEDGER',
     icon: '🪙',
     rarity: 'common',
@@ -74,7 +74,7 @@ export const DRAFT_CARDS = Object.freeze([
   },
   {
     id: 'warchest',
-    art: '/assets/ui/icon_coin.png',
+    art: '/assets/ui-kit/glyph_crown.png',
     name: 'WAR CHEST',
     icon: '💰',
     rarity: 'common',
@@ -101,7 +101,7 @@ export const DRAFT_CARDS = Object.freeze([
   },
   {
     id: 'quartermaster',
-    art: '/assets/ui/icon_coin.png',
+    art: '/assets/ui-kit/glyph_book.png',
     name: 'QUARTERMASTER',
     icon: '📦',
     rarity: 'uncommon',
@@ -128,7 +128,7 @@ export const DRAFT_CARDS = Object.freeze([
   },
   {
     id: 'goldrush',
-    art: '/assets/ui/icon_coin.png',
+    art: '/assets/ui-kit/glyph_meteor.png',
     name: 'GOLD RUSH',
     icon: '🤑',
     rarity: 'rare',

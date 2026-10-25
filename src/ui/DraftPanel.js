@@ -5,12 +5,16 @@
  *   showCards({...})   three cards, pick one  → resolves with the card
  *   showChoice({...})  two or three options   → resolves with the option
  *
+ * The shell is the same `overlay-screen` / `overlay-shell` frame as the Forge,
+ * and each choice is a slice of the game's own card art: `card_crimson` for a
+ * rare pick, `card_iron` for everything else, with the icon standing in a
+ * riveted slot.
+ *
  * Rules that make it safe on a phone:
- *   • it is a real modal (aria-modal, focus trapped by `inert` on the body)
- *   • every target is at least 64 px tall, and the cards stack vertically under
- *     520 px so a thumb never has to hit a 120 px-wide column
- *   • 1 / 2 / 3 pick by number, Escape skips (a draft is never mandatory —
- *     skipping keeps the run alive if the player wants to keep playing)
+ *   • it is a real modal (aria-modal) and the page behind it cannot scroll
+ *   • every target is at least 72 px tall, and the cards stack vertically so a
+ *     thumb never has to hit a narrow column
+ *   • 1 / 2 / 3 pick by number, Escape skips (a draft is never mandatory)
  *   • the promise **always settles**, so a scene waiting on it can never hang
  */
 
@@ -21,6 +25,7 @@ export class DraftPanel {
     this.container = container;
     this.el = null;
     this.resolve = null;
+    this.model = [];
     this.onKey = this.handleKey.bind(this);
     this.build();
   }
@@ -34,17 +39,23 @@ export class DraftPanel {
     el.setAttribute('aria-labelledby', 'draft-title');
     el.innerHTML = `
       <div class="overlay-shell draft-shell">
-        <p class="overlay-eyebrow" id="draft-eyebrow">RUN</p>
-        <h2 id="draft-title" class="overlay-title draft-title">Wave Cleared</h2>
-        <p class="draft-subtitle" id="draft-subtitle"></p>
+        <header class="overlay-header draft-head">
+          <p class="overlay-eyebrow" id="draft-eyebrow">ROGUE SIEGE</p>
+          <h2 id="draft-title" class="overlay-title draft-title">Wave Cleared</h2>
+          <p class="draft-subtitle" id="draft-subtitle"></p>
+        </header>
         <div class="draft-cards" id="draft-cards" role="list"></div>
-        <button id="draft-skip" class="game-btn ghost-btn draft-skip" type="button">Skip</button>
+        <footer class="overlay-actions">
+          <button id="draft-skip" class="game-btn" type="button">SKIP</button>
+        </footer>
       </div>`;
     this.container.appendChild(el);
     this.el = el;
     el.addEventListener('click', (event) => {
+      if (event.target === el) return this.finish(null);
       const card = event.target.closest('[data-draft-id]');
-      if (card) this.pick(card.dataset.draftId);
+      if (card) return this.pick(card.dataset.draftId);
+      return null;
     });
     el.querySelector('#draft-skip')?.addEventListener('click', () => this.finish(null));
   }
@@ -59,10 +70,11 @@ export class DraftPanel {
    */
   showCards({ cards = [], wave = 0, title = '', subtitle = '' } = {}) {
     this.close();
-    this.el.querySelector('#draft-eyebrow').textContent = 'ROGUE SIEGE';
-    this.el.querySelector('#draft-title').textContent = title || (wave ? `Wave ${wave} Cleared` : 'Wave Cleared');
-    this.el.querySelector('#draft-subtitle').textContent =
-      subtitle || 'Pick one card — it lasts the rest of this run.';
+    this.setHeader({
+      eyebrow: 'ROGUE SIEGE',
+      title: title || (wave ? `WAVE ${wave} CLEARED` : 'WAVE CLEARED'),
+      subtitle: subtitle || 'Pick one card — it lasts the rest of this run.',
+    });
     this.render(cards.map((card) => this.cardMarkup(card)));
     this.model = cards;
     return this.open();
@@ -74,12 +86,26 @@ export class DraftPanel {
    */
   showChoice({ options = [], title = '', subtitle = '' } = {}) {
     this.close();
-    this.el.querySelector('#draft-eyebrow').textContent = 'ASCENSION';
-    this.el.querySelector('#draft-title').textContent = title || 'Choose';
-    this.el.querySelector('#draft-subtitle').textContent = subtitle || '';
+    this.setHeader({
+      eyebrow: 'ASCENSION',
+      title: title || 'CLIMB OR CASH OUT',
+      subtitle: subtitle || '',
+    });
     this.render(options.map((option) => this.optionMarkup(option)));
     this.model = options;
     return this.open();
+  }
+
+  setHeader({ eyebrow, title, subtitle }) {
+    const choice = eyebrow === 'ASCENSION';
+    this.el.querySelector('#draft-eyebrow').textContent = eyebrow;
+    this.el.querySelector('#draft-title').textContent = title;
+    this.el.querySelector('#draft-subtitle').textContent = subtitle;
+    this.el.querySelector('.draft-shell').classList.toggle('is-choice', choice);
+    // On the ladder "skip" means "do not climb", which is a decision, not a
+    // dismissal — say so instead of borrowing the draft's SKIP.
+    const skip = this.el.querySelector('#draft-skip');
+    if (skip) skip.textContent = choice ? 'STAY ON THIS WAVE' : 'SKIP';
   }
 
   cardMarkup(card) {
@@ -110,10 +136,16 @@ export class DraftPanel {
       </button>`;
   }
 
+  /** Fill the numeral keys in one pass, so markup stays index-free. */
   render(blocks) {
     const box = this.el.querySelector('#draft-cards');
     box.innerHTML = blocks
-      .map((html, index) => html.replace('<span class="draft-key" aria-hidden="true"></span>', `<span class="draft-key" aria-hidden="true">${NUMERALS[index] || ''}</span>`))
+      .map((html, index) =>
+        html.replace(
+          '<span class="draft-key" aria-hidden="true"></span>',
+          `<span class="draft-key" aria-hidden="true">${NUMERALS[index] || ''}</span>`
+        )
+      )
       .join('');
   }
 
@@ -121,8 +153,7 @@ export class DraftPanel {
     this.el.classList.remove('hidden');
     document.documentElement.classList.add('draft-open');
     document.addEventListener('keydown', this.onKey);
-    const first = this.el.querySelector('.draft-card');
-    first?.focus?.({ preventScroll: true });
+    this.el.querySelector('.draft-card')?.focus?.({ preventScroll: true });
     return new Promise((resolve) => {
       this.resolve = resolve;
     });
