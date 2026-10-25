@@ -323,6 +323,23 @@ Projectiles get the same treatment: `src/data/projectileArt.js` maps each line
 to its own level-4/5 shot, and `Tower.projectileArt` prefers it. The Banner Keep
 now fires a golden `proj-banner` instead of borrowing the archer's arrow.
 
+### Testing a defence by fighting with it
+
+`tests/helpers/combat.js` runs the real `Tower.update` → `Projectile.update` →
+`Enemy.update` loop against a stubbed Phaser scene. The stub answers every
+display-object call with itself, so nothing about the game logic is faked: the
+entities are the production classes, and only the renderer is replaced. A line
+that never fires, a shot with a missing texture, a DoT that never reaches
+`applyDot` or a muzzle offset that points backwards shows up as "the creep
+walked the lane untouched" rather than as a bug report.
+
+`tests/engineer-battle.test.js` uses it to pin the claims a player would notice:
+each of the five lines kills a grunt on the first third of the lane, the
+crossbow opens fire ~57 px earlier than the repeater, the siphon leaves a
+burning stack, the still's poison ticks straight through armour 40, the harpoon
+stuns, an apex tower needs fewer shots than its level 1, and a level-5 upgrade
+in the middle of a fight does not break the next shot.
+
 ### Reading a defence at a glance
 
 The inspector reports **DPS** next to damage, range and cooldown, because the

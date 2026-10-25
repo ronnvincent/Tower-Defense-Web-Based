@@ -323,12 +323,24 @@ export class Projectile {
     }
   }
 
+  /**
+   * `0xRRGGBB` to a CSS colour.
+   *
+   * This used to call `Phaser.Display.Color.IntegerToColor`, which means the
+   * class only worked while a global `Phaser` happened to exist. Entities
+   * should not depend on a renderer global — it also made the damage funnel
+   * untestable outside a browser — so the conversion is done here.
+   */
+  static cssColor(color) {
+    return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+  }
+
   showDamageText(x, y, amount, color = 0xffffff) {
     const text = this.scene.add.text(x + (Math.random() * 12 - 6), y, `-${amount}`, {
       fontFamily: 'Rajdhani, sans-serif',
       fontSize: '15px',
       fontStyle: 'bold',
-      color: Phaser.Display.Color.IntegerToColor(color).rgba,
+      color: Projectile.cssColor(color),
       stroke: '#000000',
       strokeThickness: 3,
     });
