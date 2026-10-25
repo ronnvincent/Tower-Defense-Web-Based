@@ -871,6 +871,12 @@ body.is-fullscreen::before {
   color: inherit;
 }
 
+/* The phone shell labels the folded dock BUILD; the long header would not fit
+   inside a 46 px button. */
+.dock-title-short {
+  display: none;
+}
+
 .dock-toggle-glyph {
   font-size: var(--fs-micro);
   line-height: 1;
@@ -5952,4 +5958,757 @@ body.is-fullscreen #app::after {
   .powerup-rail { gap: 6px; }
   .powerup-btn { width: 44px; height: 44px; }
   .powerup-glyph { font-size: 18px; }
+}
+
+/* Menu shell: the frame is 26 px of engraved iron on the desktop card, which is
+   52 px of a 390 px-tall screen. The keyboard footnote is a lie on a phone. */
+[data-shell="mobile"] .main-menu-card {
+  border-width: 16px;
+  padding: 0 6px;
+}
+
+[data-shell="mobile"] .menu-footnote {
+  display: none;
+}
+
+[data-shell="mobile"] .menu-tile {
+  min-height: 48px;
+}
+
+[data-shell="mobile"] .menu-daily,
+[data-shell="mobile"] .menu-duel {
+  min-height: 44px;
+}
+
+[data-shell="mobile"] .menu-play {
+  min-height: 56px;
+}
+
+/* ==========================================================================
+   MOBILE COMMAND SHELL
+   --------------------------------------------------------------------------
+   `data-shell="mobile"` is written on <html> by src/ui/shellMode.js when the
+   device has a coarse pointer and a landscape screen. It is not a breakpoint:
+   it is a second layout.
+
+   The desktop HUD spends its budget in three bands — a 56 px engraved top bar,
+   a 150 px card dock, and a floating inspector parked beside the tower. On a
+   390 px-tall phone that leaves ~180 px of lane, and the middle of the screen
+   (where the horde walks) is the part that keeps getting covered: toasts over
+   the top, the dock over the bottom, the inspector over whichever side the
+   tower happened to be on.
+
+   The phone shell spends its budget in the corners instead:
+
+     top     one 44 px rail — resources, wave, NEXT, speed/mute/pause
+     bottom  one BUILD button in the left thumb zone, powers above it
+     centre  nothing. Not a panel, not a toast, not a badge.
+
+   Everything that used to be permanent becomes a sheet (forge, inspector,
+   pause), a one-line ticker (toasts, focus) or a corner capsule (boss, rival).
+   The thumb reaches the bottom corners; the rare, destructive actions (pause,
+   leave) stay at the top, exactly where they are hard to hit by accident.
+   ========================================================================== */
+
+[data-shell="mobile"] {
+  --hud-rail-h: 44px;
+  --hud-build-h: 46px;
+  --hud-corner: calc(8px + var(--safe-bottom));
+  /* Seeds for the first frame only — HudLayout measures the real boxes. */
+  --topbar-clearance: 54px;
+  --dock-clearance: 62px;
+}
+
+/* --------------------------------------------------------------- 1. RAIL */
+
+[data-shell="mobile"] .hud-topbar {
+  top: calc(4px + var(--safe-top));
+  left: calc(6px + var(--safe-left));
+  right: calc(6px + var(--safe-right));
+  height: var(--hud-rail-h);
+  min-height: 0;
+  padding: 2px 8px;
+  gap: 6px;
+  /* The engraved frame stays (it is the game's voice) but at a tenth of its
+     desktop thickness: 10 px of iron, not 20. */
+  border-image-width: 10px 16px;
+}
+
+[data-shell="mobile"] .hud-stat-group {
+  gap: 4px;
+}
+
+[data-shell="mobile"] .hud-stat {
+  gap: 4px;
+  padding: 1px 6px;
+  border-image-width: 7px;
+}
+
+/* Icon + number. The BASE / GOLD / SCORE labels were half the bar's height and
+   told the player nothing they could not read from the icon. */
+[data-shell="mobile"] .hud-label {
+  display: none;
+}
+
+[data-shell="mobile"] .hud-stat-meta {
+  flex-direction: row;
+  align-items: baseline;
+  line-height: 1;
+}
+
+[data-shell="mobile"] .hud-icon-img {
+  width: 13px;
+  height: 13px;
+}
+
+[data-shell="mobile"] .hud-value {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+[data-shell="mobile"] #stat-score,
+[data-shell="mobile"] .hud-level-chip {
+  display: none; /* both live in the pause card */
+}
+
+[data-shell="mobile"] .hud-wave-badge {
+  min-height: 0;
+  padding: 0 6px;
+  gap: 1px;
+}
+
+[data-shell="mobile"] .hud-wave-label {
+  display: none;
+}
+
+[data-shell="mobile"] .hud-wave-number {
+  font-size: 13px;
+  line-height: 1;
+}
+
+[data-shell="mobile"] .hud-wave-sub {
+  font-size: 8px;
+  line-height: 1.1;
+  letter-spacing: 0.4px;
+  opacity: 0.8;
+}
+
+[data-shell="mobile"] .hud-wave-best {
+  display: none;
+}
+
+/* NEXT WAVE is the one primary action, so it leaves the rail for the bottom
+   right thumb corner — and disappears entirely while a wave is running
+   (`:disabled`), which is most of the fight. A button that only exists when it
+   can act costs no pixels during the part of the game that matters.
+
+   It keeps its DOM parent (the rail's wave group) so every existing handler,
+   hotkey and aria attribute stays attached; `position: fixed` takes it out of
+   that layout. The rail itself is not an ancestor with a transform or a
+   backdrop filter, so no containing block traps it. */
+[data-shell="mobile"] .hud-wave-stack {
+  position: static;
+  display: flex;
+}
+
+[data-shell="mobile"] #btn-start-wave {
+  position: fixed;
+  right: calc(8px + var(--safe-right));
+  bottom: calc(8px + var(--safe-bottom));
+  width: 138px;
+  min-height: var(--hud-build-h);
+  padding: 4px 12px;
+  border-width: 9px 14px;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.05;
+  z-index: 145;
+}
+
+[data-shell="mobile"] #btn-start-wave:disabled {
+  display: none;
+}
+
+[data-shell="mobile"] #btn-start-wave .btn-text {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+}
+
+.btn-sub {
+  display: none;
+}
+
+[data-shell="mobile"] .btn-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  opacity: 0.72;
+  text-transform: uppercase;
+}
+
+/* The hover popover has no meaning on touch and would cover the lane. */
+[data-shell="mobile"] #wave-preview {
+  display: none !important;
+}
+
+[data-shell="mobile"] .hud-controls-group {
+  gap: 2px;
+}
+
+[data-shell="mobile"] .game-btn-icon {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 1px 4px;
+  border-width: 7px 10px;
+  font-size: 12px;
+  /* 32 px of art, 44 px of somewhere to put a thumb. */
+  position: relative;
+}
+
+[data-shell="mobile"] .game-btn-icon::after {
+  content: '';
+  position: absolute;
+  inset: -6px -2px;
+}
+
+[data-shell="mobile"] .btn-icon-img {
+  width: 13px;
+  height: 13px;
+}
+
+/* iOS Safari has no element fullscreen, so the button is disabled there and a
+   dead icon in the rail is worse than no icon. Android keeps it — it is how the
+   URL bar goes away. */
+[data-shell="mobile"] #btn-fullscreen:disabled {
+  display: none;
+}
+
+/* The kill-chain flourish is a desktop luxury: on the phone it lands in the
+   lane and duplicates a number the score capsule already owns. */
+[data-shell="mobile"] .hud-combo {
+  display: none;
+}
+
+/* ------------------------------------------------------- 2. FORGE SHEET */
+
+[data-shell="mobile"] .hud-dock {
+  left: calc(8px + var(--safe-left));
+  right: auto;
+  bottom: var(--hud-corner);
+  transform: none;
+  max-width: calc(100vw - 16px - var(--safe-left) - var(--safe-right));
+  padding: 0;
+  border-image-width: 10px 14px;
+  animation: none;
+}
+
+/* Folded = the whole dock is one BUILD button in the thumb corner. */
+[data-shell="mobile"] .hud-dock.collapsed {
+  padding: 0;
+  border-image-width: 10px 14px;
+}
+
+[data-shell="mobile"] .hud-dock.collapsed .dock-head {
+  margin: 0;
+}
+
+[data-shell="mobile"] .hud-dock.collapsed .dock-toggle {
+  min-height: var(--hud-build-h);
+  padding: 0 14px;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 1.8px;
+}
+
+[data-shell="mobile"] .dock-toggle-glyph {
+  display: inline;
+  font-size: 15px;
+  opacity: 1;
+  color: var(--gold-primary);
+}
+
+[data-shell="mobile"] .dock-title {
+  display: none;
+}
+
+[data-shell="mobile"] .dock-title-short {
+  display: inline;
+  color: var(--ink-gold);
+}
+
+[data-shell="mobile"] .hud-dock.collapsed .dock-toggle-chevron {
+  display: none;
+}
+
+/* Open = a bottom sheet. Full width so a card never has to shrink below a
+   thumb, one row of seven, tabs on the shoulder of the sheet. */
+[data-shell="mobile"] .hud-dock:not(.collapsed) {
+  left: calc(6px + var(--safe-left));
+  right: calc(6px + var(--safe-right));
+  bottom: calc(6px + var(--safe-bottom));
+  max-width: none;
+  width: auto;
+  padding: 4px 10px 8px;
+  border-image-width: 14px 20px;
+  animation: dockSheetUp 0.18s ease-out;
+}
+
+@keyframes dockSheetUp {
+  from {
+    opacity: 0.4;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-shell="mobile"] .hud-dock:not(.collapsed) .dock-head {
+  margin-bottom: 2px;
+}
+
+[data-shell="mobile"] .hud-dock:not(.collapsed) .dock-toggle {
+  min-height: 26px;
+}
+
+[data-shell="mobile"] .hud-dock:not(.collapsed) .dock-toggle-chevron {
+  display: inline;
+  transform: rotate(180deg);
+}
+
+[data-shell="mobile"] .hud-dock:not(.collapsed) .dock-cards {
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: 1px 2px 0;
+  /* #hud-container is `touch-action: none` so drags reach the camera. Any
+     scrollable panel inside it has to hand its own axis back, or the card
+     strip cannot be swiped on a phone. */
+  touch-action: pan-x;
+}
+
+[data-shell="mobile"] .hud-dock .dock-cards::-webkit-scrollbar {
+  display: none;
+}
+
+[data-shell="mobile"] .hud-dock .build-card {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 62px;
+  max-width: 96px;
+  padding: 7px 4px 6px;
+  border-image-width: 14px 12px;
+}
+
+[data-shell="mobile"] .hud-dock .card-icon-frame {
+  width: 34px;
+  height: 34px;
+}
+
+[data-shell="mobile"] .hud-dock .card-cost {
+  font-size: 10px;
+}
+
+[data-shell="mobile"] .hud-dock .dock-tabs {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+[data-shell="mobile"] .hud-dock .dock-tab {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-height: 30px;
+  font-size: 9px;
+}
+
+/* The scrim is the sheet's dismissal target *and* the reason the map does not
+   scroll away when a thumb drags across it. */
+.dock-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 98;
+  background: rgba(4, 6, 9, 0.42);
+  pointer-events: auto;
+  animation: scrimIn 0.16s ease-out;
+  touch-action: none;
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Placement pill: the only thing allowed in the bottom centre, because it is
+   only there while a defence is in hand. */
+[data-shell="mobile"] #placement-hint {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  bottom: calc(var(--hud-build-h) + 16px + var(--safe-bottom));
+  width: auto;
+  max-width: min(64vw, 420px);
+  margin: 0;
+  min-height: 34px;
+  padding: 4px 8px 4px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 140;
+}
+
+[data-shell="mobile"] .hud-dock.collapsed #placement-hint {
+  /* Folding the sheet is what happens right after a card is picked, so the
+     pill has to survive the fold — it is the only thing still saying which
+     defence is in hand. */
+  display: flex;
+}
+
+[data-shell="mobile"] #placement-hint-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-shell="mobile"] .placement-hint-cancel {
+  min-width: 44px;
+  min-height: 30px;
+}
+
+/* ---------------------------------------------------- 3. INSPECTOR SHEET */
+
+[data-shell="mobile"] .hud-inspector {
+  position: fixed;
+  left: calc(6px + var(--safe-left));
+  right: calc(6px + var(--safe-right));
+  top: auto;
+  bottom: calc(6px + var(--hud-build-h) + 10px + var(--safe-bottom));
+  width: auto;
+  max-width: none;
+  max-height: min(52vh, 250px);
+  padding: 6px;
+  border-image-width: 11px;
+  animation: inspectorSheetUp 0.18s ease-out;
+}
+
+@keyframes inspectorSheetUp {
+  from {
+    opacity: 0.35;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-shell="mobile"] .inspector-shell {
+  padding: 7px 9px 8px;
+}
+
+/* No drag grip: on the phone the sheet is CSS-placed and cannot be moved. */
+[data-shell="mobile"] .inspector-grip {
+  display: none;
+}
+
+[data-shell="mobile"] .inspector-header {
+  cursor: default;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+}
+
+[data-shell="mobile"] .inspector-body {
+  max-height: calc(min(52vh, 250px) - 52px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* One row of targeting buttons across the sheet instead of a 2×2 block. */
+[data-shell="mobile"] .inspector-targeting-group {
+  margin-bottom: 6px;
+}
+
+[data-shell="mobile"] .targeting-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+[data-shell="mobile"] .target-btn {
+  min-height: 34px;
+  padding: 4px 2px;
+  font-size: 9px;
+  letter-spacing: 0.6px;
+}
+
+[data-shell="mobile"] .inspector-stats-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+[data-shell="mobile"] .stat-cell {
+  padding: 3px 5px;
+}
+
+[data-shell="mobile"] .stat-cell .lbl {
+  font-size: 8px;
+}
+
+[data-shell="mobile"] .stat-cell .val {
+  font-size: 11px;
+}
+
+[data-shell="mobile"] .spec-cards-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+  touch-action: pan-x;
+}
+
+[data-shell="mobile"] .spec-cards-row::-webkit-scrollbar {
+  display: none;
+}
+
+[data-shell="mobile"] .spec-card {
+  min-width: 210px;
+}
+
+/* ---------------------------------------------------- 4. BOTTOM THUMBS */
+
+/* Powers move above the BUILD button, in the left thumb arc. */
+[data-shell="mobile"] .powerup-rail {
+  left: calc(8px + var(--safe-left));
+  bottom: calc(var(--hud-corner) + var(--hud-build-h) + 10px);
+  gap: 8px;
+  z-index: 120;
+}
+
+[data-shell="mobile"] .powerup-btn {
+  width: 46px;
+  height: 46px;
+}
+
+/* The desktop camera pill is redundant: pinch zooms, drag pans, and the pause
+   card carries RESET VIEW. Removing it frees the whole bottom-right corner. */
+[data-shell="mobile"] .camera-cluster {
+  display: none;
+}
+
+/* ----------------------------------------------------- 5. TRANSIENT TEXT */
+
+/* Toasts: one line, top-left, under the rail. No parchment card — a card that
+   tall lands in the lane, and eight of them per wave is a strobe. */
+[data-shell="mobile"] .toast-banner {
+  top: calc(var(--topbar-clearance) + 2px);
+  left: calc(8px + var(--safe-left));
+  transform: none;
+  max-width: min(56vw, 360px);
+  padding: 4px 12px;
+  border: 1px solid rgba(127, 220, 245, 0.55);
+  border-image: none;
+  border-radius: 999px;
+  background: rgba(9, 14, 18, 0.9);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  animation: toastTickerIn 0.16s ease-out;
+}
+
+[data-shell="mobile"] .toast-banner.toast-error {
+  border-color: rgba(255, 154, 168, 0.7);
+  color: #ffd9de;
+}
+
+[data-shell="mobile"] .toast-banner.toast-success {
+  border-color: rgba(124, 227, 172, 0.65);
+  color: #d8ffe9;
+}
+
+[data-shell="mobile"] .toast-banner.toast-warning {
+  border-color: rgba(245, 196, 81, 0.65);
+  color: #ffeccb;
+}
+
+@keyframes toastTickerIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Boss: a slim strip on the right shoulder of the rail. The engraved card was
+   460 px of furniture across the top of a 390 px screen. */
+[data-shell="mobile"] #boss-banner {
+  top: calc(var(--topbar-clearance) + 2px);
+  right: calc(8px + var(--safe-right));
+  left: auto;
+  transform: none;
+  width: min(300px, 42vw);
+  z-index: 150;
+}
+
+[data-shell="mobile"] #boss-banner .boss-panel {
+  padding: 3px 8px;
+  border-image-width: 8px;
+}
+
+[data-shell="mobile"] #boss-banner .boss-title-row {
+  gap: 4px;
+}
+
+[data-shell="mobile"] #boss-banner .boss-skull,
+[data-shell="mobile"] #boss-banner .boss-ability-text,
+[data-shell="mobile"] #boss-banner .boss-hp-values {
+  display: none;
+}
+
+[data-shell="mobile"] #boss-banner .boss-name {
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  max-width: 150px;
+}
+
+[data-shell="mobile"] #boss-banner .boss-phase-badge {
+  font-size: 8px;
+  padding: 0 4px;
+}
+
+[data-shell="mobile"] #boss-banner .boss-bar-frame {
+  height: 6px;
+  margin-top: 2px;
+}
+
+/* Rival (duel): same shoulder, one line. */
+[data-shell="mobile"] .hud-rival {
+  top: calc(var(--topbar-clearance) + 2px);
+  right: calc(8px + var(--safe-right));
+  left: auto;
+  width: min(300px, 44vw);
+  padding: 3px 8px;
+  gap: 5px;
+  font-size: 9px;
+}
+
+[data-shell="mobile"] .hud-rival .rival-name {
+  max-width: 84px;
+}
+
+/* Focus: the mark is a readout, so it joins the other readouts in the left
+   column under the rail — never the bottom, which belongs to the thumbs. */
+[data-shell="mobile"] .focus-chip {
+  top: calc(var(--topbar-clearance) + 32px);
+  left: calc(8px + var(--safe-left));
+  right: auto;
+  transform: none;
+  bottom: auto;
+  min-height: 30px;
+  padding: 3px 10px;
+  z-index: 150;
+}
+
+/* First-run coaching: under the rail, never over the middle. */
+[data-shell="mobile"] .camera-hint {
+  top: calc(var(--topbar-clearance) + 4px);
+  bottom: auto;
+  max-width: min(74vw, 460px);
+  padding: 5px 6px 5px 12px;
+  font-size: 11px;
+  line-height: 1.3;
+  z-index: 135;
+}
+
+[data-shell="mobile"] .camera-hint-dismiss {
+  width: 26px;
+  height: 26px;
+}
+
+/* Pause: the one real modal, sized to a 390 px screen. */
+[data-shell="mobile"] .pause-overlay {
+  padding: 6px;
+  background: rgba(4, 6, 9, 0.55);
+}
+
+[data-shell="mobile"] .pause-card {
+  width: min(360px, 100%);
+  max-height: calc(100vh - 12px);
+  padding: 10px 12px;
+  gap: 8px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+[data-shell="mobile"] .pause-title {
+  font-size: 12px;
+  letter-spacing: 1.4px;
+}
+
+[data-shell="mobile"] .pause-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+[data-shell="mobile"] .pause-actions .game-btn {
+  min-height: 38px;
+  font-size: 11px;
+}
+
+[data-shell="mobile"] #btn-resume {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  font-size: 13px;
+}
+
+.pause-status {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pause-status:empty {
+  display: none;
+}
+
+/* RESET VIEW is the phone's replacement for the camera pill. Hidden by default
+   so it can never appear in a shell that has not been resolved yet. */
+#btn-reset-view {
+  display: none;
+}
+
+[data-shell="mobile"] #btn-reset-view {
+  display: inline-flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-shell="mobile"] .hud-dock:not(.collapsed),
+  [data-shell="mobile"] .hud-inspector,
+  [data-shell="mobile"] .toast-banner,
+  .dock-scrim {
+    animation: none;
+  }
 }

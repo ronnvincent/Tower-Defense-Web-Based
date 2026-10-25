@@ -1040,3 +1040,88 @@ markup resolves, that each sliced sprite keeps its exact canvas size and leaves 
 stretchable middle, that every `menu-*` id `main.js` binds exists exactly once, that the
 old scrolling button column is gone, and that the retired demo pack is not referenced by
 the CSS, the markup or the contrast audit.
+
+## 12. Two shells: desktop and phone
+
+The HUD used to be one layout that shrank at breakpoints. That works until the
+screen is 390 px tall in landscape: the desktop bands (a 56 px top bar, a
+~150 px card dock, a floating inspector anchored to the tower) leave about
+180 px of clear lane, and the parts of the screen that get covered — the top,
+the bottom, whichever side the selected tower is on — are the parts where the
+horde walks.
+
+So the HUD now has two layouts and picks one at start-up. The full design note,
+with the layout map, the five rules it follows and the interaction table, is in
+[`docs/mobile-shell.md`](mobile-shell.md). This section is the engineering
+summary.
+
+### 12.1 Choosing a shell (`src/ui/shellMode.js`)
+
+```js
+resolveShell({ coarse, width, height, override })
+// mobile  = coarse pointer AND landscape AND width <= 1100
+// desktop = a fine pointer, a portrait screen, or a touchscreen with room
+```
+
+The function is pure, so the whole matrix is unit-tested without a browser.
+`?hud=mobile` / `?hud=desktop` override the guess for review, and the outcome is
+written to `<html data-shell="…">`:
+
+```js
+applyShell(document, hud.shell); // before the markup is built
+```
+
+Every phone rule in the stylesheet is scoped to that attribute
+(`[data-shell="mobile"] …`). That is deliberate: the desktop layout cannot
+regress from phone work, and the phone layout cannot half-apply. `HUD.syncShell()`
+re-resolves on resize and rotation; landing on the phone shell folds the forge,
+drops a pinned inspector and returns the inspector box to CSS.
+
+### 12.2 What changed in the HUD (`src/ui/HUD.js`)
+
+| Behaviour | Desktop | Phone |
+| --- | --- | --- |
+| Start of battle | dock per saved preference | always folded to `⚒ BUILD` |
+| Picking a card | dock stays open | sheet folds, pill carries the name |
+| Expanding the forge | — | `#dock-scrim` dims the map; a tap anywhere on it folds |
+| Inspector | `placeInspector()` writes inline geometry | `repositionInspector()` returns early and clears inline styles |
+| Inspector drag | pointer drag on the header | disabled — a CSS sheet cannot be dragged |
+| Wave preview | popover on hover | second line on the `▶ NEXT` button |
+| Score / map / fullscreen / reset view | top bar and camera pill | `#pause-status` and `RESET VIEW` in the pause card |
+| Placement copy | “click a grass tile · ESC to cancel” | “tap a grass tile · ✕ to cancel” |
+| Toasts | parchment card | one-line ticker + a haptic pattern per type |
+
+The `▶ NEXT` button is the clearest example of the phone rule "a control only
+exists while it can act". It keeps its DOM parent, its handler and its aria
+attributes, but on the phone it is `position: fixed` in the bottom-right thumb
+corner and `:disabled` hides it — so the button is absent for the entire
+duration of a wave and returns between waves.
+
+### 12.3 Touch feedback (`src/systems/Haptics.js`)
+
+`navigator.vibrate` with short, named patterns (`tap` 12 ms, `build`, `upgrade`,
+`deny`, `wave`, `boss`) so a thumb that is covering the control still gets a
+confirmation. One delegated `pointerdown` listener on `#hud-container` covers
+every control, including ones added later. Enabled by default only on a coarse
+pointer, stored under `td-dsalgo:haptics:v1`, and a silent no-op where the
+platform (iOS Safari) does not expose the API.
+
+### 12.4 Scrolling inside a `touch-action: none` HUD
+
+`#hud-container` declares `touch-action: none` so drags reach the camera. Every
+scrollable panel inside it must hand its own axis back or it cannot be swiped:
+
+```css
+[data-shell="mobile"] .hud-dock:not(.collapsed) .dock-cards { touch-action: pan-x; }
+[data-shell="mobile"] .inspector-body { touch-action: pan-y; }
+```
+
+### 12.5 Guard rails
+
+`tests/mobile-shell.test.js` (19) pins the detection matrix, the override, the
+fold-on-pick behaviour, the scrim, the CSS-owned inspector sheet, the pause
+status and the layout rules themselves (rail height, hidden camera pill, sheet
+geometry, single-line toasts). `tests/haptics.test.js` (8) pins the preference,
+the pattern lengths and the unsupported-platform path. Existing HUD suites
+(dom, hit area, responsive) were not modified and still pass, which is the
+evidence that the desktop shell is unchanged.

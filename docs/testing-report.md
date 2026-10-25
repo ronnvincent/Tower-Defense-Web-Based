@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 805 tests across 65 test suites.
-- **Pass Rate:** **100% (805 / 805 Passed)**
+- **Total Automated Unit Tests:** 832 tests across 67 test suites.
+- **Pass Rate:** **100% (832 / 832 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -227,8 +227,8 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  65 passed (65)
-Tests       805 passed (805)
+Test Files  67 passed (67)
+Tests       832 passed (832)
 Duration    34.2s
 ```
 
@@ -286,6 +286,8 @@ Duration    34.2s
 | `tests/engineer-art-distinct.test.js` | node | 7 | Two engineer lines that share a crown silhouette or a dock card (the five-generals problem), an upgrade that is a recolour, a tier that outgrows its 72 × 130 px budget, a weapon pivot drifting off the deck, or an apex shot that reuses the tier-4 sprite |
 | `tests/spec-ui.test.js` | jsdom | 8 | A specialisation card with no branch art, two branches showing the same building, a role badge the stats no longer justify, a DPS preview computed with a different formula than `dps()`, an unclickable or wrongly-affordable card, a next-tier button with no tower art, or a maxed tower showing an empty list |
 | `tests/focus-target.test.js` | jsdom | 12 | A tap that marks the wrong creep in a swarm, a corpse that keeps holding the mark, a mark out of range that stops a tower from firing at anything, a targeting mode that outranks the player's instruction, or a focus chip that cannot be dismissed on a touch device |
+| `tests/mobile-shell.test.js` | jsdom | 19 | A phone getting the desktop bands, a build sheet that will not fold after a pick, a scrim that does not dismiss, a floating inspector on a thumb layout, or a toast that grows into a paragraph |
+| `tests/haptics.test.js` | node | 8 | A buzz on a desktop, a buzz after the player muted it, a pattern long enough to read as an error dialog, or a throw from a blocked `navigator.vibrate` |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
@@ -589,3 +591,39 @@ escaped/zero-health creeps rejected, the mark overriding "first", the fallback
 when it is out of range, the release when it dies, the chip's name/HP/percent,
 the boss styling, and the chip-to-scene clear callback.
 
+
+## 11. Mobile shell
+
+**Problem:** the HUD was one layout that shrank at breakpoints. On a 390 px-tall
+phone in landscape the desktop bands — a 56 px top bar, a ~150 px card dock, a
+floating inspector next to the tower — left ~180 px of clear lane, and the rest
+was covered by toasts, a camera pill, a boss card and the inspector. Shrinking
+further was not available: touch targets bottom out at 44 px.
+
+**Design:** two layouts, chosen at start-up. `src/ui/shellMode.js` decides
+(`coarse pointer AND landscape AND width <= 1100`), writes
+`<html data-shell="mobile">`, and every phone rule in the stylesheet is scoped
+to that attribute, so the desktop layout cannot regress from phone work.
+
+The phone shell keeps the corners and gives the centre back:
+
+- 44 px top rail (base, gold, wave, speed, mute, pause); score, map name,
+  fullscreen and reset-view move into the pause card.
+- `⚒ BUILD` in the bottom-left thumb zone opens a full-width forge sheet with a
+  scrim; picking a card folds the sheet and leaves a one-line placement pill.
+- `▶ NEXT` in the bottom-right thumb corner, `:disabled` (and therefore absent)
+  for the whole duration of a wave.
+- The inspector becomes a bottom sheet with a scrolling body; the drag grip is
+  gone because CSS owns the box.
+- Toasts become a one-line ticker top-left, the boss card a slim strip top-right,
+  the camera pill and the combo chip disappear, powers move above `BUILD`.
+- `src/systems/Haptics.js` adds a 12 ms tick on every control, on coarse
+  pointers only, with a stored preference and a no-op on unsupported platforms.
+
+**Tests:** `tests/mobile-shell.test.js` (19) — the detection matrix, the URL
+override, the stored preference, the HUD on both shells (starts folded, scrim
+shown and dismissed, fold-on-pick keeping the selection, CSS-owned inspector,
+wave composition on the button, pause status) and the CSS contract (rail height,
+hidden camera pill and preview, sheet geometry, single-line toasts, scrim,
+`touch-action` hand-off). `tests/haptics.test.js` (8) — device default, stored
+preference, unsupported platform, pattern length ceiling, thrown calls.

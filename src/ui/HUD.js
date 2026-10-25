@@ -8,6 +8,8 @@ import { HudLayout } from './hudLayout.js';
 import { ENEMY_TYPES } from '../data/enemyData.js';
 import { COMBO_WINDOW_MS } from '../systems/ComboMeter.js';
 import { focusReadout } from '../systems/FocusTarget.js';
+import { applyShell, readShellOverride, resolveShell } from './shellMode.js';
+import { haptics } from '../systems/Haptics.js';
 
 /** "1.25" / "2" — never "1.50", which reads like a precision bug. */
 function formatMultiplier(value) {
@@ -55,18 +57,81 @@ export class HUD {
     // Which dock tab is open. Persisted with the fold state so a phone player who
     // lives in the engineer tab does not re-open on the keeps every battle.
     this.dockGroup = this.readDockGroup();
+    // Which of the two HUD layouts this device gets. Applied to <html> before
+    // the markup exists so the first paint is already the right layout instead
+    // of the desktop bands flashing on a phone.
+    this.shell = this.resolveShellMode();
+    applyShell(document, this.shell);
 
     this.initDOM();
     this.bindEvents();
     // Restore the player's dock preference before the first frame so the
-    // measured --dock-clearance is right from the start.
-    this.setDockCollapsed(this.readDockCollapsed(), { persist: false });
+    // measured --dock-clearance is right from the start. The phone shell always
+    // starts folded: the fold *is* the layout there (one BUILD button), and a
+    // sheet that opens itself over the lane on every battle would be the exact
+    // problem this layout exists to fix.
+    this.setDockCollapsed(this.shell === 'mobile' ? true : this.readDockCollapsed(), { persist: false });
+    this.syncDockScrim();
     this.bindInspectorDrag();
     this.bindViewport();
 
     // Publish the real dock / top-bar heights as CSS variables so the floating
     // controls (camera pill, camera hint, toast) can never overlap them.
     this.layout = new HudLayout().observe();
+  }
+
+  /* ================================================================= SHELL */
+
+  /**
+   * Decide the shell from the pointer and the viewport, letting `?hud=mobile`
+   * or `?hud=desktop` win. Re-run on resize so rotating a tablet, plugging in a
+   * mouse or a browser window growing past the tablet width lands on a layout
+   * that fits.
+   */
+  resolveShellMode() {
+    const win = typeof window === 'undefined' ? null : window;
+    let coarse = false;
+    try {
+      coarse = Boolean(win?.matchMedia?.('(pointer: coarse)')?.matches);
+    } catch {
+      coarse = false;
+    }
+    return resolveShell({
+      coarse,
+      width: win?.innerWidth || 0,
+      height: win?.innerHeight || 0,
+      override: readShellOverride(win?.location?.search || ''),
+    });
+  }
+
+  /** True while the corner layout is live. */
+  get isMobileShell() {
+    return this.shell === 'mobile';
+  }
+
+  /**
+   * Re-resolve on resize / rotation. Changing shell is rare (the game is locked
+   * to landscape), so this only has to restore the defaults of the shell it
+   * lands on: the phone shell folds the forge, drops a pinned inspector and
+   * lets CSS own the inspector box again.
+   */
+  syncShell() {
+    const next = this.resolveShellMode();
+    const changed = next !== this.shell;
+    this.shell = next;
+    applyShell(document, next);
+    this.syncShellChrome();
+    if (changed) {
+      if (next === 'mobile') {
+        this.setDockCollapsed(true, { persist: false, clearSelection: false });
+        this.inspectorPinned = false;
+        this.clearInspectorBox();
+      } else {
+        this.syncDockScrim();
+        this.layout?.schedule?.();
+      }
+    }
+    return next;
   }
 
   /* ================================================================ MARKUP */
@@ -109,6 +174,7 @@ export class HUD {
             <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
               <span class="btn-glow"></span>
               <span class="btn-text">START WAVE</span>
+              <span class="btn-sub" id="start-wave-sub"></span>
             </button>
             <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
           </div>
@@ -159,10 +225,12 @@ export class HUD {
           <p class="pause-title">⏸ SIMULATION PAUSED</p>
           <div class="pause-actions">
             <button id="btn-resume" class="game-btn game-btn-primary">RESUME</button>
+            <button id="btn-reset-view" class="game-btn game-btn-gold" title="Fit the whole map (0)">RESET VIEW</button>
             <button id="btn-blessings" class="game-btn game-btn-gold" title="Spend gold on a blessing for this battle">BLESSINGS</button>
             <button id="btn-codex" class="game-btn game-btn-gold" title="Algorithm codex (C)">CODEX</button>
             <button id="btn-menu" class="game-btn game-btn-danger">LEAVE BATTLE</button>
           </div>
+          <p id="pause-status" class="pause-status" aria-live="polite"></p>
           <p id="quit-warning" class="pause-warning hidden">
             Leaving now discards this battle — tap again to confirm.
           </p>
@@ -192,7 +260,7 @@ export class HUD {
 
       <div id="camera-hint" class="camera-hint hidden">
         <span class="camera-hint-icon">✥</span>
-        <span><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom · <strong>Tap a creep</strong> to focus fire</span>
+        <span id="camera-hint-text"><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom · <strong>Tap a creep</strong> to focus fire</span>
         <button id="btn-dismiss-hint" class="camera-hint-dismiss" aria-label="Dismiss camera hint">✕</button>
       </div>
 
@@ -247,16 +315,19 @@ export class HUD {
 
       <div id="powerup-rail" class="hud-panel powerup-rail" role="group" aria-label="Powerups"></div>
 
+      <div id="dock-scrim" class="dock-scrim hidden" aria-hidden="true"></div>
+
       <div id="hud-bottom-dock" class="hud-panel hud-dock">
         <div id="placement-hint" class="placement-hint hidden">
           <span id="placement-hint-text">Placing defence…</span>
-          <button id="btn-cancel-placement" class="placement-hint-cancel">ESC</button>
+          <button id="btn-cancel-placement" class="placement-hint-cancel" aria-label="Cancel placement">ESC</button>
         </div>
         <div class="dock-head">
           <button id="btn-toggle-dock" class="dock-toggle" type="button" aria-expanded="true"
                   aria-controls="dock-cards-container" title="Hide or show the forge (H)">
             <span class="dock-toggle-glyph" aria-hidden="true">⚒</span>
             <span class="dock-title" id="dock-title">FORGE DEFENSES</span>
+            <span class="dock-title-short" id="dock-title-short">BUILD</span>
             <span class="dock-toggle-chevron" aria-hidden="true">▾</span>
           </button>
         </div>
@@ -267,6 +338,18 @@ export class HUD {
 
     this.renderBuildCards();
     this.setZoomState(this.zoomState);
+    this.syncShellChrome();
+  }
+
+  /**
+   * Labels that depend on which shell is live.
+   *
+   * A `✕` is the phone's cancel key; `ESC` is the desktop's. Same button, same
+   * handler — only the promise on its face changes.
+   */
+  syncShellChrome() {
+    const cancel = document.getElementById('btn-cancel-placement');
+    if (cancel) cancel.textContent = this.isMobileShell ? '✕' : 'ESC';
   }
 
   /**
@@ -460,6 +543,14 @@ export class HUD {
   showCameraHint(durationMs = 7000) {
     const hint = document.getElementById('camera-hint');
     if (!hint) return;
+    // A phone has no scroll wheel and no wheel-zoom, and the forge is folded:
+    // the first thing a new player needs to find is the BUILD button.
+    const body = document.getElementById('camera-hint-text');
+    if (body) {
+      body.innerHTML = this.isMobileShell
+        ? '<strong>Tap BUILD</strong> to place a defence · <strong>drag</strong> to pan · <strong>pinch</strong> to zoom'
+        : '<strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom · <strong>Tap a creep</strong> to focus fire';
+    }
     hint.classList.remove('hidden');
     if (this.hintTimer) clearTimeout(this.hintTimer);
     this.hintTimer = setTimeout(() => this.hideCameraHint(), durationMs);
@@ -490,7 +581,10 @@ export class HUD {
     // state instead of whatever the last scene left behind. No selection to
     // clear here: `reset()` is called before the new scene installs its
     // callbacks, so firing one now would reach into a dead scene.
-    this.setDockCollapsed(Boolean(this.dockCollapsed), { persist: false, clearSelection: false });
+    this.setDockCollapsed(this.isMobileShell ? true : Boolean(this.dockCollapsed), {
+      persist: false,
+      clearSelection: false,
+    });
     this.inspectedTower = null;
     this.selectedBuildKey = null;
     this.inspectorPinned = false;
@@ -592,8 +686,25 @@ export class HUD {
     // A folded dock cannot show which card is armed, so drop the selection.
     if (next && clearSelection) this.clearBuildSelection();
     if (persist) this.writeDockCollapsed(next);
+    this.syncDockScrim();
     this.layout?.schedule?.();
     return next;
+  }
+
+  /**
+   * Dim the battlefield behind the forge sheet.
+   *
+   * Only the phone shell opens a sheet over the lane, so only the phone shell
+   * gets the scrim. It is also the way out: the sheet is not a modal with a
+   * close button, it is a drawer you can dismiss anywhere outside it, which is
+   * what a thumb expects.
+   */
+  syncDockScrim() {
+    const scrim = document.getElementById('dock-scrim');
+    if (!scrim) return;
+    const open = this.isMobileShell && !this.dockCollapsed;
+    scrim.classList.toggle('hidden', !open);
+    scrim.setAttribute('aria-hidden', String(!open));
   }
 
   /** Flip the dock between folded and open. */
@@ -632,7 +743,27 @@ export class HUD {
   setPausedUI(isPaused) {
     document.getElementById('pause-overlay')?.classList.toggle('hidden', !isPaused);
     document.getElementById('pause-chip')?.classList.toggle('hidden', !isPaused);
-    if (!isPaused) this.disarmQuit();
+    if (isPaused) this.updatePauseStatus();
+    else this.disarmQuit();
+  }
+
+  /**
+   * The pause card carries the numbers the phone rail does not.
+   *
+   * The mobile rail is three small capsules, so the score, the map name and the
+   * run mode live here instead of being deleted: pausing is the moment a player
+   * actually wants them.
+   */
+  updatePauseStatus() {
+    const el = document.getElementById('pause-status');
+    if (!el) return;
+    const text = (id) => document.getElementById(id)?.textContent?.trim() || '';
+    const level = text('hud-level-name');
+    const wave = text('val-wave');
+    const score = text('val-score');
+    const best = document.getElementById('val-endless-best');
+    const bestText = best && !best.classList.contains('hidden') ? ` · ${best.textContent.trim()}` : '';
+    el.textContent = [level, `WAVE ${wave}`, `SCORE ${score}${bestText}`].filter(Boolean).join(' · ');
   }
 
   /** Drop the "tap again" caution back to its safe state. */
@@ -699,6 +830,32 @@ export class HUD {
       audio.playClick();
       this.toggleDock();
     });
+
+    document.getElementById('dock-scrim')?.addEventListener('click', () => {
+      audio.playClick();
+      this.setDockCollapsed(true, { persist: false });
+    });
+
+    document.getElementById('btn-reset-view')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onZoomReset?.();
+    });
+
+    // One delegated tick for every control in the HUD.
+    //
+    // Per-handler calls would have had to be added to thirty buttons and would
+    // still miss the next one; a pointerdown on the container finds whichever
+    // control was pressed. Disabled controls are skipped on purpose — a button
+    // that cannot act must not feel like it acted.
+    this.container?.addEventListener(
+      'pointerdown',
+      (event) => {
+        const control = event.target.closest?.('button, [role="button"]');
+        if (!control || control.disabled) return;
+        haptics.tap('tap');
+      },
+      { passive: true }
+    );
 
     document.getElementById('focus-chip')?.addEventListener('click', () => {
       audio.playClick();
@@ -796,7 +953,10 @@ export class HUD {
   }
 
   bindViewport() {
-    this._onResize = () => this.repositionInspector();
+    this._onResize = () => {
+      this.syncShell();
+      this.repositionInspector();
+    };
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
   }
@@ -814,6 +974,9 @@ export class HUD {
 
     handle.addEventListener('pointerdown', (event) => {
       if (event.target.closest('button')) return;
+      // A draggable panel over the lane is a desktop idea; the phone inspector
+      // is a sheet, so the grip must not start a drag that CSS cannot express.
+      if (this.isMobileShell) return;
       const host = this.hostRect();
       const rect = panel.getBoundingClientRect();
       dragging = true;
@@ -870,6 +1033,12 @@ export class HUD {
   repositionInspector(force = false) {
     const panel = document.getElementById('tower-inspector');
     if (!panel || panel.classList.contains('hidden')) return;
+    // The phone inspector is a bottom sheet: CSS owns its box, and a floating
+    // panel anchored to the tower would be the thing this layout removed.
+    if (this.isMobileShell) {
+      this.clearInspectorBox();
+      return;
+    }
     if (this.inspectorPinned && !force) return;
 
     panel.style.right = 'auto';
@@ -882,6 +1051,18 @@ export class HUD {
     panel.style.left = `${spot.left}px`;
     panel.style.top = `${spot.top}px`;
     panel.dataset.side = spot.side;
+  }
+
+  /** Drop inline geometry so the stylesheet can place the panel again. */
+  clearInspectorBox() {
+    const panel = document.getElementById('tower-inspector');
+    if (!panel) return;
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.bottom = '';
+    panel.classList.remove('dragging');
+    delete panel.dataset.side;
   }
 
   inspectTower(tower, anchorRatio = null) {
@@ -1250,10 +1431,13 @@ export class HUD {
 
   toggleBuildSelection(key) {
     audio.playClick();
+    haptics.tap('tap');
     // A hotkey can arm a defence while the dock is folded, or while the other
     // tab is open: open the dock and page to the card so the player can see
-    // which defence is live.
-    this.expandDock();
+    // which defence is live. The phone shell does the opposite — the card drops
+    // the sheet the moment it is picked, because the next thing the player
+    // needs to see is the map they are about to build on.
+    if (!this.isMobileShell) this.expandDock();
     this.revealBuildKey(key);
     if (this.selectedBuildKey === key) {
       this.clearBuildSelection();
@@ -1267,6 +1451,7 @@ export class HUD {
     });
     if (this.inspectedTower) this.closeInspector();
     this.setPlacementHint(key);
+    if (this.isMobileShell) this.setDockCollapsed(true, { persist: false, clearSelection: false });
     this.callbacks.onSelectBuild?.(key);
   }
 
@@ -1295,8 +1480,11 @@ export class HUD {
     const affordable = coins >= def.cost;
     const where = key === 'barricade' ? 'a road tile' : 'a grass tile';
     const role = key === 'barricade' ? ' · enemies must break it' : '';
+    // A phone taps and has no Esc key; the pill's own ✕ is the way out there.
+    const verb = this.isMobileShell ? 'tap' : 'click';
+    const cancel = this.isMobileShell ? '✕ to cancel' : 'ESC to cancel';
     text.textContent = affordable
-      ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold${role} — click ${where} · ESC to cancel`
+      ? `PLACING ${def.name.toUpperCase()} · ${def.cost} gold${role} — ${verb} ${where} · ${cancel}`
       : `NEED ${def.cost} GOLD FOR ${def.name.toUpperCase()} · kill enemies to earn more`;
     hint.classList.toggle('unaffordable', !affordable);
     hint.classList.remove('hidden');
@@ -1349,6 +1537,9 @@ export class HUD {
     if (!banner) return;
     if (message === this.lastToast && !banner.classList.contains('hidden')) return;
     this.lastToast = message;
+    // A refusal is the one toast the player may not be looking at, because
+    // their thumb is on the plot they just tapped: buzz it.
+    haptics.tap(type === 'error' ? 'deny' : type === 'success' ? 'build' : 'tap');
 
     banner.textContent = message;
     banner.className = `toast-banner toast-${type}`;
@@ -1562,6 +1753,19 @@ export class HUD {
         if (this.earlyCallAvailable) label.textContent = `CALL EARLY · +${earlyCall.bonus}g`;
         else label.textContent = canStartWave ? 'START WAVE' : isSpawning ? 'WAVE ACTIVE' : 'IN PROGRESS';
       }
+    }
+
+    // Second line under the wave label: on a phone the hover preview has no
+    // hover, so the composition of the next wave rides on the button itself
+    // instead of in a popover parked over the lane.
+    const sub = document.getElementById('start-wave-sub');
+    if (sub) {
+      const count = Number(nextWave?.total) || 0;
+      const ready = Boolean(canStartWave || this.earlyCallAvailable);
+      const subText = ready && count > 0
+        ? `${count} ${count === 1 ? 'CREEP' : 'CREEPS'}${nextWave.boss ? ' · BOSS' : ''}`
+        : '';
+      if (sub.textContent !== subText) sub.textContent = subText;
     }
 
     this.setWavePreview(nextWave, canStartWave);

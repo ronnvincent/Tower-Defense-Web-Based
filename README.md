@@ -184,6 +184,30 @@ new art as well, so an upgrade is a new building, not a new colour.
 | `F` or the ⛶ button | Toggle browser fullscreen |
 | Phone in portrait | Game pauses behind a *Rotate your device* card |
 
+### Touch & Phone Layout
+
+The game has **two HUD layouts**, not one that shrinks. On a phone in landscape
+it uses a corner layout built for thumbs: a 44 px status rail along the top, a
+`⚒ BUILD` button in the bottom-left, `▶ NEXT` in the bottom-right (and only when
+it can start a wave), powers up the left edge — and nothing in the middle of the
+screen. The forge opens as a full-width sheet that folds the moment you pick a
+card, the tower inspector becomes a bottom sheet, and messages are one line long.
+
+| Gesture | Action |
+|---|---|
+| Tap `⚒ BUILD` | open the forge sheet |
+| Tap a card, then a plot | build that defence (the sheet folds by itself) |
+| Tap a tower | inspector sheet, above the build row |
+| Tap `▶ NEXT` | start the next wave, or call it early for bonus gold |
+| Tap the dimmed map | close the sheet |
+| Tap `⏸` | pause card — resume, reset view, blessings, codex, leave battle |
+
+The layout is chosen at start-up (`src/ui/shellMode.js`): a coarse pointer on a
+landscape screen up to 1100 px gets the phone shell. Append `?hud=mobile` or
+`?hud=desktop` to override it — `/?hud=mobile` shows the phone layout in a
+desktop browser. The design note, with the layout map and the reasoning, is in
+[`docs/mobile-shell.md`](docs/mobile-shell.md).
+
 ### Keyboard Shortcuts
 | Key | Action |
 |:---:|---|
