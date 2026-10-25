@@ -14,10 +14,11 @@ The mode lives on the main menu as **DUEL · 1v1 LOBBY**.
 
 | Rule | Value | Why |
 | --- | --- | --- |
-| Waves | 8 (boss on 4 and 8) | Long enough for a build to mature, short enough for a rematch. |
+| Waves | 10 — seven pressure waves, **two bounty waves** (4 and 9), boss on 5 and 10 | Long enough for a build to mature, short enough for a rematch, and the bounty beats keep the lead changing hands. |
 | Starting gold | 260 | One extra tower over the campaign's 220 — the arenas are longer. |
 | Core HP | 25 | Same as the campaign; a knocked-out core ends the match. |
-| Relics / blessings | **Off** | The arena is the equaliser: no meta progression advantage. |
+| Relics / blessings / powerups | **Off** (`PVP_MATCH_RULES`) | The arena is the equaliser: nothing one seat can buy or trigger that the other cannot answer. |
+| Contracts | 3 per match, identical on both seats | Side objectives that pay **score, never gold**, so they can decide a points win without tilting a board. |
 | Difficulty scale | ×1.00 on both sides | Identical health, speed and rewards. |
 | Stats / achievements | **Not written** | Duels cannot farm campaign progress or boost a friend's profile. |
 
@@ -27,7 +28,7 @@ The mode lives on the main menu as **DUEL · 1v1 LOBBY**.
    rival has already finished their waves.
 2. **Forfeit.** Walking out of a live match — quit, closed tab, dropped
    socket — loses it, and the player who stayed is awarded the win.
-3. **Points.** If both seats clear all 8 waves, the higher score wins.
+3. **Points.** If both seats clear all 10 waves, the higher score wins.
 4. **Core integrity.** Equal score → the seat with more core HP wins.
 5. **Clear time.** Still tied → the faster clear wins.
 6. **Draw.** Identical on all four — nobody takes the arena.
@@ -95,7 +96,8 @@ GameScene  ←— launch payload ——  PvpLobbyUI  ←— state ——  PvpRoo
 
 | File | Responsibility |
 | --- | --- |
-| `src/data/pvpArenas.js` | The three layouts, `PVP_RULES`, the 8-wave script, `getPvpLevel()`. |
+| `src/data/pvpArenas.js` | The three layouts, `PVP_RULES`, `PVP_MATCH_RULES` (no powerups/blessings/relics), the 10-wave script, `getPvpLevel()`. |
+| `src/systems/DuelContracts.js` | The contract pool, `contractsFor(seed)`, progress and payout. |
 | `src/systems/PvpMatch.js` | Pure rules: seats, readiness, knockout / points / core / time resolution. |
 | `src/net/LobbyState.js` | Host-authoritative room reducer, snapshot + adopt, lobby view. |
 | `src/net/PvpRoom.js` | Glue: intents, snapshots, countdown, launch, `over`. |
@@ -203,6 +205,41 @@ described it as a freeze. `tests/duel-finish.test.js` pins the whole chain —
 report a knockout, both boards stop, the card is visible with live buttons, and
 leaving for the lobby tears the scene down.
 
+### Bounty waves
+
+Waves 4 and 9 are caravans: more, faster creeps that pay **double gold per
+kill** and a lump sum on clear (`bountyGold` / `bountyScore` on the wave). Both
+seats get the same wave at the same beat, the portal turns gold for it, and the
+HUD says so in a toast. The point is rhythm: a board built only to out-last the
+boss loses the tempo race to one that can burst a caravan.
+
+The wave manager carries the payout on its completion event, so the scene never
+reaches into the wave list:
+
+```js
+{ type:'waveComplete', waveNumber, isFinal, bounty, bountyGold, bountyScore }
+```
+
+### Contracts
+
+Three shared objectives per match, drawn from the **room seed** (`contractsFor`)
+so both phones show the same three without shipping them over the wire:
+
+| Contract | Goal | Pays |
+| --- | --- | --- |
+| SLAYER | Defeat 70 creeps | +150 |
+| WAVEKEEPER | Clear 6 waves | +120 |
+| CHAIN REACTION | Reach a 12-kill chain | +180 |
+| BOUNTY HUNTER | Clear both bounty waves | +200 |
+| BLOODLESS | Clear 3 waves without a leak | +160 |
+| UNBROKEN | Finish with 15+ core HP | +150 |
+
+They are listed in the lobby room screen before the gates open, tracked in the
+pause card during the match, and cashed in **before** the seat reports its
+score — the room compares scores, so a contract paid after the report would be
+worth nothing. Payout is score only: a contract can never make one board
+stronger than the other.
+
 ### The wave clock
 
 A duel has no wave button. Two boards cannot both be "player 3 taps ahead", so
@@ -266,7 +303,7 @@ result panels in jsdom: seat labels, arena picker locking, live progress,
 waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips, the
 link badge and the RELAY ADDRESS field.
 
-`tests/pvp-sync.test.js` (6) — how live the duel is: both seats byte-identical
+`tests/pvp-sync.test.js` (7) — how live the duel is: both seats byte-identical
 after every change, intent→strip latency over real sockets, a four-minute clock
 skew, a 120-message burst (ordered, no stale score), unchanged heartbeats that
 stay off the wire, and the per-snapshot cost.

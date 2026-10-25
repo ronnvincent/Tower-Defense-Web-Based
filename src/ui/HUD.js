@@ -46,6 +46,8 @@ export class HUD {
     this.inspectorPinned = false;
     this.inspectorCollapsed = false;
     this.inspectorAnchorRatio = null;
+    this.contractSignature = null;
+    this.setContracts?.([]);
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
@@ -231,6 +233,7 @@ export class HUD {
             <button id="btn-menu" class="game-btn game-btn-danger">LEAVE BATTLE</button>
           </div>
           <p id="pause-status" class="pause-status" aria-live="polite"></p>
+          <div id="pause-contracts" class="pause-contracts hidden" aria-live="polite"></div>
           <p id="quit-warning" class="pause-warning hidden">
             Leaving now discards this battle — tap again to confirm.
           </p>
@@ -603,6 +606,8 @@ export class HUD {
     this.inspectorPinned = false;
     this.inspectorCollapsed = false;
     this.inspectorAnchorRatio = null;
+    this.contractSignature = null;
+    this.setContracts?.([]);
     this.lastToast = '';
     if (this.toastTimer) clearTimeout(this.toastTimer);
 
@@ -675,6 +680,53 @@ export class HUD {
     strip.classList.toggle('rival-down', hp <= 0);
     strip.classList.toggle('rival-done', state.outcome === 'cleared');
     this.setText('rival-state', hp <= 0 ? 'KNOCKED OUT' : state.outcome === 'cleared' ? 'FINISHED' : 'LIVE');
+  }
+
+  /**
+   * A duel has no blessings and no powerups: one seat's meteor would be a
+   * private advantage the rival cannot answer, which is the opposite of what a
+   * mirrored arena is for. Hiding the controls is not enough on its own — the
+   * scene also refuses to build the state — but leaving a dead button on screen
+   * is worse than hiding it.
+   */
+  setDuelRules(active) {
+    this.duelRules = Boolean(active);
+    document.getElementById('hud-container')?.classList.toggle('duel-rules', this.duelRules);
+    return this.duelRules;
+  }
+
+  /**
+   * The duel's side contracts: three shared goals that pay score, never gold.
+   *
+   * Repainted only when something actually moved — this is called from the
+   * HUD sync, which runs on every coin and wave event.
+   */
+  setContracts(rows) {
+    const box = document.getElementById('pause-contracts');
+    if (!box) return;
+    const list = Array.isArray(rows) ? rows : [];
+    const signature = list.map((row) => `${row.id}:${row.current}`).join('|');
+    if (this.contractSignature === signature) return;
+    this.contractSignature = signature;
+    box.classList.toggle('hidden', list.length === 0);
+    if (!list.length) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = `
+      <p class="pause-contracts-title">CONTRACTS</p>
+      ${list
+        .map(
+          (row) => `
+        <div class="contract-row ${row.done ? 'is-done' : ''}">
+          <span class="contract-mark" aria-hidden="true">${row.done ? '✓' : '○'}</span>
+          <span class="contract-name">${row.name}</span>
+          <span class="contract-goal">${row.goal}</span>
+          <span class="contract-value">${row.done ? `+${row.reward}` : `${Math.min(row.current, row.target)}/${row.target}`}</span>
+        </div>`
+        )
+        .join('')}
+    `;
   }
 
   /** Rename the dock for a duel so the build list never reads as a campaign. */

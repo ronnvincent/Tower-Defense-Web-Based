@@ -265,6 +265,9 @@ export function snapshot(state, now = 0) {
     countdownRemaining: state.status === MATCH_STATUS.COUNTDOWN
       ? Math.max(0, state.countdownEndsAt - now)
       : 0,
+    // The script both seats are running. It travels with the room so the
+    // lobby's "10 waves" and the HUD's "3 / 10" cannot disagree.
+    totalWaves: state.match.totalWaves,
     clients: state.clients.map((client) => ({ ...client })),
     seats: state.match.seats.map((seat) => ({
       id: seat.id,
@@ -303,6 +306,7 @@ export function adoptSnapshot(state, snap, now = Date.now()) {
   state.clients = (snap.clients || []).map((client) => ({ ...client }));
   state.match.roomCode = snap.roomCode;
   state.match.arenaId = snap.arenaId;
+  if (Number.isFinite(snap.totalWaves)) state.match.totalWaves = snap.totalWaves;
   state.match.seed = snap.seed;
   state.match.status = snap.status;
   state.match.seats = (snap.seats || []).map((seat) => ({
@@ -355,6 +359,10 @@ export function lobbyView(state) {
         }
       : null,
     canStart: Boolean(state.isHost && connected >= MAX_CLIENTS && bothReady(state.match)),
+    // The seed deals the duel's contracts, so both seats derive the same three
+    // from the same number instead of shipping them across the wire.
+    seed: state.seed,
+    totalWaves: state.match.totalWaves,
     countdownMs: state.status === MATCH_STATUS.COUNTDOWN ? Math.max(0, state.countdownEndsAt) : 0,
     results: state.match.seats.map((seat) => ({ id: seat.id, name: seat.name, result: seat.result })),
     winner: state.match.winner,

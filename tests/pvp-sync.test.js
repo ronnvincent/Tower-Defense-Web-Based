@@ -13,6 +13,7 @@ import { performance } from 'node:perf_hooks';
 
 import { PvpRoom } from '../src/net/PvpRoom.js';
 import { COUNTDOWN_MS, adoptSnapshot, createLobbyState, lobbyView, snapshot } from '../src/net/LobbyState.js';
+import { PVP_RULES } from '../src/data/pvpArenas.js';
 import { freePort, relayUrl, startRelay, waitFor } from './helpers/relay.js';
 
 const url = relayUrl;
@@ -78,6 +79,20 @@ async function liveDuel(hostOptions = {}, guestOptions = {}) {
 }
 
 describe('duel synchronisation', () => {
+  it('tells both seats how long the script is', async () => {
+    const { host, guest } = await liveDuel();
+    try {
+      // The lobby says "10 waves" and the HUD counts "3 / 10"; both numbers come
+      // from the room, so a challenger can never be told a different length.
+      expect(host.state.match.totalWaves).toBe(PVP_RULES.waves);
+      expect(guest.state.match.totalWaves).toBe(PVP_RULES.waves);
+      expect(guest.view.totalWaves).toBe(host.view.totalWaves);
+    } finally {
+      host.leave();
+      guest.leave();
+    }
+  }, 25000);
+
   it('keeps both seats byte-identical through every lobby change', async () => {
     const host = new PvpRoom({ mode: 'relay', relayUrl: url(port) });
     const guest = new PvpRoom({ mode: 'relay', relayUrl: url(port) });

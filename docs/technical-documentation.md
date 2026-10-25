@@ -712,7 +712,7 @@ GameScene ──reportSeat/reportProgress──► PvpRoom ──intent──►
 ```
 
 - **Data** (`src/data/pvpArenas.js`): three 26 × 16 layouts, each generated as a
-  180° rotation pair with gates inset at `(7,1)` and `(8,24)`, plus one 8-wave script
+  180° rotation pair with gates inset at `(7,1)` and `(8,24)`, plus one 10-wave script
   (mid-boss on wave 4, arena boss on wave 8). `getPvpLevel()` returns a level
   object with the same shape the campaign uses, so `GameScene` needs no second
   code path.

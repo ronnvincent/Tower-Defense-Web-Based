@@ -55,6 +55,8 @@ export class DuelResultUI {
           Your half is settled. The match closes when your rival finishes — the lower core or fewer points loses.
         </p>
 
+        <div class="duel-contracts hidden" id="duel-contracts"></div>
+
         <div class="duel-actions">
           <button id="duel-rematch" class="game-btn game-btn-primary" type="button">REMATCH</button>
           <button id="duel-lobby" class="game-btn" type="button">BACK TO LOBBY</button>
@@ -106,6 +108,7 @@ export class DuelResultUI {
         winner: false,
       },
     ]);
+    this.renderContracts(report?.contracts);
     this.$('duel-waiting').classList.remove('hidden');
     this.$('duel-rematch').disabled = true;
     this.$('duel-rematch').title = 'Available when the match is decided';
@@ -117,6 +120,7 @@ export class DuelResultUI {
     this.final = { resolved, view, selfSeat };
     this.el.classList.remove('hidden');
     this.$('duel-waiting').classList.add('hidden');
+    this.renderContracts(this.report?.contracts);
 
     const winnerSeat = resolved?.winner || null;
     const drew = Boolean(resolved?.draw);
@@ -150,6 +154,31 @@ export class DuelResultUI {
     rematch.classList.toggle('hidden', !view.isHost);
   }
 
+  /** The side bets this seat was playing for, and which of them paid. */
+  renderContracts(rows) {
+    const box = this.$('duel-contracts');
+    if (!box) return;
+    const list = Array.isArray(rows) ? rows : [];
+    box.classList.toggle('hidden', list.length === 0);
+    if (!list.length) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = `
+      <p class="duel-contracts-title">CONTRACTS</p>
+      <div class="duel-contracts-list">
+        ${list
+          .map(
+            (row) => `
+          <span class="duel-contract ${row.done ? 'is-done' : ''}">
+            <b>${row.done ? '✓' : '○'}</b> ${row.name}
+            <em>${row.done ? `+${row.reward}` : `${Math.min(row.current, row.target)}/${row.target}`}</em>
+          </span>`
+          )
+          .join('')}
+      </div>`;
+  }
+
   renderScoreboard(rows) {
     this.$('duel-scoreboard').innerHTML = rows
       .map(
@@ -169,6 +198,7 @@ export class DuelResultUI {
     this.el.classList.add('hidden');
     this.report = null;
     this.final = null;
+    this.renderContracts(null);
   }
 }
 

@@ -195,7 +195,17 @@ export class WaveManager {
       this.wavesCompleted++;
       const isFinal = this.endless ? false : this.currentIndex + 1 >= this.waves.length;
       this.state = isFinal ? WAVE_STATE.FINISHED : WAVE_STATE.IDLE;
-      return { type: 'waveComplete', waveNumber: this.waveNumber, isFinal };
+      // A bounty wave (duel arenas only) pays a lump sum on top of the clear
+      // bonus; the event carries it so the scene does not reach into the list.
+      const closed = this.currentWave;
+      return {
+        type: 'waveComplete',
+        waveNumber: this.waveNumber,
+        isFinal,
+        bounty: Boolean(closed?.bounty),
+        bountyGold: Number(closed?.bountyGold) || 0,
+        bountyScore: Number(closed?.bountyScore) || 0,
+      };
     }
     return null;
   }

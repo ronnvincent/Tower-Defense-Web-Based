@@ -98,9 +98,10 @@ rated **1–3 stars** on the core health you kept (≥ 85 % = 3★, ≥ 50 % = 2
 
 A second mode, opened from **DUEL · 1v1 LOBBY** on the main menu. Two players
 share one room: both defend a **rotationally symmetric 26 × 16 arena** (73 % more
-ground than a campaign map) against the **identical 8-wave script**, fight the
-same bosses, and start from the same 260 gold and 25 core HP. Meta progression is
-switched off, so the arena is decided by play, not by unlocks.
+ground than a campaign map) against the **identical 10-wave script** — seven
+pressure waves, two *bounty* waves and a boss — fight the same bosses, and start
+from the same 260 gold and 25 core HP. Meta progression is switched off, so the
+arena is decided by play, not by unlocks.
 
 | Arena | Theme | Route | Final boss |
 |---|---|:-:|---|
@@ -112,8 +113,15 @@ Each arena ships its own generated tileset (ash basalt + lava, bright ice +
 crevasses, bleached dunes + turquoise pools), so nothing about a duel looks like
 a re-skinned campaign map.
 
-- **Win:** first core destroyed loses; if both sides clear all 8 waves, the higher
+- **Win:** first core destroyed loses; if both sides clear all 10 waves, the higher
   score wins (ties break on core HP, then clear time).
+- **Bounty waves:** waves 4 and 9 pay double gold per kill plus a lump sum, so a
+  board that can burst is worth as much as one that only turtles.
+- **Contracts:** three shared side objectives — same three on both phones, drawn
+  from the room seed — pay score, never gold, so they can swing a points win
+  without making one board stronger.
+- **No powerups, no blessings, no relics:** both seats fight with the same
+  towers and the same gold. The arena is the equaliser.
 - **Lobby:** host creates a room, the challenger joins with a 5-character code,
   both ready up, the host picks the arena, a 3-second countdown opens the gates.
 - **Watch your rival:** the camera is map-aware (fits the whole arena at 0.75×) and

@@ -38,6 +38,7 @@ import { audio } from '../rendering/AudioSynth.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { relicBonuses } from '../systems/Relics.js';
+import { contractProgress, contractScore, contractsFor } from '../systems/DuelContracts.js';
 import { telemetryPlan } from '../systems/DuelTelemetry.js';
 import {
   advanceDuelPacing,
@@ -82,10 +83,12 @@ export class GameScene extends Phaser.Scene {
       this.theme = THEMES[this.level.theme] || THEMES.grassland;
       this.progress = window.gameProgress || new ProgressStore();
       this.lastMilestoneWave = 0;
-      // The arena is the equaliser: no relics, no blessings, no meta lead.
+      // The arena is the equaliser: no relics, no blessings, no powerups, no
+      // meta lead of any kind. Only the towers both players can build count.
       this.relicBonuses = relicBonuses({});
       this.blessingsBought = {};
       this.blessingBonuses = blessingBonuses({});
+      this.contracts = contractsFor(this.pvp.seed ?? 1);
       return;
     }
     this.levelId = data?.levelId || 'level-1';
@@ -183,8 +186,11 @@ export class GameScene extends Phaser.Scene {
     // still exist if the Kenney atlases failed to load.
     this.vfx = new Vfx(this);
     // Three hand-played powerups (meteor / overcharge / fortify). State is pure
-    // data; the HUD renders it and this scene executes the effects.
-    this.powerups = new PowerupState(this.time?.now || 0);
+    // data; the HUD renders it and this scene executes the effects. A duel has
+    // none: one seat's meteor would be a private advantage the rival cannot
+    // match, which is exactly what a mirrored arena exists to prevent.
+    this.powerups =
+      this.level.rules?.powerups === false ? null : new PowerupState(this.time?.now || 0);
     this.pendingMeteor = false;
     this.createPortalAndBase();
 
@@ -224,6 +230,9 @@ export class GameScene extends Phaser.Scene {
     this.hud = window.gameHUD;
     if (this.hud) {
       this.hud.reset();
+      // A duel has no powerups and no blessings; the campaign gets them back
+      // on its next create(), so this is a per-battle switch, not a mode flag.
+      this.hud.setDuelRules?.(Boolean(this.level.pvp));
       this.hud.callbacks = {
         onStartWave: () => this.handleStartWave(),
         onCallWaveEarly: () => this.handleCallWaveEarly(),
@@ -252,6 +261,14 @@ export class GameScene extends Phaser.Scene {
           `${this.level.name.replace(' · DUEL', '').toUpperCase()} · IDENTICAL HORDE · FIRST CORE DOWN LOSES · PULL BACK TO WATCH YOUR RIVAL`,
           'info'
         );
+        // The contracts are shared, so say so on the one screen where the
+        // player is still reading rather than fighting.
+        if (this.contracts?.length) {
+          this.hud.showToast(
+            `CONTRACTS · ${this.contracts.map((contract) => contract.name).join(' · ')} — pause to check progress`,
+            'info'
+          );
+        }
       }
       this.syncHUD();
     }
@@ -755,6 +772,7 @@ export class GameScene extends Phaser.Scene {
     }
     const destroyed = this.gameState.damageBase(enemy.baseDamage);
     this.gameState.counters.enemiesEscaped++;
+    this.leaksThisWave = (this.leaksThisWave || 0) + 1;
 
     if (enemy.isBoss) {
       this.activeBoss = this.bossRoster.remove(enemy);
@@ -772,7 +790,11 @@ export class GameScene extends Phaser.Scene {
     const kill = registerKill(this.combo, this.time?.now || 0);
     // Kill bounty first, then the relic / blessing gold multipliers, then the
     // chain bonus — so the chain always multiplies the number the player saw.
-    const bounty = Math.round(enemy.reward * this.relicBonuses.killGold * this.blessingBonuses.killGold);
+    // A bounty wave pays double gold per kill, which is the whole point of it:
+    // the seat that can burst down a caravan buys its next tower first.
+    const wave = this.waveManager.currentWave;
+    const killGold = wave?.bounty ? Number(wave.bountyKillGold) || 2 : 1;
+    const bounty = Math.round(enemy.reward * killGold * this.relicBonuses.killGold * this.blessingBonuses.killGold);
     const comboGold = comboBonus(bounty, kill.multiplier);
     const comboScore = comboBonus(enemy.score, kill.multiplier);
 
@@ -846,7 +868,14 @@ export class GameScene extends Phaser.Scene {
       startNewWave(this.combo);
       const wave = this.waveManager.waveNumber;
       this.hud?.showToast(`Wave ${wave}: ${this.waveManager.currentWave.name}!`, 'info');
-      this.setBroodColour(wave);
+      const bounty = Boolean(this.waveManager.currentWave.bounty);
+      this.setBroodColour(wave, bounty ? 0xffc94a : null);
+      if (bounty) {
+        this.hud?.showToast(
+          `🪙 BOUNTY WAVE — double gold per kill, +${this.waveManager.currentWave.bountyGold} on clear`,
+          'success'
+        );
+      }
       this.flashWaveBanner(wave, this.waveManager.currentWave.name);
     }
     this.syncHUD();
@@ -893,10 +922,10 @@ export class GameScene extends Phaser.Scene {
    * the three enemy palettes, so the gate visibly changes colour as the horde
    * changes breed.
    */
-  setBroodColour(waveNumber) {
+  setBroodColour(waveNumber, tint = null) {
     if (!this.theme) return;
     const base = this.theme.portalTint ?? 0xb388ff;
-    const accent = waveAccent(waveNumber);
+    const accent = tint ?? waveAccent(waveNumber);
     // 50/50 blend keeps the biome's identity while the brood still reads.
     const mixed =
       (((base >> 16 & 255) + (accent >> 16 & 255)) >> 1) << 16 |
@@ -1622,6 +1651,8 @@ export class GameScene extends Phaser.Scene {
    * the internet.
    */
   finishDuel(outcome) {
+    // Contract score has to be in the number the room negotiates with.
+    const payout = this.bankContracts();
     const report = {
       roomCode: this.pvp?.roomCode || null,
       arenaId: this.level.arenaId,
@@ -1633,6 +1664,8 @@ export class GameScene extends Phaser.Scene {
       waves: this.waveManager.wavesCompleted,
       totalWaves: this.waveManager.totalWaves,
       timeMs: this.gameState.elapsedMs,
+      contracts: this.contractRows(),
+      contractBonus: payout.total,
     };
     this.lastDuel = report;
     window.gamePvp?.reportSeat?.(report);
@@ -1680,6 +1713,8 @@ export class GameScene extends Phaser.Scene {
    * @returns {{ ok:boolean, reason?:string, healed?:number }}
    */
   buyBlessing(id) {
+    // Same reason as the powerups: a blessing is gold spent on a private edge.
+    if (this.level.rules?.blessings === false) return { ok: false, reason: 'duel' };
     const def = getBlessing(id);
     const check = canBuyBlessing(id, { gold: this.economy.coins, purchased: this.blessingsBought });
     if (!check.ok || !def) return { ok: false, reason: check.reason || 'unknown' };
@@ -1765,6 +1800,45 @@ export class GameScene extends Phaser.Scene {
     return preview;
   }
 
+  /** Everything the duel contracts read. Cheap: counters and one array length. */
+  duelStats() {
+    return {
+      kills: this.gameState?.counters?.enemiesDefeated || 0,
+      waves: this.waveManager?.wavesCompleted || 0,
+      bestChain: this.combo?.best || 0,
+      bounties: this.bountiesCleared || 0,
+      cleanWaves: this.cleanWaves || 0,
+      coreHp: this.gameState?.baseHealth || 0,
+    };
+  }
+
+  /** Contract rows for the pause card. */
+  contractRows() {
+    return this.contracts ? contractProgress(this.contracts, this.duelStats()) : [];
+  }
+
+  /**
+   * Cash the contracts in, once, before the seat reports its score.
+   *
+   * Order matters: the negotiated score is the one the room compares, so a
+   * contract that pays after the report would be worth nothing.
+   */
+  bankContracts() {
+    if (this.contractsBanked) return this.contractPayout || { total: 0, done: [] };
+    this.contractsBanked = true;
+    const stats = this.duelStats();
+    const payout = contractScore(this.contracts, stats);
+    this.contractPayout = payout;
+    if (payout.total > 0) {
+      this.economy.addScore(payout.total);
+      this.hud?.showToast(
+        `CONTRACT PAID · +${payout.total} pts (${payout.done.length}/${this.contracts.length})`,
+        'success'
+      );
+    }
+    return payout;
+  }
+
   /**
    * What the wave button should read while the arena drives the waves.
    *
@@ -1802,6 +1876,7 @@ export class GameScene extends Phaser.Scene {
       schedule: this.duelScheduleInfo(),
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
+    if (this.level.pvp) this.hud?.setContracts?.(this.contractRows());
     this.syncDuelTelemetry();
   }
 
@@ -2014,7 +2089,7 @@ export class GameScene extends Phaser.Scene {
 
     // Powerup cooldowns run on the same clock as the simulation, so pausing the
     // game does not silently recharge the meteor.
-    this.powerups.tick(this.time?.now || 0);
+    this.powerups?.tick(this.time?.now || 0);
     this.refreshPowerupRail();
 
     // 0. The duel's own clock — it opens waves without a button.
@@ -2030,6 +2105,21 @@ export class GameScene extends Phaser.Scene {
       this.trackStats({ wavesCleared: 1 });
       this.economy.earn(bonusCoins + comboPayout);
       this.economy.addScore(bonusScore);
+      if (waveEvent.bounty) {
+        // The twin of the doubled kill gold: a lump sum for finishing the wave.
+        this.economy.earn(waveEvent.bountyGold);
+        this.economy.addScore(waveEvent.bountyScore);
+        this.bountiesCleared = (this.bountiesCleared || 0) + 1;
+        this.hud?.showToast(
+          `BOUNTY CLEARED · +🪙${waveEvent.bountyGold} · +${waveEvent.bountyScore} pts`,
+          'success'
+        );
+      }
+      // A wave that ends without a leak is what the BLOODLESS contract counts.
+      if (this.level.pvp && (this.leaksThisWave || 0) === 0) {
+        this.cleanWaves = (this.cleanWaves || 0) + 1;
+      }
+      this.leaksThisWave = 0;
       const comboNote = comboPayout > 0 ? ` · best chain ${this.combo.best} (+🪙${comboPayout})` : '';
       this.hud?.showToast(
         `Wave ${waveEvent.waveNumber} Cleared! (+🪙${bonusCoins + comboPayout}, +${bonusScore} pts)${comboNote}`,
@@ -2039,7 +2129,7 @@ export class GameScene extends Phaser.Scene {
 
       // Clearing a wave pays part of every cooldown back — the reward for
       // holding the line is the next trick, not just gold.
-      this.powerups.onWaveClear();
+      this.powerups?.onWaveClear();
       this.refreshPowerupRail();
       if (this.level.endless) this.payEndlessMilestones(waveEvent.waveNumber);
       this.syncAchievements();

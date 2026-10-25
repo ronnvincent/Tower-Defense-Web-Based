@@ -61,7 +61,14 @@ describe('WaveManager', () => {
     let event = null;
     for (let t = 0; t < 60000 && !event; t += 16) event = wm.update(16, 0);
     expect(spawned.length).toBe(countWaveEnemies(WAVES[0]));
-    expect(event).toEqual({ type: 'waveComplete', waveNumber: 1, isFinal: false });
+    expect(event).toEqual({
+      type: 'waveComplete',
+      waveNumber: 1,
+      isFinal: false,
+      bounty: false,
+      bountyGold: 0,
+      bountyScore: 0,
+    });
     expect(wm.state).toBe(WAVE_STATE.IDLE);
   });
 
@@ -78,7 +85,14 @@ describe('WaveManager', () => {
     wm.update(16, 0); // spawns the only enemy
     expect(wm.update(16, 1)).toBeNull();
     expect(wm.state).toBe(WAVE_STATE.CLEARING);
-    expect(wm.update(16, 0)).toEqual({ type: 'waveComplete', waveNumber: 1, isFinal: true });
+    expect(wm.update(16, 0)).toEqual({
+      type: 'waveComplete',
+      waveNumber: 1,
+      isFinal: true,
+      bounty: false,
+      bountyGold: 0,
+      bountyScore: 0,
+    });
     expect(wm.state).toBe(WAVE_STATE.FINISHED);
     expect(wm.startNextWave()).toBe(false);
   });

@@ -4689,6 +4689,30 @@ body.is-fullscreen #app::after {
   }
 }
 
+/* Short landscape: the room board has to fit beside the arena picker, so the
+   contracts collapse from three readable rows to three chips. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .pvp-contracts-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .pvp-contract {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 2px 6px;
+  }
+
+  .pvp-contract em {
+    display: none;
+  }
+
+  .pvp-contracts-title {
+    font-size: 8px;
+    letter-spacing: 1.2px;
+  }
+}
+
 /* Users who ask for less motion ---------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -5806,6 +5830,170 @@ body.is-fullscreen #app::after {
   font-size: var(--fs-body);
   letter-spacing: 0.6px;
   color: var(--ink);
+}
+
+/* ---- duel contracts -----------------------------------------------------
+   Three shared side bets. They are deliberately quiet: a gold hairline and a
+   tick, no colour fields, so the contract list cannot compete with the result
+   line it sits under. */
+
+.duel-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.duel-contracts-title,
+.pvp-contracts-title {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.duel-contracts-list,
+.pvp-contracts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.duel-contract {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(214, 176, 96, 0.28);
+  background: rgba(10, 12, 16, 0.55);
+  font-size: var(--fs-small);
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.duel-contract b {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.duel-contract em {
+  font-style: normal;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.8px;
+}
+
+.duel-contract.is-done {
+  border-color: rgba(214, 176, 96, 0.6);
+  color: var(--ink-strong);
+}
+
+.duel-contract.is-done b,
+.duel-contract.is-done em {
+  color: var(--ink-gold, #f5c451);
+}
+
+/* The lobby's version — one line per contract, readable before the gates open. */
+.pvp-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pvp-contract {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 9px;
+  border-left: 2px solid rgba(214, 176, 96, 0.4);
+  background: rgba(10, 12, 16, 0.4);
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+}
+
+.pvp-contract strong {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-small);
+  letter-spacing: 1.2px;
+  color: var(--ink-gold, #f5c451);
+}
+
+.pvp-contract em {
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvp-contract b {
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.8px;
+  color: var(--ink-strong);
+}
+
+/* ---- pause-card contracts ---------------------------------------------- */
+
+.pause-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+}
+
+.pause-contracts-title {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--text-muted);
+}
+
+.contract-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.contract-row .contract-name {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink-strong);
+}
+
+.contract-row .contract-goal {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-row .contract-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.contract-row.is-done {
+  color: var(--ink-gold, #f5c451);
+}
+
+.contract-row.is-done .contract-name {
+  color: var(--ink-gold, #f5c451);
+}
+
+/* ---- a duel has no powerups and no blessings ----------------------------
+   The scene refuses to build the state; this hides the controls so a duel
+   never shows a button whose only possible answer is "not in this match". */
+
+#hud-container.duel-rules #powerup-rail,
+#hud-container.duel-rules #btn-blessings {
+  display: none;
 }
 
 .duel-scoreboard {

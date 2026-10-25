@@ -25,13 +25,25 @@
 
 import { THEMES } from './levelData.js';
 
-/** Shared rules. No relics, no blessings: the arena is the equaliser. */
+/** Shared rules. No relics, no blessings, no powerups: the arena equalises. */
+/**
+ * What a duel does **not** have. The arena is the equaliser: both seats build
+ * the same towers from the same gold, so a relic, a purchased blessing or a
+ * hand-played powerup would be a private advantage the rival cannot answer.
+ * The scene reads these flags; `tests/duel-rules.test.js` pins them.
+ */
+export const PVP_MATCH_RULES = Object.freeze({
+  powerups: false,
+  blessings: false,
+  relics: false,
+});
+
 export const PVP_RULES = Object.freeze({
   startingCoins: 260,
   baseHealth: 25,
   enemyHealthScale: 1,
-  /** Long arenas need a little more time between waves than the campaign. */
-  waves: 8,
+  /** Seven pressure waves, two bounty waves, then the arena's boss. */
+  waves: 10,
 });
 
 const CINDER_CROWN = [
@@ -92,8 +104,14 @@ const DUST_MERIDIAN = [
 ];
 
 /**
- * The wave script both players run. It is a plain list (no RNG): wave 4 is the
- * mid-boss, wave 8 closes the match with the arena's own boss.
+ * The script both players run. A plain list, no RNG: seven pressure waves, two
+ * **bounty** waves that pay a lump of gold and double gold per kill, the
+ * mid-boss at wave 5, and the arena's own boss closing the match at wave 10.
+ *
+ * The bounty waves are the reason a duel is not only a race. They arrive on a
+ * fixed beat, they are announced on both phones at the same moment, and they
+ * reward a board that can burst rather than one that only turtles — so the
+ * answer to "who is ahead" changes twice per match.
  */
 function arenaWaves(bossKey, bossName) {
   return [
@@ -111,6 +129,17 @@ function arenaWaves(bossKey, bossName) {
         { type: 'brute', count: 5, interval: 1500 },
         { type: 'swarm', count: 16, interval: 300, delay: 1000 },
         { type: 'healer', count: 3, interval: 2000, delay: 1400 },
+      ],
+    },
+    {
+      name: 'Gold Caravan',
+      bounty: true,
+      bountyGold: 220,
+      bountyScore: 300,
+      bountyKillGold: 2,
+      groups: [
+        { type: 'grunt', count: 18, interval: 400 },
+        { type: 'runner', count: 12, interval: 320, delay: 900 },
       ],
     },
     {
@@ -146,6 +175,18 @@ function arenaWaves(bossKey, bossName) {
         { type: 'brute', count: 6, interval: 1100, delay: 1000 },
         { type: 'runner', count: 14, interval: 380, delay: 1200 },
         { type: 'healer', count: 4, interval: 1700, delay: 1400 },
+      ],
+    },
+    {
+      name: 'Toll of the Dunes',
+      bounty: true,
+      bountyGold: 260,
+      bountyScore: 360,
+      bountyKillGold: 2,
+      groups: [
+        { type: 'swarm', count: 24, interval: 220 },
+        { type: 'runner', count: 12, interval: 300, delay: 800 },
+        { type: 'grunt', count: 10, interval: 420, delay: 1600 },
       ],
     },
     {
@@ -224,6 +265,7 @@ export function getPvpLevel(arenaId = DEFAULT_ARENA_ID) {
     waves: arenaWaves(arena.bossKey, arena.bossName),
     endless: false,
     pvp: true,
+    rules: PVP_MATCH_RULES,
     arenaId: arena.id,
     themeName: THEMES[arena.theme]?.name || arena.name,
   };

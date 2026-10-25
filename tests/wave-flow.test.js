@@ -46,6 +46,9 @@ describe('WaveManager: full 6-wave campaign', () => {
         type: 'waveComplete',
         waveNumber: index + 1,
         isFinal: index === WAVES.length - 1,
+        bounty: false,
+        bountyGold: 0,
+        bountyScore: 0,
       });
       expect(manager.pendingSpawns()).toBe(0);
       expect(manager.spawnedThisWave).toBe(expected);

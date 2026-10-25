@@ -15,6 +15,7 @@
 import { PVP_ARENAS, getArena } from '../data/pvpArenas.js';
 import { COUNTDOWN_MS, MAX_CLIENTS } from '../net/LobbyState.js';
 import { PvpRoom, ROOM_EVENTS } from '../net/PvpRoom.js';
+import { contractsFor } from '../systems/DuelContracts.js';
 import { normaliseRoomCode } from '../net/lobbyProtocol.js';
 import { TRANSPORT, preferredMode } from '../net/transports.js';
 import {
@@ -169,6 +170,8 @@ export class PvpLobbyUI {
 
           <div class="pvp-arenas" id="pvp-arenas" role="radiogroup" aria-label="Arena"></div>
 
+          <div class="pvp-contracts" id="pvp-contracts" aria-live="polite"></div>
+
           <div class="pvp-actions">
             <button id="pvp-ready" class="game-btn" type="button">READY</button>
             <button id="pvp-start" class="game-btn game-btn-primary" type="button" disabled>START DUEL</button>
@@ -180,7 +183,7 @@ export class PvpLobbyUI {
         <section id="pvp-countdown" class="pvp-countdown hidden" aria-live="assertive">
           <p class="pvp-countdown-label">GATES OPEN IN</p>
           <p class="pvp-countdown-value" id="pvp-countdown-value">3</p>
-          <p class="pvp-countdown-sub" id="pvp-countdown-sub">Cinder Crown · 8 waves · identical horde</p>
+          <p class="pvp-countdown-sub" id="pvp-countdown-sub">Cinder Crown · identical horde</p>
         </section>
       </div>
     `;
@@ -400,6 +403,8 @@ export class PvpLobbyUI {
     }[status] || '';
     this.$('pvp-room-status').textContent = statusText;
 
+    this.paintContracts(view);
+
     for (const seatId of ['p1', 'p2']) {
       const row = view.results.find((seat) => seat.id === seatId);
       const seatEl = this.$(`pvp-seat-${seatId}`);
@@ -604,6 +609,36 @@ export class PvpLobbyUI {
     });
   }
 
+  /**
+   * The three contracts both seats are playing for.
+   *
+   * They are drawn from the room seed, so this is a *view* of shared data, not
+   * a setting: neither player can pick a private easier set.
+   */
+  paintContracts(view) {
+    const box = this.$('pvp-contracts');
+    if (!box) return;
+    const list = contractsFor(view?.seed ?? 1);
+    const signature = `${view?.seed}:${list.map((c) => c.id).join(',')}`;
+    if (this.contractSignature === signature) return;
+    this.contractSignature = signature;
+    box.innerHTML = `
+      <p class="pvp-contracts-title">DUEL CONTRACTS · SAME THREE FOR BOTH SEATS</p>
+      <div class="pvp-contracts-list">
+        ${list
+          .map(
+            (contract) => `
+          <span class="pvp-contract" title="${contract.goal}">
+            <strong>${contract.name}</strong>
+            <em>${contract.goal}</em>
+            <b>+${contract.reward}</b>
+          </span>`
+          )
+          .join('')}
+      </div>
+    `;
+  }
+
   /* ============================================================== COUNTDOWN */
 
   startCountdownLoop() {
@@ -626,7 +661,8 @@ export class PvpLobbyUI {
       const seconds = Math.max(1, Math.ceil(remaining / 1000));
       this.$('pvp-countdown-value').textContent = String(seconds);
       const view = room.view;
-      this.$('pvp-countdown-sub').textContent = `${view.arena.name} · ${view.arena.theme.toUpperCase()} · 8 waves · identical horde`;
+      this.$('pvp-countdown-sub').textContent =
+        `${view.arena.name} · ${view.arena.theme.toUpperCase()} · ${view.totalWaves || 10} waves · identical horde`;
     }
   }
 

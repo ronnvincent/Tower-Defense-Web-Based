@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 913 tests across 77 test suites.
-- **Pass Rate:** **100% (913 / 913 Passed)**
+- **Total Automated Unit Tests:** 933 tests across 79 test suites.
+- **Pass Rate:** **100% (933 / 933 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -21,7 +21,9 @@ The Mirror Arena adds three suites that need no network and no GPU:
 | `tests/duel-link.test.js` | 12 | The room-link UI: ONLINE is the default, the chips switch the transport the room is built with, the badge follows `open`/`closed`, the error line lives outside the entry grid so it is visible mid-room, the join button spells out `DIALING RELAY…` / `WAITING FOR HOST…`, the RELAY ADDRESS field saving/validating/resetting an override, and it opening itself when a dial fails on a host with no relay. |
 | `tests/pvp-relay.test.js` | 13 | **Real sockets against a real relay process.** It spawns `server/pvp-relay.mjs` on a free port and drives two genuine `PvpRoom` clients over the wire: host creates, guest joins, 2 seats, both ready, start, countdown, launch on both, live progress, knockout verdict on both, rematch. Also: a guest that arrives *before* the host is held and then seated, an unknown code is refused with the exact sentence the lobby prints, a third challenger is refused, a host that disappears mid-duel produces a forfeit verdict, a dead relay fails in ~3 s naming the exact address, and a hostname that is not this machine gets the "static host has no relay process" wording. Plus the transport-choice table as pure functions. |
 | `tests/relay-address.test.js` | 8 | The address resolver: `wss://`, `https://`, bare hosts, `host:port`, custom paths, junk rejection, `?relay=`, saved override, and the documented precedence saved → link → `VITE_PVP_RELAY` → same origin. |
-| `tests/pvp-sync.test.js` | 6 | **Is it live, and does it stay in sync?** Both seats byte-identical after every lobby change (this is the test that caught the host's arena pick never being broadcast), intent→rival-strip latency measured over real sockets, a four-minute clock skew that still starts both countdowns together, a 120-message burst that arrives in order with no stale score, an unchanged heartbeat that is not sent, and the per-snapshot cost. |
+| `tests/pvp-sync.test.js` | 7 | **Is it live, and does it stay in sync?** Both seats byte-identical after every lobby change (this is the test that caught the host's arena pick never being broadcast), intent→rival-strip latency measured over real sockets, a four-minute clock skew that still starts both countdowns together, a 120-message burst that arrives in order with no stale score, an unchanged heartbeat that is not sent, and the per-snapshot cost. |
+| `tests/duel-contracts.test.js` | 12 | The side bets: the same seed deals the same three contracts on both seats, payouts count only finished ones, the 10-wave script has two bounty waves and one boss, every arena shares the non-boss waves, and the wave manager carries `bounty`/`bountyGold` on completion. |
+| `tests/duel-hud-rules.test.js` | 7 | What a duel's HUD shows and hides: the powerup rail and blessings button go away, the contract panel paints progress without repainting on an unchanged tick, and the result card lists what paid. |
 | `tests/duel-finish.test.js` | 6 | A decided duel on each phone: a knockout resolves in the reducer, the board stops, the card is up with live buttons, BACK TO LOBBY tears the dead board down instead of leaving a paused scene under a live HUD, and a walk-out is settled as a forfeit. |
 | `tests/duel-pacing.test.js` | 13 | The arena's wave clock — 10 s prep, a 5 s breather after every clear, one wave per gate, nothing after the run ends, a no-op manual start in a duel — plus a run of the clock against the real `WaveManager` to prove waves one and two open without a tap. |
 | `tests/duel-wave-button.test.js` | 5 | What the wave control reads while the arena drives: a button in a campaign, a disabled countdown during prep and the breather, back to a button when the duel ends. |
@@ -244,7 +246,7 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
 Test Files  77 passed (77)
-Tests       913 passed (913)
+Tests       933 passed (933)
 Duration    34.2s
 ```
 
