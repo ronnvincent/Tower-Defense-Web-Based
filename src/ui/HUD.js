@@ -329,6 +329,31 @@ export class HUD {
       tabs.querySelectorAll('.dock-tab').forEach((tab) => {
         tab.addEventListener('click', () => this.setDockGroup(tab.dataset.group));
       });
+      // Roving tabindex: only the selected tab is in the Tab order, so the
+      // arrows are the only way to reach the other page from the keyboard.
+      // Without this the ENGINEER roster was keyboard-unreachable as well as
+      // pointer-unreachable (the handlers existed, the elements just could not
+      // be focused or hit).
+      if (!tabs.dataset.bound) {
+        tabs.dataset.bound = '1';
+        tabs.addEventListener('keydown', (event) => {
+          const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+          if (!keys.includes(event.key)) return;
+          const all = [...tabs.querySelectorAll('.dock-tab')];
+          if (!all.length) return;
+          const current = Math.max(0, all.indexOf(document.activeElement));
+          const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+          const next =
+            event.key === 'Home'
+              ? all[0]
+              : event.key === 'End'
+                ? all[all.length - 1]
+                : all[(current + step + all.length) % all.length];
+          event.preventDefault();
+          this.setDockGroup(next.dataset.group);
+          next.focus();
+        });
+      }
     }
 
     container.innerHTML = BUILD_OPTIONS.map((key) => {

@@ -93,7 +93,8 @@ Phaser view (`UpgradeBadges`).
 
 | Rule | Implementation |
 |---|---|
-| HUD frames are click-through | `.hud-panel { pointer-events: none }`; only real controls (stat chips, buttons, build cards, camera cluster, drawer, inspector) opt back in. |
+| HUD frames are click-through | `.hud-panel { pointer-events: none }`; only real controls (stat chips, buttons, build cards, **dock tabs**, camera cluster, drawer, inspector) opt back in. |
+| Every control is actually hittable | `tests/hud-hit-area.test.js` resolves `pointer-events` through the real cascade for every button the HUD paints. The dock tabs were the one control that forgot to opt back in, which made the whole ENGINEER page — crossbow, gatling, flamer, venom, harpoon — unreachable by mouse and by finger while the hotkeys kept working. |
 | The inspector follows the tower | `placeInspector()` tries right → left → below → above, then clamps to the battlefield. |
 | The inspector can be moved/hidden | Drag the header, collapse with ▾, close with ✕, double-click the header to re-anchor. Its content scrolls (`max-height: min(52vh, 430px)`) on short screens. |
 | The codex no longer steals the map | `StatisticsPanel` is now a right-hand drawer: the battlefield stays visible and the battle keeps running. Telemetry refreshes every 900 ms while open, and “SHOW BFS PATH” toggles the overlay **without** closing the panel. |
@@ -135,6 +136,26 @@ and the same tap brings the cards back. Folded, an armed card is disarmed (a hid
 longer explain itself), and pressing a build hotkey reopens the dock so the armed card is visible.
 The choice is stored in `localStorage` (`td-dsalgo:dock-collapsed:v1`) and survives reloads; the
 dock's new height is re-measured by `HudLayout`, so the camera pill and the toast slide down with it.
+
+### Paging the dock
+
+Twelve defences in one strip crushed every card into a thumbnail, so the forge is
+paged by family: **7 KEEPS** (archer, cannon, frost, palisade, forge, runes,
+banner) and **5 ENGINEER** (crossbow, gatling, flamer, venom, harpoon). Only the
+selected page is in the layout — the hidden cards are `display: none` *and*
+`aria-hidden`.
+
+Three things make the paging usable:
+
+- The tabs take pointer events like every other control. They are the only
+  chrome in the dock that is not a card, and they were the one thing that
+  inherited the panel's `pointer-events: none`; the ENGINEER roster was
+  therefore invisible in practice for a while.
+- A roving `tabindex` plus <kbd>←</kbd>/<kbd>→</kbd>/<kbd>Home</kbd>/<kbd>End</kbd>
+  keeps the page reachable from the keyboard.
+- A hotkey from the *other* page (`8`–`=`) arms the defence **and** pages the
+  dock to it, so a keyboard build never lands on a card the player cannot see.
+  Folding the dock hides the tab bar with the cards.
 
 ---
 

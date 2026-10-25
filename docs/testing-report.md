@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 759 tests across 59 test suites.
-- **Pass Rate:** **100% (759 / 759 Passed)**
+- **Total Automated Unit Tests:** 765 tests across 60 test suites.
+- **Pass Rate:** **100% (765 / 765 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -398,4 +398,56 @@ not). Walking **north**, grunt, brute, runner and shield render with their backs
 the camera; walking **south**, with their faces towards it; turning a corner changes
 the pose in the same frame the lane changes. Screenshots: `scratch/walk-contact2.png`,
 `scratch/north-check.png`, `scratch/pf-A.png` / `pf-B.png` (profile rows at 5x).
+
+## 7. Root-cause fix: the ENGINEER dock tab could not be clicked
+
+**Symptom:** the dock shows two pages, `7 KEEPS` and `5 ENGINEER`. The KEEPS page
+worked; the ENGINEER tab did nothing. The five engineer lines — Iron Crossbow,
+Clockwork Repeater, Pitchfire Siphon, Venom Still, Harpoon Winch — were
+unreachable, which read to players as "the flamethrower and the machine gun are
+missing".
+
+**Root cause:** `#hud-container` and every `.hud-panel` are `pointer-events: none`
+so that drags on empty HUD space fall through to the battlefield. Each real
+control opts back in with `pointer-events: auto` — `.build-card` and
+`.dock-toggle` do, `.dock-tab` did not. The tab was painted, styled, had a
+working click handler and correct `aria-selected`, but every click and tap went
+straight through it into the canvas.
+
+Two details kept this alive through twelve green test suites:
+
+1. `element.click()` in jsdom fires the handler regardless of CSS, so the DOM
+   suite that "clicks a tab" never tested clickability.
+2. The tabs use a roving `tabindex` (`-1` on the inactive tab) and nothing
+   handled the arrow keys, so the ENGINEER page was **also** unreachable from
+   the keyboard — the same bug in the other input modality.
+
+**Fix:**
+
+1. `.dock-tab` declares `pointer-events: auto`, with a comment saying why the
+   line may never be removed.
+2. Inactive tabs grow a visible edge (`border-color`) and the tab grows from a
+   22 px to a 30 px strip (32 px on narrow phones, 30 px in landscape) so it is
+   a real tap target.
+3. The tablist handles `ArrowLeft` / `ArrowRight` / `Home` / `End` — with a
+   roving tabindex that is the only way to reach the other page by keyboard.
+4. A folded dock now hides the tab bar too: paging cards that are not on screen
+   is a live control with no effect.
+
+**Regression cover — `tests/hud-hit-area.test.js` (6 tests):** it parses
+`src/style.css`, resolves `pointer-events` through the real cascade for every
+button the HUD paints (nearest explicit declaration wins) and fails any control
+that does not end up `auto`. Removing the one line from `.dock-tab` reproduces
+the bug in the test runner:
+
+```
+× every tab is clickable, not just the selected one
+   keeps tab is not hittable: expected 'none' to be 'auto'
+× gives every control in the dock a real hit area
+   these dock controls inherit pointer-events: none and cannot be clicked:
+   expected [ 'dock-tab active', 'dock-tab' ] to deeply equal []
+```
+
+The suite also pins the arrow-key contract, so "the handler exists" and "the
+player can reach it" are now two separate assertions.
 

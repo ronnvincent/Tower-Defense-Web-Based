@@ -899,7 +899,10 @@ body.is-fullscreen::before {
   transform: rotate(180deg);
 }
 
+/* Folded: the tab bar goes with the cards. A tab strip that pages cards nobody
+   can see is a dead control pretending to be live. */
 .hud-dock.collapsed .dock-cards,
+.hud-dock.collapsed .dock-tabs,
 .hud-dock.collapsed #placement-hint {
   display: none;
 }
@@ -929,6 +932,12 @@ body.is-fullscreen::before {
 }
 
 .dock-tab {
+  /* `.hud-panel` is `pointer-events: none` so drags fall through to the canvas,
+     and every control has to opt back in individually — cards and the fold
+     handle do, and the tabs did not, which made the whole ENGINEER page
+     (crossbow, gatling, flamer, venom and harpoon) unreachable by mouse or
+     finger while the hotkeys kept working. Never drop this line. */
+  pointer-events: auto;
   font-family: var(--font-display, var(--font-body));
   font-size: var(--fs-micro);
   font-weight: 700;
@@ -938,8 +947,8 @@ body.is-fullscreen::before {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: 3px 12px;
-  min-height: 22px;
+  padding: 3px 14px;
+  min-height: 30px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -950,6 +959,11 @@ body.is-fullscreen::before {
 .dock-tab:hover {
   color: var(--ink-strong);
   background: rgba(198, 158, 88, 0.12);
+}
+
+/* An inactive tab is a live control, so it keeps a visible edge and a pointer. */
+.dock-tab:not(.active) {
+  border-color: rgba(198, 158, 88, 0.22);
 }
 
 .dock-tab.active {
@@ -3520,7 +3534,7 @@ body.is-fullscreen #app::after {
     flex: 1 1 auto;
     justify-content: center;
     padding: 4px 8px;
-    min-height: 26px;
+    min-height: 32px;
     font-size: 9px;
     letter-spacing: 1px;
   }
@@ -3769,8 +3783,8 @@ body.is-fullscreen #app::after {
   }
 
   .dock-tab {
-    min-height: 20px;
-    padding: 1px 10px;
+    min-height: 30px;
+    padding: 1px 12px;
     font-size: 8px;
   }
 

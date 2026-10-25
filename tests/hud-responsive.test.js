@@ -95,8 +95,10 @@ describe('forge dock fold', () => {
   });
 
   it('hides the cards but keeps the handle when folded', () => {
+    // The tab bar folds with the cards: paging cards nobody can see is a control
+    // that is live but useless, and it was the first thing players tapped.
     expect(css).toMatch(
-      /\.hud-dock\.collapsed \.dock-cards,\s*\n\s*\.hud-dock\.collapsed #placement-hint\s*\{\s*display:\s*none;/
+      /\.hud-dock\.collapsed \.dock-cards,\s*\n\s*\.hud-dock\.collapsed \.dock-tabs,\s*\n\s*\.hud-dock\.collapsed #placement-hint\s*\{\s*display:\s*none;/
     );
     // The handle is the only way back, so nothing may hide it.
     expect(css).not.toMatch(/\.hud-dock\.collapsed \.dock-head\s*\{\s*display:\s*none/);
