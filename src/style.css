@@ -4118,6 +4118,134 @@ body.is-fullscreen #app::after {
   color: var(--crimson-primary);
 }
 
+/* --- focus fire -----------------------------------------------------------
+   The mark is a temporary player instruction ("shoot that one"), so the chip
+   that reports it has to read at a glance and be dismissible with one tap on a
+   device with no Esc key. It sits under the top bar on the left, where it does
+   not move any control the player already knows. */
+
+.focus-chip {
+  position: absolute;
+  left: calc(clamp(8px, 1.2vw, 16px) + var(--safe-left));
+  top: var(--topbar-clearance);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 10px 8px;
+  font-family: var(--font-body);
+  text-align: left;
+  color: var(--text-main);
+  background: rgba(9, 14, 18, 0.88);
+  border: 1px solid rgba(245, 196, 81, 0.42);
+  border-radius: 3px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  --focus-hp: 100%;
+  animation: focusChipIn 0.18s ease-out;
+}
+
+/* Health of the marked creep, drawn as a hairline along the bottom edge. */
+.focus-chip::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 4px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--gold-primary) var(--focus-hp),
+    rgba(255, 255, 255, 0.09) var(--focus-hp)
+  );
+}
+
+.focus-chip-ring {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--gold-primary);
+  animation: focusChipPulse 1.6s ease-in-out infinite;
+}
+
+.focus-chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.focus-chip-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.focus-chip-hp {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--slot-muted);
+  white-space: nowrap;
+}
+
+.focus-chip-x {
+  margin-left: 2px;
+  font-size: 9px;
+  opacity: 0.5;
+}
+
+.focus-chip:hover .focus-chip-x,
+.focus-chip:focus-visible .focus-chip-x {
+  opacity: 0.95;
+}
+
+/* A marked boss borrows the boss panel's warning colour. */
+.focus-chip-boss {
+  border-color: rgba(255, 122, 144, 0.6);
+}
+
+.focus-chip-boss .focus-chip-ring {
+  color: var(--crimson-primary);
+}
+
+.focus-chip-boss::after {
+  background: linear-gradient(
+    90deg,
+    var(--crimson-primary) var(--focus-hp),
+    rgba(255, 255, 255, 0.09) var(--focus-hp)
+  );
+}
+
+@keyframes focusChipIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes focusChipPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-chip,
+  .focus-chip-ring {
+    animation: none;
+  }
+}
+
 /* The pause banner shares this lane; keep it clear of the level chip. */
 #hud-level-chip ~ #pause-chip {
   top: clamp(96px, 13.6vh, 120px);

@@ -33,6 +33,7 @@ import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
 import { BossTracker } from '../systems/BossTracker.js';
+import { enemyAt, focusReadout, isFocusable } from '../systems/FocusTarget.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
@@ -151,6 +152,11 @@ export class GameScene extends Phaser.Scene {
     this.selectedTower = null;
     this.hoverTile = { row: -1, col: -1 };
     this.isVisualizingBFS = false;
+    // Focus fire: the creep every tower that can reach it must shoot first.
+    // Survives `reset()` on purpose — a scene restart should not keep pointing
+    // at an enemy that no longer exists, and `update()` prunes it.
+    this.focusTarget = null;
+    this.focusGraphics = this.add.graphics().setDepth(30);
 
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
@@ -217,6 +223,7 @@ export class GameScene extends Phaser.Scene {
         onZoomOut: () => this.cameraRig.zoomBy(1 / 1.25),
         onZoomReset: () => this.cameraRig.reset(),
         onPowerup: (key) => this.handlePowerup(key),
+        onClearFocus: () => this.setFocusFire(null),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
       this.hud.showCameraHintOnce();
@@ -239,6 +246,7 @@ export class GameScene extends Phaser.Scene {
     this.bindKeyboardShortcuts();
 
     this.events.once('shutdown', () => {
+      this.hud?.hideFocus?.();
       this.cameraRig?.destroy();
       this.badges?.clear();
       this.vfx?.destroy();
@@ -1090,6 +1098,19 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 0b. Focus fire: a tap on a creep marks it, a second tap releases it.
+    //
+    // Building takes priority (an armed card must place its defence), and a
+    // defence under the cursor takes priority too — inspecting a tower must not
+    // be blocked by a creep walking past it.
+    if (!this.selectedBuildKey && !this.placement.getOccupant(row, col)) {
+      const tapped = enemyAt(this.activeEnemies, worldX, worldY);
+      if (tapped) {
+        this.setFocusFire(tapped);
+        return;
+      }
+    }
+
     // 1. If building a tower/barricade
     if (this.selectedBuildKey) {
       this.attemptBuild(this.selectedBuildKey, row, col);
@@ -1104,6 +1125,82 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.handleDeselectTower();
       this.hud?.closeInspector();
+    }
+  }
+
+  /**
+   * Mark a creep so every tower that can reach it fires at it first.
+   *
+   * Passing the creep that is already marked releases the mark, so one tap is
+   * the whole interaction: tap to focus, tap again to let the towers go back to
+   * their own targeting mode. The mark changes *who* is shot, never how hard —
+   * which is why no balance number moved when this was added.
+   *
+   * @param {object|null} enemy
+   * @returns {object|null} the target after the toggle
+   */
+  setFocusFire(enemy) {
+    const next = isFocusable(enemy) ? enemy : null;
+    this.focusTarget = next && next !== this.focusTarget ? next : null;
+
+    if (this.focusTarget) {
+      const readout = focusReadout(this.focusTarget);
+      audio.playClick();
+      this.hud?.showFocus(this.focusTarget);
+      this.hud?.showToast(
+        `◎ FOCUS FIRE · ${readout.name} — tap it again or press ESC to release`,
+        'info'
+      );
+    } else {
+      this.hud?.hideFocus();
+      this.focusGraphics?.clear();
+    }
+    return this.focusTarget;
+  }
+
+  /**
+   * Keep the reticle glued to the marked creep and drop the mark when it dies.
+   *
+   * Called every simulation tick, after the enemy list has been compacted, so a
+   * dead creep releases the mark in the same frame instead of leaving every
+   * tower stuck on a target that no longer exists.
+   */
+  updateFocusFire() {
+    const graphics = this.focusGraphics;
+    if (!graphics) return;
+    graphics.clear();
+
+    const target = this.focusTarget;
+    if (!target) return;
+
+    if (!isFocusable(target) || !this.activeEnemies.includes(target)) {
+      this.focusTarget = null;
+      this.hud?.hideFocus();
+      return;
+    }
+
+    const now = this.time?.now || 0;
+    const pulse = (Math.sin(now / 260) + 1) / 2; // 0..1, ~1.6 s cycle
+    const radius = 15 + pulse * 3;
+    const { x, y } = target;
+
+    // Four corner brackets, not a ring of fire: the mark has to stay readable
+    // over a burning lane without adding another full-screen flash.
+    graphics.lineStyle(2, 0xffd76a, 0.85);
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      graphics.beginPath();
+      graphics.moveTo(x + sx * radius, y + sy * radius * 0.45);
+      graphics.lineTo(x + sx * radius, y + sy * radius);
+      graphics.lineTo(x + sx * radius * 0.45, y + sy * radius);
+      graphics.strokePath();
+    }
+    graphics.lineStyle(1, 0xffd76a, 0.22 + pulse * 0.18);
+    graphics.strokeCircle(x, y, radius + 7);
+
+    // The chip's health figure follows at a human rate, not 60 writes a second.
+    if (now - (this.lastFocusHudAt || 0) > 180) {
+      this.lastFocusHudAt = now;
+      this.hud?.updateFocus(target);
     }
   }
 
@@ -1784,6 +1881,12 @@ export class GameScene extends Phaser.Scene {
       const buildKey = BUILD_OPTIONS.find((key) => getBuildDefinition(key)?.hotkey === event.key);
       if (buildKey) this.hud?.toggleBuildSelection(buildKey);
       else if (event.key === 'Escape') {
+        // Esc peels one layer at a time: the focus mark, then the armed card,
+        // then the selected tower.
+        if (this.focusTarget) {
+          this.setFocusFire(null);
+          return;
+        }
         this.hud?.clearBuildSelection();
         this.handleDeselectTower();
       } else if (event.key === ' ' || event.code === 'Space') {
@@ -1879,6 +1982,10 @@ export class GameScene extends Phaser.Scene {
     }
     // In-place O(n) array compaction
     compactInPlace(this.activeEnemies, (e) => !e.isDead && !e.reachedBase);
+
+    // The focus mark outlives a single frame but not a corpse: prune it here,
+    // before the towers pick their targets.
+    this.updateFocusFire();
 
     // 3. Active Towers Update
     for (let i = 0; i < this.activeTowers.length; i++) {

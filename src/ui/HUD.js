@@ -7,6 +7,7 @@ import { clampPanel, placeInspector } from './panelPlacement.js';
 import { HudLayout } from './hudLayout.js';
 import { ENEMY_TYPES } from '../data/enemyData.js';
 import { COMBO_WINDOW_MS } from '../systems/ComboMeter.js';
+import { focusReadout } from '../systems/FocusTarget.js';
 
 /** "1.25" / "2" — never "1.50", which reads like a precision bug. */
 function formatMultiplier(value) {
@@ -144,6 +145,15 @@ export class HUD {
         <span class="hud-level-name" id="hud-level-name">VERDANT MARCHES</span>
       </div>
 
+      <button id="focus-chip" class="focus-chip hud-panel hidden" title="Release the focus target (Esc)" aria-live="polite">
+        <span class="focus-chip-ring" aria-hidden="true">◎</span>
+        <span class="focus-chip-body">
+          <span class="focus-chip-name" id="focus-name">SHAMAN</span>
+          <span class="focus-chip-hp" id="focus-hp">240 / 480</span>
+        </span>
+        <span class="focus-chip-x" aria-hidden="true">✕</span>
+      </button>
+
       <div id="pause-overlay" class="pause-overlay hidden" role="dialog" aria-label="Battle paused">
         <div class="pause-card">
           <p class="pause-title">⏸ SIMULATION PAUSED</p>
@@ -182,7 +192,7 @@ export class HUD {
 
       <div id="camera-hint" class="camera-hint hidden">
         <span class="camera-hint-icon">✥</span>
-        <span><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom</span>
+        <span><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom · <strong>Tap a creep</strong> to focus fire</span>
         <button id="btn-dismiss-hint" class="camera-hint-dismiss" aria-label="Dismiss camera hint">✕</button>
       </div>
 
@@ -497,6 +507,7 @@ export class HUD {
     this.setRivalState(null);
     this.setPausedUI(false);
     document.getElementById('placement-hint')?.classList.add('hidden');
+    this.hideFocus();
 
     document.querySelectorAll('.build-card').forEach((card) => {
       card.classList.remove('selected', 'disabled');
@@ -687,6 +698,12 @@ export class HUD {
     document.getElementById('btn-toggle-dock')?.addEventListener('click', () => {
       audio.playClick();
       this.toggleDock();
+    });
+
+    document.getElementById('focus-chip')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks?.onClearFocus?.();
+      this.hideFocus();
     });
 
     // Leaving a battle is destructive (the run is not saved), so it takes a
@@ -1283,6 +1300,46 @@ export class HUD {
       : `NEED ${def.cost} GOLD FOR ${def.name.toUpperCase()} · kill enemies to earn more`;
     hint.classList.toggle('unaffordable', !affordable);
     hint.classList.remove('hidden');
+  }
+
+  /* ================================================================== FOCUS */
+
+  /**
+   * Show the marked creep under the top bar.
+   *
+   * The reticle on the battlefield says *where*; this chip says *who* and how
+   * much health is left, and doubles as the visible way out of the mode on a
+   * touch device that has no Esc key.
+   */
+  showFocus(enemy) {
+    const chip = document.getElementById('focus-chip');
+    const readout = focusReadout(enemy);
+    if (!chip) return;
+    if (!readout) {
+      this.hideFocus();
+      return;
+    }
+    chip.classList.remove('hidden');
+    chip.classList.toggle('focus-chip-boss', readout.boss);
+    this.updateFocus(enemy);
+  }
+
+  updateFocus(enemy) {
+    const readout = focusReadout(enemy);
+    if (!readout) {
+      this.hideFocus();
+      return;
+    }
+    const chip = document.getElementById('focus-chip');
+    const name = document.getElementById('focus-name');
+    const hp = document.getElementById('focus-hp');
+    if (name) name.textContent = readout.name;
+    if (hp) hp.textContent = `${readout.hp} / ${readout.max}`;
+    chip?.style.setProperty('--focus-hp', `${readout.pct}%`);
+  }
+
+  hideFocus() {
+    document.getElementById('focus-chip')?.classList.add('hidden');
   }
 
   /* ================================================================= TOASTS */

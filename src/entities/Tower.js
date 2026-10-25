@@ -801,6 +801,21 @@ export class Tower {
       return;
     }
 
+    // A marked enemy outranks the targeting mode. The mark is the player
+    // telling this tower "that one" — a temporary instruction, not a stat, so
+    // if the marked creep is not in range the tower keeps doing its job.
+    // `scene.focusTarget` is read live (the context object is per-tower and
+    // built once); `context.focusTarget` lets the headless harness set it.
+    const marked = this.context.focusTarget ?? this.scene?.focusTarget;
+    if (marked && !marked.isDead && !marked.reachedBase && (marked.health ?? 1) > 0) {
+      for (let i = 0; i < inRange.length; i++) {
+        if (inRange[i].enemy === marked) {
+          this.currentTarget = marked;
+          return;
+        }
+      }
+    }
+
     // Select target based on targetingMode
     switch (this.targetingMode) {
       case TARGETING_MODE.FIRST:

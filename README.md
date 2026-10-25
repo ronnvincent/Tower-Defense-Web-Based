@@ -179,6 +179,7 @@ new art as well, so an upgrade is a new building, not a new colour.
 | Mouse wheel / trackpad scroll | Zoom towards the cursor (fit×–3×; the fit factor is 1× on a campaign map, 0.75× on a duel arena) |
 | Two-finger pinch | Zoom + pan simultaneously |
 | Click a floating `▲` badge above a defence | Open that tower’s upgrade inspector |
+| Click / tap a creep | **Focus fire** — every tower that can reach it shoots it first; tap it again or press `Esc` to release |
 | Click the dimmed backdrop of a dialog | Close it |
 | `F` or the ⛶ button | Toggle browser fullscreen |
 | Phone in portrait | Game pauses behind a *Rotate your device* card |

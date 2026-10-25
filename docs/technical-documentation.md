@@ -345,6 +345,55 @@ burning stack, the still's poison ticks straight through armour 40, the harpoon
 stuns, an apex tower needs fewer shots than its level 1, and a level-5 upgrade
 in the middle of a fight does not break the next shot.
 
+### Focus fire (`src/systems/FocusTarget.js`)
+
+Each defence has a targeting mode — first, last, strongest, nearest — and every
+mode is a *rule*: set once in the inspector and then left alone for the rest of
+the run. Rules cannot answer the question a player asks in the middle of wave 9:
+why is nobody killing the healer? A shaman that walks behind a crowd, a summoner
+that keeps replacing the creeps, or a boss about to reach the core all need to
+be singled out by hand.
+
+The mark is that hand. Tap a creep on the battlefield and every tower that can
+reach it fires at it first; tap it again, press `Esc`, or tap the chip under the
+top bar to release. The rule is implemented in `Tower.acquireTarget()`, *after*
+the range filter and *before* the targeting-mode switch:
+
+```js
+const marked = this.context.focusTarget ?? this.scene?.focusTarget;
+if (marked && !marked.isDead && !marked.reachedBase && (marked.health ?? 1) > 0) {
+  // …if the mark is in `inRange`, it becomes currentTarget and we return
+}
+```
+
+Four properties make it safe:
+
+- **It never disables a defence.** If the mark is not in range, or is dead, the
+  tower falls through to its own mode in the same call. Scene-side,
+  `updateFocusFire()` prunes the mark right after the enemy list is compacted,
+  so a corpse releases it in the same frame.
+- **It is not a stat.** The mark changes *who* takes the damage, never how much,
+  so `docs/balance.md`, the niche contract and the power-per-gold bands are all
+  untouched. It raises the skill ceiling instead of the numbers.
+- **Hit-testing is nearest-wins** (`enemyAt`, radius 30 px, world space). In a
+  swarm the player taps the creep they can see on top, not the first element of
+  the array.
+- **Building and inspecting win the tap.** An armed dock card still builds, and
+  a defence under the cursor is still inspected; the focus branch only runs on
+  an empty tile with no build armed, so nothing that worked before needs a new
+  gesture.
+
+The reticle is four corner brackets and one thin ring around the creep, not a
+filled shape: the lane is already full of fire, shockwaves and damage numbers,
+and a second full-screen effect would be noise. `docs` note in §8.3 applies —
+pulses stay under ~1.6 s and the brackets are 2 px, so the mark reads without
+strobing. The HUD chip under the top bar reports the name and health of the
+marked creep (and doubles as the way out for touch devices with no Esc key).
+
+`tests/focus-target.test.js` (12 tests) covers hit-testing, the toggle, the
+override of a targeting mode, the fallback when the mark is out of range or dead,
+and the chip.
+
 ### Reading a defence at a glance
 
 The inspector reports **DPS** next to damage, range and cooldown, because the

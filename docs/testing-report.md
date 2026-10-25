@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 793 tests across 64 test suites.
-- **Pass Rate:** **100% (793 / 793 Passed)**
+- **Total Automated Unit Tests:** 805 tests across 65 test suites.
+- **Pass Rate:** **100% (805 / 805 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -227,8 +227,8 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  64 passed (64)
-Tests       793 passed (793)
+Test Files  65 passed (65)
+Tests       805 passed (805)
 Duration    34.2s
 ```
 
@@ -285,6 +285,7 @@ Duration    34.2s
 | `tests/viewport-lock.test.js` | jsdom | 9 | Page pinch-zoom on iOS, two-finger page scroll, ctrl+wheel and browser zoom shortcuts stealing the game's gestures |
 | `tests/engineer-art-distinct.test.js` | node | 7 | Two engineer lines that share a crown silhouette or a dock card (the five-generals problem), an upgrade that is a recolour, a tier that outgrows its 72 × 130 px budget, a weapon pivot drifting off the deck, or an apex shot that reuses the tier-4 sprite |
 | `tests/spec-ui.test.js` | jsdom | 8 | A specialisation card with no branch art, two branches showing the same building, a role badge the stats no longer justify, a DPS preview computed with a different formula than `dps()`, an unclickable or wrongly-affordable card, a next-tier button with no tower art, or a maxed tower showing an empty list |
+| `tests/focus-target.test.js` | jsdom | 12 | A tap that marks the wrong creep in a swarm, a corpse that keeps holding the mark, a mark out of range that stops a tower from firing at anything, a targeting mode that outranks the player's instruction, or a focus chip that cannot be dismissed on a touch device |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
@@ -554,4 +555,37 @@ any of those. `tests/spec-ui.test.js` (8 tests) covers the chooser rebuild in §
 
 **Live effect:** five silhouettes that can be named at a glance, and a board
 where a level-5 tower no longer sits on top of its neighbour's label.
+
+## 10. New mechanic: focus fire
+
+**Problem:** eleven lines ship four targeting modes, and all four are *rules*.
+A rule cannot pick out one creep. When a Grave Shaman healed a pack, when a
+summoner replaced its minions faster than the towers cleared them, or when a
+boss was about to reach the core while the defences were busy with swarm, the
+player had no lever — only the hope that "first" happened to be the right
+target.
+
+**Design:** tap a creep to mark it. Every tower that can reach it fires at it
+first, whatever its mode says. Tap again (or `Esc`, or the chip) to release.
+
+- `src/systems/FocusTarget.js` is the pure part: `isFocusable`, `enemyAt`
+  (nearest-wins, 30 px), `focusReadout` (name, HP, percent, boss flag).
+- `Tower.acquireTarget()` reads `scene.focusTarget` live, after the range filter
+  and before the mode switch, and falls through when the mark is out of range or
+  dead — so a stale mark can never switch a defence off.
+- `GameScene.updateFocusFire()` runs right after the enemy list is compacted:
+  draws the corner-bracket reticle, prunes the mark when the creep dies, and
+  updates the HUD chip at ~5 Hz instead of every frame.
+- The tap is additive: building and tower inspection take priority, and the
+  focus branch only runs on an empty tile with no dock card armed.
+
+**Why the balance did not move:** the mark changes *which* enemy takes the
+damage, not how much. `docs/balance.md`, `tests/branch-niche.test.js` and the
+power-per-gold bands are untouched by construction, and the full suite stayed
+green.
+
+**Tests:** `tests/focus-target.test.js` (12) — nearest-wins hit-testing, dead/
+escaped/zero-health creeps rejected, the mark overriding "first", the fallback
+when it is out of range, the release when it dies, the chip's name/HP/percent,
+the boss styling, and the chip-to-scene clear callback.
 
