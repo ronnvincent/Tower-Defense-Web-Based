@@ -372,6 +372,10 @@ export class PvpLobbyUI {
 
   /** Re-open the room board after a match, for the rematch path. */
   reopenAfterMatch() {
+    // The battlefield behind this lobby is finished. Stop it here, while we
+    // still know why: leaving it paused under a live HUD is what made a decided
+    // duel look like a frozen game. The room survives, so REMATCH still works.
+    window.gameFlow?.stopDuelScene?.();
     if (!this.room) {
       this.show();
       return;

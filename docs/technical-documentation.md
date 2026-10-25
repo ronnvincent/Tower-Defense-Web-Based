@@ -796,6 +796,9 @@ script from the same seed, so the horde is identical by construction (the only
 | Snapshot size | `{roomCode, arenaId, seed, status, clients, seats}` | **586 B** mid-match (≈ 137 KiB/min at 2 Hz both seats) |
 | Cost of adopting one | pure object maths, no DOM | **2.4 µs** per `adoptSnapshot` + `lobbyView` |
 | Rival strip repaint | budget in `src/systems/DuelTelemetry.js` | **≤ 9 paints/s** instead of 60, and 2 sends/s |
+| Wave schedule (duel) | host-free: each seat runs the same clock off its own simulation | `PREPARE 10 s` → wave → `NEXT WAVE 5 s` → wave … |
+| End of match | first knockout resolves in the reducer, both seats pause and paint the card | same beat, no waiting state |
+| Leaving the card | `gameFlow.stopDuelScene()` stops the scene, keeps the room | no paused board behind a live HUD |
 
 The last row is the one that matters on a phone: `GameScene.syncDuelTelemetry()`
 runs on the frame loop, and reading `room.view` allocates the whole lobby view

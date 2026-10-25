@@ -229,10 +229,46 @@ function quitDuel() {
   if (!room) window.gamePvpLobby?.reopenAfterMatch?.();
 }
 
-/** Freeze the battlefield behind a duel result card. */
+/**
+ * Freeze the battlefield behind a duel result card.
+ *
+ * A knockout calls this from inside the scene's own update, so it must stay a
+ * one-liner: pause the scene, leave the card on top, and let the player choose
+ * rematch, lobby or menu.
+ */
+/** Is a battle scene on screen — running, or paused behind a result card? */
+function battleSceneIsUp() {
+  const scene = game.scene.getScene('GameScene');
+  return Boolean(scene && (scene.scene?.isActive?.() || scene.scene?.isPaused?.()));
+}
+
 function pauseBattle() {
   const scene = game.scene.getScene('GameScene');
   if (scene?.scene?.isActive()) scene.scene.pause();
+}
+
+/**
+ * Tear down a finished duel's battlefield **without** dropping the room.
+ *
+ * A decided duel used to leave the scene paused with the HUD still live
+ * underneath. Close the result card and back to the lobby, and the player was
+ * left on a dead board whose buttons all still looked pressable — the freeze
+ * both players reported. Rematch needs the socket, so only the scene goes.
+ */
+function stopDuelScene() {
+  const scene = game.scene.getScene('GameScene');
+  const menu = game.scene.getScene('MenuScene');
+  // A finished duel leaves the scene *paused*, and `isActive()` is false for a
+  // paused scene — check both, or the dead board survives behind the menu.
+  if (battleSceneIsUp()) {
+    if (menu?.scene?.isActive()) scene.scene.stop();
+    else scene.scene.start('MenuScene'); // stops the battle, then boots the menu
+  }
+  hudLayer()?.classList.add('hidden');
+  document.getElementById('pause-overlay')?.classList.add('hidden');
+  window.gameDuelResult?.hide?.();
+  window.gameResultScreen?.hide?.();
+  menuOverlay()?.classList.remove('hidden');
 }
 
 /** Drop the socket/room if a duel is still holding one. */
@@ -266,7 +302,16 @@ function openMainMenu() {
   // not needed because the menu was never torn down.
 }
 
-window.gameFlow = { openLevelSelect, startLevel, openMainMenu, quitToMap, quitDuel, leaveDuelRoom, pauseBattle };
+window.gameFlow = {
+  openLevelSelect,
+  startLevel,
+  openMainMenu,
+  quitToMap,
+  quitDuel,
+  leaveDuelRoom,
+  pauseBattle,
+  stopDuelScene,
+};
 
 window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
   onClose: () => {
@@ -348,6 +393,13 @@ window.gamePvpLobby = new PvpLobbyUI(screenContainer, {
   onLaunch: ({ pvp }) => {
     audio.playVictory();
     startLevel('pvp', { pvp });
+  },
+  onClose: () => {
+    // Closing the lobby over a decided duel must leave a live menu behind it,
+    // never a paused battlefield with a HUD that answers to nobody.
+    if (window.gamePvp?.state?.status !== 'over') return;
+    if (!battleSceneIsUp()) return;
+    stopDuelScene();
   },
 });
 

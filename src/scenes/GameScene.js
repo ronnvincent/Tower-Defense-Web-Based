@@ -39,6 +39,16 @@ import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { relicBonuses } from '../systems/Relics.js';
 import { telemetryPlan } from '../systems/DuelTelemetry.js';
+import {
+  advanceDuelPacing,
+  breathe,
+  closePacing,
+  createDuelPacing,
+  manualStartAllowed,
+  pacingHint,
+  pacingLabel,
+  pacingSeconds,
+} from '../systems/DuelPacing.js';
 import { blessingBonuses, canBuyBlessing, getBlessing } from '../systems/Blessings.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
@@ -146,6 +156,12 @@ export class GameScene extends Phaser.Scene {
       endless: Boolean(this.level.endless),
       waveFactory: (n) => makeEndlessWave(n),
     });
+
+    // A duel runs on the arena's clock, not on a button: both seats get the
+    // same 10 s to build and the same 5 s between waves, so neither board can
+    // pull ahead of the other and the rival strip keeps comparing like with
+    // like. Campaign and endless keep the manual start.
+    this.duelPacing = this.level.pvp ? createDuelPacing() : null;
 
     // Speed & simulation controls
     this.simSpeed = 1;
@@ -802,6 +818,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleStartWave() {
+    // A duel opens its waves itself. A manual start on one phone would let its
+    // board run ahead of the rival's, and the two strips would stop being
+    // comparable — which is the whole point of a mirrored arena.
+    if (!manualStartAllowed(this.duelPacing)) return;
+    this.openWave();
+  }
+
+  /** The arena opening a duel wave, with the same fanfare as a manual start. */
+  tickDuelPacing(deltaMs) {
+    const open = advanceDuelPacing({
+      pacing: this.duelPacing,
+      waveManager: this.waveManager,
+      gameState: this.gameState,
+      deltaMs,
+    });
+    if (!open) return;
+    this.openWave();
+  }
+
+  /** Start the next wave and dress it up. Shared by the player and the clock. */
+  openWave() {
     if (!this.waveManager.canStartNextWave()) return;
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
@@ -823,6 +860,8 @@ export class GameScene extends Phaser.Scene {
    * enemies are still alive, so the greedy call is also the risky one.
    */
   handleCallWaveEarly() {
+    // The arena owns the tempo in a duel: no seat may skip the breather.
+    if (!manualStartAllowed(this.duelPacing)) return null;
     const alive = this.activeEnemies.length;
     const result = this.waveManager.callEarly(alive);
     if (!result) return;
@@ -1597,6 +1636,9 @@ export class GameScene extends Phaser.Scene {
     };
     this.lastDuel = report;
     window.gamePvp?.reportSeat?.(report);
+    // A knockout is terminal for this seat: stop the board now rather than
+    // leave a dead horde marching behind the card.
+    if (outcome === 'ko') window.gameFlow?.pauseBattle?.();
     if (window.gameDuelResult?.show) {
       window.gameDuelResult.show(report);
       return report;
@@ -1683,6 +1725,9 @@ export class GameScene extends Phaser.Scene {
 
   /** Early-call availability + its gold bonus, or null when unavailable. */
   earlyCallInfo() {
+    // Calling a wave early is a tempo decision; in a duel the arena owns the
+    // tempo, so the button never offers it.
+    if (this.duelPacing) return null;
     const alive = this.activeEnemies.length;
     if (!this.waveManager.canCallEarly(alive)) return null;
     return { available: true, bonus: earlyCallBonus(alive), wave: this.waveManager.waveNumber + 1, alive };
@@ -1720,6 +1765,22 @@ export class GameScene extends Phaser.Scene {
     return preview;
   }
 
+  /**
+   * What the wave button should read while the arena drives the waves.
+   *
+   * `null` in campaign/endless, where the button is a real button.
+   */
+  duelScheduleInfo() {
+    const pacing = this.duelPacing;
+    if (!pacing) return null;
+    return {
+      phase: pacing.phase,
+      seconds: pacingSeconds(pacing),
+      label: pacingLabel(pacing, { waveNumber: Math.max(1, this.waveManager.waveNumber) }),
+      hint: pacingHint(pacing),
+    };
+  }
+
   syncHUD() {
     if (!this.hud) return;
     this.hud.update({
@@ -1738,6 +1799,7 @@ export class GameScene extends Phaser.Scene {
       earlyCall: this.earlyCallInfo(),
       nextWave: this.nextWavePreview(),
       bestWave: this.level.endless ? this.progress?.profile?.endlessBestWave || 0 : 0,
+      schedule: this.duelScheduleInfo(),
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
     this.syncDuelTelemetry();
@@ -1955,6 +2017,9 @@ export class GameScene extends Phaser.Scene {
     this.powerups.tick(this.time?.now || 0);
     this.refreshPowerupRail();
 
+    // 0. The duel's own clock — it opens waves without a button.
+    this.tickDuelPacing(clampedDelta);
+
     // 1. Wave Manager Update
     const waveEvent = this.waveManager.update(clampedDelta, this.activeEnemies.length);
     if (waveEvent && waveEvent.type === 'waveComplete') {
@@ -1980,7 +2045,12 @@ export class GameScene extends Phaser.Scene {
       this.syncAchievements();
 
       if (waveEvent.isFinal) {
+        closePacing(this.duelPacing);
         this.handleVictory();
+      } else if (this.duelPacing) {
+        // Five seconds to spend the clear bonus before the next horde opens
+        // itself. The countdown lives in the dock button, not in a modal.
+        breathe(this.duelPacing);
       }
       this.syncHUD();
     }

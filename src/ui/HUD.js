@@ -1727,6 +1727,7 @@ export class HUD {
       earlyCall,
       nextWave,
       bestWave,
+      schedule,
     } = state;
 
     this.coins = coins;
@@ -1783,6 +1784,19 @@ export class HUD {
       }
     }
 
+    // A duel opens its own waves. The button stops being a button and becomes
+    // the countdown: players need the number, not a control they must not use.
+    if (schedule && startBtn) {
+      startBtn.disabled = true;
+      startBtn.classList.remove('game-btn-pulse', 'game-btn-early');
+      startBtn.classList.add('game-btn-scheduled');
+      startBtn.title = 'The arena opens every wave itself';
+      const label = startBtn.querySelector('.btn-text');
+      if (label && label.textContent !== schedule.label) label.textContent = schedule.label;
+    } else {
+      startBtn?.classList.remove('game-btn-scheduled');
+    }
+
     // Second line under the wave label: on a phone the hover preview has no
     // hover, so the composition of the next wave rides on the button itself
     // instead of in a popover parked over the lane.
@@ -1790,9 +1804,11 @@ export class HUD {
     if (sub) {
       const count = Number(nextWave?.total) || 0;
       const ready = Boolean(canStartWave || this.earlyCallAvailable);
-      const subText = ready && count > 0
-        ? `${count} ${count === 1 ? 'CREEP' : 'CREEPS'}${nextWave.boss ? ' · BOSS' : ''}`
-        : '';
+      const subText = schedule
+        ? schedule.hint || ''
+        : ready && count > 0
+          ? `${count} ${count === 1 ? 'CREEP' : 'CREEPS'}${nextWave.boss ? ' · BOSS' : ''}`
+          : '';
       if (sub.textContent !== subText) sub.textContent = subText;
     }
 

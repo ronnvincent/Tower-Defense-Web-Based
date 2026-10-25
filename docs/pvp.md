@@ -181,6 +181,44 @@ relay  → bye    {reason} then close    bad-code | code-taken | full | no-room 
 
 The relay only forwards envelopes; all rules stay on the host.
 
+### Ending a duel without freezing a phone
+
+A live duel is easy to leave in a broken state, because the battlefield is a
+paused Phaser scene under a DOM card. Two rules keep it honest:
+
+* **A knockout settles on both seats at once.** The room's `resolve()` already
+  ends the match the moment one core falls, so the winner is never asked to
+  finish its own horde first. The losing seat pauses its own board in
+  `GameScene.finishDuel('ko')` and the winning seat pauses in
+  `PvpLobbyUI.finish()` — same beat, no "waiting for rival" limbo.
+* **Every exit tears the board down.** `window.gameFlow.stopDuelScene()` stops
+  the scene, hides the HUD and reveals the menu while *keeping the room* (so
+  REMATCH still works). It runs when the card's BACK TO LOBBY is tapped, when
+  the lobby is closed after a decided match, and never while a campaign battle
+  is behind the lobby.
+
+Before that, a decided duel could leave the scene paused with the HUD still
+painted on top: every control looked live, nothing answered, and both players
+described it as a freeze. `tests/duel-finish.test.js` pins the whole chain —
+report a knockout, both boards stop, the card is visible with live buttons, and
+leaving for the lobby tears the scene down.
+
+### The wave clock
+
+A duel has no wave button. Two boards cannot both be "player 3 taps ahead", so
+the arena opens every wave itself (`src/systems/DuelPacing.js`):
+
+```
+PREPARE 10 s → wave 1 → NEXT WAVE 5 s → wave 2 → … → final wave
+```
+
+The prep window is the "at least ten seconds to place your defences" window; the
+breather is where clear-bonus gold gets spent. Both are **simulation**
+milliseconds, so pausing the battle pauses the clock too. The wave control stays
+on screen as a readout — `PREPARE · 8`, `NEXT WAVE · 3`, `WAVE 4 · AUTO` — and is
+disabled, because tapping it does nothing in a duel. Campaign and endless keep
+the manual start and the early-call gold.
+
 ---
 
 ## 5. Camera: seeing your rival
@@ -236,6 +274,14 @@ stay off the wire, and the per-snapshot cost.
 `tests/duel-telemetry.test.js` (5) and `tests/rival-strip.test.js` (4) — the
 HUD's work budget (≤ 9 paints/s instead of 60) and a strip that skips the DOM
 when nothing it shows has moved.
+
+`tests/duel-pacing.test.js` (13) — the arena's wave clock: ten seconds of prep,
+a five second breather after every clear, no wave opened twice, no wave opened
+after the run ends, and a manual start that is a no-op in a duel.
+
+`tests/duel-wave-button.test.js` (5) — the control the player actually sees:
+a real button in a campaign, a disabled countdown during prep and the breather,
+back to a button when the duel ends.
 
 `tests/relay-address.test.js` (8) — which address the ONLINE link dials:
 normalising what a human pastes (bare host, `https://`, `host:port`, custom
