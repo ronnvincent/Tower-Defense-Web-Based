@@ -10,11 +10,11 @@ import {
 } from '../data/enemyData.js';
 import { getPvpLevel } from '../data/pvpArenas.js';
 import { getBuildDefinition } from '../data/towerData.js';
-import { PathfindingSystem } from '../systems/PathfindingSystem.js';
-import { paintLaneArrows, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
+import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
+import { paintLaneHint, laneLabel, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { GameStateManager, STATUS } from '../systems/GameStateManager.js';
-import { WaveManager, earlyCallBonus } from '../systems/WaveManager.js';
+import { WaveManager, WAVE_STATE, earlyCallBonus } from '../systems/WaveManager.js';
 import {
   comboBonus,
   createComboState,
@@ -150,10 +150,12 @@ export class GameScene extends Phaser.Scene {
     this.routeCells = this.pathfinding.laneCells.size
       ? this.pathfinding.laneCells
       : new Set(this.pathfinding.mainPath);
-    // Which lane the next spawn joins. Reset per wave so the deal is identical
-    // on both duel seats: same wave script → same enemy → same lane.
-    this.laneWave = 0;
-    this.laneCursor = 0;
+    // Which lane the coming wave walks. One lane per wave, rotating — see
+    // `laneIndexForWave` — so the whole horde files down the same road and the
+    // next wave chooses another one.
+    this.waveLaneIndex = 0;
+    this.laneHintDrawn = false;
+    this.duelReported = false;
 
     // Relics are the meta-progression: a little more gold, a little more core.
     this.economy = new EconomyManager(this.level.startingCoins + this.relicBonuses.startingGold);
@@ -192,11 +194,20 @@ export class GameScene extends Phaser.Scene {
 
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
-    // Direction chevrons painted on the road itself, above the tiles (3) and
-    // under the portals and units (10): with two or three live routes the
-    // player has to be able to read where each one goes at a glance.
-    this.laneArrowGraphics = this.add.graphics().setDepth(LANE_ARROW_DEPTH);
-    this.drawLaneArrows();
+    // Entrance hint: a beacon on the gate plus a few chevrons down the mouth of
+    // *this wave's* lane, above the tiles (3) and under the portals and units
+    // (10). One lane takes the whole wave, so the player needs to know which
+    // gate mouth the push is coming out of — not a trail painted across the map.
+    this.laneHintGraphics = this.add.graphics().setDepth(LANE_ARROW_DEPTH);
+    this.drawLaneHint();
+    this.tweens?.add?.({
+      targets: this.laneHintGraphics,
+      alpha: { from: 1, to: 0.45 },
+      duration: 820,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
     this.createParticleSystems();
     // Effects library: elemental impacts, muzzle flashes, novas and the
     // max-tier aura. Created after the particle systems so `spark` fallbacks
@@ -572,16 +583,25 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  /**
+   * Which lane a wave walks.
+   *
+   * The horde files down **one** road per wave and the next wave takes the next
+   * one: wave 1 lane 1, wave 2 lane 2, wave 3 lane 3, wave 4 lane 1 again. A
+   * scatter inside a single wave spread every creep thin and made the map feel
+   * like three quiet streets; a whole wave on one road is a push the player can
+   * recognise and answer, and the rotation still forces every lane to be
+   * defended by the end of the run.
+   */
+  laneIndexForWave(waveNumber) {
+    return laneIndexForWave(waveNumber, this.pathfinding?.laneCount || 0);
+  }
+
   spawnEnemy(typeKey, waveNumber) {
-    // Deal the wave across the lanes in a fixed order: the k-th spawn of wave w
-    // walks lane k % laneCount. Selection is ordinal, never random, so both
-    // duel seats deal the same enemy onto the same route — the mirror holds.
-    if (this.laneWave !== waveNumber) {
-      this.laneWave = waveNumber;
-      this.laneCursor = 0;
-    }
-    const lane = this.pathfinding.laneAt(this.laneCursor);
-    this.laneCursor += 1;
+    // Every spawn of a wave — including a boss and the minions it summons —
+    // joins the same lane, and the choice is the wave ordinal, never random, so
+    // both duel seats send the same horde down the same road.
+    const lane = this.pathfinding.laneAt(this.laneIndexForWave(waveNumber));
 
     const enemy = new Enemy(this, typeKey, waveNumber, lane, {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
@@ -894,7 +914,14 @@ export class GameScene extends Phaser.Scene {
     if (started) {
       startNewWave(this.combo);
       const wave = this.waveManager.waveNumber;
-      this.hud?.showToast(`Wave ${wave}: ${this.waveManager.currentWave.name}!`, 'info');
+      // The whole wave walks one lane, so say it out loud and move the beacon.
+      this.setWaveLane(wave);
+      // One toast, not two: `showToast` replaces the banner, so a second call
+      // would bury the wave name under the lane hint.
+      this.hud?.showToast(
+        `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}`,
+        'info'
+      );
       const bounty = Boolean(this.waveManager.currentWave.bounty);
       this.setBroodColour(wave, bounty ? 0xffc94a : null);
       if (bounty) {
@@ -939,6 +966,7 @@ export class GameScene extends Phaser.Scene {
       `Early call! +🪙${payout} · ${alive} leftover${alive === 1 ? '' : 's'} still marching`,
       'info'
     );
+    this.setWaveLane(result.wave);
     this.setBroodColour(result.wave);
     this.flashWaveBanner(result.wave, this.waveManager.currentWave?.name || '');
     this.syncHUD();
@@ -1546,19 +1574,51 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Direction chevrons along every lane.
+   * Paint the entrance hint for the wave the player is waiting on.
    *
-   * The battlefield deals the horde across two or three routes, so each lane is
-   * marked with an arrow every other cell — the geometry and the palette live in
-   * `LaneArrows.js`, this only owns the Phaser object. Drawn once into a single
-   * Graphics at depth 4 (above the tiles at 3, under the portals and units at
-   * 10+) and never per frame.
+   * The geometry lives in `LaneArrows.js`; this owns the Phaser object and the
+   * index. Called once at scene start and again whenever the pending wave
+   * changes — never per frame.
    */
-  drawLaneArrows() {
-    const graphics = this.laneArrowGraphics;
+  drawLaneHint() {
+    const graphics = this.laneHintGraphics;
     if (!graphics?.clear) return 0;
     graphics.clear();
-    return paintLaneArrows(graphics, this.pathfinding?.lanes || [], TILE_SIZE);
+    const lanes = this.pathfinding?.lanes || [];
+    const lane = lanes[this.waveLaneIndex] || this.pathfinding?.mainPath;
+    if (!lane?.length) return 0;
+    return paintLaneHint(graphics, lane, TILE_SIZE);
+  }
+
+  /** Move the entrance hint onto the lane `waveNumber` will walk. */
+  setWaveLane(waveNumber) {
+    this.waveLaneIndex = this.laneIndexForWave(waveNumber);
+    this.laneHintDrawn = true;
+    this.drawLaneHint();
+    return this.waveLaneIndex;
+  }
+
+  /**
+   * Keep the hint pointing at the wave the player is about to face.
+   *
+   * Between waves the beacon belongs on the *next* lane, the one the push will
+   * come out of; during a wave it stays on the lane that is marching. Called
+   * from the paused branch of the frame loop, and it only repaints when the
+   * index actually changes — never per frame.
+   */
+  syncLaneHint() {
+    const manager = this.waveManager;
+    if (!manager) return;
+    let pending = manager.waveNumber;
+    if (manager.state === WAVE_STATE.IDLE) pending = manager.waveNumber + 1;
+    const index = this.laneIndexForWave(pending || 1);
+    if (index === this.waveLaneIndex && this.laneHintDrawn) return;
+    this.setWaveLane(pending || 1);
+  }
+
+  /** "UPPER LANE" / "CENTRE LANE" … for the wave toast and the pause card. */
+  laneName(index = this.waveLaneIndex) {
+    return `${laneLabel(this.pathfinding?.lanes, index)} LANE`;
   }
 
   toggleBFSVisualizer(enabled) {
@@ -1712,10 +1772,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Hand the run summary to the result screen. Falls back to the leaderboard
-   * modal so a missing UI layer can never strand the player on a dead scene.
-   */
-  /**
    * Report this half of a duel to the room.
    *
    * The scene never decides who won: it publishes its own terminal state
@@ -1725,6 +1781,10 @@ export class GameScene extends Phaser.Scene {
    * the internet.
    */
   finishDuel(outcome) {
+    // One report per match: a late enemy reaching the core while the card is up
+    // must not file a second result (or re-open the card over a verdict).
+    if (this.duelReported) return this.lastDuel;
+    this.duelReported = true;
     // Contract score has to be in the number the room negotiates with.
     const payout = this.bankContracts();
     const report = {
@@ -1742,23 +1802,35 @@ export class GameScene extends Phaser.Scene {
       contractBonus: payout.total,
     };
     this.lastDuel = report;
-    window.gamePvp?.reportSeat?.(report);
-    // A knockout is terminal for this seat: stop the board now rather than
-    // leave a dead horde marching behind the card.
-    if (outcome === 'ko') window.gameFlow?.pauseBattle?.();
+    // Terminal for this seat, either way: freeze the board behind the card
+    // instead of leaving a dead horde marching under it (or, worse, an empty
+    // board that still swallows taps meant for the card).
+    window.gameFlow?.pauseBattle?.();
+    // The card comes before the report on purpose. The host resolves its own
+    // report *synchronously*, so reporting first meant `showFinal` drew the
+    // verdict and then this half-time card painted "waiting for the room" over
+    // it — a decided match with no winner on screen, which is the freeze the
+    // players were hitting.
     if (window.gameDuelResult?.show) {
       window.gameDuelResult.show(report);
-      return report;
+    } else {
+      this.showResult({
+        outcome: outcome === 'ko' ? 'defeat' : 'victory',
+        pvp: true,
+        level: this.level,
+        score: report.score,
+        waves: report.waves,
+        totalWaves: report.totalWaves,
+        timeMs: report.timeMs,
+      });
     }
-    this.showResult({
-      outcome: outcome === 'ko' ? 'defeat' : 'victory',
-      pvp: true,
-      level: this.level,
-      score: report.score,
-      waves: report.waves,
-      totalWaves: report.totalWaves,
-      timeMs: report.timeMs,
-    });
+    // A dropped relay must never take the scene down with it: the verdict is
+    // already on screen, so a failed send is only a missing confirmation.
+    try {
+      window.gamePvp?.reportSeat?.(report);
+    } catch (error) {
+      this.reportRuntimeError?.(error);
+    }
     return report;
   }
 
@@ -2140,6 +2212,7 @@ export class GameScene extends Phaser.Scene {
       // the player can inspect the battlefield before starting a wave.
       this.cameraRig?.update(rawDelta);
       this.badges?.update(this.cameras.main);
+      this.syncLaneHint();
 
       if (this.gameState.isPaused() || this.gameState.isOver()) return;
 

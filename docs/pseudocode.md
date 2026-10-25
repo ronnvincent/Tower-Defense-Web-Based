@@ -238,9 +238,11 @@ ALGORITHM ValidateBuild(typeKey, row, col)
 
   IF basic.ok IS FALSE THEN RETURN basic END IF
 
-  // A wall only pays off on the lane the horde actually marches. The map's
-  // decoy lanes would otherwise swallow the 30 gold and read as a dodge.
-  routeCells <- Set(PathfindingSystem.mainPath)      // computed once on load
+  // A wall only pays off on the lanes the horde actually marches. Every route
+  // the map offers is legal ground now (one wave per lane), so the set is the
+  // union of all lanes — a decoy road would otherwise swallow the 30 gold and
+  // read as a dodge.
+  routeCells <- PathfindingSystem.laneCells          // union of every lane, once on load
   IF typeKey == "barricade" AND NOT routeCells.has(cellKey(row, col)) THEN
     RETURN { ok: false, reason: "off-route" }
   END IF

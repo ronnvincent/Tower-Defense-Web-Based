@@ -3,6 +3,24 @@ import { bfsShortestPath, edgeKey } from '../dsa/BFS.js';
 import { isWalkableTile } from '../data/mapData.js';
 
 /**
+ * The lane a wave walks.
+ *
+ * One road takes the whole wave and the next wave takes the next one, cycling
+ * through every lane: wave 1 → lane 0, wave 2 → lane 1, …, wave 4 → lane 0.
+ * Ordinal, never random, so both duel seats send the same horde down the same
+ * road without a single byte of lane data on the wire.
+ *
+ * @param {number} waveNumber 1-based wave
+ * @param {number} laneCount  lanes the battlefield offers (0 = no lanes)
+ */
+export function laneIndexForWave(waveNumber, laneCount) {
+  const count = Math.max(0, Math.floor(Number(laneCount) || 0));
+  if (!count) return 0;
+  const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
+  return (wave - 1) % count;
+}
+
+/**
  * PathfindingSystem — connects the map, the Graph and BFS to gameplay.
  *
  * Responsibilities:

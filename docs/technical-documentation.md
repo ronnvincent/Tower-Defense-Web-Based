@@ -77,15 +77,16 @@ object standing on a road cell, resolved by `Enemy.updateSiege()` (see
 
 1. **On the road.** `PlacementSystem.validate()` requires `TILE.ROAD` and
    rejects the portal/base cells (`needs-road` / `endpoint`).
-2. **On the marched route.** `GameScene` builds `routeCells = Set(mainPath)`
-   right after `computeMainPath()` and hands it to the validator. A road cell
-   that the horde never enters is rejected with *"No enemies march through this
-   tile"* (`off-route`) instead of silently eating the 30 gold.
+2. **On a marched route.** `GameScene` builds `routeCells` from
+   `PathfindingSystem.laneCells` — the **union of every lane** — right after
+   `computeLanes()` and hands it to the validator. A road cell that no wave ever
+   walks is rejected with *"No enemies march through this tile"* (`off-route`)
+   instead of silently eating the 30 gold.
 
-Because every legal palisade sits on the one route the queue follows, an enemy
-is guaranteed to reach it and start swinging — the wall can never be walked
-around. When the last hit lands, `damageBarricade()` collapses it and the road
-reopens.
+Because the horde marches one lane per wave (`laneIndexForWave`), every legal
+palisade stands on a road some wave will take, and an enemy that meets it stops
+and swings — the wall can never be walked around. When the last hit lands,
+`damageBarricade()` collapses it and the road reopens.
 
 ---
 

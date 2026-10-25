@@ -86,18 +86,27 @@ export class DuelResultUI {
     return !this.el.classList.contains('hidden');
   }
 
-  /** Your half finished; the room may still be live. */
+  /**
+   * Your half finished; the room may still be live.
+   *
+   * This must never overwrite a decided match. The host resolves its own report
+   * synchronously, so `showFinal` can land *before* this call — and when it did,
+   * the verdict was replaced by a "waiting" card on a match that was already
+   * over. That is the freeze both seats reported: no winner, no loser, forever.
+   */
   show(report) {
+    if (this.final) return;
     this.report = report;
-    this.final = null;
+    const ko = report?.outcome === 'ko';
     this.el.classList.remove('hidden');
     this.$('duel-result-eyebrow').textContent = 'MIRROR ARENA';
-    this.$('duel-result-title').textContent = report?.outcome === 'ko' ? 'Core Breached' : 'Sector Cleared';
-    this.$('duel-result-title').className = `overlay-title duel-title ${report?.outcome === 'ko' ? 'is-loss' : 'is-win'}`;
-    this.$('duel-result-line').textContent =
-      report?.outcome === 'ko'
-        ? 'Your core fell. If your rival falls too, points decide it.'
-        : 'You finished the horde. Now the arena waits on your rival.';
+    // A knockout is not a wait: the first core down loses, full stop. Show the
+    // defeat immediately and let the room only *confirm* it.
+    this.$('duel-result-title').textContent = ko ? 'Defeat' : 'Sector Cleared';
+    this.$('duel-result-title').className = `overlay-title duel-title ${ko ? 'is-loss' : 'is-win'}`;
+    this.$('duel-result-line').textContent = ko
+      ? 'Your core fell — knockout. The first core down loses the arena.'
+      : 'You finished the horde. Now the arena waits on your rival.';
     this.renderScoreboard([
       {
         name: 'YOU',
@@ -110,13 +119,46 @@ export class DuelResultUI {
     ]);
     this.renderContracts(report?.contracts);
     this.$('duel-waiting').classList.remove('hidden');
+    this.$('duel-waiting').textContent = ko
+      ? 'Waiting for the room to confirm the knockout. You can leave at any time — this half is already lost.'
+      : 'Your half is settled. The match closes when your rival finishes — the lower core or fewer points loses.';
     this.$('duel-rematch').disabled = true;
     this.$('duel-rematch').title = 'Available when the match is decided';
+    this.startWatchdog();
+  }
+
+  /**
+   * Never strand a player on a card that cannot resolve.
+   *
+   * If the room never answers (a dropped relay, a rival that closed the tab),
+   * say so in plain words and stop pretending the match is about to close.
+   */
+  startWatchdog(ms = 9000) {
+    this.stopWatchdog();
+    this.watchdog = setTimeout(() => {
+      this.watchdog = null;
+      if (this.final) return;
+      const waiting = this.$('duel-waiting');
+      if (waiting) {
+        waiting.textContent =
+          'No answer from the room — the duel link is down. Your half is settled, so you can leave safely.';
+      }
+      const rematch = this.$('duel-rematch');
+      rematch.disabled = true;
+      rematch.title = 'The room is unreachable';
+    }, ms);
+    this.watchdog?.unref?.();
+  }
+
+  stopWatchdog() {
+    if (this.watchdog) clearTimeout(this.watchdog);
+    this.watchdog = null;
   }
 
   /** The room decided. */
   showFinal({ resolved, view, selfSeat } = {}) {
     if (!view) return;
+    this.stopWatchdog();
     this.final = { resolved, view, selfSeat };
     this.el.classList.remove('hidden');
     this.$('duel-waiting').classList.add('hidden');
@@ -195,6 +237,7 @@ export class DuelResultUI {
   }
 
   hide() {
+    this.stopWatchdog();
     this.el.classList.add('hidden');
     this.report = null;
     this.final = null;

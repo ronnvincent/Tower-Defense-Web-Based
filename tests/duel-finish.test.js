@@ -132,6 +132,37 @@ describe('a decided duel', () => {
     expect(pauseBattle).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the verdict when this seat finishes a beat later', async () => {
+    // The freeze exactly as it shipped: `finishDuel` reported to the room
+    // *before* painting its own card. The host resolves its own report
+    // synchronously, so `showFinal` drew "Defeat" and then the half-time card
+    // painted over it — a decided match frozen on "waiting for your rival".
+    const { uiRoom } = await seatedDuel({ withLobby: true });
+    uiRoom.reportSeat(KO);
+    await waitFor(() => result.isVisible, 'verdict');
+
+    result.show({ ...KO, totalWaves: 10, contracts: [] });
+
+    expect(result.$('duel-result-title').textContent).toBe('Defeat');
+    expect(result.$('duel-waiting').classList.contains('hidden')).toBe(true);
+    expect(result.$('duel-rematch').disabled).toBe(false);
+    for (const id of ['duel-lobby', 'duel-menu']) expect(result.$(id).disabled, id).toBe(false);
+  });
+
+  it('ends the match on a core-down heartbeat if the result packet is lost', async () => {
+    // The last-resort backstop: the loser's RESULT frame never arrives, but the
+    // heartbeat already said `coreHp: 0`. The room must still close, or the
+    // winner waits forever on a card that can never resolve.
+    const { uiRoom, rivalRoom } = await seatedDuel({ withLobby: true });
+    expect(uiRoom.state.status).toBe('live');
+
+    rivalRoom.reportProgress({ wave: 4, totalWaves: 10, score: 900, coreHp: 0, alive: false });
+
+    await waitFor(() => result.isVisible, 'verdict from the heartbeat');
+    expect(result.$('duel-result-title').textContent).toBe('Victory');
+    expect(pauseBattle).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps every exit from the card live', async () => {
     const { uiRoom, rivalRoom } = await seatedDuel({ withLobby: true });
     rivalRoom.reportSeat(KO);

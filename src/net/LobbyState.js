@@ -204,7 +204,31 @@ export function applyIntent(state, intent, now = 0) {
     case OP.PROGRESS: {
       if (!seatId || state.status !== MATCH_STATUS.LIVE) return { state, effects, changed: false };
       reportProgress(state.match, seatId, payload);
-      return { state: touch(state, now), effects: [{ type: 'progress', seat: seatId }], changed: true };
+      effects.push({ type: 'progress', seat: seatId });
+      // A dead core ends the match even if the RESULT packet is lost in flight:
+      // the heartbeat already carries `alive: false`, so a knockout cannot be
+      // left waiting on a packet that never arrives.
+      if (payload?.coreHp === 0) {
+        const { resolved } = reportSeat(
+          state.match,
+          {
+            seat: seatId,
+            outcome: 'ko',
+            score: payload.score,
+            coreHp: 0,
+            waves: payload.wave,
+            totalWaves: payload.totalWaves,
+            timeMs: payload.timeMs,
+          },
+          now
+        );
+        if (resolved) {
+          state.status = MATCH_STATUS.OVER;
+          effects.push({ type: 'result', seat: seatId, resolved });
+          effects.push({ type: 'match-over', resolved });
+        }
+      }
+      return { state: touch(state, now), effects, changed: true };
     }
 
     case OP.RESULT: {

@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { MAPS, parseMap, isWalkableTile } from '../src/data/mapData.js';
 import { PVP_ARENAS } from '../src/data/pvpArenas.js';
-import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
+import { PathfindingSystem, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
 import {
   LANE_ARROW_DEPTH,
-  LANE_ARROW_STEP,
-  laneArrowAnchors,
-  paintLaneArrows,
+  LANE_HINT_STEPS,
+  laneHintAnchors,
+  laneLabel,
+  paintLaneHint,
 } from '../src/systems/LaneArrows.js';
 import { TILE_SIZE } from '../src/config/gameConfig.js';
 
@@ -141,8 +143,35 @@ describe('multi-lane routing', () => {
   });
 });
 
-describe('lane dealing', () => {
-  const lanes = ['a', 'b', 'c'];
+describe('one lane per wave', () => {
+  it('files a whole wave down a single road and rotates on the next one', () => {
+    // Wave 1 → lane 0, wave 2 → lane 1, wave 3 → lane 2, wave 4 → lane 0 …
+    expect([1, 2, 3, 4, 5, 6].map((wave) => laneIndexForWave(wave, 3))).toEqual([0, 1, 2, 0, 1, 2]);
+    expect([1, 2, 3, 4].map((wave) => laneIndexForWave(wave, 2))).toEqual([0, 1, 0, 1]);
+    expect(laneIndexForWave(7, 1)).toBe(0);
+    expect(laneIndexForWave(0, 3)).toBe(0);
+    expect(laneIndexForWave(9, 0)).toBe(0);
+  });
+
+  it('deals every enemy of a wave — boss included — onto the same lane', () => {
+    // This is the rule GameScene.spawnEnemy applies: the lane never varies
+    // inside a wave, whatever the spawn order is.
+    const laneOf = (wave) => laneIndexForWave(wave, 3);
+    const wave = 2;
+    const spawns = [0, 1, 2, 3, 4, 5, 6, 7];
+    expect(new Set(spawns.map(() => laneOf(wave)))).toEqual(new Set([1]));
+    // …and the next wave really is a different road.
+    expect(laneOf(wave + 1)).not.toBe(laneOf(wave));
+  });
+
+  it('reaches every lane of every battlefield over a run', () => {
+    for (const [name, layout] of BATTLEFIELDS) {
+      const { lanes } = build(layout);
+      const used = new Set();
+      for (let wave = 1; wave <= 10; wave += 1) used.add(laneIndexForWave(wave, lanes.length));
+      expect(used.size, `${name} never uses one of its lanes`).toBe(lanes.length);
+    }
+  });
 
   it('wraps in both directions and never returns undefined', () => {
     const pf = new PathfindingSystem(parseMap(MAPS.grassland));
@@ -162,33 +191,19 @@ describe('lane dealing', () => {
     expect(pf.laneAt(1)).toEqual(pf.mainPath);
   });
 
-  it('deals a wave across every lane and leaves none idle', () => {
-    // This is the rule GameScene.spawnEnemy applies: k-th spawn → lane k % n.
-    const dealt = (count, spawns) => {
-      const tally = new Array(count).fill(0);
-      for (let k = 0; k < spawns; k += 1) tally[((k % count) + count) % count] += 1;
-      return tally;
-    };
-    expect(dealt(3, 12)).toEqual([4, 4, 4]);
-    expect(dealt(2, 9)).toEqual([5, 4]);
-    // A boss wave: the titan takes the next lane in the same fixed order.
-    expect(dealt(3, 1)).toEqual([1, 0, 0]);
-    expect(dealt(3, 2)).toEqual([1, 1, 0]);
-  });
-
   it('replays the same order on both seats of a duel', () => {
     const replay = () => {
       const seq = [];
-      for (let wave = 1; wave <= 3; wave += 1) {
-        for (let k = 0; k < 5; k += 1) seq.push(`w${wave}:${k % 3}`);
-      }
+      for (let wave = 1; wave <= 10; wave += 1) seq.push(`w${wave}:${laneIndexForWave(wave, 3)}`);
       return seq;
     };
     expect(replay()).toEqual(replay());
+    expect(replay()[0]).toBe('w1:0');
+    expect(replay()[1]).toBe('w2:1');
   });
 });
 
-describe('lane direction arrows', () => {
+describe('lane entrance hint', () => {
   const lanesOf = (layout) => build(layout).lanes;
   const midOf = (a, b) => {
     const [ar, ac] = a.split(',').map(Number);
@@ -197,121 +212,152 @@ describe('lane direction arrows', () => {
   };
   const at = (arrow, point) => Math.abs(arrow.x - point.x) < 1e-6 && Math.abs(arrow.y - point.y) < 1e-6;
 
-  it('paints a chevron layer between the tiles and the units', () => {
+  it('paints a hint layer between the tiles and the units', () => {
     expect(LANE_ARROW_DEPTH).toBeGreaterThan(3); // terrain tiles
     expect(LANE_ARROW_DEPTH).toBeLessThan(10); // portal + core platform
   });
 
-  it('marks every lane', () => {
+  it('marks the entrance of the wave lane only, not the whole road', () => {
     for (const [name, layout] of BATTLEFIELDS) {
       const lanes = lanesOf(layout);
-      const arrows = laneArrowAnchors(lanes, TILE_SIZE);
-      lanes.forEach((lane, index) => {
-        const marked = arrows.filter((arrow) =>
-          lane.some((key, i) => i + 1 < lane.length && at(arrow, midOf(key, lane[i + 1])))
-        );
-        expect(marked.length, `${name} lane ${index + 1} has no arrows`).toBeGreaterThan(2);
-      });
+      for (const lane of lanes) {
+        const marks = laneHintAnchors(lane, TILE_SIZE);
+        expect(marks.length, `${name} has no entrance marker`).toBeGreaterThan(1);
+        // Every chevron sits on one of the first LANE_HINT_STEPS edges.
+        marks.forEach((arrow) => {
+          const index = lane.findIndex((key, i) => i > 0 && at(arrow, midOf(lane[i - 1], key)));
+          expect(index, `${name} marked an edge past the entrance`).toBeLessThanOrEqual(
+            LANE_HINT_STEPS + 1
+          );
+          expect(index).toBeGreaterThan(0);
+        });
+        // The far end of the road — the core approach — stays bare.
+        const tail = lane.slice(Math.floor(lane.length / 2));
+        tail.forEach((key, i) => {
+          if (i === 0 || i + 1 >= tail.length) return;
+          expect(marks.some((arrow) => at(arrow, midOf(tail[i - 1], key)))).toBe(false);
+        });
+      }
     }
   });
 
   it('points every chevron the way the horde walks', () => {
     for (const [name, layout] of BATTLEFIELDS) {
-      const lanes = lanesOf(layout);
-      const arrows = laneArrowAnchors(lanes, TILE_SIZE);
-      for (const lane of lanes) {
-        for (let i = 1; i + 1 < lane.length; i += 2) {
-          const mid = midOf(lane[i], lane[i + 1]);
-          const arrow = arrows.find((candidate) => at(candidate, mid));
-          if (!arrow) continue; // that edge was already marked by another lane
-          const [nr, nc] = lane[i + 1].split(',').map(Number);
+      for (const lane of lanesOf(layout)) {
+        for (const arrow of laneHintAnchors(lane, TILE_SIZE)) {
+          const index = lane.findIndex((key, i) => i > 0 && at(arrow, midOf(lane[i - 1], key)));
+          if (index < 0) continue;
+          const [nr, nc] = lane[index].split(',').map(Number);
           const dx = nc * TILE_SIZE + TILE_SIZE / 2 - arrow.x;
           const dy = nr * TILE_SIZE + TILE_SIZE / 2 - arrow.y;
           const dot = (arrow.tip.x - arrow.x) * dx + (arrow.tip.y - arrow.y) * dy;
-          expect(dot, `${name} arrow between ${lane[i]} and ${lane[i + 1]} points backwards`).toBeGreaterThan(0);
+          expect(dot, `${name} hint arrow near ${lane[index]} points backwards`).toBeGreaterThan(0);
         }
       }
     }
   });
 
-  it('keeps the gate clear and stamps every edge only once', () => {
+  it('draws a beacon on the gate and two triangles per chevron', () => {
     const lanes = lanesOf(MAPS.grassland);
-    const arrows = laneArrowAnchors(lanes, TILE_SIZE);
-    const coords = arrows.map((arrow) => `${arrow.x},${arrow.y}`);
-    expect(new Set(coords).size, 'an edge was stamped twice').toBe(coords.length);
-
-    const spawn = parseMap(MAPS.grassland).spawn;
-    const gate = { x: spawn.col * TILE_SIZE + TILE_SIZE / 2, y: spawn.row * TILE_SIZE + TILE_SIZE / 2 };
-    for (const arrow of arrows) {
-      const distance = Math.hypot(arrow.x - gate.x, arrow.y - gate.y);
-      expect(distance, 'an arrow sits on the gate tile').toBeGreaterThan(TILE_SIZE / 2);
-    }
-  });
-
-  it('gives a forked cell one arrow per exit instead of one muddled marker', () => {
-    // Two lanes leave the same cell in different directions. Because the marker
-    // sits on the edge between cells, each exit keeps its own chevron.
-    const lanes = [
-      ['9,4', '9,5', '9,6', '9,7'],
-      ['9,4', '9,5', '8,5', '8,6'],
-    ];
-    const arrows = laneArrowAnchors(lanes, TILE_SIZE);
-    const has = (a, b) => arrows.some((arrow) => at(arrow, midOf(a, b)));
-    expect(has('9,5', '9,6')).toBe(true); // east out of the fork
-    expect(has('9,5', '8,5')).toBe(true); // north out of the same cell
-    const east = arrows.find((arrow) => at(arrow, midOf('9,5', '9,6')));
-    const north = arrows.find((arrow) => at(arrow, midOf('9,5', '8,5')));
-    expect(east.angle).not.toBeCloseTo(north.angle);
-    expect(east.x).not.toBeCloseTo(north.x);
-  });
-
-  it('drops near-identical routes instead of padding the count', () => {
-    // A grid of roads offers corner-cut twins that differ by a cell; asking for
-    // barely-distinct lanes must fall back to a single route, not three.
-    const pf = new PathfindingSystem(parseMap(MAPS.grassland));
-    expect(pf.computeLanes({ minDifference: 0.95 })).toHaveLength(1);
-    const again = new PathfindingSystem(parseMap(MAPS.grassland));
-    expect(again.computeLanes()).toHaveLength(3);
-  });
-
-  it('draws two triangles per arrow — a dark keyline and the warm chevron', () => {
-    const lanes = lanesOf(MAPS.grassland);
-    const expected = laneArrowAnchors(lanes, TILE_SIZE).length;
-    const calls = { styles: [], triangles: [] };
+    const lane = lanes[0];
+    const expected = laneHintAnchors(lane, TILE_SIZE).length;
+    const calls = { styles: [], triangles: [], circles: [], lines: [] };
     const recorder = {
       fillStyle: (color, alpha) => calls.styles.push([color, alpha]),
       fillTriangle: (...points) => calls.triangles.push(points),
+      strokeCircle: (x, y, r) => calls.circles.push({ x, y, r }),
+      lineStyle: (width, color, alpha) => calls.lines.push([width, color, alpha]),
     };
-    const drawn = paintLaneArrows(recorder, lanes, TILE_SIZE);
+    const drawn = paintLaneHint(recorder, lane, TILE_SIZE);
     expect(drawn).toBe(expected);
-    expect(calls.styles).toHaveLength(expected * 2);
     expect(calls.triangles).toHaveLength(expected * 2);
-    // Keyline first, chevron second, and the chevron sits 1.5 px up-left of it.
-    expect(calls.styles[1]).toEqual([0xffe6a3, 0.72]);
-    for (let i = 0; i < calls.triangles.length; i += 2) {
-      const shade = calls.triangles[i];
-      const chevron = calls.triangles[i + 1];
-      expect(shade[0] - chevron[0]).toBeCloseTo(1.5);
-      expect(shade[1] - chevron[1]).toBeCloseTo(1.5);
+    expect(calls.circles).toHaveLength(2); // outer ring + inner ring
+    // The beacon sits on the gate tile, where the portal sprite is.
+    const gate = parseMap(MAPS.grassland).spawn;
+    expect(calls.circles[0].x).toBeCloseTo(gate.col * TILE_SIZE + TILE_SIZE / 2);
+    expect(calls.circles[0].y).toBeCloseTo(gate.row * TILE_SIZE + TILE_SIZE / 2);
+    expect(calls.circles[0].r).toBeGreaterThan(calls.circles[1].r);
+    // Dark keyline first, warm chevron second.
+    expect(calls.styles[1]).toEqual([0xffe6a3, 0.8]);
+  });
+
+  it('keeps the chevrons short and spaced a cell apart', () => {
+    const lane = ['5,2', '5,3', '5,4', '5,5', '5,6', '5,7', '5,8', '5,9'];
+    const arrows = laneHintAnchors(lane, TILE_SIZE);
+    expect(arrows).toHaveLength(LANE_HINT_STEPS);
+    expect(arrows.map((arrow) => arrow.x)).toEqual([
+      4 * TILE_SIZE,
+      5 * TILE_SIZE,
+      6 * TILE_SIZE,
+      7 * TILE_SIZE,
+    ]);
+    for (const arrow of arrows) {
+      expect(arrow.angle).toBeCloseTo(0);
+      expect(arrow.tip.x).toBeGreaterThan(arrow.x); // pointing the way the lane runs
     }
   });
 
-  it('spaces the chevrons two cells apart on a straight lane', () => {
-    expect(LANE_ARROW_STEP).toBe(2);
-    const lane = ['5,2', '5,3', '5,4', '5,5', '5,6', '5,7', '5,8'];
-    const arrows = laneArrowAnchors([lane], TILE_SIZE);
-    expect(arrows).toHaveLength(3); // edges 1-2, 3-4, 5-6
-    expect(arrows.map((arrow) => arrow.x)).toEqual([4 * TILE_SIZE, 6 * TILE_SIZE, 8 * TILE_SIZE]);
-    for (const arrow of arrows) {
-      expect(arrow.angle).toBeCloseTo(0);
-      expect(arrow.tip.x).toBeGreaterThan(arrow.x); // pointing east, the way the lane runs
+  it('names a lane by where it leaves the shortest route', () => {
+    // Ice forks three ways at the same cell: middle, up and down.
+    const ice = lanesOf(MAPS.ice);
+    const labels = ice.map((_, index) => laneLabel(ice, index));
+    expect(labels[0]).toBe('CENTRE');
+    expect(labels).toContain('UPPER');
+    expect(labels).toContain('LOWER');
+    expect(new Set(labels).size).toBe(3);
+    for (const [name, layout] of BATTLEFIELDS) {
+      const lanes = lanesOf(layout);
+      lanes.forEach((_, index) => {
+        expect(['CENTRE', 'UPPER', 'LOWER', 'LEFT', 'RIGHT'], name).toContain(laneLabel(lanes, index));
+      });
     }
+    expect(laneLabel([], 0)).toBe('CENTRE');
   });
 
   it('survives a map with no lanes at all', () => {
-    expect(laneArrowAnchors([], TILE_SIZE)).toEqual([]);
-    expect(laneArrowAnchors([['1,1', '1,2']], TILE_SIZE)).toEqual([]);
-    expect(paintLaneArrows(null, [], TILE_SIZE)).toBe(0);
-    expect(paintLaneArrows({ fillTriangle() {} }, [['1,1', '1,2']], TILE_SIZE)).toBe(0);
+    expect(laneHintAnchors([], TILE_SIZE)).toEqual([]);
+    expect(laneHintAnchors([['1,1', '1,2']], TILE_SIZE)).toEqual([]);
+    expect(paintLaneHint(null, [], TILE_SIZE)).toBe(0);
+    expect(paintLaneHint({ fillTriangle() {} }, ['1,1'], TILE_SIZE)).toBe(0);
+  });
+});
+
+describe('scene wiring', () => {
+  const source = readFileSync(new URL('../src/scenes/GameScene.js', import.meta.url), 'utf8');
+  const body = (name) => {
+    const start = source.indexOf(`  ${name}(`);
+    expect(start, `${name} is missing from GameScene`).toBeGreaterThan(-1);
+    return source.slice(start, start + 4000);
+  };
+
+  it('spawns every enemy — boss included — on the wave lane', () => {
+    const spawn = body('spawnEnemy');
+    expect(spawn).toContain('this.pathfinding.laneAt(this.laneIndexForWave(waveNumber))');
+    expect(spawn).toMatch(/new Enemy\(this, typeKey, waveNumber, lane,/);
+  });
+
+  it('moves the hint when a wave opens', () => {
+    expect(body('openWave')).toContain('this.setWaveLane(wave)');
+  });
+
+  it('never paints arrows over the whole road network', () => {
+    for (const file of ['src/scenes/GameScene.js', 'src/systems/LaneArrows.js']) {
+      const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+      expect(text).not.toContain('paintLaneArrows');
+      expect(text).not.toContain('laneArrowAnchors');
+    }
+    expect(source).toContain('paintLaneHint');
+  });
+
+  it('paints the result card before reporting to the room', () => {
+    // Reporting first let the host's synchronous resolution paint the verdict
+    // and then the half-time card paint over it: the freeze players hit.
+    const finish = body('finishDuel');
+    const showAt = finish.indexOf('window.gameDuelResult?.show');
+    const reportAt = finish.indexOf('window.gamePvp?.reportSeat');
+    expect(showAt).toBeGreaterThan(-1);
+    expect(reportAt).toBeGreaterThan(showAt);
+    expect(finish).toContain('if (this.duelReported) return this.lastDuel;');
+    expect(finish).toContain('pauseBattle');
   });
 });
