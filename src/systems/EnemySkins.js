@@ -12,15 +12,23 @@ import { ENEMY_SKINS, ENEMY_PALETTES, ENEMY_TIERS } from '../data/spireManifest.
  *           (3-4, brighter with a gold contour) and champion (5+, scorched with
  *           an ember contour grown a pixel outwards). Tiers are separate sheets,
  *           so the change survives on screen instead of hiding inside a tint.
- *   palette — every Spire strip also holds three colour variants per clip
- *           (rows 0-2 / 3-5 / 6-8); each pair of waves uses one, so wave 1 and
- *           wave 3 are still different broods of the same creature.
+ *
+ * A Spire strip is **three directions x three clips**, not three colour
+ * variants: rows 0-2 are idle (south / north / profile), 3-5 walk, 6-8 death.
+ * The row is chosen by `Enemy.faceTravel()` from the creep's heading, so nothing
+ * here may touch it — `paletteForWave()` used to be read as a row offset and
+ * that is what turned the horde sideways. It now survives only as a cosmetic
+ * phase counter (see `Enemy`), and the third axis, brood variety, comes from the
+ * biome sheets and the tier sheets below.
  *
  * Everything here is pure: the same (type, wave, theme) always resolves to the
  * same skin, which is what the tests pin down.
  */
 
-/** Palette row-block for a wave: waves 1-2 -> 0, 3-4 -> 1, 5-6 -> 2, then repeat. */
+/**
+ * Cosmetic brood phase for a wave: waves 1-2 -> 0, 3-4 -> 1, 5-6 -> 2, repeat.
+ * Never used to index a frame row — see the docblock above.
+ */
 export function paletteForWave(waveNumber) {
   const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
   return Math.floor((wave - 1) / 2) % ENEMY_PALETTES;
@@ -65,12 +73,9 @@ export function textureFor(typeKey, theme, tier = 0) {
 }
 
 /**
- * @returns {{
- *   texture:string, palette:number, tier:number, scale:number, glow:number,
- *   animPrefix:string, fallbackPrefix:string
- * }}
- *   `animPrefix` is the palette-specific clip prefix; `fallbackPrefix` is the
- *   bare, palette-0 alias used when the variant clips were never built.
+ * @returns {{ texture:string, palette:number, tier:number, scale:number, glow:number }}
+ *   `palette` is a cosmetic phase only — the clip row comes from the heading in
+ *   `Enemy.faceTravel()`, never from here.
  */
 export function skinFor(typeKey, waveNumber, theme) {
   const tier = tierForWave(waveNumber);
@@ -83,8 +88,6 @@ export function skinFor(typeKey, waveNumber, theme) {
     tier,
     scale: presentation.scale,
     glow: presentation.glow,
-    animPrefix: `${texture}-v${palette}`,
-    fallbackPrefix: texture,
   };
 }
 

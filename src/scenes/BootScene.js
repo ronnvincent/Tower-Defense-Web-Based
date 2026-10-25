@@ -1,6 +1,6 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
-import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_PALETTES, IMPACT_SHEETS } from '../data/spireManifest.js';
+import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_DIRECTIONS, IMPACT_SHEETS } from '../data/spireManifest.js';
 import { FX_SHEETS, FX_PARTICLES } from '../data/fxManifest.js';
 import { DECOR_ART } from '../data/towerDecor.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
@@ -97,7 +97,7 @@ export class BootScene extends Phaser.Scene {
       this.load.image(key, `assets/towers/deco/${file}`);
     }
 
-    // 4. Enemies — animated 9-row strips (idle / move / death x 3 palettes).
+    // 4. Enemies — animated 9-row strips: 3 clips x 3 direction rows.
     // Every biome x wave-tier re-grade is a separate sheet: the base strip, the
     // elite strip and the champion strip, per battlefield. Texture keys come
     // straight from the manifest (`ENEMY_SKINS`), so no naming is guessed here.
@@ -226,15 +226,27 @@ export class BootScene extends Phaser.Scene {
 
   /**
    * Idle / walk / death clips for every enemy archetype, battlefield and wave
-   * tier, in each of the strip's three palette variants.
+   * tier, for each of the strip's three direction rows.
    *
-   * A Spire strip is 9 rows: 0-2 idle, 3-5 move, 6-8 death, each row a different
-   * colour variant. Biome and tier pick the *texture*, the palette picks the row
-   * inside it, so a wave 1 grunt and a wave 5 grunt differ by brood colouring,
-   * contour and scale rather than by a barely-visible hue nudge.
+   * A Spire strip is 9 rows laid out as **three clips x three directions**:
    *
-   * The bare `enemy-<key>-<clip>` keys are kept as aliases of palette 0 so any
-   * older call site (and the headless tests) still resolves.
+   *     rows 0-2   idle : south (towards camera) / north (away) / profile
+   *     rows 3-5   walk : the same three
+   *     rows 6-8   death: the same three
+   *
+   * The rows were once read as three *colour variants*, which is why a wave-3
+   * creep walked backwards and a wave-5 creep appeared to lie on its side: the
+   * game picked the north or profile row and then rotated it again. Rows are
+   * now addressed by direction, so the art's own pose does the work and the
+   * sprite is never rotated (see Enemy.faceTravel).
+   *
+   * Wave-to-wave variety comes from the biome and tier *textures* (13 per
+   * creature) plus tier scale and brood glow, which are real art changes.
+   *
+   * The bare `enemy-<key>-<clip>` keys alias the south row, so call sites that
+   * predate the direction split (and the headless harnesses) keep resolving.
+   * There is no `-v*` alias any more: `v` used to mean "colour variant", and
+   * leaving that name around invited the row to be picked by wave number again.
    */
   createEnemyAnimations() {
     for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
@@ -247,25 +259,25 @@ export class BootScene extends Phaser.Scene {
         if (!this.textures.exists(textureKey)) continue;
         const cols = this.textures.get(textureKey).source[0].width / sheet.frameWidth;
 
-        for (let palette = 0; palette < ENEMY_PALETTES; palette += 1) {
-          this.createEnemyClips(textureKey, sheet, cols, palette);
+        for (let direction = 0; direction < ENEMY_DIRECTIONS; direction += 1) {
+          this.createEnemyClips(textureKey, sheet, cols, direction);
         }
-        // Legacy aliases -> palette 0.
+        // Bare aliases -> the south-facing row.
         this.createEnemyClips(textureKey, sheet, cols, 0, '');
       }
     }
   }
 
   /**
-   * One idle/move/death trio: rows `palette`, `3 + palette`, `6 + palette`.
+   * One idle/move/death trio for a direction row: rows `dir`, `3 + dir`, `6 + dir`.
    *
-   * Measured against the shipped sheets: rows 0-2 are the idle strip in the
-   * three palettes, rows 3-5 the walk strip, rows 6-8 the death strip. Frame
-   * counts per row are taken from the manifest, not assumed.
+   * Frame counts come from the manifest, never assumed. The clip key is
+   * `<texture>-d<dir>-<clip>`; `Enemy` swaps between the three when the heading
+   * changes lane direction.
    */
-  createEnemyClips(textureKey, sheet, cols, palette, suffixOverride = null) {
-    const suffix = suffixOverride === null ? `-v${palette}` : suffixOverride;
-    const row = (index) => (index + palette) * cols;
+  createEnemyClips(textureKey, sheet, cols, direction, suffixOverride = null) {
+    const suffix = suffixOverride === null ? `-d${direction}` : suffixOverride;
+    const row = (index) => (index + direction) * cols;
     const clips = [
       ['idle', sheet.idle, row(0), 8, -1],
       ['move', sheet.move, row(3), 10, -1],

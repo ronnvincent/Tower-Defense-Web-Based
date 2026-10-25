@@ -3,33 +3,37 @@
  * Do not edit by hand: re-run the script after changing the source sheets.
  *
  * Frame sizes and frame counts measured from the real Foozle "Spire" PNGs.
- * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.
- * `facing` is the orientation contract for Enemy.faceTravel(): 'south' and
- * 'north' name the way the art already points at rotation 0, 'camera' marks
- * front-on art that must only ever be mirrored.
+ * Enemy strips hold 9 rows: three clip groups (idle / walk / death) of
+ * three DIRECTION rows each: 0 faces the camera, 1 faces away, 2 is drawn
+ * in profile. They are not colour variants - see ENEMY_FACING in the
+ * generator for the measurement that proves it.
+ *
+ * `facing` names what row 0 already does ('south' = faces the camera,
+ * 'camera' = single-direction imported art that may only be mirrored), and
+ * `directional` says whether all three rows are usable as headings.
  */
 
 export const ENEMY_SHEETS = {
-  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7, facing: 'south' },
-  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11, facing: 'south' },
-  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8, facing: 'south' },
-  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13, facing: 'south' },
-  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12, facing: 'north' },
-  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10, facing: 'south' },
-  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12, facing: 'south' },
-  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14, facing: 'south' },
-  'thrall': { file: 'enemy-thrall.png', frameWidth: 65, frameHeight: 65, artWidth: 22, artHeight: 50, idle: 4, move: 8, death: 6, facing: 'camera' },
-  'raider': { file: 'enemy-raider.png', frameWidth: 62, frameHeight: 62, artWidth: 25, artHeight: 31, idle: 4, move: 8, death: 6, facing: 'camera' },
-  'bonearcher': { file: 'enemy-bonearcher.png', frameWidth: 80, frameHeight: 80, artWidth: 43, artHeight: 60, idle: 4, move: 8, death: 6, facing: 'camera' },
-  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8, facing: 'south' },
-  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10, facing: 'south' },
-  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12, facing: 'south' },
-  'prismlord': { file: 'enemy-prismlord.png', frameWidth: 192, frameHeight: 192, artWidth: 174, artHeight: 144, idle: 6, move: 4, death: 12, facing: 'north' },
-  'obsidian': { file: 'enemy-obsidian.png', frameWidth: 192, frameHeight: 192, artWidth: 150, artHeight: 120, idle: 8, move: 8, death: 13, facing: 'south' },
-  'voidherald': { file: 'enemy-voidherald.png', frameWidth: 192, frameHeight: 192, artWidth: 108, artHeight: 120, idle: 12, move: 8, death: 14, facing: 'south' },
-  'ironhorn': { file: 'enemy-ironhorn.png', frameWidth: 103, frameHeight: 103, artWidth: 63, artHeight: 64, idle: 8, move: 8, death: 8, facing: 'camera' },
-  'ashwing': { file: 'enemy-ashwing.png', frameWidth: 122, frameHeight: 122, artWidth: 79, artHeight: 43, idle: 8, move: 8, death: 8, facing: 'camera' },
-  'gravesworn': { file: 'enemy-gravesworn.png', frameWidth: 114, frameHeight: 114, artWidth: 65, artHeight: 74, idle: 4, move: 8, death: 6, facing: 'camera' },
+  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7, facing: 'south', directional: true, profileFacing: 'east' },
+  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11, facing: 'south', directional: true, profileFacing: 'east' },
+  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'west' },
+  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13, facing: 'south', directional: true, profileFacing: 'west' },
+  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12, facing: 'north', directional: true, profileFacing: 'east' },
+  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10, facing: 'south', directional: true, profileFacing: 'west' },
+  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12, facing: 'south', directional: true, profileFacing: 'east' },
+  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14, facing: 'south', directional: true, profileFacing: 'east' },
+  'thrall': { file: 'enemy-thrall.png', frameWidth: 65, frameHeight: 65, artWidth: 22, artHeight: 50, idle: 4, move: 8, death: 6, facing: 'camera', directional: false, profileFacing: 'east' },
+  'raider': { file: 'enemy-raider.png', frameWidth: 62, frameHeight: 62, artWidth: 25, artHeight: 31, idle: 4, move: 8, death: 6, facing: 'camera', directional: false, profileFacing: 'east' },
+  'bonearcher': { file: 'enemy-bonearcher.png', frameWidth: 80, frameHeight: 80, artWidth: 43, artHeight: 60, idle: 4, move: 8, death: 6, facing: 'camera', directional: false, profileFacing: 'east' },
+  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'west' },
+  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10, facing: 'south', directional: true, profileFacing: 'west' },
+  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12, facing: 'south', directional: true, profileFacing: 'east' },
+  'prismlord': { file: 'enemy-prismlord.png', frameWidth: 192, frameHeight: 192, artWidth: 174, artHeight: 144, idle: 6, move: 4, death: 12, facing: 'north', directional: true, profileFacing: 'east' },
+  'obsidian': { file: 'enemy-obsidian.png', frameWidth: 192, frameHeight: 192, artWidth: 150, artHeight: 120, idle: 8, move: 8, death: 13, facing: 'south', directional: true, profileFacing: 'west' },
+  'voidherald': { file: 'enemy-voidherald.png', frameWidth: 192, frameHeight: 192, artWidth: 108, artHeight: 120, idle: 12, move: 8, death: 14, facing: 'south', directional: true, profileFacing: 'east' },
+  'ironhorn': { file: 'enemy-ironhorn.png', frameWidth: 103, frameHeight: 103, artWidth: 63, artHeight: 64, idle: 8, move: 8, death: 8, facing: 'camera', directional: false, profileFacing: 'east' },
+  'ashwing': { file: 'enemy-ashwing.png', frameWidth: 122, frameHeight: 122, artWidth: 79, artHeight: 43, idle: 8, move: 8, death: 8, facing: 'camera', directional: false, profileFacing: 'east' },
+  'gravesworn': { file: 'enemy-gravesworn.png', frameWidth: 114, frameHeight: 114, artWidth: 65, artHeight: 74, idle: 4, move: 8, death: 6, facing: 'camera', directional: false, profileFacing: 'east' },
 };
 
 /**
@@ -50,7 +54,9 @@ export const ENEMY_SKINS = {
   'bonearcher': { 'grassland': ['enemy-bonearcher', 'enemy-bonearcher-e1', 'enemy-bonearcher-e2'], 'desert': ['enemy-bonearcher-desert', 'enemy-bonearcher-desert-e1', 'enemy-bonearcher-desert-e2'], 'ice': ['enemy-bonearcher-ice', 'enemy-bonearcher-ice-e1', 'enemy-bonearcher-ice-e2'], 'volcanic': ['enemy-bonearcher-volcanic', 'enemy-bonearcher-volcanic-e1', 'enemy-bonearcher-volcanic-e2'], 'crystal': ['enemy-bonearcher-crystal', 'enemy-bonearcher-crystal-e1', 'enemy-bonearcher-crystal-e2'] },
 };
 
-export const ENEMY_PALETTES = 3;
+export const ENEMY_DIRECTIONS = 3;
+/** @deprecated Rows are directions, not palettes. Kept for older imports. */
+export const ENEMY_PALETTES = ENEMY_DIRECTIONS;
 
 /** Per-tier presentation: sprite scale and glow strength (0 = none). */
 export const ENEMY_TIERS = [

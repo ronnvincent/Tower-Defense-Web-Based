@@ -10,30 +10,33 @@ import { audio } from '../rendering/AudioSynth.js';
 let enemyIdCounter = 1;
 
 /**
- * Facing — the horde turns into its heading instead of walking backwards.
+ * Facing — the horde wears the pose that matches its heading.
  *
- * Every Spire strip is drawn **top-down**, so the body can be rotated; what
- * differs is which way the art already points inside its frame. That fact is
- * measured once per sheet and shipped as `facing` in `spireManifest.js`:
+ * A Spire strip is **three clips x three directions**, not three palettes:
  *
- *   'south' — head (mandibles, eyes, claws) on the bottom edge → turn by −90°
- *   'north' — head on the top edge (the void butterfly)     → turn by +90°
- *   'camera'— front-on portrait art                          → never rotate
+ *     rows 0-2   idle : south (towards the camera) / north (away) / profile
+ *     rows 3-5   walk : the same three
+ *     rows 6-8   death: the same three
  *
- * The old code used one blanket +90° offset on top of art that points *down*,
- * which is 180° out: every creep walked with its back to the camera, and the
- * "fix" that followed simply froze the rotation at 0, so a northbound creep
- * still moon-walked. `faceTravel()` now derives the offset per archetype and
- * snaps to 45° steps, which keeps pixel art legible instead of smearing it at
- * an arbitrary angle.
+ * So the art already contains a forward-facing, an away-facing and a
+ * side-on drawing of every creature, and the correct way to turn a creep is to
+ * *switch rows*, never to rotate the sprite. Rotating top-down art by 90°
+ * shears the body's "away from the camera" axis onto the screen's x axis, which
+ * is exactly why the horde looked like it was walking on its side.
+ *
+ * `faceTravel()` therefore:
+ *   • picks a direction row from the step vector (south / north / profile),
+ *   • mirrors the profile row for westbound movement,
+ *   • leaves `rotation` at 0, so the head always points straight down the lane,
+ *   • swaps the clip only when the direction actually changes.
+ *
+ * Imported Flare creatures are single-direction three-quarter art
+ * (`directional: false`); they keep the old mirror-only contract, which is the
+ * best a one-pose sheet can do.
  */
-const FACING_OFFSET = Object.freeze({
-  south: -Math.PI / 2,
-  north: Math.PI / 2,
-});
-/** Rotation quantum: eight compass poses, so a diagonal lane stays crisp. */
-const FACING_STEP = Math.PI / 4;
-/** Below this many px/s of travel the last heading is kept (path jitter). */
+/** Row index per art direction. */
+const DIRECTION_ROW = Object.freeze({ south: 0, north: 1, profile: 2 });
+/** Below this many px of travel the last pose is kept (waypoint jitter). */
 const FACING_DEADZONE = 0.2;
 
 export class Enemy {
@@ -137,21 +140,25 @@ export class Enemy {
     const sheetDef = ENEMY_SHEETS[this.typeKey];
     const artSize = sheetDef ? Math.sqrt(sheetDef.artWidth * sheetDef.artHeight) : 64;
     this.baseScale = (this.radius * 2.3) / artSize;
-    // Which way the art points at rotation 0 — see faceTravel().
+    // Orientation contract — see faceTravel().
+    //   `facing`        what row 0 does ('south' = towards the camera)
+    //   `directional`   whether rows 0/1/2 are south / north / profile poses
+    //   `profileFacing` which way the profile row is drawn ('east' | 'west')
     this.facing = sheetDef?.facing || 'south';
+    this.directional = sheetDef?.directional !== false;
+    this.profileFacing = sheetDef?.profileFacing || 'east';
 
-    // Biome sheet + per-wave colour palette (see systems/EnemySkins.js). A
-    // missing variant texture or clip can never leave an enemy invisible: both
-    // fall back to the base sheet and its palette-0 aliases.
+    // Biome + tier sheet (see systems/EnemySkins.js). A missing variant texture
+    // can never leave an enemy invisible: it falls back to the base sheet, and
+    // from there to the bare (south-facing) clips.
     const skin = skinFor(this.typeKey, waveNumber, options.theme);
     const hasTexture = Boolean(scene?.textures?.exists?.(skin.texture));
     const texture = hasTexture ? skin.texture : `enemy-${this.typeKey}`;
-    const clipExists = (key) => Boolean(scene?.anims?.exists?.(key));
-    let animPrefix = `${texture}-v${skin.palette}`;
-    if (!clipExists(`${animPrefix}-move`) && !clipExists(`${animPrefix}-idle`)) {
-      animPrefix = clipExists(`${texture}-v0-move`) ? `${texture}-v0` : texture;
-    }
-    this.skin = { texture, palette: skin.palette, tier: skin.tier };
+    this.skin = { texture, tier: skin.tier };
+    // Which direction row this creep is wearing. Bosses and imported art may
+    // not ship all three, so each lookup is validated against the loaded clips.
+    this.direction = 'south';
+    this.animPrefix = this.resolveAnimPrefix(texture, 'south');
     // Escalating broods read at a glance: elite creeps are a touch bigger, and
     // champions are bigger still plus lit from behind by a brood-coloured glow.
     this.tier = skin.tier;
@@ -159,9 +166,8 @@ export class Enemy {
     this.baseScale *= skin.scale;
 
     // Frame 0 is the first idle pose; the animation below moves it into this
-    // breed's palette row immediately.
+    // breed's south row immediately.
     this.sprite = scene.add.sprite(0, 0, texture, 0).setScale(this.baseScale);
-    this.animPrefix = animPrefix;
     this.playAnim('move');
     this.container.add(this.sprite);
 
@@ -199,6 +205,21 @@ export class Enemy {
   }
 
   /**
+   * Animation prefix for a direction row, falling back gracefully.
+   *
+   * Prefers `<texture>-d<row>`, then the bare `<texture>` south clips. A sheet
+   * that only ships one direction therefore still animates instead of freezing.
+   */
+  resolveAnimPrefix(texture, direction) {
+    const row = DIRECTION_ROW[direction] ?? 0;
+    const exists = (key) => Boolean(this.scene?.anims?.exists?.(key));
+    for (const prefix of [`${texture}-d${row}`, texture]) {
+      if (exists(`${prefix}-move`) || exists(`${prefix}-idle`)) return prefix;
+    }
+    return `${texture}-d${row}`;
+  }
+
+  /**
    * Play one of the pack's clips for this enemy ('idle' | 'move' | 'death').
    * The strips ship idle/move/death, so the walk cycle is real animation rather
    * than a tween.
@@ -208,6 +229,17 @@ export class Enemy {
     if (this.scene.anims.exists(key)) {
       this.sprite.play(key, true);
       this.currentAnim = clip;
+      return;
+    }
+    // The requested direction row may not ship (single-pose art): fall back to
+    // the south row rather than leaving the previous pose looping.
+    if (this.direction !== 'south') {
+      const fallback = this.resolveAnimPrefix(this.skin?.texture || `enemy-${this.typeKey}`, 'south');
+      if (fallback !== this.animPrefix && this.scene.anims.exists(`${fallback}-${clip}`)) {
+        this.animPrefix = fallback;
+        this.sprite.play(`${fallback}-${clip}`, true);
+        this.currentAnim = clip;
+      }
     }
   }
 
@@ -774,36 +806,57 @@ export class Enemy {
   }
 
   /**
-   * Turn the body into its heading.
+   * Turn the body into its heading **by choosing the matching art row**.
    *
    * @param {number} dx world-space x of the step (or of the wall being hit)
    * @param {number} [dy] world-space y of the step
    *
-   * The offset comes from the sheet's own `facing`, so the head — not the tail
-   * — leads the march, and a corner swings the sprite to the new lane within
-   * one frame instead of leaving it side-on. Front-on art (`'camera'`) is the
-   * one case that cannot rotate: it mirrors instead, exactly like before.
+   * The strips ship a forward-facing, an away-facing and a side-on drawing of
+   * every creature (see the facing note at the top of this file), so the head
+   * can point straight down the lane without any rotation. The sprite is never
+   * rotated here: rotating top-down art by 90° is what made the horde look like
+   * it was lying on its side.
+   *
+   * The profile row is mirrored for westbound movement, which is the only
+   * transform needed: the side art is drawn facing east.
    */
   faceTravel(dx, dy = 0) {
     if (!this.sprite) return;
-    if (this.facing === 'camera') {
-      if (Math.abs(dx) > FACING_DEADZONE) this.sprite.setFlipX(dx < 0);
-      this.sprite.rotation = 0;
-      return;
-    }
+
     // Keep the last pose while the creep is effectively stationary; a jittering
-    // waypoint must not spin the sprite on the spot.
+    // waypoint must not spin the pose on the spot.
     if (Math.abs(dx) < FACING_DEADZONE && Math.abs(dy) < FACING_DEADZONE) return;
 
-    const offset = FACING_OFFSET[this.facing] ?? FACING_OFFSET.south;
-    const raw = Math.atan2(dy, dx) + offset;
-    // Snap to the nearest 45° pose. `+0.5*step` before flooring rounds to
-    // nearest; the modulo keeps the result inside [0, 2π) for a stable value.
-    const snapped = Math.round(raw / FACING_STEP) * FACING_STEP;
-    this.sprite.rotation = Math.atan2(Math.sin(snapped), Math.cos(snapped));
-    // A rotated sprite is already asymmetric on screen; mirroring it as well
-    // would flip the head to the tail side on a westward lane.
-    this.sprite.setFlipX(false);
+    // Single-pose imported art can only mirror. Flare's creatures are drawn
+    // three-quarter facing the camera, so westbound movement is the mirrored
+    // pose and everything else is the stock one.
+    if (!this.directional) {
+      this.sprite.rotation = 0;
+      this.sprite.setFlipX(dx < -FACING_DEADZONE);
+      return;
+    }
+
+    // Which axis dominates the step decides the pose. Lanes are axis-aligned on
+    // the grid, so this is a clean four-way choice even on a diagonal approach.
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const direction = horizontal ? 'profile' : dy > 0 ? 'south' : 'north';
+    // Some creatures' side art is drawn looking east and some looking west (the
+    // artist drew each by hand), so mirroring is decided against the art's own
+    // facing rather than assuming east. Getting this wrong points half the
+    // horde backwards while still "facing the right way" on the vertical lanes.
+    const drawn = this.profileFacing === 'west';
+    const flip = horizontal && ((dx < 0) !== drawn);
+
+    this.sprite.rotation = 0;
+    this.sprite.setFlipX(flip);
+
+    if (direction !== this.direction) {
+      this.direction = direction;
+      this.animPrefix = this.resolveAnimPrefix(this.skin?.texture || `enemy-${this.typeKey}`, direction);
+      // Re-issue whatever clip is currently playing so a walking creep keeps
+      // walking (and a dying one keeps dying) in the new pose.
+      this.playAnim(this.currentAnim || 'move');
+    }
   }
 
   /**

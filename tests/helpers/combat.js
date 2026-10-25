@@ -16,7 +16,28 @@
 
 /** Chainable display object: any unknown method returns the node itself. */
 export function stubNode(extra = {}) {
-  const target = { x: 0, y: 0, alpha: 1, visible: true, scale: 1, rotation: 0, destroy() {} };
+  const target = {
+    x: 0,
+    y: 0,
+    alpha: 1,
+    visible: true,
+    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
+    rotation: 0,
+    flipX: false,
+    // Facing is the thing these tests measure, so mirroring has to be real
+    // state rather than a no-op chainable.
+    setFlipX(value) {
+      this.flipX = Boolean(value);
+      return this;
+    },
+    setRotation(value) {
+      this.rotation = value;
+      return this;
+    },
+    destroy() {},
+  };
   let proxy;
   proxy = new Proxy(Object.assign(target, extra), {
     get(obj, key) {

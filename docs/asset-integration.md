@@ -233,6 +233,45 @@ size plus the frame count of each animation band.
 | `boss-obsidian` | Clampbeetle, **3×** | `enemy-obsidian.png` (192×192 frames) | 8 / 8 / 13 |
 | `boss-voidherald` | Flying Locust, **3×** | `enemy-voidherald.png` (192×192 frames) | 12 / 8 / 14 |
 
+### How a Spire strip is laid out
+
+Nine rows, and the row is a **direction**, not a colour variant:
+
+| Rows | Clip | Row order |
+| --- | --- | --- |
+| 0–2 | `idle` | 0 = south (towards the camera), 1 = north (away), 2 = profile |
+| 3–5 | `move` | same three directions |
+| 6–8 | `death` | same three directions |
+
+Frame counts are uniform inside each clip across all three directions, and they
+are read from the manifest — never assumed. `BootScene.createEnemyClips()` turns
+row *d* into `<texture>-d<d>-<clip>`; the bare `<texture>-<clip>` keys alias the
+south row.
+
+`Enemy.faceTravel()` therefore picks a **row**, and the sprite's `rotation` stays
+`0` in every lane. That is the whole fix for "the monster walks on its side":
+rotating top-down art by 90° maps its front-to-back axis onto the screen's
+left-to-right axis, so a northbound creep ends up lying flat while still
+technically "aimed" at the lane. The sprite also never has to un-rotate on a
+corner, so the pose change is a single frame cut.
+
+The profile row is the one place the artist was not consistent: some creatures
+are drawn looking **east**, some looking **west**. Rotating cannot fix that and
+neither can a single global constant, so the direction is declared per sheet in
+`scripts/build_spire_assets.py` and travels into the manifest as
+`profileFacing`. Mirroring is then decided against the art rather than against
+the screen: `flipX = (travelX < 0) ≠ (profileFacing === 'west')`.
+
+| Art faces east | Art faces west |
+| --- | --- |
+| grunt, runner, healer, colossus, warlord, magmalord, prismlord, voidherald | brute, swarm, shield, sandwyrm, frostwarden, obsidian |
+
+Bosses are scaled and re-graded from those same strips, so they carry the source
+creature's facing instead of being re-measured: `sandwyrm`/`obsidian` look west
+with `brute`/`swarm`, `frostwarden` with `shield`, and `magmalord`/`prismlord`/
+`voidherald` look east with `colossus`/`healer`/`warlord`. `ENEMY_PROFILE_INHERITS`
+in the generator is the single place that mapping lives.
+
 ### Flare monsters (CC-BY-SA 3.0)
 The Spire set is all insects, so a second pack supplies the bodies that are not
 bugs. Six creatures come from [FLARE](https://github.com/clintbellanger/flare-game)
@@ -246,15 +285,16 @@ single facing, drops the baked ground shadow, and recomposites the clips into
 the same 9-row idle/move/death strip the Spire sheets use — which means biomes,
 tiers and the manifest apply with no special case in the game.
 
-One field cannot be shared with the Spire set. Those strips are drawn top-down,
-so `Enemy.faceTravel()` simply rotates the body to the lane heading. Flare's
-creatures stand on the ground and face the camera; rotating one a quarter turn
-lays it flat, so all six declare `facing: 'camera'` and are mirrored left/right
+One field cannot be shared with the Spire set. A Spire strip is **three clips ×
+three directions** (see above), so a creep has a drawing for every way it can
+travel. Flare's creatures stand on the ground and face the camera; they ship one
+pose, so all six declare `directional: false` and are mirrored left/right
 instead. Eight real facings exist in the source and would fix the north/south
 case, but copying them into every biome × tier sheet multiplies the creature
 sheets fourfold — about 17 MB per direction set in `public/assets/enemies` — for
 a difference the player only sees walking away from the camera. The front-on
 contract buys the readable half for free.
+
 
 | Game archetype | Flare creature | Sheet (frame) | Frames (idle / move / death) |
 | --- | --- | --- | --- |
@@ -300,18 +340,20 @@ glance while keeping the pack's shape language.
 
 ### Biome re-grade × wave tier × palette
 
-Each strip holds nine rows: idle, walk and death, each in three colour variants.
-Frame size differs per creature (the Firebug sheet is 128×64 per frame, the
-Firewasp 96×96), so the manifest also records the drawn width/height of the art.
-Sprites are scaled by that drawn width to match the existing collision radius,
-and rotated +90° because the art faces up.
+Each strip holds nine rows: idle, walk and death, each in the three directions
+above. Frame size differs per creature (the Firebug sheet is 128×64 per frame,
+the Firewasp 96×96), so the manifest also records the drawn width/height of the
+art, and sprites are scaled by that drawn width to match the collision radius.
+No rotation is applied — the direction row supplies the pose.
 
 One strip on its own was not enough on screen. Two things were measured and
 fixed at the root:
 
 1. **The three row variants are nearly identical.** Comparing frame 0 of row 0
-   with rows 1 and 2 shows only ~186 of ~3,576 inked pixels differ (≈5 %), so
-   "swap the palette row per wave" was invisible in play.
+   with rows 1 and 2 shows only ~186 of ~3,576 inked pixels differ (≈5 %). That
+   measurement was originally read as "three palette variants" — it is in fact
+   three *directions* of the same pose, which is why swapping rows per wave was
+   both invisible and, later, the reason half the horde walked sideways.
 2. **A single re-grade per biome cannot express escalation.** Waves 1 and 6
    looked the same shade.
 

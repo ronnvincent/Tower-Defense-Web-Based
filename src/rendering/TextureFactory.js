@@ -127,6 +127,72 @@ function makeEffects(scene) {
   canvasTexture(scene, 'shard', 10, 10, (ctx) => {
     polygon(ctx, [[5, 0], [10, 5], [5, 10], [0, 5]], '#d8f7ff');
   });
+
+  // Shielding creeps wear this bubble. It was referenced long before it was
+  // drawn, so every shielded enemy used to render Phaser's missing-texture
+  // placeholder — a black square with green diagonals over the monster. Drawn
+  // white so `setTint()` can colour it per shield element.
+  canvasTexture(scene, 'shield-barrier', 96, 96, (ctx) => {
+    ctx.fillStyle = radial(ctx, 48, 48, 0, 48, [
+      [0, 'rgba(255,255,255,0.05)'],
+      [0.62, 'rgba(255,255,255,0.12)'],
+      [1, 'rgba(255,255,255,0)'],
+    ]);
+    ctx.fillRect(0, 0, 96, 96);
+
+    // Hexagonal force field, flat-top, with a bright rim and dim facets.
+    const hex = [];
+    for (let i = 0; i < 6; i += 1) {
+      const a = (Math.PI / 3) * i - Math.PI / 6;
+      hex.push([48 + Math.cos(a) * 42, 48 + Math.sin(a) * 42]);
+    }
+    polygon(ctx, hex, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.85)', 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1.5;
+    for (const [x, y] of hex) {
+      ctx.beginPath();
+      ctx.moveTo(48, 48);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+    // Two specular arcs so the bubble reads as glass rather than a hexagon.
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(48, 48, 37, Math.PI * 1.08, Math.PI * 1.32);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(48, 48, 33, Math.PI * 1.52, Math.PI * 1.66);
+    ctx.stroke();
+  });
+
+  // Rotating ring under an ascended defence.
+  canvasTexture(scene, 'fx-aura-ring', 128, 128, (ctx) => {
+    ctx.fillStyle = radial(ctx, 64, 64, 0, 64, [
+      [0.55, 'rgba(255,255,255,0)'],
+      [0.72, 'rgba(255,255,255,0.22)'],
+      [0.86, 'rgba(255,255,255,0.05)'],
+      [1, 'rgba(255,255,255,0)'],
+    ]);
+    ctx.fillRect(0, 0, 128, 128);
+
+    circle(ctx, 64, 64, 52, null, 'rgba(255,255,255,0.55)', 2);
+    // Eight runic ticks on the rim; drawn white so the caller tints them.
+    for (let i = 0; i < 8; i += 1) {
+      const a = (TAU / 8) * i;
+      const x1 = 64 + Math.cos(a) * 45;
+      const y1 = 64 + Math.sin(a) * 45;
+      const x2 = 64 + Math.cos(a) * 55;
+      const y2 = 64 + Math.sin(a) * 55;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+  });
 }
 
 /* ------------------------------------------------------------------- towers */

@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 755 tests across 58 test suites.
-- **Pass Rate:** **100% (755 / 755 Passed)**
+- **Total Automated Unit Tests:** 759 tests across 59 test suites.
+- **Pass Rate:** **100% (759 / 759 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -340,3 +340,62 @@ processed. Waves 4–5 look fine only because they contain no boss; wave 6 has o
   node states, minimap URLs, star markup and the Next / Replay / Main Menu routing.
 - `tests/wave-flow.test.js` plays all six waves through `WaveManager` and asserts every spawn is
   released in order, the queue grows past its initial 32 slots, and each wave reports completion.
+
+## 6. Root-cause fix: the horde walked sideways
+
+**Symptom:** every creep marched the lanes with its body turned 90°, sometimes head
+first and sometimes tail first, and the pose never changed when the road bent.
+Three earlier passes each nudged the rotation offset; the symptom came back.
+
+**Root cause:** the model was wrong, not the offset. A Spire strip is **three clips x
+three directions**, not three colour palettes:
+
+| Rows | Clip | Row 0 | Row 1 | Row 2 |
+| --- | --- | --- | --- | --- |
+| 0-2 | idle | south (towards camera) | north (away) | profile |
+| 3-5 | move | south | north | profile |
+| 6-8 | death | south | north | profile |
+
+`Enemy` rotated the sprite by the lane heading, which maps a top-down drawing's
+front-to-back axis onto the screen's left-to-right axis — a northbound leafbug ends
+up lying flat while still "pointing" north. `paletteForWave()` was meanwhile
+indexing the same rows as colour variants, so the pose also drifted with the wave
+number.
+
+**Fix:**
+
+1. `Enemy.faceTravel()` selects a **row** and never rotates: south -> `-d0`,
+   north -> `-d1`, horizontal lanes -> `-d2`. Rotation is asserted to be exactly 0.
+2. `BootScene.createEnemyClips()` builds `<texture>-d<0|1|2>-<clip>` from
+   `row = (clipBand + direction) * cols`, with frame counts read from the manifest.
+3. The profile row is drawn looking **east** on some creatures and **west** on
+   others. `ENEMY_PROFILE_FACING` (plus `ENEMY_PROFILE_INHERITS` for the scaled
+   bosses) now travels into `spireManifest.js` as `profileFacing`, and mirroring is
+   resolved against the art: `flipX = (dx < 0) != (profileFacing === 'west')`.
+4. The `-v0..2` clip aliases and `skinFor().animPrefix` were removed: both existed
+   only to express the palette-row model and would silently reintroduce it.
+5. `shield-barrier` was referenced by `Enemy.createShieldBarrier()` but never
+   drawn, so shielded creeps (and two bosses) rendered Phaser's missing-texture
+   placeholder — a black square with green diagonals — on top of the monster. It is
+   now baked in `TextureFactory` together with `fx-aura-ring`.
+
+**Regression cover:**
+
+- `tests/enemy-facing.test.js` (11 tests) is driven by `ENEMY_SHEETS`: all **20**
+  creeps are walked in all four lanes and asserted for row, mirror and zero
+  rotation, so a new creature cannot ship sideways.
+- `tests/texture-keys.test.js` (3 tests) collects every literal key passed to
+  `scene.add.*` and fails if nothing bakes or loads it — the class-level guard for
+  the missing-texture bug.
+- `tests/enemy-skins.test.js` no longer pins an anim prefix; it pins that the skin
+  layer does not decide the row.
+
+**Live verification (headless Chromium, real Phaser render):** each of the 14
+animated creeps was spawned on a straight-run lane and photographed. All 14 report
+`rotation = 0` and the expected row; the mirror matches the table (brute, swarm,
+shield, sandwyrm, frostwarden and obsidian are eastbound *mirrored*, the rest are
+not). Walking **north**, grunt, brute, runner and shield render with their backs to
+the camera; walking **south**, with their faces towards it; turning a corner changes
+the pose in the same frame the lane changes. Screenshots: `scratch/walk-contact2.png`,
+`scratch/north-check.png`, `scratch/pf-A.png` / `pf-B.png` (profile rows at 5x).
+

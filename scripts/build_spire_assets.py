@@ -1038,18 +1038,30 @@ BOSS_SOURCES = {
     "gravesworn": ("flare/enemies/gravesworn", 114, 9, 1, (0x0A0A12, 0x2A2C46, 0x6C7BA8, 0xE6ECFF), 0.55),
 }
 
-# Which way each strip's art points at rotation 0.
+# What the nine rows of a strip actually are.
 #
-# The Spire horde is drawn top-down: the head (mandibles, eyes, claws) sits on
-# the *bottom* edge of the frame for every creep except the void butterfly,
-# whose head is at the top. `Enemy.faceTravel()` turns that fact into a rotation
-# offset per sheet, so a creep walking east faces east instead of showing its
-# back — the bug that made the old blanket ±90° offset look like every monster
-# was marching backwards.
+# **Corrected:** a Spire strip is NOT three colour palettes of one clip. It is
+# three *directions* of one clip:
 #
-#   'south'  – head at the bottom of the frame (turn by heading − 90°)
-#   'north'  – head at the top of the frame   (turn by heading + 90°)
-#   'camera' – front-on portrait art that must never rotate (mirror only)
+#     rows 0-2   idle : facing the camera / facing away / in profile
+#     rows 3-5   walk : the same three directions
+#     rows 6-8   death: the same three directions
+#
+# Measured on the shipped sheets: rows 0/1/2 of `leafbug` have different
+# silhouettes (alpha masks differ) but essentially the same colour (ΔRGB ≈ 13),
+# which is what a direction change looks like and the opposite of a palette
+# swap. The old code treated the row index as a palette and then rotated the
+# sprite on top, so wave 3 wore the *north* art spun round and wave 5 wore the
+# *profile* art spun round — the "monsters walking on their side" report.
+#
+# Directional sheets are now drawn from the matching row with no rotation at
+# all (see Enemy.faceTravel), which is the only way the head can point along the
+# lane. Flare's imported creatures are one-direction 3/4-view art, so they keep
+# the mirroring contract and mark `directional: false`.
+#
+#   'south'  – row 0 already faces the camera; the strip is directional
+#   'north'  – (unused) row 0 faces away from the camera
+#   'camera' – portrait art with a single direction; mirror only
 ENEMY_FACING = {
     "grunt": "south",
     "runner": "south",
@@ -1077,6 +1089,41 @@ ENEMY_FACING = {
     "gravesworn": "camera",
 }
 
+# Which way each creature's **profile row** faces when it is not mirrored.
+#
+# Row 2 is a side view, but it is hand-drawn per creature rather than being one
+# shared rotation, and the artist did not settle on a single direction: the
+# leafbug and the firebug look east, the scorpion and the crab look west. A
+# single blanket "side art faces east" rule therefore points half the horde
+# backwards, which is exactly the symptom that survived the last two attempts.
+#
+# Measured by comparing each source's camera row (where the head is
+# unmistakable - mandibles, eyes, claws) against its profile row at high zoom;
+# `tests/enemy-facing.test.js` pins the table so a future art swap cannot
+# silently flip a creature.
+ENEMY_PROFILE_FACING = {
+    # Spire ground pack - profile points EAST
+    "grunt": "east",      # leafbug: head with the brown mandible cluster on the right
+    "runner": "east",     # firebug: red mandibles on the right
+    "healer": "east",     # void butterfly: antennae and body on the right
+    "colossus": "east",   # fire wasp: striped abdomen tapers left, head right
+    "warlord": "east",    # flying locust: red eye and white mandible on the right
+    # Spire ground pack - profile points WEST
+    "brute": "west",      # scorpion: claws left, tail curling right
+    "swarm": "west",      # clampbeetle: cream pincers on the left, wing on the right
+    "shield": "west",     # magma crab: claws left, flipper right
+}
+
+# Bosses are scaled and re-graded from the same source strips, so they inherit
+# that source's profile direction.
+ENEMY_PROFILE_INHERITS = {
+    "sandwyrm": "brute",
+    "frostwarden": "shield",
+    "magmalord": "colossus",
+    "prismlord": "healer",
+    "obsidian": "swarm",
+    "voidherald": "warlord",
+}
 
 def build_bosses():
     print("bosses")
@@ -1591,6 +1638,12 @@ def build_enemy_manifest():
             "death": counts[6],
             # Orientation contract, read by Enemy.faceTravel().
             "facing": ENEMY_FACING.get(key, "south"),
+            # True when rows 0/1/2 really are south / north / profile poses.
+            # Spire art is; the imported Flare creatures are single-direction.
+            "directional": ENEMY_FACING.get(key, "south") != "camera",
+            "profileFacing": ENEMY_PROFILE_FACING.get(
+                key, ENEMY_PROFILE_FACING.get(ENEMY_PROFILE_INHERITS.get(key), "east")
+            ),
         }
         print(f"  {key:16s} {fw}x{fh} idle={counts[0]} move={counts[3]} death={counts[6]}")
     return manifest
@@ -1622,10 +1675,14 @@ def write_manifest(enemies, impacts, variants=None, impact_lines=None):
         " * Do not edit by hand: re-run the script after changing the source sheets.",
         " *",
         " * Frame sizes and frame counts measured from the real Foozle \"Spire\" PNGs.",
-        " * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.",
-        " * `facing` is the orientation contract for Enemy.faceTravel(): 'south' and",
-        " * 'north' name the way the art already points at rotation 0, 'camera' marks",
-        " * front-on art that must only ever be mirrored.",
+        " * Enemy strips hold 9 rows: three clip groups (idle / walk / death) of",
+        " * three DIRECTION rows each: 0 faces the camera, 1 faces away, 2 is drawn",
+        " * in profile. They are not colour variants - see ENEMY_FACING in the",
+        " * generator for the measurement that proves it.",
+        " *",
+        " * `facing` names what row 0 already does ('south' = faces the camera,",
+        " * 'camera' = single-direction imported art that may only be mirrored), and",
+        " * `directional` says whether all three rows are usable as headings.",
         " */",
         "",
         "export const ENEMY_SHEETS = {",
@@ -1634,7 +1691,10 @@ def write_manifest(enemies, impacts, variants=None, impact_lines=None):
         lines.append(
             f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
             f"frameHeight: {m['frameHeight']}, artWidth: {m['artWidth']}, artHeight: {m['artHeight']}, "
-            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']}, facing: {m.get('facing', 'south')!r} }},"
+            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']}, "
+            f"facing: {m.get('facing', 'south')!r}, "
+            f"directional: {'true' if m.get('directional', True) else 'false'}, "
+            f"profileFacing: {m.get('profileFacing', 'east')!r} }},"
         )
     lines += ["};", "", "/**", " * Texture key per creep, per battlefield, per escalation tier.", " * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).", " */", "export const ENEMY_SKINS = {"]
     for key, per_theme in (variants or {}).items():
@@ -1646,7 +1706,9 @@ def write_manifest(enemies, impacts, variants=None, impact_lines=None):
     lines += [
         "};",
         "",
-        "export const ENEMY_PALETTES = 3;",
+        "export const ENEMY_DIRECTIONS = 3;",
+        "/** @deprecated Rows are directions, not palettes. Kept for older imports. */",
+        "export const ENEMY_PALETTES = ENEMY_DIRECTIONS;",
         "",
         "/** Per-tier presentation: sprite scale and glow strength (0 = none). */",
         "export const ENEMY_TIERS = [",

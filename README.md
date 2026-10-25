@@ -123,6 +123,18 @@ a re-skinned campaign map.
 
 Full design, rules and architecture: [`docs/pvp.md`](docs/pvp.md).
 
+### The horde walks facing where it is going
+Every Spire strip ships **three clips x three directions** — idle, walk and death,
+each drawn facing south (towards the camera), north (away) and in profile. The
+heading picks a *row*; the sprite is never rotated, because rotating top-down art
+90° maps its front-to-back axis onto the screen's left-to-right axis and lays the
+monster on its side — which is exactly why the horde used to march sideways.
+
+The profile row is hand-drawn, so some creatures look east and some look west;
+`profileFacing` in `src/data/spireManifest.js` records which, and the sprite is
+mirrored only when the art disagrees with the travel direction. All 20 creeps,
+bosses included, are covered by `tests/enemy-facing.test.js`.
+
 ### Objective
 Defend the **Guardian Core Base** on the level's own battlefield. Every level has its own starting
 gold (**220 / 240 / 260**), core HP (**25** on every field so the star thresholds stay fair),

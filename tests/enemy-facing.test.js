@@ -4,24 +4,29 @@ import { Enemy } from '../src/entities/Enemy.js';
 import { ENEMY_SHEETS } from '../src/data/spireManifest.js';
 
 /**
- * Horde facing.
+ * Horde facing — the head points down the lane.
  *
- * The Spire strips are top-down art, so the body *can* be turned into its
- * heading — what broke twice was the offset. Every creep is drawn with its head
- * on the bottom edge of the frame ("faces south"), which means the turn angle is
- * `heading − 90°`. The old code applied `heading + 90°` and therefore pointed
- * every monster exactly backwards; the follow-up "fix" froze the rotation at 0,
- * which only made the error consistent: a northbound creep still walked away
- * from the camera.
+ * This file used to pin a **rotation** contract ("turn the body by heading −
+ * 90°"). That model was wrong, and fixing it three times never helped, because
+ * the problem was the model, not the offset.
  *
- * These tests pin the contract that replaces both attempts:
- *   • each sheet declares which way its art points (`spriteManifest.facing`);
- *   • `faceTravel()` wears that offset, snapped to eight 45° poses;
- *   • a corner turns the body in the same frame the lane changes;
- *   • front-on art ('camera') is the one class that may never rotate.
+ * A Spire strip is **three clips x three directions**, not three palettes:
  *
- * A tiny chainable stub stands in for the Phaser scene; the movement maths runs
- * for real through `Enemy.update()`.
+ *     rows 0-2   idle : south (towards the camera) / north (away) / profile
+ *     rows 3-5   walk : the same three
+ *     rows 6-8   death: the same three
+ *
+ * So every creature already ships a drawing for each way it can travel, and the
+ * correct pose change is *switch rows*, never rotate. Rotating top-down art by
+ * 90° maps its "away from camera" axis onto the screen x axis, which is exactly
+ * why the horde looked like it was lying on its side:
+ *
+ *   • rotation stays 0 in every lane, so the head always points along the road;
+ *   • vertical lanes pick the south (0) or north (1) row;
+ *   • horizontal lanes pick the profile row (2), mirrored only when the art is
+ *     drawn looking the other way — the profile row faces east on some
+ *     creatures and west on others, so it is declared per sheet;
+ *   • imported Flare creatures are single-pose, so they mirror instead.
  */
 
 function makeSprite() {
@@ -154,81 +159,87 @@ describe('sprite orientation contract', () => {
   });
 });
 
-describe('Enemy facing: the head leads the march', () => {
-  /** South-drawn art: head on the bottom edge, so south is rotation 0. */
-  it('turns south-drawn art to all four lanes', () => {
-    const { enemy, sprite } = spawn('grunt');
-    const cases = [
-      { dx: 0, dy: 1, want: 0, lane: 'south' },
-      { dx: 1, dy: 0, want: 270, lane: 'east' },
-      { dx: 0, dy: -1, want: 180, lane: 'north' },
-      { dx: -1, dy: 0, want: 90, lane: 'west' },
-    ];
-    for (const { dx, dy, want, lane } of cases) {
-      enemy.faceTravel(dx * 40, dy * 40);
-      expect(deg(sprite.rotation), `${lane} lane`).toBe(want);
+describe('Enemy facing: the head points down the lane', () => {
+  it('never rotates the sprite — the pose comes from the art, not a transform', () => {
+    for (const type of ['grunt', 'brute', 'runner', 'swarm', 'shield']) {
+      const { enemy, sprite } = spawn(type);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]]) {
+        enemy.faceTravel(dx * 40, dy * 40);
+        expect(deg(sprite.rotation), `${type} travelling ${dx},${dy} was rotated`).toBe(0);
+      }
     }
   });
 
-  it('turns the one north-drawn sheet the other way round', () => {
-    const { enemy, sprite } = spawn('healer');
-    const cases = [
-      { dx: 0, dy: -1, want: 0, lane: 'north' },
-      { dx: 1, dy: 0, want: 90, lane: 'east' },
-      { dx: 0, dy: 1, want: 180, lane: 'south' },
-      { dx: -1, dy: 0, want: 270, lane: 'west' },
-    ];
-    for (const { dx, dy, want, lane } of cases) {
-      enemy.faceTravel(dx * 40, dy * 40);
-      expect(deg(sprite.rotation), `${lane} lane`).toBe(want);
+  it('wears the south row walking down the map and the north row walking up', () => {
+    for (const type of ['grunt', 'brute', 'runner', 'shield']) {
+      const { enemy } = spawn(type);
+      enemy.faceTravel(0, 40);
+      expect(enemy.direction, type).toBe('south');
+      expect(enemy.animPrefix, type).toBe(`enemy-${type}-d0`);
+      enemy.faceTravel(0, -40);
+      expect(enemy.direction, type).toBe('north');
+      expect(enemy.animPrefix, type).toBe(`enemy-${type}-d1`);
     }
   });
 
-  it('keeps every pose on a 45° step so the pixel art stays legible', () => {
-    const { enemy, sprite } = spawn('brute');
-    for (let angle = 0; angle < 360; angle += 7) {
-      const rad = (angle * Math.PI) / 180;
-      enemy.faceTravel(Math.cos(rad) * 40, Math.sin(rad) * 40);
-      const stepped = (deg(sprite.rotation) / 45) % 1;
-      expect(stepped, `${angle}° produced ${deg(sprite.rotation)}°`).toBe(0);
-    }
+  it('switches to the profile row across the lane, and only mirrors when needed', () => {
+    // The profile art is hand-drawn: `leafbug` looks east, `scorpion` west.
+    const eastDrawn = spawn('grunt').enemy;
+    expect(eastDrawn.profileFacing).toBe('east');
+    eastDrawn.faceTravel(40, 0);
+    expect(eastDrawn.direction).toBe('profile');
+    expect(eastDrawn.animPrefix).toBe('enemy-grunt-d2');
+    expect(eastDrawn.sprite.flipX).toBe(false);
+    eastDrawn.faceTravel(-40, 0);
+    expect(eastDrawn.sprite.flipX).toBe(true);
+
+    const westDrawn = spawn('brute').enemy;
+    expect(westDrawn.profileFacing).toBe('west');
+    westDrawn.faceTravel(40, 0);
+    expect(westDrawn.direction).toBe('profile');
+    expect(westDrawn.sprite.flipX).toBe(true);
+    westDrawn.faceTravel(-40, 0);
+    expect(westDrawn.sprite.flipX).toBe(false);
   });
 
-  it('never mirrors a rotated sheet — the head must not swap sides', () => {
-    const { enemy, sprite } = spawn('runner');
-    enemy.faceTravel(-40, 0);
-    expect(sprite.rotation).not.toBe(0);
+  it('mirrors single-pose imported art instead of switching rows', () => {
+    const { enemy, sprite } = spawn('thrall');
+    expect(enemy.directional).toBe(false);
+    enemy.faceTravel(40, 0);
     expect(sprite.flipX).toBe(false);
+    enemy.faceTravel(-40, 0);
+    expect(sprite.flipX).toBe(true);
+    expect(deg(sprite.rotation)).toBe(0);
+    // A one-pose sheet has no north row to wear, so it keeps the south clip.
+    enemy.faceTravel(0, -40);
+    expect(enemy.animPrefix).toBe('enemy-thrall-d0');
   });
 
   it('holds its pose while standing still', () => {
-    const { enemy, sprite } = spawn('shield');
+    const { enemy } = spawn('shield');
     enemy.faceTravel(40, 0);
-    const posed = sprite.rotation;
+    const posed = enemy.direction;
     enemy.faceTravel(0.01, 0.01);
-    expect(sprite.rotation).toBe(posed);
+    expect(enemy.direction).toBe(posed);
   });
 
-  it('turns on the corner instead of gliding on its side', () => {
+  it('changes pose on the corner, in the same frame the lane changes', () => {
     // The runner crosses the south leg, then the east leg of the lap.
-    const { enemy, sprite } = spawn('runner');
+    const { enemy } = spawn('runner');
     const poses = [];
     for (let i = 0; i < 200; i += 1) {
       enemy.update(16);
-      poses.push({ leg: enemy.pathIndex, cell: enemy.getCurrentCellKey(), rotation: deg(sprite.rotation) });
+      poses.push({ leg: enemy.pathIndex, direction: enemy.direction });
     }
-    // `pathIndex` is the waypoint being walked to: 1 = south leg, 2 = east leg.
-    // The first frame of a leg is the frame that snapped onto the corner, so it
-    // still wears the pose it arrived with; from then on the new lane wins.
     const onSouth = poses.filter((pose) => pose.leg === 1).slice(1);
     const onEast = poses.filter((pose) => pose.leg === 2).slice(1);
 
     expect(onSouth.length).toBeGreaterThan(0);
     expect(onEast.length).toBeGreaterThan(0);
-    // Marching down the map: the head points south (rotation 0 for south art).
-    for (const pose of onSouth) expect(pose.rotation).toBe(0);
-    // Turned east: a full quarter turn, applied as the lane changed.
-    for (const pose of onEast) expect(pose.rotation).toBe(270);
+    // Marching down the map: the south row, head towards the camera.
+    for (const pose of onSouth) expect(pose.direction).toBe('south');
+    // Turned east: the profile row, art already drawn looking east.
+    for (const pose of onEast) expect(pose.direction).toBe('profile');
   });
 
   it('faces the palisade it is breaking', () => {
@@ -248,25 +259,51 @@ describe('Enemy facing: the head leads the march', () => {
       },
       {}
     );
-    const sprite = sprites[0];
 
     for (let i = 0; i < 30; i += 1) {
       enemy.update(100);
       expect(enemy.isSieging).toBe(true);
-      // Head turned toward the wall above it. The siege solver parks attackers
-      // in a queue slot beside the wall, so the exact pose is north (180°) or
-      // the north-west/north-east diagonal — never the south-facing default.
-      expect([135, 180, 225]).toContain(deg(sprite.rotation));
+      // Attacking a wall to the north is a northbound pose, never the
+      // south-facing default and never a rotation.
+      expect(enemy.direction).toBe('north');
+      expect(deg(sprites[0].rotation)).toBe(0);
     }
   });
 
-  it('falls back to mirroring for front-on art that cannot rotate', () => {
-    const { enemy, sprite } = spawn('grunt');
-    enemy.facing = 'camera';
-    enemy.faceTravel(-40, 0);
-    expect(sprite.rotation).toBe(0);
-    expect(sprite.flipX).toBe(true);
-    enemy.faceTravel(40, 0);
-    expect(sprite.flipX).toBe(false);
+  it('turns all 20 creeps the right way in all four lanes', () => {
+    // Driven by the manifest, not by a hand-kept list, so a new creature cannot
+    // ship sideways without failing here. Expected values are the *art*, not the
+    // heading: a west-drawn profile is mirrored to walk east.
+    const lanes = [
+      { name: 'east', step: [40, 0], row: 'profile', mirrors: (pf) => pf === 'west' },
+      { name: 'west', step: [-40, 0], row: 'profile', mirrors: (pf) => pf === 'east' },
+      { name: 'south', step: [0, 40], row: 'south', mirrors: () => false },
+      { name: 'north', step: [0, -40], row: 'north', mirrors: () => false },
+    ];
+
+    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
+      for (const lane of lanes) {
+        const { enemy } = spawn(key);
+        const row = enemy.directional ? lane.row : 'south';
+        enemy.faceTravel(lane.step[0], lane.step[1]);
+        expect(enemy.direction, `${key} ${lane.name}`).toBe(row);
+        expect(enemy.sprite.rotation, `${key} ${lane.name} was rotated`).toBe(0);
+        // Vertical lanes never mirror; horizontal lanes mirror the sheets whose
+        // profile art is drawn facing the other way.
+        // Single-pose art has no profile row at all: it mirrors whenever it walks
+        // west, whatever the lane.
+        const wantFlip = enemy.directional
+          ? row === 'profile' && lane.mirrors(enemy.profileFacing)
+          : lane.name === 'west';
+        expect(Boolean(enemy.sprite.flipX), `${key} ${lane.name} mirror`).toBe(wantFlip);
+        expect(enemy.animPrefix).toBe(`enemy-${key}-d${row === 'south' ? 0 : row === 'north' ? 1 : 2}`);
+      }
+    }
+  });
+
+  it('declares a profile direction for every directional sheet', () => {
+    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
+      expect(['east', 'west'], `${key} has no profile direction`).toContain(sheet.profileFacing);
+    }
   });
 });

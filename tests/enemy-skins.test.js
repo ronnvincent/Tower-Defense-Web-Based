@@ -118,7 +118,10 @@ describe('enemy skins — wave escalation', () => {
     expect(champion.glow).toBeGreaterThan(base.glow);
     expect(champion.texture).toBe('enemy-brute-desert-e2');
     expect(base.texture).toBe('enemy-brute-desert');
-    expect(champion.animPrefix).toBe(`${champion.texture}-v${champion.palette}`);
+    // The clip prefix is a *direction*, decided per frame by the heading — the
+    // skin only decides which texture (and so which brood) is playing.
+    expect(champion).not.toHaveProperty('animPrefix');
+    expect(skinFor('brute', 3, 'desert').palette).toBe(1);
   });
 });
 

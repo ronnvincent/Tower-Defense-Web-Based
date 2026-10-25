@@ -51,6 +51,11 @@ const phaserConfig = {
 
 const game = new Phaser.Game(phaserConfig);
 
+// Dev-only handle for QA: the battle scene is otherwise unreachable from the
+// console, which made "the monsters look wrong on screen" impossible to diagnose
+// without guessing. Never exposed in a production build.
+if (import.meta.env?.DEV) window.game = game;
+
 // Campaign progress outlives any single battle: GameScene.init() reads it for
 // the level definition, the unlock graph and the saved star ratings.
 window.gameProgress = new ProgressStore();
