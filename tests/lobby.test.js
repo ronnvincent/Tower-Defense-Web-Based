@@ -20,7 +20,7 @@ import {
   snapshot,
   tickLobby,
 } from '../src/net/LobbyState.js';
-import { PvpRoom } from '../src/net/PvpRoom.js';
+import { PEER_TIMEOUT_MS, PvpRoom } from '../src/net/PvpRoom.js';
 
 const room = (overrides = {}) =>
   createLobbyState({ roomCode: 'ABCDE', selfId: 'host', name: 'Ronn', isHost: true, seed: 4, ...overrides });
@@ -327,6 +327,49 @@ describe('PvpRoom over BroadcastChannel', () => {
       expect(over.every((entry) => entry.resolved.winner === 'p1')).toBe(true);
       expect(host.state.status).toBe('over');
       expect(guest.state.status).toBe('over');
+    } finally {
+      host.leave();
+      guest.leave();
+    }
+  });
+});
+
+describe('PvpRoom peer watchdog', () => {
+  const wait = (ms = 25) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('tells a challenger when no host answers on a local room', async () => {
+    const guest = new PvpRoom({ mode: 'local' });
+    const errors = [];
+    guest.on('error', (message) => errors.push(message));
+    try {
+      await guest.join({ code: 'ZZZZZ', name: 'Kai' });
+      await wait(30);
+      expect(errors).toHaveLength(0);
+
+      guest.now = () => Date.now() + PEER_TIMEOUT_MS + 1;
+      guest.tick();
+      expect(errors.some((message) => /No host answered in this browser/i.test(message))).toBe(true);
+
+      guest.tick();
+      expect(errors.filter((message) => /No host answered/i.test(message))).toHaveLength(1);
+    } finally {
+      guest.leave();
+    }
+  });
+
+  it('stays quiet once the host has spoken', async () => {
+    const host = new PvpRoom({ mode: 'local' });
+    const guest = new PvpRoom({ mode: 'local' });
+    const errors = [];
+    guest.on('error', (message) => errors.push(message));
+    try {
+      const hosted = await host.host({ name: 'Ronn' });
+      await guest.join({ code: hosted.roomCode, name: 'Kai' });
+      await wait(60);
+
+      guest.now = () => Date.now() + PEER_TIMEOUT_MS * 2;
+      guest.tick();
+      expect(errors).toHaveLength(0);
     } finally {
       host.leave();
       guest.leave();

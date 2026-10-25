@@ -38,7 +38,10 @@ export function isValidRoomCode(code) {
 
 export const MSG = Object.freeze({
   HELLO: 'hello',
+  /** Relay → client: "your seat is ready" (never folded into lobby state). */
   WELCOME: 'welcome',
+  /** Relay → client: "I am holding your socket, waiting for the host's room". */
+  NOTE: 'note',
   INTENT: 'intent',
   SYNC: 'sync',
   BYE: 'bye',

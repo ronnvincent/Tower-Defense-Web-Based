@@ -100,7 +100,7 @@ GameScene  ←— launch payload ——  PvpLobbyUI  ←— state ——  PvpRoo
 | `src/net/LobbyState.js` | Host-authoritative room reducer, snapshot + adopt, lobby view. |
 | `src/net/PvpRoom.js` | Glue: intents, snapshots, countdown, launch, `over`. |
 | `src/net/lobbyProtocol.js` | Room codes, message envelope, name sanitising. |
-| `src/net/transports.js` | `BroadcastTransport` (same browser) and `WebSocketTransport`. |
+| `src/net/transports.js` | Link choice (`preferredMode`), `WebSocketTransport` (relay) and `BroadcastTransport` (same browser). |
 | `src/ui/PvpLobbyUI.js` | Entry → room → countdown panel. |
 | `src/ui/DuelResultUI.js` | Waiting state and final scoreboard / rematch. |
 | `server/pvp-relay.mjs` | A dumb relay that pairs two sockets into a room. |
@@ -129,23 +129,38 @@ scoring code and the UI.
 
 ## 4. Running a duel
 
-### Same browser (no server)
-
-Open the lobby in two tabs (or two windows) and host in one, join with the code
-in the other. The room runs over `BroadcastChannel`, so it works offline and
-needs no configuration.
-
-### Two devices (relay)
+### Two devices (the default)
 
 ```bash
-npm run pvp:relay                 # ws://0.0.0.0:8787/pvp
-VITE_PVP_RELAY=ws://<host>:8787/pvp npm run dev
+npm run pvp:relay     # ws://0.0.0.0:8787/pvp, next to the dev/preview server
+npm run dev           # or: npm run preview
 ```
 
-`npm run dev` also proxies `/pvp` to `127.0.0.1:8787`, so on one machine — or on
-a LAN with the dev server exposed — the lobby's relay mode works without an
-environment variable. The relay only forwards envelopes; all rules stay on the
-host.
+Open the same URL on both phones. The lobby's entry screen offers two links:
+
+| Chip | What it is | When it works |
+| --- | --- | --- |
+| **ONLINE** (default) | `WebSocketTransport` → `/pvp` on the page's own origin | two devices, two networks, any host that runs the relay |
+| **THIS BROWSER** | `BroadcastChannel` | two tabs of one browser; it can never reach another device |
+
+`vite.config.js` proxies `/pvp` for both `dev` and `preview`, so the client only
+ever needs its own page URL. A static host (Vercel, GitHub Pages) has no relay
+process — build with `VITE_PVP_RELAY=wss://relay.example/pvp` and run
+`server/pvp-relay.mjs` somewhere reachable. `?pvp=local` / `?pvp=relay` forces a
+link for one tab, and the choice is remembered in `localStorage['td-duel-link']`.
+
+The room board shows what is actually happening: `ONLINE · LINKED`,
+`… · WAITING FOR HOST` (the relay is holding your socket until the code exists),
+`… · LINK LOST`. A join that cannot work says so instead of waiting.
+
+```
+client → hello  {roomCode, name, host}
+relay  → note   {state:'waiting'}      guest arrived before the host
+relay  → welcome{seat:'p1'|'p2'}       seated
+relay  → bye    {reason} then close    bad-code | code-taken | full | no-room | no-host
+```
+
+The relay only forwards envelopes; all rules stay on the host.
 
 ---
 
@@ -176,17 +191,27 @@ from ~1.4 Hz progress ticks.
 tile counts, level contract, wave/boss validity, camera fit and pan, match
 resolution for every win condition.
 
-`tests/lobby.test.js` (22) — room codes, envelopes, name sanitising, seat
+`tests/lobby.test.js` (24) — room codes, envelopes, name sanitising, seat
 assignment, readiness, host-only start and arena pick, countdown, snapshot
 round-trip, rematch, forfeit, plus **two real `PvpRoom`s talking over
-`BroadcastChannel`** end to end.
+`BroadcastChannel`** end to end, and the watchdog that speaks up when no host
+answers.
 
-`tests/duel-ui.test.js` (11) — the lobby and result panels in jsdom: seat
-labels, arena picker locking, live progress, waiting state, scoreboard, name
-escaping.
+`tests/pvp-relay.test.js` (12) — **a real relay child process and two real
+WebSocket clients**: create → join → 2 seats → ready → start → countdown →
+launch on both → progress → knockout verdict on both → rematch; a guest held
+before the host opens; an unknown code refused; a third challenger refused; a
+host that vanishes mid-duel forfeiting to the remaining seat; and a dead relay
+failing in ~3 s with instructions. Plus the link-choice table as pure functions.
+
+`tests/duel-ui.test.js` (11) and `tests/duel-link.test.js` (6) — the lobby and
+result panels in jsdom: seat labels, arena picker locking, live progress,
+waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips and the
+link badge.
 
 Run them with:
 
 ```bash
-npx vitest run tests/pvp.test.js tests/lobby.test.js tests/duel-ui.test.js
+npx vitest run tests/pvp.test.js tests/lobby.test.js tests/duel-ui.test.js \
+  tests/duel-link.test.js tests/pvp-relay.test.js
 ```

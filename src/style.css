@@ -5346,6 +5346,121 @@ body.is-fullscreen #app::after {
   background: rgba(95, 22, 34, 0.35);
 }
 
+/* --- room link chooser ---------------------------------------------------- */
+
+.pvp-link-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(194, 178, 153, 0.18);
+}
+
+.pvp-link-label {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-muted);
+}
+
+.pvp-link-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pvp-link-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 5px 12px;
+  border: 1px solid rgba(194, 178, 153, 0.28);
+  background: rgba(12, 10, 8, 0.45);
+  color: var(--ink-muted);
+  text-align: left;
+  cursor: var(--ui-cursor) 16 16, pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.pvp-link-chip:hover {
+  border-color: var(--gold-line);
+  color: var(--ink);
+}
+
+.pvp-link-chip.is-active {
+  border-color: var(--gold-primary);
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.16), rgba(245, 196, 81, 0.04));
+  color: var(--ink-gold);
+}
+
+.pvp-link-chip:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+}
+
+.pvp-link-chip-title {
+  font-family: 'Cinzel', serif;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+
+.pvp-link-chip-note {
+  font-size: var(--fs-micro);
+  opacity: 0.72;
+}
+
+.pvp-link {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/* --- link badge on the room board ---------------------------------------- */
+
+.pvp-room-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pvp-badge {
+  padding: 2px 9px;
+  border: 1px solid rgba(194, 178, 153, 0.3);
+  background: rgba(12, 10, 8, 0.5);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.pvp-badge.is-live {
+  border-color: rgba(124, 227, 172, 0.55);
+  color: var(--ink-green);
+}
+
+.pvp-badge.is-down {
+  border-color: rgba(255, 122, 144, 0.6);
+  color: var(--ink-red);
+}
+
+.pvp-badge[data-state='linking'],
+.pvp-badge[data-state='connecting'],
+.pvp-badge[data-state='reconnecting'] {
+  border-color: var(--gold-line);
+  color: var(--ink-gold);
+}
+
 /* --- room board ----------------------------------------------------------- */
 
 .pvp-room {
@@ -5808,6 +5923,11 @@ body.is-fullscreen #app::after {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .pvp-room-meta {
+    align-items: flex-start;
+  }
+
+
   .pvp-arenas {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -5818,6 +5938,30 @@ body.is-fullscreen #app::after {
 }
 
 @media (orientation: landscape) and (max-height: 460px) {
+  /* 640 × 360 is still a phone in landscape: keep the entry two-up instead of
+     stacking two panels plus the link row into a scroller. */
+  .pvp-entry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pvp-link-row {
+    gap: 4px 10px;
+    padding-bottom: 4px;
+  }
+
+  .pvp-link-chip {
+    min-height: 34px;
+    padding: 3px 10px;
+  }
+
+  .pvp-link-chip-note {
+    display: none;
+  }
+
+  .pvp-link {
+    flex-basis: 100%;
+  }
+
   .pvp-h3 {
     font-size: var(--fs-small);
   }

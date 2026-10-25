@@ -16,8 +16,21 @@ import { PVP_ARENAS, getArena } from '../data/pvpArenas.js';
 import { COUNTDOWN_MS, MAX_CLIENTS } from '../net/LobbyState.js';
 import { PvpRoom, ROOM_EVENTS } from '../net/PvpRoom.js';
 import { normaliseRoomCode } from '../net/lobbyProtocol.js';
+import { TRANSPORT, preferredMode, relayUrlFor } from '../net/transports.js';
 
 const NAME_KEY = 'td-duel-name';
+const LINK_KEY = 'td-duel-link';
+
+/** Transport status → the word printed in the link badge. */
+const LINK_WORDS = {
+  idle: 'READY',
+  connecting: 'DIALING RELAY',
+  reconnecting: 'RETRYING RELAY',
+  linking: 'WAITING FOR HOST',
+  open: 'LINKED',
+  closed: 'LINK LOST',
+  error: 'NO LINK',
+};
 
 export class PvpLobbyUI {
   /**
@@ -33,6 +46,8 @@ export class PvpLobbyUI {
     this.screen = 'entry';
     this.countdownTimer = null;
     this.lastFocus = null;
+    /** 'relay' | 'local' — how the two devices reach each other. */
+    this.linkMode = this.storedLinkMode();
     this.build();
   }
 
@@ -56,7 +71,25 @@ export class PvpLobbyUI {
           <button id="pvp-close" class="btn-close" type="button" aria-label="Close the duel lobby">✕</button>
         </header>
 
+        <p id="pvp-error" class="pvp-error hidden" role="alert"></p>
+
         <section id="pvp-entry" class="pvp-entry">
+          <div class="pvp-link-row">
+            <span class="pvp-link-label">ROOM LINK</span>
+            <div class="pvp-link-chips" role="radiogroup" aria-label="How the two devices reach each other">
+              <button id="pvp-link-relay" class="pvp-link-chip" type="button" role="radio" aria-checked="true"
+                      data-link="relay" title="Cross a device boundary through the duel relay">
+                <span class="pvp-link-chip-title">ONLINE</span>
+                <span class="pvp-link-chip-note">Two devices · relay</span>
+              </button>
+              <button id="pvp-link-local" class="pvp-link-chip" type="button" role="radio" aria-checked="false"
+                      data-link="local" title="Two tabs of this browser, no server involved">
+                <span class="pvp-link-chip-title">THIS BROWSER</span>
+                <span class="pvp-link-chip-note">Two tabs · no server</span>
+              </button>
+            </div>
+            <p id="pvp-link" class="pvp-link" role="status"></p>
+          </div>
           <div class="pvp-col">
             <h3 class="pvp-h3">HOST A ROOM</h3>
             <p class="pvp-copy">You take seat I. Your rival joins with the code.</p>
@@ -75,7 +108,6 @@ export class PvpLobbyUI {
             </label>
             <button id="pvp-join" class="game-btn" type="button">JOIN ROOM</button>
           </div>
-          <p id="pvp-error" class="pvp-error hidden" role="alert"></p>
         </section>
 
         <section id="pvp-room" class="pvp-room hidden">
@@ -84,7 +116,10 @@ export class PvpLobbyUI {
               <span class="pvp-code-label">ROOM CODE</span>
               <button id="pvp-code-value" class="pvp-code" type="button" title="Tap to copy the code">-----</button>
             </div>
-            <p id="pvp-room-status" class="pvp-room-status">WAITING FOR A CHALLENGER</p>
+            <div class="pvp-room-meta">
+              <span id="pvp-link-badge" class="pvp-badge" data-state="idle">ONLINE · READY</span>
+              <p id="pvp-room-status" class="pvp-room-status">WAITING FOR A CHALLENGER</p>
+            </div>
           </div>
 
           <div class="pvp-seats">
@@ -128,6 +163,9 @@ export class PvpLobbyUI {
 
   bind() {
     this.$('pvp-close').addEventListener('click', () => this.close());
+    for (const chip of this.el.querySelectorAll('.pvp-link-chip')) {
+      chip.addEventListener('click', () => this.setLinkMode(chip.dataset.link));
+    }
     this.$('pvp-host').addEventListener('click', () => this.hostRoom());
     this.$('pvp-join').addEventListener('click', () => this.joinRoom());
     this.$('pvp-code-value').addEventListener('click', () => this.copyCode());
@@ -169,6 +207,7 @@ export class PvpLobbyUI {
     this.$('pvp-name').value = this.storedName();
     this.$('pvp-code').value = '';
     this.hideError();
+    this.paintLink(null);
     setTimeout(() => this.$('pvp-code')?.focus({ preventScroll: true }), 30);
   }
 
@@ -201,7 +240,10 @@ export class PvpLobbyUI {
 
   ensureRoom() {
     if (this.room) return this.room;
-    this.room = new PvpRoom();
+    // `mode` is the whole difference between a room in this browser and a room
+    // two devices can share, so it is a first-class lobby choice, not a build
+    // flag buried in the env.
+    this.room = new PvpRoom({ mode: this.linkMode });
     window.gamePvp = this.room;
 
     this.roomListeners.push(
@@ -210,8 +252,10 @@ export class PvpLobbyUI {
       this.room.on(ROOM_EVENTS.OVER, ({ resolved, view }) => this.finish(resolved, view)),
       this.room.on(ROOM_EVENTS.ERROR, (message) => this.showError(message)),
       this.room.on(ROOM_EVENTS.STATUS, (status) => {
+        this.paintLink(this.room?.view || null);
+        if (this.screen === 'entry') this.paintJoinProgress(status);
         if (status === 'closed' && this.room?.view?.status === 'lobby') {
-          this.showError('Connection to the room was lost');
+          this.showError('The duel link dropped. Leave the room and open it again.');
         }
       })
     );
@@ -229,13 +273,20 @@ export class PvpLobbyUI {
   async hostRoom() {
     this.hideError();
     const room = this.ensureRoom();
+    const button = this.$('pvp-host');
+    button.disabled = true;
+    button.textContent = this.linkMode === TRANSPORT.RELAY ? 'DIALING RELAY…' : 'OPENING ROOM…';
     try {
       const view = await room.host({ name: this.playerName() });
+      if (this.room !== room) return;
       this.setScreen('room');
       this.render(view);
       this.startCountdownLoop();
     } catch (error) {
       this.showError(error?.message || 'Could not open a room');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'CREATE ROOM';
     }
   }
 
@@ -247,20 +298,32 @@ export class PvpLobbyUI {
       return;
     }
     const room = this.ensureRoom();
+    const button = this.$('pvp-join');
+    button.disabled = true;
+    button.dataset.busy = '1';
+    button.textContent = this.linkMode === TRANSPORT.RELAY ? 'DIALING RELAY…' : 'JOINING…';
     try {
       await room.join({ code, name: this.playerName() });
+      if (this.room !== room) return;
       this.setScreen('room');
+      this.render(room.view);
       this.startCountdownLoop();
     } catch (error) {
       this.showError(error?.message || 'Could not join that room');
+    } finally {
+      delete button.dataset.busy;
+      button.disabled = false;
+      button.textContent = 'JOIN ROOM';
     }
   }
 
   leaveRoom() {
-    this.room?.leave();
+    const room = this.room;
     this.teardownRoom();
+    room?.leave();
     this.setScreen('entry');
     this.hideError();
+    this.paintLink(null);
   }
 
   /** Re-open the room board after a match, for the rematch path. */
@@ -347,6 +410,8 @@ export class PvpLobbyUI {
       ? 'You pick the arena. Both sides fight the same horde — mirror halves, mirrored gates.'
       : `Host picks the arena. ${getArena(view.arena.id).name} right now.`;
 
+    this.paintLink(view);
+
     if (status === 'countdown') this.setScreen('countdown');
     else if (status === 'lobby') {
       // A rematch resets the room to the lobby; bring the board back for the
@@ -357,6 +422,81 @@ export class PvpLobbyUI {
       }
       this.setScreen('room');
     }
+  }
+
+  /* ================================================================== LINK */
+
+  /** 'relay' | 'local', from storage, the URL (`?pvp=`) or the default. */
+  storedLinkMode() {
+    try {
+      const saved = localStorage.getItem(LINK_KEY);
+      if (saved === TRANSPORT.LOCAL || saved === TRANSPORT.RELAY) return saved;
+    } catch {
+      /* private mode */
+    }
+    return preferredMode();
+  }
+
+  setLinkMode(mode) {
+    if (mode !== TRANSPORT.LOCAL && mode !== TRANSPORT.RELAY) return;
+    if (mode === this.linkMode) return;
+    const previous = this.room;
+    this.teardownRoom();
+    previous?.leave();
+    this.linkMode = mode;
+    try {
+      localStorage.setItem(LINK_KEY, mode);
+    } catch {
+      /* private mode */
+    }
+    this.hideError();
+    this.setScreen('entry');
+    this.paintLink(null);
+  }
+
+  /** Paint the chips, the entry caption and the in-room badge. */
+  paintLink(view) {
+    const room = this.room;
+    const mode = room?.kind || this.linkMode;
+    for (const chip of this.el.querySelectorAll('.pvp-link-chip')) {
+      const active = chip.dataset.link === mode;
+      chip.classList.toggle('is-active', active);
+      chip.setAttribute('aria-checked', String(active));
+    }
+
+    const status = room?.status || 'idle';
+    const word = LINK_WORDS[status] || String(status).toUpperCase();
+    const label = mode === TRANSPORT.LOCAL ? 'THIS BROWSER' : 'ONLINE';
+    const badge = this.$('pvp-link-badge');
+    if (badge) {
+      badge.textContent = `${label} · ${word}`;
+      badge.dataset.state = status;
+      badge.classList.toggle('is-live', status === 'open');
+      badge.classList.toggle('is-down', status === 'closed' || status === 'error');
+    }
+
+    const line = this.$('pvp-link');
+    if (line) {
+      if (mode === TRANSPORT.LOCAL) {
+        line.textContent =
+          'Two tabs of this browser only — a local room can never reach another device.';
+      } else {
+        const url = room?.linkUrl || relayUrlFor();
+        line.textContent = url
+          ? `Two devices through the relay at ${url}`
+          : 'Two devices through the duel relay.';
+      }
+    }
+    return view;
+  }
+
+  /** Keep the join button honest while a dial is in flight. */
+  paintJoinProgress(status) {
+    const button = this.$('pvp-join');
+    if (!button || button.dataset.busy !== '1') return;
+    if (status === 'connecting') button.textContent = 'DIALING RELAY…';
+    else if (status === 'reconnecting') button.textContent = 'RETRYING RELAY…';
+    else if (status === 'linking') button.textContent = 'WAITING FOR HOST…';
   }
 
   renderArenas() {

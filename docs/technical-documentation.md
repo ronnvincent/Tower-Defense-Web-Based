@@ -722,9 +722,52 @@ GameScene ──reportSeat/reportProgress──► PvpRoom ──intent──►
 - **Room** (`src/net/LobbyState.js`, `src/net/PvpRoom.js`): the host folds client
   intents into a reducer and broadcasts a snapshot; challengers adopt it. The
   only state on the wire is `{roomCode, arenaId, seed, status, clients, seats}`.
-- **Transport** (`src/net/transports.js`): `BroadcastChannel` for two tabs,
-  `WebSocketTransport` against `server/pvp-relay.mjs` for two devices. The relay
-  forwards envelopes and knows nothing about the rules.
+- **Transport** (`src/net/transports.js`): the only path that can cross a device
+  boundary is `WebSocketTransport`, which dials `/pvp` on whatever host served
+  the page; `BroadcastTransport` is kept for two tabs of one browser and for
+  tests. `preferredMode()` decides which, in this order:
+
+  | Where the game came from | Default link |
+  | --- | --- |
+  | `http(s)://` — dev server, preview URL, any host | ONLINE relay → same-origin `/pvp` |
+  | `file://` — opened straight from disk | THIS BROWSER |
+  | `VITE_PVP_RELAY=ws://…` at build time | ONLINE relay → that URL |
+  | `?pvp=local` / `?pvp=relay` in the URL | forces one for that tab |
+
+  The lobby exposes the choice as two chips on the entry screen and remembers it
+  in `localStorage['td-duel-link']`, so a room is never silently local.
+- **The relay** (`server/pvp-relay.mjs`) forwards envelopes and knows nothing
+  about the rules. `vite.config.js` proxies `/pvp` for **both** `npm run dev` and
+  `npm run preview`, so the relay is reachable on the page's own origin — that is
+  what lets two phones share a room with no configuration. A static host such as
+  Vercel has no relay process: build with `VITE_PVP_RELAY=wss://relay.example/pvp`
+  to point the client at one you host.
+
+### 7.5b The handshake, and why a join can no longer fail silently
+
+```
+client → hello  {roomCode, name, host}
+relay  → note   {state:'waiting'}      guest arrived before the host
+relay  → welcome{seat:'p1'|'p2'}       seated — the dial is done
+relay  → bye    {reason} then close    bad-code | code-taken | full | no-room | no-host
+```
+
+- `WebSocketTransport.connect()` resolves on `welcome`, *not* on socket `open`. A
+  refused room rejects with a sentence from `linkError(reason)` and the lobby
+  prints it under the entry grid — the panel stays exactly where it was.
+- A guest that taps JOIN **before** the host has created the room is held for
+  15 s (`PVP_PENDING_MS`) and seated the instant the code appears. Two phones no
+  longer have to tap in the right order.
+- Seats are reclaimed by client id, so a host that reloads re-attaches to its own
+  room instead of being told the code is taken; a dead slot never blocks a code.
+- Broadcast rooms cannot be acked by a server, so `PvpRoom` watches for a silent
+  peer: a joiner that hears no snapshot for `PEER_TIMEOUT_MS` (9 s) is told that
+  local rooms never leave the browser. That silent wait *was* the two-device bug.
+- Dial retries are bounded (400 / 900 / 1800 ms) and a relay that never answers
+  fails with instructions instead of hanging. A link lost **after** seating is
+  reported as `LINK LOST`, never silently redialled into a different room.
+- The relay's `bye` frame is flushed before the socket closes (`send` callback),
+  because a bare `close()` can drop the very frame that explains the refusal.
 - **Fairness:** relics, blessings and profile writes are skipped when
   `level.pvp` is true (`GameScene.trackStats`, `syncAchievements`, and the
   victory/defeat handlers), so duels cannot farm campaign progress.

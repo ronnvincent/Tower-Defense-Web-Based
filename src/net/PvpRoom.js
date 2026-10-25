@@ -12,6 +12,10 @@
  *   'over'    ({ resolved, view })    the match has been decided
  *   'status'  ('open'|'closed'|...)   transport health, for the lobby badge
  *   'error'   (message)               user-facing problem ("room full", ...)
+ *
+ * The room also refuses to be a silent dead end: a challenger that never hears
+ * a snapshot from the host within {@link PEER_TIMEOUT_MS} gets an `error` that
+ * says so, instead of a board that waits forever.
  */
 
 import {
@@ -28,7 +32,10 @@ import {
 } from './LobbyState.js';
 import { MSG, OP, envelope, isValidRoomCode, makeRoomCode, normaliseRoomCode } from './lobbyProtocol.js';
 import { forfeit, opponentOf } from '../systems/PvpMatch.js';
-import { createTransport } from './transports.js';
+import { TRANSPORT, createTransport, linkError } from './transports.js';
+
+/** A joiner that hears nothing from the host for this long is told so. */
+export const PEER_TIMEOUT_MS = 9000;
 
 export const ROOM_EVENTS = Object.freeze({
   STATE: 'state',
@@ -44,9 +51,10 @@ function randomId() {
 }
 
 export class PvpRoom {
-  constructor({ mode = 'auto', now = () => Date.now() } = {}) {
+  constructor({ mode = 'auto', now = () => Date.now(), relayUrl = null } = {}) {
     this.mode = mode;
     this.now = now;
+    this.relayUrl = relayUrl;
     this.state = null;
     this.transport = null;
     this.handlers = new Map();
@@ -56,6 +64,11 @@ export class PvpRoom {
     this.status = 'idle';
     this.lastError = null;
     this.selfId = randomId();
+    /** When this client started looking for its host (0 = not searching). */
+    this.joinedAt = 0;
+    /** True once the host has actually spoken to us. */
+    this.peerSeen = false;
+    this.peerWarned = false;
   }
 
   /* --------------------------------------------------------------- events */
@@ -84,10 +97,27 @@ export class PvpRoom {
     return this.state ? seatOf(this.state, this.selfId) : null;
   }
 
+  /** 'relay' | 'local' once a transport exists, else what we are asking for. */
+  get kind() {
+    return this.transport?.kind || null;
+  }
+
+  /** The relay this room dials, or null for a same-browser room. */
+  get linkUrl() {
+    return this.transport?.url || null;
+  }
+
   /* ------------------------------------------------------------------ setup */
 
-  async host({ name = 'Host', arenaId = null, seed = null } = {}) {
-    const roomCode = makeRoomCode();
+  /**
+   * Open a room. `code` lets the host pin the code (used by tests and by a
+   * future "bring your own code" field); otherwise one is minted.
+   */
+  async host({ name = 'Host', arenaId = null, seed = null, code = null } = {}) {
+    this.closed = false;
+    this.peerSeen = false;
+    this.peerWarned = false;
+    const roomCode = code ? normaliseRoomCode(code) : makeRoomCode();
     this.state = createLobbyState({
       roomCode,
       selfId: this.selfId,
@@ -103,6 +133,9 @@ export class PvpRoom {
   }
 
   async join({ code, name = 'Challenger' } = {}) {
+    this.closed = false;
+    this.peerSeen = false;
+    this.peerWarned = false;
     const roomCode = normaliseRoomCode(code);
     if (!isValidRoomCode(roomCode)) throw new Error('That room code is not valid');
     this.state = createLobbyState({
@@ -126,13 +159,24 @@ export class PvpRoom {
       selfId: this.selfId,
       name,
       host,
+      url: this.relayUrl,
     });
     this.transport.onMessage = (message) => this.#handle(message);
     this.transport.onStatus = (status) => {
       this.status = status;
       this.emit(ROOM_EVENTS.STATUS, status);
     };
-    await this.transport.connect();
+    try {
+      await this.transport.connect();
+    } catch (error) {
+      this.status = 'error';
+      this.lastError = error?.message || 'Could not open the duel link';
+      this.emit(ROOM_EVENTS.STATUS, 'error');
+      this.emit(ROOM_EVENTS.ERROR, this.lastError);
+      throw error;
+    }
+    // Only a searcher needs a watchdog; the host is the one being waited for.
+    this.joinedAt = host ? 0 : this.now();
   }
 
   /* --------------------------------------------------------------- intents */
@@ -209,6 +253,7 @@ export class PvpRoom {
   }
 
   #handle(message) {
+    if (!this.state) return;
     switch (message.type) {
       case MSG.HELLO: {
         // A relayed client announcing itself: tell it the room and the truth.
@@ -231,6 +276,7 @@ export class PvpRoom {
 
       case MSG.SYNC: {
         if (this.state?.isHost) return;
+        this.peerSeen = true;
         adoptSnapshot(this.state, message.payload);
         this.#publish();
         this.#maybeLaunch();
@@ -241,6 +287,13 @@ export class PvpRoom {
       }
 
       case MSG.BYE: {
+        const reason = message.payload?.reason;
+        if (reason && reason !== 'peer-left' && reason !== 'wrong-room') {
+          // The relay refused us (or the host refused a stale hello). Say what
+          // happened and stop: there is no room to sit in.
+          this.emit(ROOM_EVENTS.ERROR, linkError(reason, 'The duel link was refused'));
+          return;
+        }
         if (this.state?.isHost) {
           this.#applyRemoteIntent({ clientId: message.from, op: OP.LEAVE, payload: {} });
           return;
@@ -355,12 +408,34 @@ export class PvpRoom {
    * @returns {boolean} true when the match just went live
    */
   tick(now = this.now()) {
+    this.#checkPeer(now);
     if (!this.state?.isHost || this.state.status !== 'countdown') return false;
     const before = this.state.status;
     const { launched } = tickLobby(this.state, now);
     if (!launched && this.state.status === before) return false;
     this.#broadcast();
     return true;
+  }
+
+  /**
+   * A local room cannot be acked by a server, so the only proof a host exists
+   * is an incoming snapshot. Without this the challenger's board waits
+   * forever — the exact bug that made two-device duels look like nothing
+   * happened.
+   */
+  #checkPeer(now) {
+    if (this.closed || !this.state || this.state.isHost) return;
+    if (this.peerSeen || this.peerWarned || !this.joinedAt) return;
+    if (this.state.status !== LOBBY_STATUS.LOBBY) return;
+    if (this.state.clients.length > 1) return; // someone is in the other seat
+    if (now - this.joinedAt < PEER_TIMEOUT_MS) return;
+    this.peerWarned = true;
+    this.emit(
+      ROOM_EVENTS.ERROR,
+      this.kind === TRANSPORT.LOCAL
+        ? 'No host answered in this browser. Local rooms only work in two tabs of the same browser — pick an ONLINE room for two devices.'
+        : 'No host answered that code. Ask the host to press CREATE ROOM, then join again.'
+    );
   }
 
   /** Milliseconds left on the countdown (0 when not counting). */

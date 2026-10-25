@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "pvp:dev": "node scripts/dev-with-relay.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

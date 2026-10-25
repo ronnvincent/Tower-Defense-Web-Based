@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 839 tests across 68 test suites.
-- **Pass Rate:** **100% (839 / 839 Passed)**
+- **Total Automated Unit Tests:** 859 tests across 70 test suites.
+- **Pass Rate:** **100% (859 / 859 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -16,8 +16,17 @@ The Mirror Arena adds three suites that need no network and no GPU:
 | Suite | Tests | What it proves |
 | --- | :-: | --- |
 | `tests/pvp.test.js` | 31 | All arenas are 26 × 16 and 180° symmetric (gates included), every arena has a real BFS route and a usable shelf on both halves, the level contract is byte-identical for both seats, every boss key exists, the camera fits 1× on a campaign map and 0.75× on an arena, and every win condition (knockout / points / core HP / time / draw) resolves. |
-| `tests/lobby.test.js` | 22 | Room codes, envelopes and name sanitising; seat assignment, host-only start and arena pick, countdown → live, snapshot round-trip, rematch and forfeit; and **two real `PvpRoom` instances talking over `BroadcastChannel`** end to end (join → ready → start → countdown → launch → knockout). |
+| `tests/lobby.test.js` | 24 | Room codes, envelopes and name sanitising; seat assignment, host-only start and arena pick, countdown → live, snapshot round-trip, rematch and forfeit; **two real `PvpRoom` instances talking over `BroadcastChannel`** end to end (join → ready → start → countdown → launch → knockout); and the peer watchdog, which tells an unanswered challenger instead of leaving the board waiting. |
 | `tests/duel-ui.test.js` | 11 | The lobby and result panels in jsdom: seat labels, arena locking for the challenger, live wave/points readout, waiting state, winner row and escaping of hostile player names. |
+| `tests/duel-link.test.js` | 6 | The room-link UI: ONLINE is the default, the chips switch the transport the room is built with, the badge follows `open`/`closed`, the error line lives outside the entry grid so it is visible mid-room, and the join button spells out `DIALING RELAY…` / `WAITING FOR HOST…`. |
+| `tests/pvp-relay.test.js` | 12 | **Real sockets against a real relay process.** It spawns `server/pvp-relay.mjs` on a free port and drives two genuine `PvpRoom` clients over the wire: host creates, guest joins, 2 seats, both ready, start, countdown, launch on both, live progress, knockout verdict on both, rematch. Also: a guest that arrives *before* the host is held and then seated, an unknown code is refused with the exact sentence the lobby prints, a third challenger is refused, a host that disappears mid-duel produces a forfeit verdict, and a dead relay fails in ~3 s with instructions instead of hanging. Plus the transport-choice table (`preferredMode`, `relayUrlFor`) as pure functions. |
+
+> Why the relay test has to exist: `BroadcastChannel` is same-origin **and same-browser**,
+> so it can never prove two-device play. The suite above is the only test in the repo
+> that opens two independent sockets; if a phone could not join, it fails here first.
+> The same path was also verified by hand through the running dev server's `/pvp`
+> proxy (page origin `ws://127.0.0.1:4173/pvp` → relay), including a WebSocket upgrade
+> carrying the public preview `Host` header.
 
 ### 1.2 Upgrade-feel coverage
 
@@ -227,8 +236,8 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  68 passed (68)
-Tests       839 passed (839)
+Test Files  70 passed (70)
+Tests       859 passed (859)
 Duration    34.2s
 ```
 

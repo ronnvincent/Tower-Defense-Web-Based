@@ -118,8 +118,14 @@ a re-skinned campaign map.
   both ready up, the host picks the arena, a 3-second countdown opens the gates.
 - **Watch your rival:** the camera is map-aware (fits the whole arena at 0.75×) and
   a HUD strip carries the rival's wave, points and core HP live.
-- **Transport:** `BroadcastChannel` for two tabs on one machine; `npm run pvp:relay`
-  plus `VITE_PVP_RELAY=ws://<host>:8787/pvp` for two devices.
+- **Two devices:** the lobby defaults to an **ONLINE** room. Start the relay
+  (`npm run pvp:relay`) next to the server, open the game on both phones from the
+  same URL, and the client dials `/pvp` on that origin — the dev and preview
+  servers proxy it. The room board carries a live badge (`ONLINE · LINKED`,
+  `… · WAITING FOR HOST`, `… · LINK LOST`) so a link that is not up is visible.
+  `THIS BROWSER` (two tabs, no server) stays available for a quick demo, and
+  `?pvp=local` / `?pvp=relay` forces one. A static host has no relay process:
+  build with `VITE_PVP_RELAY=wss://<your-relay>/pvp`.
 
 Full design, rules and architecture: [`docs/pvp.md`](docs/pvp.md).
 
@@ -303,7 +309,8 @@ npm run test:watch
 # Build optimized production bundle to dist/
 npm run build
 
-# Optional: run the duel relay for two-device PvP (ws://0.0.0.0:8787/pvp)
+# Run the duel relay for two-device PvP (ws://0.0.0.0:8787/pvp).
+# The dev and preview servers proxy /pvp to it, so the game only needs its own URL.
 npm run pvp:relay
 
 # Preview production build locally
