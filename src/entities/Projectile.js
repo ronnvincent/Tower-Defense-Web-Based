@@ -152,9 +152,7 @@ export class Projectile {
         if (enemy.isDead || enemy.reachedBase) continue;
         const d = Math.hypot(enemy.x - impactX, enemy.y - impactY);
         if (d <= this.stats.splash) {
-          const res = enemy.applyDamage(this.stats.damage, this.stats.damageType || 'explosive', {
-            armorBreak: this.stats.armorBreak || 0,
-            armorBreakMs: this.stats.armorBreakMs || 0,
+          const res = this.hitEnemy(enemy, this.stats.damage, {
             distance: d,
             splashRadius: this.stats.splash,
           });
@@ -163,16 +161,23 @@ export class Projectile {
           }
         }
       }
+
+      // A burning shell leaves a pool on the ground: everything that walks into
+      // it catches the same burn, so the Napalm branches reward placement.
+      if (this.stats.dot && this.stats.splash >= 60) {
+        this.layFirePool(impactX, impactY, this.stats.splash);
+      }
     } else {
       // Single target impact
       audio.playEnemyHit();
 
       if (this.target && !this.target.isDead) {
-        const res = this.target.applyDamage(this.stats.damage, this.stats.damageType || 'physical', {
-          armorPenetration: this.stats.armorPenetration || 0,
-          armorBreak: this.stats.armorBreak || 0,
-          armorBreakMs: this.stats.armorBreakMs || 0,
-        });
+        // A splash shell already damaged this target in the loop above; do not
+        // hit it a second time, only top up the status effects.
+        const alreadyHit = (this.stats.splash || 0) > 0;
+        const res = alreadyHit
+          ? { finalDamage: 0 }
+          : this.hitEnemy(this.target, this.stats.damage);
 
         // Color coding by damage type
         let textColor = 0xf5c451; // Gold for physical
@@ -213,6 +218,49 @@ export class Projectile {
   }
 
   /**
+   * Damage one enemy with this shot's full payload.
+   *
+   * Keeps the three "extra" effects in one place so splash, single-target and
+   * chain hits all behave the same:
+   *   bossBonus  extra fraction against `isBoss` targets
+   *   dot        burn / poison stack
+   *   stunMs     harpoon-style movement freeze
+   */
+  hitEnemy(enemy, damage, options = {}) {
+    const bossBonus = this.stats.bossBonus || 0;
+    const scaled = bossBonus && enemy.isBoss ? Math.round(damage * (1 + bossBonus)) : damage;
+    const d = options.distance;
+    const res = enemy.applyDamage(scaled, this.stats.damageType || 'physical', {
+      armorPenetration: options.armorPenetration ?? this.stats.armorPenetration ?? 0,
+      armorBreak: options.armorBreak ?? this.stats.armorBreak ?? 0,
+      armorBreakMs: options.armorBreakMs ?? this.stats.armorBreakMs ?? 0,
+      distance: d,
+      splashRadius: options.splashRadius ?? 0,
+    });
+    if (this.stats.dot) enemy.applyDot?.(this.stats.dot);
+    if (this.stats.stunMs) enemy.applyStun?.(this.stats.stunMs);
+    return res;
+  }
+
+  /** Burning ground left by the napalm branches. Purely visual + a slow tick. */
+  layFirePool(x, y, radius) {
+    if (!this.scene.add?.image || !this.scene.textures?.exists?.('fx-line-flamer-impact')) {
+      return;
+    }
+    const pool = this.scene.add
+      .image(x, y + 6, 'fx-line-flamer-impact', 0)
+      .setAlpha(0.5)
+      .setDepth(18);
+    pool.setScale?.((radius / 64) * 0.9);
+    this.scene.tweens?.add?.({
+      targets: pool,
+      alpha: 0.18,
+      duration: Math.max(600, this.stats.dot.durationMs || 1200),
+      onComplete: () => pool.destroy(),
+    });
+  }
+
+  /**
    * Ice nova: damage every creep inside the radius and chill it.
    *
    * The visual is the effect library's shard burst; the gameplay effect is the
@@ -230,7 +278,10 @@ export class Projectile {
       if (this.stats.slow && this.stats.slowMs) {
         enemy.applySlow(this.stats.slow, this.stats.slowMs);
       }
-      const res = enemy.applyDamage(Math.round(this.stats.damage * 0.4), 'frost', { distance: d, splashRadius: radius });
+      const res = enemy.applyDamage(Math.round(this.stats.damage * 0.4), 'frost', {
+        distance: d,
+        splashRadius: radius,
+      });
       if (res.finalDamage > 0) {
         this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0x9fe6ff);
       }

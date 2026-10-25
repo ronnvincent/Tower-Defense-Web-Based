@@ -130,6 +130,14 @@ export class BootScene extends Phaser.Scene {
       // Per-line shot art (scripts/build_projectiles.py): the banner keeps fire
       // their own golden bolt, and every line upgrades its projectile at 4/5.
       'proj-banner',
+      // Engineer shots (scripts/build_engineer_fx.py): bolt, slug, pitch,
+      // acid and harpoon all have their own silhouette in flight.
+      'proj-bolt',
+      'proj-bolt-heavy',
+      'proj-bullet',
+      'proj-flame',
+      'proj-acid',
+      'proj-harpoon',
     ]) {
       this.load.image(key, `assets/projectiles/${key}.png`);
     }

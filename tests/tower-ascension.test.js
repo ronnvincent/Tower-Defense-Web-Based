@@ -15,7 +15,8 @@ const SPECS = LINES.flatMap((line) =>
 describe('Five-tier defences', () => {
   it('defines exactly the five tiers the HUD promises', () => {
     expect(MAX_LEVEL).toBe(5);
-    expect(Object.keys(TOWER_TYPES)).toHaveLength(6);
+    // Six Spire keeps + five engineer lines.
+    expect(Object.keys(TOWER_TYPES)).toHaveLength(11);
     for (const { line, specKey } of SPECS) {
       expect(ASCENSION[line], `${line} has no ascension table`).toBeTruthy();
       expect(ASCENSION[line][specKey], `${line}.${specKey} never grows past level 3`).toBeTruthy();

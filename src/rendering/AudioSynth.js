@@ -179,6 +179,15 @@ export class AudioSynth {
     if (type === 'forge' && this.playBuffer('metal', 0.7, 0.8)) return;
     if (type === 'runes' && this.playBuffer('glass', 0.45, 0.9)) return;
     if (type === 'banner' && this.playBuffer('wood', 0.4, 1.4)) return;
+    // Engineer lines. Each one is a different machine, so each gets a different
+    // sample: the crossbow's wooden thunk, the repeater's metal tick, the
+    // siphon's airy whoosh (wood pitched up), the still's glassy bubble, and the
+    // winch's rope-and-metal slap.
+    if (type === 'crossbow' && this.playBuffer('wood', 0.55, 1.15)) return;
+    if (type === 'gatling' && this.playBuffer('metal', 0.4, 1.7)) return;
+    if (type === 'flamer' && this.playBuffer('wood', 0.45, 0.35)) return;
+    if (type === 'venom' && this.playBuffer('glass', 0.4, 0.7)) return;
+    if (type === 'harpoon' && this.playBuffer('metal', 0.8, 0.45)) return;
 
     const now = this.ctx?.currentTime;
     if (!now) return;

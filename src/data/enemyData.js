@@ -14,6 +14,13 @@
  *   isBoss       – true for major boss encounters
  *   bossPhases   – phase thresholds and mechanics for boss encounters
  *   abilities    – archetype specific abilities (e.g. heal pulse, summons)
+ *   traits       – behaviour bonuses the enemy brings to the fight:
+ *                    enrage   { maxSpeedBonus } speed grows as health drops
+ *                    phalanx  { radius, allies, reduction } damage cut while
+ *                             packed with allies (countered by splash)
+ *                    adaptive { perHit, max } armour grows with every hit
+ *                             (countered by armour break and true damage)
+ *   stunResist   0..1 fraction of a stun a boss shrugs off
  *
  * Sprites are looked up as `enemy-<typeKey>` (see src/data/spireManifest.js),
  * so no per-archetype sprite key is needed here.
@@ -24,11 +31,11 @@ export const ENEMY_TYPES = {
     key: 'grunt',
     name: 'Goblin Grunt',
     role: 'Standard balanced infantry — moderate health and speed.',
-    health: 75,
+    health: 92,
     speed: 62,
     armor: 0,
     shield: 0,
-    reward: 7,
+    reward: 8,
     score: 10,
     baseDamage: 1,
     radius: 16,
@@ -39,37 +46,39 @@ export const ENEMY_TYPES = {
     key: 'runner',
     name: 'Shadow Runner',
     role: 'Fast agile scout — low health, high speed, tests rapid defenses.',
-    health: 40,
+    health: 46,
     speed: 125,
     armor: 0,
     shield: 0,
-    reward: 6,
+    reward: 7,
     score: 12,
     baseDamage: 1,
     radius: 13,
     siege: 6,
+    traits: { enrage: { maxSpeedBonus: 0.3 } },
   },
 
   brute: {
     key: 'brute',
     name: 'Iron Brute',
     role: 'Heavily armored juggernaut — 40 Armor reduces physical damage by ~28%. Weak to Magic and Armor Break.',
-    health: 320,
+    health: 390,
     speed: 38,
     armor: 40,
     shield: 0,
-    reward: 22,
+    reward: 26,
     score: 35,
     baseDamage: 3,
     radius: 22,
     siege: 34,
+    traits: { adaptive: { perHit: 3, max: 30 } },
   },
 
   swarm: {
     key: 'swarm',
     name: 'Abyssal Slime',
     role: 'Swarm creature — low health, fast, appears in dense packs. Highly vulnerable to Cannon area splash.',
-    health: 26,
+    health: 30,
     speed: 88,
     armor: 0,
     shield: 0,
@@ -85,11 +94,11 @@ export const ENEMY_TYPES = {
     key: 'healer',
     name: 'Plague Shaman',
     role: 'Support healer — pulses a restoration aura (+30 HP to nearby allies every 2.5s). Priority elimination target.',
-    health: 180,
+    health: 215,
     speed: 50,
     armor: 10,
     shield: 0,
-    reward: 18,
+    reward: 21,
     score: 40,
     baseDamage: 2,
     radius: 18,
@@ -106,15 +115,16 @@ export const ENEMY_TYPES = {
     key: 'shield',
     name: 'Aegis Knight',
     role: 'Frontline vanguard — possesses a 120 HP Kinetic Barrier absorbing all damage before health can be touched.',
-    health: 160,
+    health: 190,
     speed: 46,
     armor: 15,
     shield: 120, // 120 HP shield barrier
-    reward: 16,
+    reward: 19,
     score: 30,
     baseDamage: 2,
     radius: 19,
     siege: 14,
+    traits: { phalanx: { radius: 62, allies: 1, reduction: 0.15 } },
   },
 
   /* ---------------------------------------------------------------- Flare pack
@@ -127,42 +137,44 @@ export const ENEMY_TYPES = {
     key: 'thrall',
     name: 'Rotting Thrall',
     role: 'Corpse wall — slow, hard to kill, and it grinds the palisade down while the fast wave slips past.',
-    health: 220,
+    health: 265,
     speed: 32,
     armor: 8,
     shield: 0,
-    reward: 11,
+    reward: 13,
     score: 18,
     baseDamage: 2,
     radius: 18,
     siege: 20,
+    traits: { phalanx: { radius: 72, allies: 2, reduction: 0.22 } },
   },
 
   raider: {
     key: 'raider',
     name: 'Bog Raider',
     role: 'Greenskin skirmisher — faster than a grunt, reaches the palisade first and hacks it apart.',
-    health: 70,
+    health: 84,
     speed: 96,
     armor: 0,
     shield: 0,
-    reward: 8,
+    reward: 9,
     score: 14,
     baseDamage: 1,
     radius: 14,
     siege: 16,
     siegeInterval: 900,
+    traits: { enrage: { maxSpeedBonus: 0.45 } },
   },
 
   bonearcher: {
     key: 'bonearcher',
     name: 'Bone Archer',
     role: 'Undead marksman — light on its feet, armoured enough to ignore splash, and it picks the palisade apart from the second rank.',
-    health: 110,
+    health: 132,
     speed: 70,
     armor: 12,
     shield: 0,
-    reward: 10,
+    reward: 11,
     score: 20,
     baseDamage: 1,
     radius: 15,
@@ -173,9 +185,9 @@ export const ENEMY_TYPES = {
     key: 'colossus',
     name: 'Stone Colossus',
     role: 'Wave 3 Mid-Boss — 2-phase encounter: Hardened Carapace in Phase 1, Enraged Earth Shatter in Phase 2.',
-    health: 1250,
+    health: 1280,
     speed: 34,
-    armor: 35,
+    armor: 40,
     shield: 0,
     reward: 100,
     score: 250,
@@ -206,13 +218,14 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 2: ENRAGED EARTH SHATTER!',
       },
     ],
+    stunResist: 0.5,
   },
 
   warlord: {
     key: 'warlord',
     name: 'Abyssal Warlord',
     role: 'Wave 6 Final Boss — 3-phase epic encounter: Rift Summoning, Kinetic Shield Matrix, and Overdrive Final Stand.',
-    health: 3300,
+    health: 3380,
     speed: 32,
     armor: 25,
     shield: 0,
@@ -252,6 +265,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: OVERDRIVE FINAL STAND!',
       },
     ],
+    stunResist: 0.6,
   },
 
   /**
@@ -263,7 +277,7 @@ export const ENEMY_TYPES = {
     key: 'sandwyrm',
     name: 'Dune Tyrant',
     role: 'Sunscorch Mesa boss — pulses a Sandstorm Aura (+35% speed nearby) every 7s, hardening into Razor Winds below 45% HP.',
-    health: 2600,
+    health: 2800,
     speed: 46,
     armor: 20,
     shield: 0,
@@ -301,6 +315,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 2: RAZOR WINDS!',
       },
     ],
+    stunResist: 0.4,
   },
 
   /**
@@ -312,7 +327,7 @@ export const ENEMY_TYPES = {
     key: 'frostwarden',
     name: 'Frost Warden',
     role: 'Frostbite Hollow boss — Glacial Pulse disables every tower within 170 px for 2.6s, then raises an Absolute Zero barrier below 55% HP.',
-    health: 3600,
+    health: 3700,
     speed: 28,
     armor: 30,
     shield: 0,
@@ -356,6 +371,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: WHITEOUT!',
       },
     ],
+    stunResist: 0.6,
   },
 
   /* ------------------------------------------------------------ Flare bosses
@@ -373,7 +389,7 @@ export const ENEMY_TYPES = {
     key: 'ironhorn',
     name: 'Ironhorn Minotaur',
     role: 'Endless boss — beats the war drum to speed the whole pack up, then sheds its armour for a final charge.',
-    health: 2800,
+    health: 3000,
     speed: 30,
     armor: 60,
     shield: 0,
@@ -414,6 +430,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: LAST STAND!',
       },
     ],
+    stunResist: 0.5,
   },
 
   /**
@@ -423,7 +440,7 @@ export const ENEMY_TYPES = {
     key: 'ashwing',
     name: 'Ashwing Wyvern',
     role: 'Endless boss — wingbeat hastens the brood, ember breath shuts nearby towers down, and its final dive cannot be slowed.',
-    health: 3200,
+    health: 3400,
     speed: 46,
     armor: 30,
     shield: 300,
@@ -469,6 +486,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: ASHEN DIVE!',
       },
     ],
+    stunResist: 0.4,
   },
 
   /**
@@ -478,7 +496,7 @@ export const ENEMY_TYPES = {
     key: 'gravesworn',
     name: 'Grave-Sworn Marshal',
     role: 'Endless boss — raises a bone barrier, then calls its guard back from the grave twice before turning deathless.',
-    health: 3600,
+    health: 3800,
     speed: 27,
     armor: 55,
     shield: 500,
@@ -523,6 +541,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: DEATHLESS!',
       },
     ],
+    stunResist: 0.5,
   },
 
   /**
@@ -533,7 +552,7 @@ export const ENEMY_TYPES = {
     key: 'magmalord',
     name: 'Magma Regent',
     role: 'Endless Siege boss — opens the rift for swarm reinforcements, then erupts into a faster, shielded third phase.',
-    health: 4200,
+    health: 4400,
     speed: 30,
     armor: 25,
     shield: 0,
@@ -579,6 +598,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: CALDERA CORE!',
       },
     ],
+    stunResist: 0.6,
   },
 
   /**
@@ -589,7 +609,7 @@ export const ENEMY_TYPES = {
     key: 'prismlord',
     name: 'Prism Warden',
     role: 'Prism Depths boss — Refraction locks every tower within 180 px, then raises a hard-light barrier below 60% HP and turns the horde faster still.',
-    health: 4800,
+    health: 5000,
     speed: 26,
     armor: 28,
     shield: 0,
@@ -634,6 +654,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 3: TOTAL REFLECTION!',
       },
     ],
+    stunResist: 0.5,
   },
 
   /**
@@ -649,7 +670,7 @@ export const ENEMY_TYPES = {
     key: 'obsidian',
     name: 'Obsidian Behemoth',
     role: 'Endless titan — 70 armour up front, a 1500 HP skin at 70%, fracture haste at 40% and an unstoppable last stand.',
-    health: 9000,
+    health: 9500,
     speed: 26,
     armor: 70,
     shield: 400,
@@ -704,13 +725,14 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 4: THE UNMADE!',
       },
     ],
+    stunResist: 0.7,
   },
 
   voidherald: {
     key: 'voidherald',
     name: 'Void Herald',
     role: 'Endless titan — silences every tower within 200 px, summons brutes mid-fight and collapses into a hasted final form.',
-    health: 7800,
+    health: 8200,
     speed: 30,
     armor: 45,
     shield: 600,
@@ -767,6 +789,7 @@ export const ENEMY_TYPES = {
         onEnterText: 'PHASE 4: EVENT HORIZON!',
       },
     ],
+    stunResist: 0.6,
   },
 };
 

@@ -25,7 +25,9 @@
  * existing defence line hit harder.
  */
 
-export const TOWER_TYPES = {
+import { ENGINEER_TOWER_TYPES, ENGINEER_LINES } from './engineerDefenses.js';
+
+const CORE_TOWER_TYPES = {
   archer: {
     key: 'archer',
     name: 'Ballista Tower',
@@ -190,7 +192,7 @@ export const TOWER_TYPES = {
         specKey: 'blizzard',
         branch: 'spec-a',
         title: 'Blizzard Spire',
-        damage: 24,
+        damage: 43,
         range: 168,
         cooldown: 780,
         slow: 0.6, // 60% slow
@@ -206,7 +208,7 @@ export const TOWER_TYPES = {
         specKey: 'lightning',
         branch: 'spec-b',
         title: 'Lightning Conductor',
-        damage: 55,
+        damage: 75,
         range: 162,
         cooldown: 830,
         upgradeCost: 120,
@@ -323,7 +325,7 @@ export const TOWER_TYPES = {
         specKey: 'void',
         branch: 'spec-a',
         title: 'Void Lance',
-        damage: 85,
+        damage: 100,
         range: 215,
         cooldown: 1400,
         upgradeCost: 130,
@@ -339,7 +341,7 @@ export const TOWER_TYPES = {
         specKey: 'nova',
         branch: 'spec-b',
         title: 'Arcane Nova',
-        damage: 60,
+        damage: 80,
         range: 190,
         cooldown: 1150,
         splash: 62,
@@ -456,7 +458,46 @@ export const BARRICADE = {
 };
 
 /** Order of build buttons in the dock (also the keyboard 1–7 order). */
-export const BUILD_OPTIONS = ['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner'];
+/**
+ * The whole roster: the six Spire keeps plus the five engineer lines.
+ *
+ * Order matters — it is the shop order, and the hotkeys follow it. The core
+ * keeps stay on 1–7 so muscle memory survives; the engineer lines take 8, 9, 0,
+ * `-` and `=`, which are the keys immediately to the right of them on a
+ * standard keyboard.
+ */
+export const TOWER_TYPES = { ...CORE_TOWER_TYPES, ...ENGINEER_TOWER_TYPES };
+
+export const BUILD_OPTIONS = [
+  'archer',
+  'cannon',
+  'frost',
+  'barricade',
+  'forge',
+  'runes',
+  'banner',
+  ...ENGINEER_LINES,
+];
+
+/** Defences that buff neighbours instead of carrying the kill count. */
+export const SUPPORT_LINES = ['banner'];
+
+/**
+ * Dock tabs.
+ *
+ * Twelve cards in one row is a wall of icons on a phone — the exact "masikip"
+ * layout the roster outgrew. The dock is therefore paged by family: the two
+ * tabs hold 7 and 5 cards, which fit one row on every screen the game supports.
+ */
+export const BUILD_GROUPS = [
+  { key: 'keeps', label: 'KEEPS', hint: 'Stone keeps and the palisade', lines: ['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner'] },
+  { key: 'engineer', label: 'ENGINEER', hint: 'Gunpowder, fire, poison and rope', lines: ENGINEER_LINES },
+];
+
+/** Which dock tab owns a build key (used for hotkey routing and auto-paging). */
+export function groupForBuild(key) {
+  return BUILD_GROUPS.find((group) => group.lines.includes(key)) || BUILD_GROUPS[0];
+}
 
 export function getBuildDefinition(key) {
   return key === 'barricade' ? BARRICADE : TOWER_TYPES[key] ?? null;

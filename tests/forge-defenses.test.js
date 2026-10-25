@@ -18,13 +18,21 @@ const DAMAGE_TYPES = new Set(['physical', 'explosive', 'piercing', 'magic', 'lig
 
 describe('Forge defences (the three extra lines)', () => {
   it('adds exactly three new tower lines to the build dock', () => {
-    expect(Object.keys(TOWER_TYPES)).toEqual(['archer', 'cannon', 'frost', 'forge', 'runes', 'banner']);
-    expect(BUILD_OPTIONS).toEqual(['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner']);
+    expect(Object.keys(TOWER_TYPES).slice(0, 6)).toEqual([
+      'archer', 'cannon', 'frost', 'forge', 'runes', 'banner',
+    ]);
+    expect(BUILD_OPTIONS.slice(0, 7)).toEqual([
+      'archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner',
+    ]);
+    // …plus the five engineer lines on their own dock tab.
+    expect(BUILD_OPTIONS).toHaveLength(12);
   });
 
   it('gives every dock entry a unique hotkey that matches its position', () => {
     const hotkeys = BUILD_OPTIONS.map((key) => getBuildDefinition(key).hotkey);
-    expect(hotkeys).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+    // Keeps keep 1–7 (muscle memory), engineer lines take the next five keys
+    // along the number row: 8 9 0 - =
+    expect(hotkeys).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=']);
     expect(new Set(hotkeys).size).toBe(hotkeys.length);
   });
 

@@ -35,6 +35,16 @@ export const FX_SHEETS = {
   'fx-line-runes-muzzle': { file: 'fx-line-runes-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
   'fx-line-banner-impact': { file: 'fx-line-banner-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 20 },
   'fx-line-banner-muzzle': { file: 'fx-line-banner-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-crossbow-impact': { file: 'fx-line-crossbow-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 38 },
+  'fx-line-crossbow-muzzle': { file: 'fx-line-crossbow-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-gatling-impact': { file: 'fx-line-gatling-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 44 },
+  'fx-line-gatling-muzzle': { file: 'fx-line-gatling-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-flamer-impact': { file: 'fx-line-flamer-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 30 },
+  'fx-line-flamer-muzzle': { file: 'fx-line-flamer-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-venom-impact': { file: 'fx-line-venom-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 24 },
+  'fx-line-venom-muzzle': { file: 'fx-line-venom-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-harpoon-impact': { file: 'fx-line-harpoon-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 30 },
+  'fx-line-harpoon-muzzle': { file: 'fx-line-harpoon-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
 };
 
 /** Particle textures (single frames) fed to Phaser emitters. */

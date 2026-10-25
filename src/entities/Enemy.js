@@ -101,6 +101,13 @@ export class Enemy {
     this.armorBreak = 0;
     this.armorBreakTimer = 0;
     this.abilityTimer = 0;
+    // Damage-over-time stacks (burn from the flame lines, poison from the venom
+    // lines). Kept as a small list so two lines can work on the same creep.
+    this.dots = [];
+    this.stunTimer = 0;
+    // Behaviour traits — see ENEMY_TRAITS in enemyData.js.
+    this.traits = this.def.traits || null;
+    this.traitState = { baseArmor: this.armor, hits: 0 };
 
     // Siege state — set while a palisade blocks the next waypoint
     this.isSieging = false;
@@ -324,9 +331,19 @@ export class Enemy {
       return { isDefeated: false, finalDamage: 0, shieldAbsorbed: 0, damageDealtToHealth: 0 };
     }
 
+    // Phalanx: creeps packed together brace, mitigating part of the hit. Splash
+    // still lands on all of them, so the counter stays area damage.
+    let incoming = rawDamage;
+    if (this.traits?.phalanx && !options.ignoreTraits) {
+      const allies = this.countCloseAllies(this.traits.phalanx.radius || 64);
+      if (allies >= (this.traits.phalanx.allies ?? 2)) {
+        incoming *= 1 - (this.traits.phalanx.reduction || 0.2);
+      }
+    }
+
     // Calculate combat resolution through centralized math
     const res = calculateDamage({
-      rawDamage,
+      rawDamage: incoming,
       damageType,
       armor: this.armor,
       armorPenetration: options.armorPenetration || 0,
@@ -377,6 +394,16 @@ export class Enemy {
         else this.sprite.clearTint();
       }
     });
+
+    // Adaptive plate: every hit hardens the target, so focus-fire alone stops
+    // being the answer and armour-break tools get their moment.
+    if (this.traits?.adaptive && res.damageDealtToHealth > 0) {
+      this.traitState.hits += 1;
+      const { perHit = 2, max = 24 } = this.traits.adaptive;
+      if (this.armor < this.traitState.baseArmor + max) {
+        this.armor = Math.min(this.traitState.baseArmor + max, this.armor + perHit);
+      }
+    }
 
     this.updateHealthBar();
 
@@ -448,6 +475,90 @@ export class Enemy {
     }
   }
 
+  /**
+   * Speed bonus from being wounded (the `enrage` trait), 1 when healthy.
+   * A getter so every place that recomputes `speed` sees the same value.
+   */
+  get enrageMultiplier() {
+    if (!this.traits?.enrage) return 1;
+    const missing = 1 - this.health / this.maxHealth;
+    return 1 + (this.traits.enrage.maxSpeedBonus || 0.35) * Math.max(0, missing);
+  }
+
+  /** How many living creeps of this type are within `radius` of me. */
+  countCloseAllies(radius) {
+    const list = this.scene?.activeEnemies || [];
+    let count = 0;
+    for (const other of list) {
+      if (other === this || other.isDead || other.reachedBase) continue;
+      if (Math.hypot(other.x - this.x, other.y - this.y) <= radius) count += 1;
+    }
+    return count;
+  }
+
+  /**
+   * Stack a damage-over-time effect.
+   *
+   * Re-applying the same kind refreshes the strongest active stack rather than
+   * piling up a dozen timers, so a level-5 flamer is "hotter", never "buggier".
+   */
+  applyDot(dot) {
+    if (!dot || this.isDead || this.reachedBase) return;
+    const kind = dot.kind || 'fire';
+    const existing = this.dots.find((entry) => entry.kind === kind);
+    if (existing) {
+      existing.damage = Math.max(existing.damage, dot.damage);
+      existing.tickMs = dot.tickMs;
+      existing.remainingMs = Math.max(existing.remainingMs, dot.durationMs);
+      return;
+    }
+    this.dots.push({
+      kind,
+      damage: dot.damage,
+      tickMs: dot.tickMs,
+      acc: 0,
+      remainingMs: dot.durationMs,
+    });
+    if (this.dots.length > 4) this.dots.shift();
+  }
+
+  /**
+   * Freeze movement for a moment (harpoon hits, boss slam).
+   *
+   * Bosses carry `stunResist`, so the harpoon line controls the road without
+   * turning a titan into a statue.
+   */
+  applyStun(durationMs) {
+    if (this.isDead || this.reachedBase || this.immuneToStun) return;
+    const resist = Math.min(0.9, this.def.stunResist || 0);
+    const effective = durationMs * (1 - resist);
+    if (effective <= 0) return;
+    this.stunTimer = Math.max(this.stunTimer, effective);
+  }
+
+  /** Tick every DoT stack. Damage ignores armour entirely. */
+  updateDots(deltaMs) {
+    if (this.dots.length === 0) return;
+    const survivors = [];
+    for (const dot of this.dots) {
+      dot.remainingMs -= deltaMs;
+      dot.acc += deltaMs;
+      while (dot.acc >= dot.tickMs) {
+        dot.acc -= dot.tickMs;
+        if (this.isDead || this.reachedBase) break;
+        // 'true' damage skips armour but still feeds shields, the health bar
+        // and the death path, so a burn kill pays out like any other kill.
+        this.applyDamage(dot.damage, 'true', { ignoreTraits: true });
+      }
+      if (dot.remainingMs > 0 && !this.isDead) survivors.push(dot);
+    }
+    this.dots = survivors;
+    if (this.dots.length > 0 && this.sprite?.active) {
+      const kind = this.dots[0].kind;
+      this.sprite.setTint(kind === 'poison' ? 0xa8e878 : 0xffa04a);
+    }
+  }
+
   applySlow(fraction, durationMs) {
     if (this.isDead || this.reachedBase || this.immuneToSlow) return;
     this.slowFactor = Math.max(this.slowFactor, fraction);
@@ -464,7 +575,7 @@ export class Enemy {
     const mult = Math.max(1, multiplier);
     this.speedBuff = Math.max(this.speedBuff, mult);
     this.speedBuffTimer = Math.max(this.speedBuffTimer, durationMs);
-    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff;
+    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff * this.enrageMultiplier;
     this.sprite?.setTint?.(0xffb45c);
   }
 
@@ -544,6 +655,20 @@ export class Enemy {
   update(deltaMs) {
     if (this.isDead || this.reachedBase) return;
 
+    // 0. Burning and poison tick before anything else: a creep can die of its
+    // wounds before it takes another step.
+    this.updateDots(deltaMs);
+    if (this.isDead || this.reachedBase) return;
+
+    if (this.stunTimer > 0) {
+      this.stunTimer -= deltaMs;
+      this.speed = 0;
+      if (this.stunTimer > 0) return;
+      // Walk it back to exactly zero: a leftover negative would keep reporting
+      // "stunned" to anything that only checks `!== 0`.
+      this.stunTimer = 0;
+    }
+
     // 1. Handle status decay: slow (frost) and haste (boss aura) multiply.
     if (this.slowTimer > 0) {
       this.slowTimer -= deltaMs;
@@ -559,7 +684,9 @@ export class Enemy {
         if (this.slowTimer <= 0 && this.armorBreakTimer <= 0) this.sprite.clearTint();
       }
     }
-    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff;
+    // Enrage: a cornered creep sprints. The ramp is a trait, so only the
+    // archetypes built for it speed up as they bleed.
+    this.speed = this.baseSpeed * (1 - this.slowFactor) * this.speedBuff * this.enrageMultiplier;
 
     // 2. Handle armor-break debuff decay
     if (this.armorBreakTimer > 0) {

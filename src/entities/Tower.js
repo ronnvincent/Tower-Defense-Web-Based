@@ -890,6 +890,10 @@ export class Tower {
       chainRange: s.chainRange || 0,
       stunMs: s.stunMs || 0,
       nova: s.nova || 0,
+      // Burn / poison stack carried by the shot (flame and venom lines).
+      dot: s.dot ? { ...s.dot } : null,
+      // Extra damage fraction against bosses (arbalest, harpoon).
+      bossBonus: s.bossBonus || 0,
       impactKey: this.visual.slotImpact || null,
     };
 

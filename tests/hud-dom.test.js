@@ -80,8 +80,10 @@ describe('HUD markup', () => {
     ]) {
       expect(document.getElementById(id), `missing #${id}`).toBeTruthy();
     }
-    // 3 starter towers + palisade + the 3 forge lines
-    expect(document.querySelectorAll('.build-card')).toHaveLength(7);
+    // 3 starter towers + palisade + the 3 forge lines + the 5 engineer lines.
+    // Only the active tab's cards are visible, but every card stays in the DOM
+    // so a hotkey from the other tab can arm it without a re-render.
+    expect(document.querySelectorAll('.build-card')).toHaveLength(12);
     for (const key of ['archer', 'cannon', 'frost', 'barricade', 'forge', 'runes', 'banner']) {
       expect(document.getElementById(`card-${key}`), `missing #card-${key}`).toBeTruthy();
     }

@@ -69,6 +69,13 @@ const LINE_SCALE = {
   forge: 0.8,
   runes: 0.7,
   banner: 0.62,
+  // Engineer lines. A bullet hit is small and frequent; a harpoon hit is a
+  // single, heavy punctuation — both read better at their own size.
+  crossbow: 0.46,
+  gatling: 0.34,
+  flamer: 0.7,
+  venom: 0.58,
+  harpoon: 0.82,
 };
 
 export class Vfx {

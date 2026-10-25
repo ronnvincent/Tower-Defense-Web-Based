@@ -1,4 +1,4 @@
-import { BUILD_OPTIONS, getBuildDefinition } from '../data/towerData.js';
+import { BUILD_OPTIONS, BUILD_GROUPS, getBuildDefinition, groupForBuild } from '../data/towerData.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { clampPanel, placeInspector } from './panelPlacement.js';
@@ -16,6 +16,8 @@ function formatMultiplier(value) {
 const PAN_HINT_KEY = 'td-dsalgo:camera-hint:v1';
 /** Remember whether the player folded the forge dock away. */
 const DOCK_STATE_KEY = 'td-dsalgo:dock-collapsed:v1';
+/** Remember which defence tab the player last used. */
+const DOCK_GROUP_KEY = 'td-dsalgo:dock-group:v1';
 
 const TARGETING_MODES = [
   { mode: 'first', label: 'FIRST', title: 'Target the enemy furthest along the path' },
@@ -47,6 +49,9 @@ export class HUD {
     this.comboTimer = null;
     this.fullscreenState = { supported: true, active: false };
     this.dockCollapsed = false;
+    // Which dock tab is open. Persisted with the fold state so a phone player who
+    // lives in the engineer tab does not re-open on the keeps every battle.
+    this.dockGroup = this.readDockGroup();
 
     this.initDOM();
     this.bindEvents();
@@ -243,6 +248,7 @@ export class HUD {
             <span class="dock-toggle-chevron" aria-hidden="true">▾</span>
           </button>
         </div>
+        <div class="dock-tabs" id="dock-tabs" role="tablist" aria-label="Defence families"></div>
         <div class="dock-cards" id="dock-cards-container"></div>
       </div>
     `;
@@ -297,14 +303,40 @@ export class HUD {
     }
   }
 
+  /**
+   * Draw the dock.
+   *
+   * Twelve defences in one strip was the "masikip" layout: the cards shrank to
+   * unreadable thumbnails on a phone. The roster is paged by family instead —
+   * two tabs, seven and five cards — so every card keeps a legible icon and a
+   * 44 px tap target at every breakpoint.
+   */
   renderBuildCards() {
     const container = document.getElementById('dock-cards-container');
+    const tabs = document.getElementById('dock-tabs');
     if (!container) return;
+
+    if (tabs) {
+      tabs.innerHTML = BUILD_GROUPS.map(
+        (group) => `
+        <button class="dock-tab" type="button" role="tab" data-group="${group.key}"
+                id="dock-tab-${group.key}" aria-controls="dock-cards-container"
+                title="${group.hint}">
+          <span class="dock-tab-count">${group.lines.length}</span>${group.label}
+        </button>
+      `
+      ).join('');
+      tabs.querySelectorAll('.dock-tab').forEach((tab) => {
+        tab.addEventListener('click', () => this.setDockGroup(tab.dataset.group));
+      });
+    }
+
     container.innerHTML = BUILD_OPTIONS.map((key) => {
       const def = getBuildDefinition(key);
       const isBarricade = key === 'barricade';
+      const group = groupForBuild(key);
       return `
-        <button class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" id="card-${key}"
+        <button class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" data-group="${group.key}" id="card-${key}"
                 title="${def.description}" aria-label="Build ${def.name} for ${def.cost} gold">
           <div class="card-hotkey" aria-hidden="true">${def.hotkey}</div>
           <div class="card-icon-frame">
@@ -317,6 +349,64 @@ export class HUD {
         </button>
       `;
     }).join('');
+
+    this.applyDockGroup();
+  }
+
+  /** Read the remembered tab (falls back to the keeps). */
+  readDockGroup() {
+    try {
+      const stored = window.localStorage.getItem(DOCK_GROUP_KEY);
+      if (stored && BUILD_GROUPS.some((group) => group.key === stored)) return stored;
+    } catch {
+      /* storage disabled — the keeps tab is a fine default */
+    }
+    return BUILD_GROUPS[0].key;
+  }
+
+  /**
+   * Switch tabs. Cost is one class on the dock plus an aria update; the cards
+   * themselves are never re-rendered, so an armed defence survives a tab flip.
+   */
+  setDockGroup(key, { persist = true } = {}) {
+    const group = BUILD_GROUPS.find((entry) => entry.key === key);
+    if (!group) return false;
+    const changed = this.dockGroup !== group.key;
+    this.dockGroup = group.key;
+    if (changed) audio.playClick();
+    this.applyDockGroup();
+    if (persist) {
+      try {
+        window.localStorage.setItem(DOCK_GROUP_KEY, group.key);
+      } catch {
+        /* storage disabled — the tab just will not persist */
+      }
+    }
+    return changed;
+  }
+
+  /** Push `dockGroup` into the DOM (cards + tabs + the dock's data attribute). */
+  applyDockGroup() {
+    const dock = document.getElementById('hud-bottom-dock');
+    if (dock) dock.dataset.group = this.dockGroup;
+    document.querySelectorAll('.build-card').forEach((card) => {
+      const visible = card.dataset.group === this.dockGroup;
+      card.classList.toggle('tab-hidden', !visible);
+      if (visible) card.removeAttribute('aria-hidden');
+      else card.setAttribute('aria-hidden', 'true');
+    });
+    document.querySelectorAll('.dock-tab').forEach((tab) => {
+      const active = tab.dataset.group === this.dockGroup;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  /** Open the tab that owns `key` (hotkeys work from either tab). */
+  revealBuildKey(key) {
+    const group = groupForBuild(key);
+    if (group.key !== this.dockGroup) this.setDockGroup(group.key);
   }
 
   /** Shows the "drag to pan" tip once per browser, when the battle starts. */
@@ -825,6 +915,16 @@ export class HUD {
       if (s.aura.coinPerKill) bits.push(`+${s.aura.coinPerKill} gold per kill`);
       return `Aura ${s.aura.radius}px · ${bits.join(', ')}`;
     }
+    // Burn and poison are the identity of the flame and venom lines, so they win
+    // over the generic splash line even when the shot also explodes.
+    if (s.dot) {
+      const kind = s.dot.kind === 'poison' ? 'Poison' : 'Burn';
+      const total = Math.round((s.dot.damage / s.dot.tickMs) * s.dot.durationMs);
+      const splash = s.splash ? ` · ${s.splash}px pool` : '';
+      return `${kind} ${s.dot.damage}/tick for ${(s.dot.durationMs / 1000).toFixed(1)}s (≈${total})${splash}`;
+    }
+    if (s.stunMs) return `Stuns ${(s.stunMs / 1000).toFixed(1)}s on hit`;
+    if (s.bossBonus) return `+${Math.round(s.bossBonus * 100)}% damage to bosses`;
     if (s.splash) return `Area splash · ${s.splash}px radius`;
     if (s.slow) return `Slows ${Math.round(s.slow * 100)}% for ${(s.slowMs / 1000).toFixed(1)}s`;
     if (s.armorBreak) return `Armour break −${s.armorBreak} for ${(s.armorBreakMs / 1000).toFixed(1)}s`;
@@ -953,9 +1053,11 @@ export class HUD {
 
   toggleBuildSelection(key) {
     audio.playClick();
-    // A hotkey can arm a defence while the dock is folded: open it so the
-    // player can see which card is live.
+    // A hotkey can arm a defence while the dock is folded, or while the other
+    // tab is open: open the dock and page to the card so the player can see
+    // which defence is live.
     this.expandDock();
+    this.revealBuildKey(key);
     if (this.selectedBuildKey === key) {
       this.clearBuildSelection();
       return;
