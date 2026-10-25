@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 675 tests across 52 test suites.
-- **Pass Rate:** **100% (675 / 675 Passed)**
+- **Total Automated Unit Tests:** 690 tests across 54 test suites.
+- **Pass Rate:** **100% (690 / 690 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -216,6 +216,8 @@ Duration    6.7s
 | `tests/hud-dom.test.js` | jsdom | 16 | HUD controls missing, buttons not forwarding callbacks, destructive controls back on the top bar, a single tap leaving the battle, the pause card not opening/closing, stale inspector after deselect, codex drawer not opening/live-updating, `reset()` leaving paused/locked UI behind |
 | `tests/ui-contracts.test.js` | node | 6 | A UI method GameScene calls no longer existing on the class (the wave-3 freeze class of bug) |
 | `tests/hud-boss-bar.test.js` | jsdom | 7 | Boss banner not appearing/updating, throwing on an incomplete boss object, or the extra-boss counter leaking `+0` / a negative count onto the strip |
+| `tests/hud-powerups.test.js` | jsdom | 6 | A powerup rail with no buttons, a cooling button that still looks ready, a sweep that never leaves 0, or a click that does not reach the scene |
+| `tests/vfx-runtime.test.js` | node | 9 | An impact that plays the wrong element, a splash that neither shakes nor drops a shockwave, a muzzle flash that ignores the barrel angle, or a scene without particle support that throws |
 | `tests/tower-ascension.test.js` | node | 9 | A tower whose level 4/5 tier is missing, cheaper than the tier below, weaker in DPS than the tier below, has no signature ability at the cap, drifts out of its branch, has no ascended texture on disk, or reuses the level-3 muzzle |
 | `tests/powerups.test.js` | node | 10 | A powerup with no hotkey, a cooldown that recharges early or never, a failed use that still extends the cooldown, an overcharge window that outlives its duration, a wave-clear refund that can go negative |
 | `tests/vfx-assets.test.js` | node | 4 | An effect strip whose PNG is not exactly `frames × frameWidth`, a missing particle texture, or a tower damage type with no impact art |

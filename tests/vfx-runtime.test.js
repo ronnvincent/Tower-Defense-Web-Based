@@ -1,0 +1,182 @@
+import { describe, it, expect, vi } from 'vitest';
+import { Vfx, ELEMENT_BY_DAMAGE, impactKey } from '../src/systems/Vfx.js';
+import { FX_SHEETS, FX_PARTICLES } from '../src/data/fxManifest.js';
+
+/**
+ * The Vfx module only ever touches a handful of Phaser APIs. This file stubs
+ * exactly those, which is what lets the effect *logic* be tested without a
+ * canvas: which strip plays for which element, whether a splash shakes the
+ * camera, how many particles a nova throws.
+ */
+function fakeScene() {
+  const created = [];
+  const explosions = [];
+
+  const emitter = (texture, config) => ({
+    kind: 'emitter',
+    texture,
+    config,
+    setDepth: vi.fn().mockReturnThis(),
+    explode: vi.fn((count, x, y) => explosions.push({ texture, count, x, y, config })),
+    destroy: vi.fn(),
+    scene: {},
+  });
+
+  const sprite = (key) => {
+    const node = {
+      kind: 'sprite',
+      key,
+      played: null,
+      destroyed: false,
+      setDepth: vi.fn().mockReturnThis(),
+      setScale: vi.fn().mockReturnThis(),
+      setRotation: vi.fn().mockReturnThis(),
+      setAlpha: vi.fn().mockReturnThis(),
+      setTint: vi.fn().mockReturnThis(),
+      play: vi.fn(function play(clip) {
+        node.played = clip;
+        return node;
+      }),
+      once: vi.fn((event, handler) => {
+        node.onComplete = handler;
+        return node;
+      }),
+      destroy: vi.fn(() => {
+        node.destroyed = true;
+      }),
+    };
+    created.push(node);
+    return node;
+  };
+
+  const image = (x, y, key) => ({
+    kind: 'image',
+    key,
+    x,
+    y,
+    setDepth: vi.fn().mockReturnThis(),
+    setScale: vi.fn().mockReturnThis(),
+    setAlpha: vi.fn().mockReturnThis(),
+    setTint: vi.fn().mockReturnThis(),
+    setBlendMode: vi.fn().mockReturnThis(),
+  });
+
+  const scene = {
+    add: {
+      particles: vi.fn((x, y, texture, config) => emitter(texture, config)),
+      sprite: vi.fn((x, y, key) => sprite(key)),
+      image: vi.fn((x, y, key) => image(x, y, key)),
+    },
+    textures: { exists: vi.fn(() => true) },
+    anims: { exists: vi.fn((key) => key.endsWith('-play')) },
+    tweens: { add: vi.fn() },
+    cameras: { main: { shake: vi.fn(), flash: vi.fn() } },
+  };
+  scene.created = created;
+  scene.explosions = explosions;
+  return scene;
+}
+
+describe('Vfx runtime', () => {
+  it('plays the impact strip that matches the element', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.impact(100, 100, 'frost');
+
+    const strip = scene.created.find((node) => node.kind === 'sprite');
+    expect(strip.key).toBe('fx-impact-frost');
+    expect(strip.played).toBe('fx-impact-frost-play');
+    // Debris and smoke both fire.
+    expect(scene.explosions.length).toBe(2);
+  });
+
+  it('scales a splash and shakes the camera for heavy hits', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.impact(50, 50, 'explosive', { scale: 1.6, splash: 120 });
+
+    expect(scene.cameras.main.shake).toHaveBeenCalled();
+    // A splash also drops a shockwave ring on the ground.
+    const rings = scene.created.filter((node) => node.key === 'fx-shockwave');
+    expect(rings).toHaveLength(1);
+  });
+
+  it('leaves the camera alone for a small hit', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.impact(10, 10, 'physical');
+    expect(scene.cameras.main.shake).not.toHaveBeenCalled();
+  });
+
+  it('aims the muzzle flash along the barrel and widens it for fire', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.muzzle(32, 32, Math.PI / 2, 'explosive');
+    const flash = scene.explosions.find((entry) => entry.texture === 'fx-muzzle-wide');
+    expect(flash).toBeTruthy();
+    // The spark cone points where the barrel does (90° = down).
+    const sparks = scene.explosions.find((entry) => entry.texture === 'fx-spark');
+    expect(sparks.config.angle.min).toBeCloseTo(68, 5);
+    expect(sparks.config.angle.max).toBeCloseTo(112, 5);
+  });
+
+  it('throws shards when a frost nova goes off', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.nova(64, 64, 1.2);
+    expect(scene.created.some((node) => node.key === 'fx-nova')).toBe(true);
+    const shards = scene.explosions.find((entry) => entry.texture === 'fx-star');
+    expect(shards.count).toBeGreaterThanOrEqual(10);
+  });
+
+  it('survives a scene with no particle support', () => {
+    const bare = {
+      textures: { exists: () => false },
+      anims: { exists: () => false },
+      add: {},
+    };
+    const vfx = new Vfx(bare);
+    expect(vfx.enabled).toBe(false);
+    expect(() => vfx.impact(0, 0, 'fire')).not.toThrow();
+    expect(() => vfx.muzzle(0, 0, 0, 'fire')).not.toThrow();
+    expect(() => vfx.levelUp(0, 0)).not.toThrow();
+    expect(vfx.aura({ x: 0, y: 0 })).toBeNull();
+  });
+
+  it('destroys every emitter it built', () => {
+    const scene = fakeScene();
+    const vfx = new Vfx(scene);
+    vfx.impact(0, 0, 'fire');
+    const emitters = [...vfx.emitters.values()];
+    expect(emitters.length).toBeGreaterThan(0);
+    vfx.destroy();
+    for (const emitter of emitters) expect(emitter.destroy).toHaveBeenCalled();
+    expect(vfx.emitters.size).toBe(0);
+  });
+});
+
+describe('Element mapping', () => {
+  it('routes every damage type the game uses', () => {
+    expect(ELEMENT_BY_DAMAGE.physical).toBe('physical');
+    expect(ELEMENT_BY_DAMAGE.explosive).toBe('explosive');
+    expect(ELEMENT_BY_DAMAGE.magic).toBe('arcane');
+    expect(ELEMENT_BY_DAMAGE.lightning).toBe('lightning');
+    expect(ELEMENT_BY_DAMAGE.true).toBe('true');
+    // Piercing is a physical arrow; it must not fall off the map.
+    expect(ELEMENT_BY_DAMAGE.piercing).toBeUndefined();
+    expect(impactKey(ELEMENT_BY_DAMAGE.piercing || 'physical')).toBe('fx-impact-physical');
+  });
+
+  it('ships an impact strip and particle texture for every element', () => {
+    for (const element of new Set(Object.values(ELEMENT_BY_DAMAGE))) {
+      expect(FX_SHEETS[`fx-impact-${element}`], `${element} has no impact art`).toBeTruthy();
+    }
+    // The runtime reads these by name; a rename in the build script must fail
+    // here rather than silently dropping the effect in the browser.
+    for (const key of ['fx-spark', 'fx-smoke', 'fx-star', 'fx-muzzle', 'fx-muzzle-wide']) {
+      expect(FX_PARTICLES[key], `${key} is missing`).toBeTruthy();
+    }
+    // The aura glow is a single-frame sheet, not a particle texture.
+    expect(FX_SHEETS['fx-glow'].frames).toBe(1);
+  });
+});
