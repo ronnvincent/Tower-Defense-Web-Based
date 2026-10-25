@@ -116,7 +116,7 @@ export class PvpRoom {
    * Open a room. `code` lets the host pin the code (used by tests and by a
    * future "bring your own code" field); otherwise one is minted.
    */
-  async host({ name = 'Host', arenaId = null, seed = null, code = null } = {}) {
+  async host({ name = 'Host', arenaId = null, seed = null, code = null, coop = false } = {}) {
     this.closed = false;
     this.peerSeen = false;
     this.peerWarned = false;
@@ -129,6 +129,7 @@ export class PvpRoom {
       isHost: true,
       arenaId: arenaId || undefined,
       seed: seed ?? Math.floor(Math.random() * 1e6),
+      coop,
       now: this.now(),
     });
     await this.#openTransport({ roomCode, name, host: true });

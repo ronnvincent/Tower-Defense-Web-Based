@@ -80,7 +80,11 @@ export class ResultScreenUI {
       : result.unlocked
         ? [result.unlocked]
         : [];
-    const campaignComplete = !endless && victory && level?.index === ALL_LEVELS.filter((l) => !l.endless).length;
+    // A finished campaign means: the last campaign node, no NEXT node behind
+    // it, and a normal campaign run. Mode levels (Titan Rush, Blueprints) also
+    // have no NEXT node, and must not claim the campaign is over.
+    const campaignComplete =
+      !endless && victory && !result.mode && level?.id && !getNextLevel(level.id);
     // A replay that beats the saved rating is the one thing a returning player
     // wants to see; a first clear is already obvious from the stars themselves.
     const recordRun = victory && !endless && (result.previousStars ?? 0) > 0 && stars > (result.previousStars ?? 0);
@@ -111,6 +115,24 @@ export class ResultScreenUI {
           result.daily.streak ? ` · 🔥 ${result.daily.streak}-day streak` : ''
         }${result.daily.gems ? ` · +${result.daily.gems}💎` : ''}</p>`
       : '';
+    // A contract run's whole point is the three bets: print them on the card,
+    // paid or not, so the player can see what the run actually earned.
+    const contractRows = Array.isArray(result.contracts) ? result.contracts : [];
+    const contractRow = contractRows.length
+      ? `<div class="result-contracts">
+           <p class="result-contracts-title">CONTRACTS · ${contractRows.filter((row) => row.done).length}/${contractRows.length}</p>
+           ${contractRows
+             .map(
+               (row) =>
+                 `<div class="result-contract ${row.done ? 'is-done' : ''}">
+                    <span>${row.done ? '✓' : '○'} ${row.name}</span>
+                    <em>${row.done ? `+${row.reward}🪙` : `${Math.min(row.current, row.target)}/${row.target}`}</em>
+                  </div>`
+             )
+             .join('')}
+         </div>`
+      : '';
+
     const achievementRow = Array.isArray(result.achievements) && result.achievements.length
       ? `<p class="result-achievements">🏅 ${result.achievements.map((a) => a.name).join(' · ')}</p>`
       : '';
@@ -140,10 +162,17 @@ export class ResultScreenUI {
         <div class="overlay-shell result-shell ${victory ? 'is-victory' : 'is-defeat'}">
           <div class="result-ribbon">${victory ? (endless ? 'RUN OVER' : 'VICTORY') : 'DEFEAT'}</div>
           <h1 class="result-heading">${level?.name || 'Bastion'}</h1>
-          ${victory && !endless ? this.starMarkup(stars) : '<div class="result-stars defeat-mark" aria-hidden="true">💀</div>'}
+          ${
+            !victory
+              ? '<div class="result-stars defeat-mark" aria-hidden="true">💀</div>'
+              : endless || !stars
+                ? '<div class="result-stars run-mark" aria-hidden="true">⚔</div>'
+                : this.starMarkup(stars)
+          }
           ${recordRun ? `<p class="result-record">NEW BEST ${result.previousStars}★ → ${stars}★</p>` : ''}
           <div class="result-stats">${statRows}</div>
           ${rewardRow}
+          ${contractRow}
           ${dailyRow}
           ${achievementRow}
           ${unlockRow}

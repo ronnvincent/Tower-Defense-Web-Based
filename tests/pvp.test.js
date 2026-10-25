@@ -11,6 +11,7 @@ import { parseMap, TILE } from '../src/data/mapData.js';
 import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { getLevel, THEMES } from '../src/data/levelData.js';
+import { createLobbyState, launchPayload, lobbyView } from '../src/net/LobbyState.js';
 import { ZOOM_LIMITS, clampScroll, fitZoom, worldView, zoomLimitsFor } from '../src/camera/cameraMath.js';
 import {
   MATCH_STATUS,
@@ -371,5 +372,80 @@ describe('duel match state machine', () => {
     goLive(m);
     reportSeat(m, { seat: 'p1', outcome: 'cleared', score: -50, coreHp: NaN, waves: 'x', timeMs: -1 });
     expect(m.seats[0].result).toMatchObject({ score: 0, coreHp: 0, waves: 0, timeMs: 0 });
+  });
+});
+
+describe('co-op siege (one fate, two realms)', () => {
+  const match = () =>
+    createMatch({ roomCode: 'COOP1', arenaId: 'cinder-crown', seed: 3, totalWaves: 10, coop: true });
+
+  const cleared = (seat, over = {}) => ({
+    seat,
+    outcome: 'cleared',
+    score: 1200,
+    coreHp: 14,
+    waves: 10,
+    timeMs: 240000,
+    ...over,
+  });
+
+  it('marks the match as co-op', () => {
+    expect(match().coop).toBe(true);
+    expect(createMatch({ arenaId: 'cinder-crown' }).coop).toBe(false);
+  });
+
+  it('holds the pact when both cores stand', () => {
+    const m = match();
+    goLive(m);
+    expect(reportSeat(m, cleared('p1')).resolved).toBe(null);
+    const done = reportSeat(m, cleared('p2', { score: 90 }));
+    expect(done.resolved).toMatchObject({
+      coop: true,
+      pact: 'held',
+      winner: null,
+      loser: null,
+      reason: WIN_REASON.PACT_HELD,
+      decided: true,
+    });
+    // A co-op clear is a win for both seats, never a points race.
+    expect(m.winner).toBe(null);
+    expect(m.draw).toBe(false);
+    expect(scoreboard(m).every((row) => row.winner === false)).toBe(true);
+    expect(describeResult(m)).toBe('Pact held — both cores stand');
+  });
+
+  it('breaks the pact the moment either core falls', () => {
+    const m = match();
+    goLive(m);
+    const done = reportSeat(m, cleared('p1', { outcome: 'ko', coreHp: 0 }));
+    expect(done.resolved).toMatchObject({
+      coop: true,
+      pact: 'broken',
+      winner: null,
+      loser: null,
+      decided: true,
+    });
+    expect(m.status).toBe(MATCH_STATUS.OVER);
+    expect(describeResult(m)).toBe('Pact broken — a core fell');
+  });
+
+  it('still waits while one seat is fighting', () => {
+    const m = match();
+    goLive(m);
+    reportSeat(m, cleared('p1'));
+    expect(m.status).not.toBe(MATCH_STATUS.OVER);
+    expect(resolve(m)).toMatchObject({ decided: false, waiting: true, coop: true });
+  });
+
+  it('publishes the flag through the lobby view and launch payload', () => {
+    // The room is the only thing that tells the second device it is co-op, so
+    // both must carry it or the two boards disagree about the rules.
+    const state = createLobbyState({ roomCode: 'COOP1', selfId: 'a', coop: true, now: 1 });
+    expect(state.coop).toBe(true);
+    expect(lobbyView(state).coop).toBe(true);
+    expect(launchPayload(state, 'p1').pvp.coop).toBe(true);
+    const duel = createLobbyState({ roomCode: 'DUEL1', selfId: 'a', now: 1 });
+    expect(lobbyView(duel).coop).toBe(false);
+    expect('coop' in launchPayload(duel, 'p1').pvp).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
+import { getPuzzle, puzzleLevel } from '../data/puzzles.js';
 import {
   ENEMY_TYPES,
   endlessHealthScale,
@@ -9,6 +10,17 @@ import {
   endlessRewardScale,
 } from '../data/enemyData.js';
 import { getPvpLevel } from '../data/pvpArenas.js';
+import {
+  createRunMods,
+  applyCard,
+  applyAnomaly,
+  clearAnomaly,
+  ascend,
+  hordeScaling,
+  summariseMods,
+} from '../systems/RunMods.js';
+import { drawCards } from '../data/draftCards.js';
+import { rollAnomaly } from '../data/anomalies.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { paintLaneHint, laneLabel, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
@@ -90,10 +102,17 @@ export class GameScene extends Phaser.Scene {
       this.blessingsBought = {};
       this.blessingBonuses = blessingBonuses({});
       this.contracts = contractsFor(this.pvp.seed ?? 1);
+      // A co-op room runs the same arena twice; every solo mode is off.
+      this.mode = { coop: Boolean(this.pvp.coop) };
+      this.runSeed = Number(this.pvp.seed) || 1;
       return;
     }
     this.levelId = data?.levelId || 'level-1';
-    const baseLevel = getLevel(this.levelId);
+    // Blueprint puzzles are levels too, but they are authored as a separate
+    // catalogue (`puzzle-<id>`) so the campaign map never lists them.
+    const puzzleId = this.levelId.startsWith('puzzle-') ? this.levelId.slice('puzzle-'.length) : null;
+    const puzzle = puzzleId ? getPuzzle(puzzleId) : null;
+    const baseLevel = puzzle ? puzzleLevel(puzzle) : getLevel(this.levelId);
     this.levelId = baseLevel.id;
     // A daily run is the same level with a rule twist layered on top. The
     // modifier is applied to a copy, so the campaign data stays untouched.
@@ -112,6 +131,22 @@ export class GameScene extends Phaser.Scene {
     this.relicBonuses = relicBonuses(this.progress?.profile?.relics || {});
     this.blessingsBought = {};
     this.blessingBonuses = blessingBonuses({});
+    // Modes are flags on the same scene, never a second scene: Rogue Siege is
+    // Endless plus a card pick, Anomaly is Endless plus a per-wave rule. A
+    // puzzle arrives as its own level object, so it needs no flag at all.
+    this.mode = {
+      rogue: Boolean(data?.rogue),
+      anomaly: Boolean(data?.anomaly),
+      ascension: Boolean(data?.ascension),
+      contracts: Boolean(data?.contracts),
+      puzzle: Boolean(this.level.puzzle),
+      timeAttack: Boolean(this.level.timeLimitMs),
+      coop: false,
+    };
+    this.runSeed =
+      Math.floor(Number(data?.seed)) ||
+      (Math.floor(Date.now() / 1000) % 2_147_483_647) ||
+      1;
   }
 
   /** Fold an event into the lifetime stats (no-op without a progress store). */
@@ -156,6 +191,32 @@ export class GameScene extends Phaser.Scene {
     this.waveLaneIndex = 0;
     this.laneHintDrawn = false;
     this.duelReported = false;
+    // Run-long rules (draft cards, anomalies, ascension). Neutral here, so the
+    // campaign and the duel behave exactly as they did before modes existed.
+    this.cardMods = createRunMods();
+    this.runMods = this.cardMods;
+    // While a card pick or an ascension prompt is open the simulation stops —
+    // the same freeze a pause gets, without the pause overlay.
+    this.modePaused = false;
+    this.activeAnomaly = null;
+    // A duel's contracts are dealt from the room seed (both seats get the same
+    // three); a solo Contract Board deals its own from the run seed.
+    this.contracts = this.mode?.contracts
+      ? contractsFor(this.runSeed)
+      : this.pvp
+        ? contractsFor(this.pvp.seed ?? 1)
+        : null;
+    this.contractsBanked = 0;
+    this.paidContracts = new Set();
+    this.bountiesCleared = 0;
+    this.cleanWaves = 0;
+    this.lastAnomalyId = null;
+    this.timeLeftMs = Number(this.level.timeLimitMs) || 0;
+    this.twinBossSpawned = false;
+    // Set the moment a mode run hands its result to the screen, so the two
+    // doors into `finishModeRun` (victory and defeat) can never both fire.
+    this.modeFinished = false;
+    this.modeId = this.runModeLabel();
 
     // Relics are the meta-progression: a little more gold, a little more core.
     this.economy = new EconomyManager(this.level.startingCoins + this.relicBonuses.startingGold);
@@ -298,8 +359,27 @@ export class GameScene extends Phaser.Scene {
           );
         }
       }
+      // Solo mode chrome: contracts, the run's rule chips and the timer.
+      if (!this.level.pvp && (this.contracts?.length || this.mode?.timeAttack)) {
+        if (this.contracts?.length) {
+          this.hud.showToast(
+            `CONTRACTS · ${this.contracts.map((contract) => contract.name).join(' · ')} — pause to check progress`,
+            'info'
+          );
+        }
+        this.hud.setMatchLabel(
+          this.mode?.timeAttack ? 'TIME ATTACK · 3:00' : 'CONTRACT BOARD · 3 BETS'
+        );
+      }
       this.syncHUD();
     }
+
+    // 3b. Blueprint Mode: the board arrives with towers already standing.
+    this.placePreplacedTowers();
+    this.syncContracts();
+    // Paint the run's rule chips (draft stack, anomaly) before the first wave,
+    // so a card taken in an earlier run can never linger in the HUD.
+    this.refreshRunMods();
 
     // 4. Input Events — the rig is installed first, so it can tell the scene
     // whether a pointerup was a tap or the end of a pan/pinch.
@@ -571,14 +651,19 @@ export class GameScene extends Phaser.Scene {
   spawnScaling(waveNumber, typeKey = null) {
     const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
     const base = this.level.enemyHealthScale || 1;
-    if (!this.level.endless) return { healthScale: base, speedScale: 1, rewardScale: 1 };
+    // Cards and anomalies raise the horde as well as the towers — that trade is
+    // the whole point of Rogue Siege, so it is applied to both ramps.
+    const horde = hordeScaling(this.runMods);
+    if (!this.level.endless) {
+      return { healthScale: base * horde.health, speedScale: horde.speed, rewardScale: 1 };
+    }
     // Bosses take the gentler, capped ramp: a titan is already a wall of HP, and
     // the creep curve would turn it into a ninety-thousand-HP timer.
     const isBoss = Boolean(ENEMY_TYPES[typeKey]?.isBoss);
     const health = isBoss ? endlessBossHealthScale(wave) : endlessHealthScale(wave);
     return {
-      healthScale: base * health,
-      speedScale: endlessSpeedScale(wave),
+      healthScale: base * health * horde.health,
+      speedScale: endlessSpeedScale(wave) * horde.speed,
       rewardScale: endlessRewardScale(wave),
     };
   }
@@ -602,6 +687,18 @@ export class GameScene extends Phaser.Scene {
     // joins the same lane, and the choice is the wave ordinal, never random, so
     // both duel seats send the same horde down the same road.
     const lane = this.pathfinding.laneAt(this.laneIndexForWave(waveNumber));
+
+    // TWIN TITANS: one extra titan trails the boss by three seconds, once per
+    // wave. Spawned through the same path so the escort, the boss panel and the
+    // lane all come along for free.
+    const isBoss = Boolean(ENEMY_TYPES[typeKey]?.isBoss);
+    if (isBoss && this.runMods.twinBoss && !this.twinBossSpawned) {
+      this.twinBossSpawned = true;
+      this.time?.delayedCall?.(3000, () => {
+        if (this.gameState?.isOver?.()) return;
+        this.spawnEnemy(typeKey, waveNumber);
+      });
+    }
 
     const enemy = new Enemy(this, typeKey, waveNumber, lane, {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
@@ -841,15 +938,18 @@ export class GameScene extends Phaser.Scene {
     // the seat that can burst down a caravan buys its next tower first.
     const wave = this.waveManager.currentWave;
     const killGold = wave?.bounty ? Number(wave.bountyKillGold) || 2 : 1;
-    const bounty = Math.round(enemy.reward * killGold * this.relicBonuses.killGold * this.blessingBonuses.killGold);
+    const bounty = Math.round(
+      enemy.reward * killGold * this.relicBonuses.killGold * this.blessingBonuses.killGold * this.runMods.killGold
+    );
     const comboGold = comboBonus(bounty, kill.multiplier);
     const comboScore = comboBonus(enemy.score, kill.multiplier);
 
     audio.playCoin();
     if (kill.tier > 0) audio.playCombo(kill.tier);
     this.economy.earn(bounty + comboGold + this.rewardKillAuraBonus(enemy));
-    this.economy.addScore(enemy.score + comboScore);
+    this.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
+    if (this.contracts?.length) this.syncContracts();
 
     this.trackStats({ kills: 1, goldEarned: bounty + comboGold, bestChain: kill.chain }, { max: ['bestChain'] });
     if (enemy.isBoss) this.trackStats({ bossesKilled: 1 });
@@ -909,6 +1009,10 @@ export class GameScene extends Phaser.Scene {
   /** Start the next wave and dress it up. Shared by the player and the clock. */
   openWave() {
     if (!this.waveManager.canStartNextWave()) return;
+    // The wave's rule is settled *before* the first creep walks: an anomaly you
+    // only notice mid-fight is a bug, not a twist.
+    this.beginWaveRules(this.waveManager.waveNumber + 1);
+    this.autoWaveDelay = 0;
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
     if (started) {
@@ -918,8 +1022,9 @@ export class GameScene extends Phaser.Scene {
       this.setWaveLane(wave);
       // One toast, not two: `showToast` replaces the banner, so a second call
       // would bury the wave name under the lane hint.
+      const rule = this.activeAnomaly ? ` · ${this.activeAnomaly.icon} ${this.activeAnomaly.name}` : '';
       this.hud?.showToast(
-        `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}`,
+        `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}${rule}`,
         'info'
       );
       const bounty = Boolean(this.waveManager.currentWave.bounty);
@@ -933,6 +1038,328 @@ export class GameScene extends Phaser.Scene {
       this.flashWaveBanner(wave, this.waveManager.currentWave.name);
     }
     this.syncHUD();
+  }
+
+
+  /* ==================================================== RUN RULES (MODES) */
+
+  /**
+   * The effective rule bag: the run's permanent picks (cards, ascension) plus
+   * whatever the current wave's anomaly adds. Recomputing from `cardMods`
+   * instead of mutating the bag means an anomaly can never leak into the next
+   * wave — the classic way a temporary buff becomes permanent.
+   */
+  refreshRunMods() {
+    this.runMods = this.activeAnomaly ? applyAnomaly(this.cardMods, this.activeAnomaly) : this.cardMods;
+    this.refreshTowerAuras();
+    this.hud?.setRunStatus?.(this.runStatus());
+    return this.runMods;
+  }
+
+  /**
+   * Which *mode* this run is, in one word, or null for plain campaign/endless.
+   *
+   * Every surface that has to behave differently for a mode run — the result
+   * card, the HUD chrome, the save path — asks this instead of re-deriving the
+   * answer from four nullable fields.
+   */
+  runModeLabel() {
+    if (this.level?.puzzle) return 'puzzle';
+    if (this.level?.mode) return this.level.mode;
+    if (this.level?.id === 'titan-rush') return 'titan';
+    if (this.mode?.rogue) return 'rogue';
+    if (this.mode?.anomaly) return 'anomaly';
+    if (this.mode?.ascension) return 'ascension';
+    if (this.mode?.contracts) return 'contracts';
+    if (this.mode?.coop) return 'coop';
+    return null;
+  }
+
+  /** Everything the HUD needs to describe the run in one line. */
+  runStatus() {
+    return {
+      mode: this.modeId || null,
+      chips: summariseMods(this.runMods || this.cardMods).map((row) => row.label),
+      anomaly: this.activeAnomaly
+        ? `${this.activeAnomaly.icon} ${this.activeAnomaly.name}`
+        : null,
+      clockMs: this.mode?.timeAttack ? this.timeLeftMs : null,
+    };
+  }
+
+  /**
+   * Settle the rules for the wave that is about to open.
+   *
+   * Runs before the first spawn so the banner, the HUD chip and the horde all
+   * agree; also resets the once-per-wave guards (twin titan).
+   */
+  beginWaveRules(waveNumber) {
+    this.activeAnomaly = null;
+    this.twinBossSpawned = false;
+    if (this.mode?.anomaly) {
+      const rolled = rollAnomaly(this.runSeed, waveNumber, this.lastAnomalyId);
+      this.lastAnomalyId = rolled.id;
+      this.activeAnomaly = rolled;
+      const instant = rolled.effect?.instant || {};
+      if (instant.gold) this.economy.earn(instant.gold);
+      if (instant.hp) this.gameState.healBase(instant.hp);
+      this.hud?.showToast(`${rolled.icon} ${rolled.name} — ${rolled.blurb}`, 'warning');
+    }
+    this.refreshRunMods();
+    return this.activeAnomaly;
+  }
+
+  /** Wave cleared: pay the run's per-wave effects, then offer the next choice. */
+  afterWaveCleared(event) {
+    const heal = Number(this.runMods?.healPerWave) || 0;
+    if (heal > 0) this.gameState.healBase(heal);
+    this.activeAnomaly = null;
+    this.refreshRunMods();
+    this.syncContracts();
+    if (this.mode?.rogue) this.openDraft(event.waveNumber);
+    else if (this.mode?.ascension && event.waveNumber % 10 === 0) this.openAscend(event.waveNumber);
+  }
+
+  /** Rogue Siege: three cards, one pick, for the rest of the run. */
+  openDraft(waveNumber) {
+    const panel = window.gameDraft;
+    if (!panel?.showCards) return;
+    this.modePaused = true;
+    const cards = drawCards(this.runSeed, waveNumber, this.cardMods.cards);
+    Promise.resolve(
+      panel.showCards({
+        cards,
+        wave: waveNumber,
+        title: `WAVE ${waveNumber} CLEARED`,
+        subtitle: 'Pick one card — it lasts the rest of this run.',
+      })
+    )
+      .then((card) => {
+        this.modePaused = false;
+        if (card) this.applyDraftCard(card);
+      })
+      .catch((error) => {
+        // A broken panel must never leave the board frozen behind it.
+        this.modePaused = false;
+        this.reportRuntimeError?.(error);
+      });
+  }
+
+  applyDraftCard(card) {
+    if (!card) return;
+    this.cardMods = applyCard(this.cardMods, card);
+    const instant = card.effect?.instant || {};
+    if (instant.gold) this.economy.earn(instant.gold);
+    if (instant.hp) this.gameState.healBase(instant.hp);
+    this.refreshRunMods();
+    audio.playPlace?.();
+    this.hud?.showToast(`${card.icon} ${card.name} — ${card.blurb}`, 'success');
+    this.syncHUD();
+  }
+
+  /** Ascension: every tenth wave, climb or cash out. */
+  openAscend(waveNumber) {
+    const panel = window.gameDraft;
+    if (!panel?.showChoice) return;
+    this.modePaused = true;
+    Promise.resolve(
+      panel.showChoice({
+        title: `WAVE ${waveNumber} CLEARED`,
+        subtitle: `Ascension ${this.cardMods.ascension} · the horde grows with every step.`,
+        options: [
+          {
+            id: 'ascend',
+            name: 'ASCEND',
+            art: '/assets/ui-kit/glyph_crown.png',
+            blurb: 'Horde +25% HP, every point ×1.5, +120 gold. Keep climbing.',
+          },
+          {
+            id: 'cash',
+            name: 'CASH OUT',
+            art: '/assets/ui/icon_gem.png',
+            blurb: 'End the run here and bank this score.',
+          },
+        ],
+      })
+    )
+      .then((choice) => {
+        this.modePaused = false;
+        if (!choice || choice.id === 'cash') return this.finishModeRun('victory');
+        this.cardMods = ascend(this.cardMods);
+        this.economy.earn(120);
+        this.refreshRunMods();
+        audio.playWaveStart?.();
+        this.hud?.showToast(`ASCENSION ${this.cardMods.ascension} — the horde grows`, 'success');
+        return null;
+      })
+      .catch((error) => {
+        this.modePaused = false;
+        this.reportRuntimeError?.(error);
+      });
+  }
+
+  /**
+   * Time Attack: the clock is the only wave button.
+   *
+   * Burns the budget, paints it, opens the next wave every 2.5 s, and ends the
+   * run at zero. `MAX_FRAME_DELTA` is applied by the caller, so a background
+   * tab cannot eat the whole clock in one frame.
+   */
+  tickTimeAttack(delta) {
+    this.timeLeftMs = Math.max(0, this.timeLeftMs - delta);
+    this.hud?.setRunClock?.(this.timeLeftMs);
+    if (this.timeLeftMs <= 0) {
+      this.finishModeRun('victory');
+      return;
+    }
+    if (!this.waveManager?.canStartNextWave?.()) return;
+    this.autoWaveDelay = (this.autoWaveDelay || 0) + delta;
+    if (this.autoWaveDelay >= 2500) this.openWave();
+  }
+
+  /**
+   * End a mode run: score only, never campaign stars.
+   *
+   * `handleVictory` and `handleGameOver` route here *after* they have closed the
+   * game state, so guarding on `isOver()` would throw away every mode result
+   * card. The guard is on the hand-off (`modeFinished`) instead: whichever door
+   * the run goes out of, it goes out exactly once.
+   */
+  finishModeRun(outcome) {
+    if (this.modeFinished) return null;
+    this.modeFinished = true;
+    // A draft or ascension prompt still on screen would sit on top of the
+    // result card and swallow its buttons.
+    this.modePaused = false;
+    window.gameDraft?.close?.();
+    if (!this.gameState.isOver()) {
+      this.gameState.end(outcome === 'victory' ? STATUS.VICTORY : STATUS.GAME_OVER);
+    }
+    this.hud?.hideBossBar();
+    this.hud?.setRunClock?.(null);
+    window.gameCodex?.hide?.();
+    if (outcome === 'victory') audio.playVictory();
+    const score = this.economy.score;
+    const waves = this.waveManager?.wavesCompleted || 0;
+    const record = this.progress?.recordEndless?.({ wave: waves, score }) || null;
+    const gems = this.bankSoloContracts(true);
+    this.showResult({
+      outcome,
+      mode: this.modeId,
+      level: this.level,
+      score,
+      waves,
+      totalWaves: this.level?.endless ? null : this.waveManager?.totalWaves,
+      timeMs: this.gameState.elapsedMs,
+      wave: this.waveManager?.waveNumber || 0,
+      bestWave: this.progress?.profile?.endlessBestWave,
+      newRecord: Boolean(record?.isRecord),
+      contractGems: gems,
+      stars: this.runStars(outcome),
+      contracts: this.contracts?.length
+        ? contractProgress(this.contracts, this.contractStats())
+        : null,
+    });
+  }
+
+  /**
+   * The star rating of a finite mode run (a Blueprint, Titan Rush).
+   *
+   * Same rule the campaign uses — core integrity at the end — but the
+   * thresholds come from the level's own `stars: { two, three }`, so a puzzle
+   * can demand a flawless board while a boss gauntlet is gentler. Endless-mode
+   * runs have no end and therefore no stars.
+   */
+  runStars(outcome) {
+    if (outcome !== 'victory' || this.level?.endless || !this.level?.stars) return 0;
+    const max = this.gameState.maxBaseHealth || 0;
+    const ratio = max > 0 ? this.gameState.baseHealth / max : 0;
+    const { two = 0.5, three = 0.85 } = this.level.stars;
+    if (ratio >= three) return 3;
+    if (ratio >= two) return 2;
+    return 1;
+  }
+
+  /* ================================================== CONTRACT BOARD */
+
+  /** The numbers the contract pool reads, in its own vocabulary. */
+  contractStats() {
+    return {
+      kills: this.gameState?.counters?.enemiesDefeated || 0,
+      waves: this.waveManager?.wavesCompleted || 0,
+      bestChain: this.combo?.best || 0,
+      bounties: this.bountiesCleared || 0,
+      cleanWaves: this.cleanWaves || 0,
+      coreHp: this.gameState?.baseHealth || 0,
+    };
+  }
+
+  /**
+   * Keep the contract panel honest and pay a bet the moment it lands.
+   *
+   * Paying on completion (instead of at the end) is what makes a solo contract
+   * feel like a goal: the gold arrives when you need it, not after the run.
+   */
+  syncContracts() {
+    if (!this.contracts?.length) return [];
+    this.paidContracts = this.paidContracts || new Set();
+    const rows = contractProgress(this.contracts, this.contractStats());
+    for (const row of rows) {
+      if (!row.done || this.paidContracts.has(row.id)) continue;
+      this.paidContracts.add(row.id);
+      this.economy.earn(row.reward);
+      this.contractsBanked = (this.contractsBanked || 0) + row.reward;
+      this.hud?.showToast(`📜 CONTRACT PAID · ${row.name} +🪙${row.reward}`, 'success');
+      audio.playVictory?.();
+    }
+    this.hud?.setContracts?.(rows);
+    return rows;
+  }
+
+  /** A clean sweep of all three bets pays gems; anything less pays nothing. */
+  bankSoloContracts(finish = false) {
+    if (!this.contracts?.length) return 0;
+    const rows = this.syncContracts();
+    if (!finish) return 0;
+    const sweep = rows.length > 0 && rows.every((row) => row.done);
+    if (!sweep) return 0;
+    const gems = 2;
+    this.progress?.addGems?.(gems);
+    this.hud?.showToast(`🏅 CONTRACT SWEEP · +${gems}💎`, 'success');
+    return gems;
+  }
+
+  /**
+   * Blueprint Mode: stand the towers up before the first wave.
+   *
+   * These are free (they are the puzzle's given), so they bypass the economy
+   * but still go through `PlacementSystem` — a pre-placed tower on a road cell
+   * would be an invalid board and is skipped rather than trusted.
+   */
+  placePreplacedTowers() {
+    const list = this.level?.preplaced || [];
+    if (!list.length) return 0;
+    let placed = 0;
+    for (const entry of list) {
+      const def = getBuildDefinition(entry.key);
+      if (!def) continue;
+      const check = this.placement.validate(def, entry.row, entry.col, Infinity, {
+        route: this.routeCells,
+      });
+      if (!check.ok) continue;
+      const tower = new Tower(this, entry.key, entry.row, entry.col, {
+        economy: this.economy,
+        gameState: this.gameState,
+        activeEnemies: this.activeEnemies,
+        activeProjectiles: this.activeProjectiles,
+        powerups: this.powerups,
+      });
+      this.placement.occupy(entry.row, entry.col, tower);
+      this.activeTowers.push(tower);
+      placed += 1;
+    }
+    if (placed) this.refreshTowerAuras();
+    return placed;
   }
 
   /**
@@ -956,7 +1383,7 @@ export class GameScene extends Phaser.Scene {
     const comboPayout = waveComboPayout(this.combo.best);
     const payout = clearCoins + result.bonus + comboPayout;
     this.economy.earn(payout);
-    this.economy.addScore(clearScore);
+    this.addScore(clearScore);
 
     this.trackStats({ earlyCalls: 1 });
     audio.playCallEarly();
@@ -1384,6 +1811,11 @@ export class GameScene extends Phaser.Scene {
     const def = getBuildDefinition(typeKey);
     if (!def) return { ok: false, reason: 'unknown-type' };
 
+    // BLACKOUT closes the palisade line for the wave — said out loud, because a
+    // build that fails silently reads as a broken button.
+    if (typeKey === 'barricade' && this.runMods?.noBarricades) {
+      return { ok: false, reason: 'barricade-locked' };
+    }
     const base = this.placement.validate(def, row, col, this.economy.coins, {
       route: this.routeCells,
     });
@@ -1520,12 +1952,25 @@ export class GameScene extends Phaser.Scene {
         cooldown = Math.min(cooldown, 1 - (aura.fireRateBonus || 0));
       }
       // Banner auras first, then the permanent relic and the run blessings.
+      // Banner auras → relics → blessings → the run's card/anomaly stack. The
+      // stack is read here rather than pushed into each tower, so a card picked
+      // mid-run lands on every tower on the board at once.
       tower.setBuffs({
-        damage: damage * this.relicBonuses.damage * this.blessingBonuses.damage,
-        range,
-        cooldown: cooldown * this.relicBonuses.cooldown * this.blessingBonuses.cooldown,
+        damage: damage * this.relicBonuses.damage * this.blessingBonuses.damage * this.runMods.damage,
+        range: range * this.runMods.range,
+        cooldown: cooldown * this.relicBonuses.cooldown * this.blessingBonuses.cooldown * this.runMods.cooldown,
       });
     }
+  }
+
+  /**
+   * Score goes through one door so Ascension (and any future scoring card) can
+   * scale it without hunting down six call sites.
+   */
+  addScore(points) {
+    const scaled = Math.max(0, Math.round((Number(points) || 0) * (this.runMods?.score || 1)));
+    this.economy.addScore(scaled);
+    return scaled;
   }
 
   /** Extra gold from Muster Camps: +1 per kill inside their aura. */
@@ -1692,6 +2137,10 @@ export class GameScene extends Phaser.Scene {
     // In a duel a broken core is a knockout, not a campaign defeat: the room
     // scores the match and the lobby decides what happens next.
     if (this.level.pvp) return this.finishDuel('ko');
+    // A mode run (and a puzzle) is scored, never starred: campaign progress is
+    // earned on the campaign map only. `runModeLabel()` also catches Titan
+    // Rush, which is a level rather than a flag.
+    if (this.modeId) return this.finishModeRun('defeat');
 
     const score = this.economy.score;
     const record = this.progress.recordDefeat(this.level, {
@@ -1719,9 +2168,10 @@ export class GameScene extends Phaser.Scene {
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     // Base health survival score bonus
-    this.economy.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
+    this.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
     audio.playVictory();
     if (this.level.pvp) return this.finishDuel('cleared');
+    if (this.modeId) return this.finishModeRun('victory');
 
     const record = this.progress.recordVictory(this.level, {
       baseHealth: this.gameState.baseHealth,
@@ -1800,6 +2250,8 @@ export class GameScene extends Phaser.Scene {
       timeMs: this.gameState.elapsedMs,
       contracts: this.contractRows(),
       contractBonus: payout.total,
+      // Co-op rooms resolve cooperatively: the card says "pact", not "winner".
+      coop: Boolean(this.mode?.coop),
     };
     this.lastDuel = report;
     // Terminal for this seat, either way: freeze the board behind the card
@@ -1976,7 +2428,7 @@ export class GameScene extends Phaser.Scene {
     const payout = contractScore(this.contracts, stats);
     this.contractPayout = payout;
     if (payout.total > 0) {
-      this.economy.addScore(payout.total);
+      this.addScore(payout.total);
       this.hud?.showToast(
         `CONTRACT PAID · +${payout.total} pts (${payout.done.length}/${this.contracts.length})`,
         'success'
@@ -2078,6 +2530,12 @@ export class GameScene extends Phaser.Scene {
   handlePowerup(key) {
     const powerup = POWERUPS.find((entry) => entry.key === key);
     if (!powerup) return false;
+    // DEAD ZONE and duel rules both take the rail away; say so instead of
+    // silently eating the tap.
+    if (this.runMods?.noPowerups) {
+      this.hud?.showToast('Powerups are offline this wave', 'error');
+      return false;
+    }
     if (!this.powerups?.use(key)) {
       audio.playError();
       return false;
@@ -2224,6 +2682,10 @@ export class GameScene extends Phaser.Scene {
 
   /** One simulation tick: waves, enemies, towers, projectiles, boss HUD. */
   stepSimulation(rawDelta) {
+    // A card pick or an ascension prompt freezes the board the same way the
+    // pause card does — no creep moves, no wave clock, no powerup cooldown.
+    if (this.modePaused) return;
+    if (this.mode?.timeAttack) this.tickTimeAttack(Math.min(rawDelta, MAX_FRAME_DELTA));
     // Cap delta to prevent huge jumps after backgrounding tab
     const clampedDelta = Math.min(rawDelta, MAX_FRAME_DELTA) * this.simSpeed;
 
@@ -2251,11 +2713,11 @@ export class GameScene extends Phaser.Scene {
       const comboPayout = waveComboPayout(this.combo.best);
       this.trackStats({ wavesCleared: 1 });
       this.economy.earn(bonusCoins + comboPayout);
-      this.economy.addScore(bonusScore);
+      this.addScore(bonusScore);
       if (waveEvent.bounty) {
         // The twin of the doubled kill gold: a lump sum for finishing the wave.
         this.economy.earn(waveEvent.bountyGold);
-        this.economy.addScore(waveEvent.bountyScore);
+        this.addScore(waveEvent.bountyScore);
         this.bountiesCleared = (this.bountiesCleared || 0) + 1;
         this.hud?.showToast(
           `BOUNTY CLEARED · +🪙${waveEvent.bountyGold} · +${waveEvent.bountyScore} pts`,
@@ -2263,7 +2725,7 @@ export class GameScene extends Phaser.Scene {
         );
       }
       // A wave that ends without a leak is what the BLOODLESS contract counts.
-      if (this.level.pvp && (this.leaksThisWave || 0) === 0) {
+      if ((this.level.pvp || this.contracts) && (this.leaksThisWave || 0) === 0) {
         this.cleanWaves = (this.cleanWaves || 0) + 1;
       }
       this.leaksThisWave = 0;
@@ -2280,6 +2742,8 @@ export class GameScene extends Phaser.Scene {
       this.refreshPowerupRail();
       if (this.level.endless) this.payEndlessMilestones(waveEvent.waveNumber);
       this.syncAchievements();
+
+      if (!waveEvent.isFinal) this.afterWaveCleared(waveEvent);
 
       if (waveEvent.isFinal) {
         closePacing(this.duelPacing);

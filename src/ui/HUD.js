@@ -48,6 +48,7 @@ export class HUD {
     this.inspectorAnchorRatio = null;
     this.contractSignature = null;
     this.setContracts?.([]);
+    this.setRunStatus?.({ chips: [], anomaly: null, clockMs: null });
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
@@ -171,6 +172,8 @@ export class HUD {
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
             <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
             <span class="hud-wave-best hidden" id="val-endless-best">BEST 0</span>
+            <span class="run-status hidden" id="run-status" aria-live="polite"></span>
+            <span class="run-clock hidden" id="run-clock" role="timer">3:00</span>
           </div>
           <div class="hud-wave-stack">
             <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
@@ -730,6 +733,46 @@ export class HUD {
   }
 
   /** Rename the dock for a duel so the build list never reads as a campaign. */
+  /**
+   * Paint the run's rule chips (draft stack, anomaly) and the mode clock.
+   *
+   * Called on build, on every card pick and at the top of every wave — never
+   * per frame, because it rewrites DOM.
+   *
+   * @param {{chips?:string[], anomaly?:string|null, clockMs?:number|null, mode?:string|null}} status
+   */
+  setRunStatus(status = {}) {
+    const el = document.getElementById('run-status');
+    if (!el) return;
+    const chips = Array.isArray(status.chips) ? status.chips : [];
+    const parts = [];
+    if (status.anomaly) parts.push(`<b class="run-anomaly">${escapeStatus(status.anomaly)}</b>`);
+    for (const chip of chips.slice(0, 5)) parts.push(`<span class="run-chip">${escapeStatus(chip)}</span>`);
+    el.innerHTML = parts.join('');
+    el.classList.toggle('hidden', parts.length === 0);
+    this.setRunClock(status.clockMs ?? null);
+    this.runSignature = `${status.anomaly || ''}|${chips.join(',')}`;
+  }
+
+  /** Time Attack's clock. Repaints only when the printed second changes. */
+  setRunClock(ms) {
+    const el = document.getElementById('run-clock');
+    if (!el) return;
+    if (ms == null) {
+      el.classList.add('hidden');
+      this.clockLabel = null;
+      return;
+    }
+    const total = Math.max(0, Math.ceil(Number(ms) / 1000));
+    const label = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+    el.classList.remove('hidden');
+    if (label !== this.clockLabel) {
+      this.clockLabel = label;
+      el.textContent = label;
+    }
+    el.classList.toggle('is-low', total <= 30);
+  }
+
   setMatchLabel(text) {
     const title = document.getElementById('dock-title') || document.querySelector('.dock-title');
     if (title && text) title.textContent = text;
@@ -1963,4 +2006,16 @@ export class HUD {
     // where innerText is not implemented.
     if (el && el.textContent !== String(value)) el.textContent = String(value);
   }
+}
+
+
+/** Run chips are plain text, but they come from data — never trust them raw. */
+function escapeStatus(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
 }

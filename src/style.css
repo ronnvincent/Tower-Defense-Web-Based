@@ -4584,6 +4584,54 @@ body.is-fullscreen #app::after {
   line-height: 1;
 }
 
+/* A run without stars (Endless, Time Attack, a cashed-out Ascension) still
+   needs a title mark; the skull is reserved for an actual defeat. */
+.result-stars.run-mark {
+  font-size: clamp(30px, 5.4vh, 46px);
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.result-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px auto 0;
+  width: min(420px, 100%);
+  text-align: left;
+}
+
+.result-contracts-title {
+  margin: 0 0 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--ink-gold);
+  text-align: center;
+}
+
+.result-contract {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 8px;
+  font-size: var(--fs-micro);
+  color: var(--ink-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 8, 12, 0.45);
+}
+
+.result-contract.is-done {
+  color: var(--ink-strong);
+  border-color: rgba(245, 196, 81, 0.35);
+}
+
+.result-contract em {
+  font-style: normal;
+  color: var(--ink-gold);
+}
+
 @keyframes result-star-pop {
   from {
     transform: scale(0.2) rotate(-32deg);
@@ -7281,5 +7329,440 @@ body.is-fullscreen #app::after {
   [data-shell="mobile"] .toast-banner,
   .dock-scrim {
     animation: none;
+  }
+}
+
+/* ============================================================ WAR ROOM ==== */
+
+/* The menu's fourth door. Same plate language as the Duel button, gold instead
+   of crimson, so the eye reads "third mode" rather than "danger". */
+.menu-modes {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: clamp(42px, 7.4vh, 56px);
+  padding: 2px 8px;
+  border-style: solid;
+  border-width: 10px 20px;
+  border-image-source: var(--ui-btn-gold);
+  border-image-slice: 28 50 fill;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  color: var(--ink-strong);
+  cursor: var(--ui-cursor) 16 16, pointer;
+  pointer-events: auto;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.menu-modes:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+
+.menu-modes-icon {
+  width: clamp(20px, 2.1vw, 26px);
+  height: auto;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.72));
+}
+
+.menu-modes-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-modes-kicker {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2.2px;
+  color: var(--ink-gold);
+}
+
+.menu-modes-title {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-modes-cta {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.42);
+  background: rgba(10, 6, 6, 0.55);
+}
+
+/* --- the War Room overlay ------------------------------------------------ */
+
+.modes-card {
+  width: min(880px, 94vw);
+  max-height: min(86vh, 780px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modes-card .modal-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modes-intro {
+  margin: 0 0 12px;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.modes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.modes-back {
+  margin-bottom: 10px;
+}
+
+.mode-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--ink-strong);
+  background: linear-gradient(180deg, rgba(28, 24, 34, 0.92), rgba(12, 10, 16, 0.94));
+  border: 1px solid rgba(245, 196, 81, 0.28);
+  border-radius: 4px;
+  cursor: var(--ui-cursor) 16 16, pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease, filter 0.1s ease;
+}
+
+.mode-card:hover,
+.mode-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(245, 196, 81, 0.7);
+  filter: brightness(1.08);
+  outline: none;
+}
+
+.mode-icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+  border: 1px solid rgba(245, 196, 81, 0.35);
+  background: rgba(245, 196, 81, 0.08);
+  color: var(--ink-gold);
+}
+
+/* 64 px kit sprites: nearest-neighbour so the pixel edges stay square. */
+.mode-art {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+
+.mode-icon.is-numeral {
+  font-family: var(--font-display, inherit);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--ink-dim);
+}
+
+.mode-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mode-tag {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+}
+
+.mode-name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.mode-blurb {
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.mode-go {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 16px;
+  color: var(--ink-gold);
+}
+
+@media (max-width: 560px) {
+  .modes-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mode-card {
+    min-height: 76px;
+  }
+}
+
+/* --- draft / ascension cards --------------------------------------------- */
+
+.draft-shell {
+  width: min(760px, 94vw);
+  max-height: min(90vh, 820px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.draft-title {
+  margin-bottom: 4px;
+}
+
+.draft-subtitle {
+  margin: 0 0 14px;
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.draft-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.draft-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 84px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--ink-strong);
+  background: linear-gradient(180deg, rgba(26, 24, 34, 0.95), rgba(10, 9, 14, 0.96));
+  border: 1px solid var(--rarity-edge, rgba(159, 179, 200, 0.45));
+  border-left-width: 4px;
+  border-radius: 4px;
+  cursor: var(--ui-cursor) 16 16, pointer;
+  transition: transform 0.1s ease, filter 0.1s ease, border-color 0.1s ease;
+}
+
+.draft-card:hover,
+.draft-card:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  outline: none;
+  border-color: var(--rarity-edge, rgba(159, 179, 200, 0.8));
+}
+
+.draft-card.rarity-common {
+  --rarity-edge: rgba(159, 179, 200, 0.5);
+}
+
+.draft-card.rarity-uncommon {
+  --rarity-edge: rgba(127, 215, 255, 0.62);
+}
+
+.draft-card.rarity-rare {
+  --rarity-edge: rgba(255, 209, 102, 0.85);
+  box-shadow: inset 0 0 24px rgba(255, 209, 102, 0.08);
+}
+
+.draft-key {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ink-dim);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+}
+
+.draft-icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.draft-art {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
+
+.draft-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.draft-rarity {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--rarity-edge, var(--ink-gold));
+}
+
+.draft-name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.draft-blurb {
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+.draft-pick {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.45);
+  background: rgba(10, 6, 6, 0.6);
+}
+
+.draft-skip {
+  margin-top: 12px;
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  .draft-card {
+    min-height: 76px;
+    padding: 10px 11px;
+    gap: 9px;
+  }
+
+  .draft-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+
+  .draft-pick {
+    display: none;
+  }
+}
+
+/* Keep the page from scrolling under a modal card on a phone. */
+html.draft-open,
+html.draft-open body {
+  overflow: hidden;
+}
+
+/* --- run chrome in the HUD ----------------------------------------------- */
+
+.run-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: min(46vw, 420px);
+}
+
+.run-chip {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.32);
+  background: rgba(10, 8, 6, 0.5);
+  white-space: nowrap;
+}
+
+.run-anomaly {
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffd9a8;
+  border: 1px solid rgba(255, 157, 107, 0.55);
+  background: rgba(60, 24, 10, 0.62);
+  white-space: nowrap;
+}
+
+.run-clock {
+  font-family: var(--font-display, inherit);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--ink-gold);
+  padding: 1px 8px;
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  background: rgba(10, 8, 6, 0.55);
+}
+
+.run-clock.is-low {
+  color: #ff8f7a;
+  border-color: rgba(255, 96, 72, 0.65);
+  animation: run-clock-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes run-clock-pulse {
+  50% {
+    filter: brightness(1.45);
+  }
+}
+
+@media (max-width: 720px) {
+  .run-status {
+    max-width: 40vw;
+  }
+
+  .run-chip:nth-child(n + 4) {
+    display: none;
   }
 }

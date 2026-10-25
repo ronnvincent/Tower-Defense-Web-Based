@@ -3,7 +3,16 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { parseMap, getMapLayout, TILE } from '../src/data/mapData.js';
 import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
-import { LEVELS, ENDLESS_LEVEL, ALL_LEVELS, THEMES, getLevel, makeEndlessWave } from '../src/data/levelData.js';
+import {
+  LEVELS,
+  ENDLESS_LEVEL,
+  ALL_LEVELS,
+  TITAN_RUSH_LEVEL,
+  TIME_ATTACK_LEVEL,
+  THEMES,
+  getLevel,
+  makeEndlessWave,
+} from '../src/data/levelData.js';
 
 /**
  * GameScene derives the whole battle from `init({ levelId })`: map, theme,
@@ -132,10 +141,17 @@ describe('campaign wave design', () => {
   });
 
   it('funds every level well enough to place a first tower', () => {
-    for (const level of ALL_LEVELS) {
+    for (const level of LEVELS) {
       expect(level.startingCoins).toBeGreaterThanOrEqual(200);
-      expect(level.baseHealth).toBe(25); // one core HP everywhere, see docs
+      expect(level.baseHealth).toBe(25); // one core HP for the whole campaign
       expect(level.enemyHealthScale).toBeGreaterThanOrEqual(1);
+    }
+    // Mode levels are tuned individually (Titan Rush needs a fatter core than a
+    // campaign node), but they all have to be survivable and affordable.
+    for (const level of [ENDLESS_LEVEL, TITAN_RUSH_LEVEL, TIME_ATTACK_LEVEL]) {
+      expect(level.startingCoins).toBeGreaterThanOrEqual(200);
+      expect(level.baseHealth).toBeGreaterThanOrEqual(25);
+      expect(level.enemyHealthScale).toBeGreaterThan(0);
     }
   });
 });

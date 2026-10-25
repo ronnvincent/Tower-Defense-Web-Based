@@ -19,6 +19,8 @@ const REASON_COPY = {
   'core-hp': 'won on core integrity',
   time: 'won on clear time',
   forfeit: 'won by forfeit',
+  'pact-held': 'held the pact',
+  'pact-broken': 'lost the pact',
 };
 
 export class DuelResultUI {
@@ -98,15 +100,27 @@ export class DuelResultUI {
     if (this.final) return;
     this.report = report;
     const ko = report?.outcome === 'ko';
+    const coop = Boolean(report?.coop);
+    this.el.classList.toggle('is-coop', coop);
     this.el.classList.remove('hidden');
-    this.$('duel-result-eyebrow').textContent = 'MIRROR ARENA';
+    this.$('duel-result-eyebrow').textContent = coop ? 'ALLIED REALMS' : 'MIRROR ARENA';
     // A knockout is not a wait: the first core down loses, full stop. Show the
     // defeat immediately and let the room only *confirm* it.
-    this.$('duel-result-title').textContent = ko ? 'Defeat' : 'Sector Cleared';
+    this.$('duel-result-title').textContent = coop
+      ? ko
+        ? 'Pact Broken'
+        : 'Half Held'
+      : ko
+        ? 'Defeat'
+        : 'Sector Cleared';
     this.$('duel-result-title').className = `overlay-title duel-title ${ko ? 'is-loss' : 'is-win'}`;
-    this.$('duel-result-line').textContent = ko
-      ? 'Your core fell — knockout. The first core down loses the arena.'
-      : 'You finished the horde. Now the arena waits on your rival.';
+    this.$('duel-result-line').textContent = coop
+      ? ko
+        ? 'Your core fell — the pact is broken. Both realms lose this arena.'
+        : 'Your half of the arena is clear. The pact holds until your ally finishes.'
+      : ko
+        ? 'Your core fell — knockout. The first core down loses the arena.'
+        : 'You finished the horde. Now the arena waits on your rival.';
     this.renderScoreboard([
       {
         name: 'YOU',
@@ -121,7 +135,9 @@ export class DuelResultUI {
     this.$('duel-waiting').classList.remove('hidden');
     this.$('duel-waiting').textContent = ko
       ? 'Waiting for the room to confirm the knockout. You can leave at any time — this half is already lost.'
-      : 'Your half is settled. The match closes when your rival finishes — the lower core or fewer points loses.';
+      : coop
+        ? 'Your half is settled. The pact closes when your ally finishes.'
+        : 'Your half is settled. The match closes when your rival finishes — the lower core or fewer points loses.';
     this.$('duel-rematch').disabled = true;
     this.$('duel-rematch').title = 'Available when the match is decided';
     this.startWatchdog();
@@ -167,17 +183,27 @@ export class DuelResultUI {
     const winnerSeat = resolved?.winner || null;
     const drew = Boolean(resolved?.draw);
     const iWon = winnerSeat && winnerSeat === selfSeat;
+    const coop = Boolean(resolved?.coop);
+    const held = resolved?.pact === 'held';
+    this.el.classList.toggle('is-coop', coop);
+    this.$('duel-result-eyebrow').textContent = coop ? 'ALLIED REALMS' : 'MIRROR ARENA';
 
-    const title = drew ? 'Draw' : iWon ? 'Victory' : 'Defeat';
+    const title = coop ? (held ? 'Pact Held' : 'Pact Broken') : drew ? 'Draw' : iWon ? 'Victory' : 'Defeat';
     const titleEl = this.$('duel-result-title');
     titleEl.textContent = title;
-    titleEl.className = `overlay-title duel-title ${drew ? 'is-draw' : iWon ? 'is-win' : 'is-loss'}`;
+    titleEl.className = `overlay-title duel-title ${
+      coop ? (held ? 'is-win' : 'is-loss') : drew ? 'is-draw' : iWon ? 'is-win' : 'is-loss'
+    }`;
 
     const winnerName = view.results?.find((seat) => seat.id === winnerSeat)?.name || winnerSeat || 'Nobody';
     const reason = REASON_COPY[resolved?.reason] || 'takes the arena';
-    this.$('duel-result-line').textContent = drew
-      ? 'Both cores stand and both scores match. Nobody takes the arena.'
-      : `${winnerName} ${reason}.`;
+    this.$('duel-result-line').textContent = coop
+      ? held
+        ? 'Both cores stand and the arena is cleared. The pact holds.'
+        : 'A core fell — one fate, two realms. The pact is broken.'
+      : drew
+        ? 'Both cores stand and both scores match. Nobody takes the arena.'
+        : `${winnerName} ${reason}.`;
 
     const rows = (view.results || []).map((seat) => ({
       name: seat.name || seat.id,

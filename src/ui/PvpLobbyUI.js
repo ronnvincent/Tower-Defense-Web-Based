@@ -52,6 +52,8 @@ export class PvpLobbyUI {
     this.room = null;
     this.roomListeners = [];
     this.screen = 'entry';
+    /** Co-op Siege runs this same lobby; only the verdict differs. */
+    this.coopMode = false;
     this.countdownTimer = null;
     this.lastFocus = null;
     /** 'relay' | 'local' — how the two devices reach each other. */
@@ -62,6 +64,28 @@ export class PvpLobbyUI {
      */
     this.relayOverride = readStoredRelay() || relayFromSearch(globalThis.location?.search);
     this.build();
+  }
+
+  /**
+   * Co-op Siege borrows this whole lobby — seats, relay, countdown, arena
+   * picker — and only relabels the promise. Reusing it is deliberate: a second
+   * lobby would be a second thing to keep in sync with the relay protocol.
+   */
+  paintCoopMode() {
+    const coop = Boolean(this.coopMode);
+    const set = (id, text) => {
+      const node = this.$(id);
+      if (node) node.textContent = text;
+    };
+    set('pvp-eyebrow', coop ? 'ALLIED REALMS' : 'MIRROR ARENA');
+    set('pvp-title', coop ? 'Co-op Siege' : 'Duel');
+    set(
+      'pvp-sub',
+      coop
+        ? 'One horde, two thrones. Every wave hits both arenas — if either core falls, the pact falls.'
+        : 'Two realms, one horde. Same waves, same gold, same boss — first core down loses.'
+    );
+    this.el.classList.toggle('is-coop', coop);
   }
 
   /* ================================================================ MARKUP */
@@ -77,9 +101,9 @@ export class PvpLobbyUI {
       <div class="overlay-shell pvp-shell">
         <header class="pvp-head">
           <div class="pvp-head-text">
-            <p class="overlay-eyebrow">MIRROR ARENA</p>
+            <p class="overlay-eyebrow" id="pvp-eyebrow">MIRROR ARENA</p>
             <h2 id="pvp-title" class="overlay-title">Duel</h2>
-            <p class="pvp-sub">Two realms, one horde. Same waves, same gold, same boss — first core down loses.</p>
+            <p class="pvp-sub" id="pvp-sub">Two realms, one horde. Same waves, same gold, same boss — first core down loses.</p>
           </div>
           <button id="pvp-close" class="btn-close" type="button" aria-label="Close the duel lobby">✕</button>
         </header>
@@ -239,9 +263,14 @@ export class PvpLobbyUI {
     return !this.el.classList.contains('hidden');
   }
 
-  show() {
+  /**
+   * @param {{coop?:boolean}} [options]  open the same lobby as Co-op Siege
+   */
+  show({ coop = false } = {}) {
+    this.coopMode = Boolean(coop);
     this.lastFocus = document.activeElement;
     this.el.classList.remove('hidden');
+    this.paintCoopMode();
     this.setScreen('entry');
     this.ensureRoom();
     this.$('pvp-name').value = this.storedName();
@@ -323,7 +352,7 @@ export class PvpLobbyUI {
     button.disabled = true;
     button.textContent = this.linkMode === TRANSPORT.RELAY ? 'DIALING RELAY…' : 'OPENING ROOM…';
     try {
-      const view = await room.host({ name: this.playerName() });
+      const view = await room.host({ name: this.playerName(), coop: this.coopMode });
       if (this.room !== room) return;
       this.setScreen('room');
       this.render(view);

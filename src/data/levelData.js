@@ -393,8 +393,116 @@ export const ENDLESS_LEVEL = {
   waves: [],
 };
 
-/** Every selectable node, campaign first and Endless last. */
-export const ALL_LEVELS = [...LEVELS, ENDLESS_LEVEL];
+/**
+ * Titan Rush — five titans, no filler.
+ *
+ * Every wave is a boss with a small escort, and the escort is there to punish
+ * the obvious answer: shields soak the burst you aimed at the titan, healers
+ * undo the chip damage on it. The last wave is a pair, because by then the
+ * player has five tiers of towers and deserves a board that tests them.
+ */
+export function makeTitanWaves() {
+  return [
+    {
+      name: 'Ironhorn Charges',
+      bossWave: true,
+      bossKey: 'ironhorn',
+      groups: [
+        { type: 'grunt', count: 6, interval: 900 },
+        { type: 'ironhorn', count: 1, interval: 0, delay: 1600 },
+      ],
+    },
+    {
+      name: 'The Grave-Sworn',
+      bossWave: true,
+      bossKey: 'gravesworn',
+      groups: [
+        { type: 'shield', count: 4, interval: 1200 },
+        { type: 'gravesworn', count: 1, interval: 0, delay: 1800 },
+      ],
+    },
+    {
+      name: 'Magma Regent',
+      bossWave: true,
+      bossKey: 'magmalord',
+      groups: [
+        { type: 'brute', count: 4, interval: 1300 },
+        { type: 'magmalord', count: 1, interval: 0, delay: 1900 },
+      ],
+    },
+    {
+      name: 'The Void Herald',
+      bossWave: true,
+      bossKey: 'voidherald',
+      groups: [
+        { type: 'healer', count: 3, interval: 1700 },
+        { type: 'shield', count: 2, interval: 1300, delay: 900 },
+        { type: 'voidherald', count: 1, interval: 0, delay: 2000 },
+      ],
+    },
+    {
+      name: 'Obsidian Pair',
+      bossWave: true,
+      bossKey: 'obsidian',
+      groups: [
+        { type: 'prismlord', count: 1, interval: 0, delay: 1200 },
+        { type: 'shield', count: 4, interval: 1200, delay: 2400 },
+        { type: 'obsidian', count: 1, interval: 0, delay: 4200 },
+      ],
+    },
+  ];
+}
+
+/**
+ * Titan Rush as a level. It is a normal finite campaign run — WaveManager owns
+ * the ending — but the economy is fat because a titan is not killable with a
+ * two-tower opening.
+ */
+export const TITAN_RUSH_LEVEL = {
+  id: 'titan-rush',
+  index: 6,
+  name: 'Titan Rush',
+  theme: 'volcanic',
+  map: 'volcanic',
+  blurb: 'Five titans, no trash. The Caldera holds its breath between them.',
+  startingCoins: 480,
+  baseHealth: 30,
+  enemyHealthScale: 0.9,
+  reward: { gold: 0, gems: 0 },
+  stars: { two: 0.5, three: 0.85 },
+  boss: 'obsidian',
+  mode: 'titan',
+  waves: makeTitanWaves(),
+};
+
+/**
+ * Time Attack: an endless horde on a three-minute clock.
+ *
+ * `timeLimitMs` is the whole rule — the scene counts it down, opens waves on
+ * its own and banks the score at zero. The core is deliberately generous: the
+ * clock, not the base, is what ends the run.
+ */
+export const TIME_ATTACK_LEVEL = {
+  id: 'time-attack',
+  index: 7,
+  name: 'Time Attack',
+  theme: 'grassland',
+  map: 'grassland',
+  blurb: 'Three minutes. No wave button. Every second you do not kill is a second you lose.',
+  endless: true,
+  timeLimitMs: 180_000,
+  startingCoins: 300,
+  baseHealth: 40,
+  enemyHealthScale: 0.85,
+  reward: { gold: 0, gems: 0 },
+  stars: { two: 0.5, three: 0.85 },
+  boss: 'warlord',
+  mode: 'time-attack',
+  waves: [],
+};
+
+/** Every selectable node: campaign, Endless, and the mode levels. */
+export const ALL_LEVELS = [...LEVELS, ENDLESS_LEVEL, TITAN_RUSH_LEVEL, TIME_ATTACK_LEVEL];
 
 /** Look up a level by id (defaults to the first campaign level). */
 export function getLevel(id) {

@@ -42,9 +42,10 @@ export function createLobbyState({
   isHost = true,
   arenaId = DEFAULT_ARENA_ID,
   seed = 1,
+  coop = false,
   now = 0,
 } = {}) {
-  const match = createMatch({ roomCode, arenaId, seed, totalWaves: PVP_RULES.waves, now });
+  const match = createMatch({ roomCode, arenaId, seed, totalWaves: PVP_RULES.waves, coop, now });
   if (isHost) renameSeat(match, 'p1', sanitiseName(name, 'Host'));
   return {
     roomCode,
@@ -53,6 +54,9 @@ export function createLobbyState({
     isHost,
     arenaId,
     seed,
+    // Co-op uses the whole duel engine — same arena, same wave script, same
+    // relay — and only changes what the verdict *means*: both cores must hold.
+    coop: Boolean(coop),
     status: MATCH_STATUS.LOBBY,
     countdownEndsAt: 0,
     match,
@@ -386,6 +390,7 @@ export function lobbyView(state) {
     // The seed deals the duel's contracts, so both seats derive the same three
     // from the same number instead of shipping them across the wire.
     seed: state.seed,
+    coop: Boolean(state.coop),
     totalWaves: state.match.totalWaves,
     countdownMs: state.status === MATCH_STATUS.COUNTDOWN ? Math.max(0, state.countdownEndsAt) : 0,
     results: state.match.seats.map((seat) => ({ id: seat.id, name: seat.name, result: seat.result })),
@@ -403,6 +408,9 @@ export function launchPayload(state, seat, extra = {}) {
       arenaId: state.arenaId,
       seed: state.seed,
       seat,
+      // Only co-op rooms carry the flag: a duel payload stays exactly the
+      // shape the two devices have always exchanged.
+      ...(state.coop ? { coop: true } : {}),
     },
     ...extra,
   };

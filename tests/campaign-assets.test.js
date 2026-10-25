@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ALL_LEVELS,
+  LEVELS,
   THEMES,
   ENDLESS_BOSSES,
   makeEndlessWave,
@@ -124,9 +125,10 @@ describe('campaign UI art', () => {
       expect(existsSync(file(UI, `map_${level.theme}.png`)), `map_${level.theme}.png missing`).toBe(true);
       expect(theme.accent).toMatch(/^#[0-9a-f]{6}$/i);
     }
-    // One biome per stage: the map is a tour of the campaign, not a repeat.
-    const maps = new Set(ALL_LEVELS.map((level) => level.theme));
-    expect(maps.size).toBe(ALL_LEVELS.length);
+    // One biome per *campaign* stage: the map is a tour, not a repeat. Mode
+    // levels deliberately reuse a biome (Time Attack is grassland again).
+    const maps = new Set(LEVELS.map((level) => level.theme));
+    expect(maps.size).toBe(LEVELS.length);
   });
 
   it('has every star, lock and wallet icon the overlays reference', () => {

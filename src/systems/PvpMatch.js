@@ -32,6 +32,10 @@ export const WIN_REASON = Object.freeze({
   CORE: 'core-hp',
   TIME: 'time',
   FORFEIT: 'forfeit',
+  // Co-op has no winner: the pair either holds the arena together or the pact
+  // breaks when either core falls.
+  PACT_HELD: 'pact-held',
+  PACT_BROKEN: 'pact-broken',
 });
 
 /** The other seat. Unknown ids fall back to p2 so a bad message can't crash. */
@@ -58,12 +62,20 @@ function emptySeat(id) {
  * @param {number} [spec.seed]
  * @param {number} [spec.totalWaves]
  */
-export function createMatch({ roomCode = null, arenaId, seed = 1, totalWaves = 0, now = 0 } = {}) {
+export function createMatch({
+  roomCode = null,
+  arenaId,
+  seed = 1,
+  totalWaves = 0,
+  coop = false,
+  now = 0,
+} = {}) {
   return {
     roomCode,
     arenaId,
     seed,
     totalWaves,
+    coop: Boolean(coop),
     status: MATCH_STATUS.LOBBY,
     seats: [emptySeat(SEATS[0]), emptySeat(SEATS[1])],
     startedAt: 0,
@@ -155,6 +167,37 @@ export function resolve(match) {
   const [a, b] = match.seats;
   const ra = a.result;
   const rb = b.result;
+
+  // 0. Co-op Siege: there is no winner, only a pact that holds or breaks.
+  //    Either core down = both lose, because the two boards are one fate.
+  //    Two clears = both win. Everything in between waits for both seats.
+  if (match.coop) {
+    if (ra?.outcome === 'ko' || rb?.outcome === 'ko') {
+      return {
+        winner: null,
+        loser: null,
+        reason: WIN_REASON.PACT_BROKEN,
+        decided: true,
+        waiting: false,
+        draw: false,
+        coop: true,
+        pact: 'broken',
+      };
+    }
+    if (ra?.outcome === 'cleared' && rb?.outcome === 'cleared') {
+      return {
+        winner: null,
+        loser: null,
+        reason: WIN_REASON.PACT_HELD,
+        decided: true,
+        waiting: false,
+        draw: false,
+        coop: true,
+        pact: 'held',
+      };
+    }
+    return { winner: null, loser: null, reason: null, decided: false, waiting: true, draw: false, coop: true };
+  }
 
   // 1. Knockout ends the match the moment it happens, whoever has finished.
   if (ra?.outcome === 'ko' || rb?.outcome === 'ko') {
@@ -298,6 +341,11 @@ export function scoreboard(match) {
 /** Human-readable one-liner for the result panel. */
 export function describeResult(match) {
   if (match.status !== MATCH_STATUS.OVER) return 'Match in progress';
+  if (match.coop) {
+    return match.reason === WIN_REASON.PACT_HELD
+      ? 'Pact held — both cores stand'
+      : 'Pact broken — a core fell';
+  }
   if (match.draw) return 'Draw — nobody takes the arena';
   const winner = getSeat(match, match.winner);
   const label = winner?.name || match.winner;

@@ -11,6 +11,8 @@ import { LevelSelectUI } from './ui/LevelSelectUI.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
 import { PvpLobbyUI } from './ui/PvpLobbyUI.js';
 import { DuelResultUI } from './ui/DuelResultUI.js';
+import { ModesUI } from './ui/ModesUI.js';
+import { DraftPanel } from './ui/DraftPanel.js';
 import { ProgressStore } from './systems/Progression.js';
 import { AchievementsUI } from './ui/AchievementsUI.js';
 import { ForgeUI } from './ui/ForgeUI.js';
@@ -97,6 +99,15 @@ window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, 
 const menuOverlay = () => document.getElementById('main-menu-overlay');
 const hudLayer = () => document.getElementById('hud-container');
 
+/**
+ * What the last battle was launched with.
+ *
+ * A mode run is a level *plus* flags — Rogue Siege is Endless with `rogue`, a
+ * Blueprint is `puzzle-<id>`. Replay and Retry re-launch this payload verbatim,
+ * otherwise a replay would silently drop the player into plain Endless.
+ */
+let lastLaunch = null;
+
 /** World map. The main menu is its own overlay, so hide that first. */
 /** Reveal the world map and clear every other layer. */
 function showLevelSelect() {
@@ -142,12 +153,18 @@ function startLevel(levelId = 'level-1', options = {}) {
   const menuScene = game.scene.getScene('MenuScene');
   // A daily run rides on the same scene contract: `dailyKey` + `dailyModifier`
   // (see GameScene.init). Everything else is the normal level boot.
+  // Mode flags (`rogue`, `anomaly`, `ascension`, `contracts`, `seed`) are spread
+  // through untouched, so adding a mode never means editing this function.
+  const { dailyKey = null, dailyModifier = null, pvp = null, ...modeOptions } = options || {};
   const payload = {
     levelId,
-    dailyKey: options.dailyKey || null,
-    dailyModifier: options.dailyModifier || null,
-    pvp: options.pvp || null,
+    dailyKey,
+    dailyModifier,
+    pvp,
+    ...modeOptions,
   };
+  // Replay / Retry must land back in the *same* mode, not the bare level.
+  lastLaunch = { levelId, options: { ...payload } };
 
   if (gameScene?.scene?.isActive()) {
     // Next / Replay / a new node picked after a battle: restart in place.
@@ -311,6 +328,11 @@ window.gameFlow = {
   leaveDuelRoom,
   pauseBattle,
   stopDuelScene,
+  openModes: () => window.gameModes?.show(),
+  /** What the last battle was launched with — Replay reads it. */
+  get lastLaunch() {
+    return lastLaunch;
+  },
 };
 
 window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
@@ -358,7 +380,16 @@ window.gameResultScreen = new ResultScreenUI(screenContainer, {
     const level = window.gameResultScreen?.result?.level;
     startLevel(getNextLevel(level?.id)?.id || 'level-1');
   },
-  onReplay: () => startLevel(window.gameResultScreen?.result?.level?.id || 'level-1'),
+  onReplay: () => {
+    const levelId = window.gameResultScreen?.result?.level?.id || 'level-1';
+    // Same level as the run just finished → replay the run, flags and all.
+    if (lastLaunch?.levelId === levelId) {
+      const { levelId: _id, ...options } = lastLaunch.options;
+      startLevel(levelId, options);
+      return;
+    }
+    startLevel(levelId);
+  },
   onMenu: () => openMainMenu(),
   onLeaderboard: (result) =>
     window.gameLeaderboardUI.show({
@@ -402,6 +433,29 @@ window.gamePvpLobby = new PvpLobbyUI(screenContainer, {
     stopDuelScene();
   },
 });
+
+/**
+ * The War Room: the six non-campaign modes plus the Blueprint picker.
+ * `onCoop` reuses the duel lobby — same room, same relay, different verdict.
+ */
+window.gameModes = new ModesUI(modalContainer, {
+  onLaunch: (mode) => {
+    audio.playVictory();
+    startLevel(mode.levelId, mode.options || {});
+  },
+  onPuzzle: (puzzleId) => {
+    audio.playVictory();
+    startLevel(`puzzle-${puzzleId}`);
+  },
+  onCoop: () => {
+    audio.playClick();
+    window.gamePvpLobby?.show({ coop: true });
+  },
+});
+
+// Rogue Siege card picks and the Ascension fork. Lives in the modal layer so it
+// paints over the HUD without moving it.
+window.gameDraft = new DraftPanel(modalContainer);
 
 // Setup Statistics Panel (Codex)
 const getGameScene = () => game.scene.getScene('GameScene');
@@ -606,6 +660,11 @@ document.getElementById('menu-btn-daily')?.addEventListener('click', () => {
 document.getElementById('menu-btn-duel')?.addEventListener('click', () => {
   audio.playClick();
   window.gamePvpLobby?.show();
+});
+
+document.getElementById('menu-btn-modes')?.addEventListener('click', () => {
+  audio.playClick();
+  window.gameModes?.show();
 });
 
 document.getElementById('menu-btn-achievements')?.addEventListener('click', () => {
