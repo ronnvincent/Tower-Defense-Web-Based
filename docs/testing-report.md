@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 740 tests across 57 test suites.
-- **Pass Rate:** **100% (740 / 740 Passed)**
+- **Total Automated Unit Tests:** 747 tests across 57 test suites.
+- **Pass Rate:** **100% (747 / 747 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -21,11 +21,13 @@ The Mirror Arena adds three suites that need no network and no GPU:
 
 ### 1.2 Upgrade-feel coverage
 
-The per-tier art pass is pinned by `tests/tower-decor.test.js` (14 tests):
+The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
 
 | What it proves | Why it matters |
 | --- | --- |
-| Every line ships a pennant, a shard and a hung standard, and all 24 decoration files exist on disk | A missing file silently degrades a maxed tower back to a plain keep |
+| Every line ships a pennant, a shard and a hung standard, and all 40 decoration files exist on disk | A missing file silently degrades a maxed tower back to a plain keep |
+| An engineer tower wears the iron gun rail and its own stamped standard, while a keep wears battlements | Twelve lines must not blur into one silhouette |
+| The five engineer sprits are decoded and compared by alpha mask, pairwise | A recolour keeps the exact mask, so "different shape" becomes a thing a test can prove |
 | Level 1 has no decoration; 2 adds a crown + two pennants; 3 adds a plinth + standard; 4 lights two braziers; 5 floats two shards | The tier ladder is a *strict superset*, so every upgrade changes the silhouette |
 | The crown widens and the shards hover above it (never beside the flags) | Geometry, not palette, is what reads as "stronger" at 64 px |
 | `projectileArtFor()` returns the line's own shot at 4/5 and the banner bolt at 1–3, and `Tower.projectileArt` falls back to branch art when a texture is missing | Each line fires a different object, and a texture hiccup costs art, not a crash |

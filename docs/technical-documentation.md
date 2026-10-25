@@ -323,6 +323,15 @@ Projectiles get the same treatment: `src/data/projectileArt.js` maps each line
 to its own level-4/5 shot, and `Tower.projectileArt` prefers it. The Banner Keep
 now fires a golden `proj-banner` instead of borrowing the archer's arrow.
 
+### Reading a defence at a glance
+
+The inspector reports **DPS** next to damage, range and cooldown, because the
+roster cannot be compared on damage alone: an 8-damage repeater out-damages a
+75-damage harpoon. The figure is `damage × ability.shots / cooldown` (so a
+capstone's extra volley is included), and a DoT line adds its tick rate as a
+quieter `+N burn` / `+N poison` suffix — the rate the shot keeps dealing while
+the target stays lit, not a guess at uptime.
+
 ### Powerups (`src/systems/Powerups.js`)
 
 Three hand-played tricks with independent cooldowns, on `Q` / `E` / `R` (the

@@ -224,6 +224,53 @@ describe('HUD markup', () => {
     expect(hint.classList.contains('hidden')).toBe(true);
   });
 
+  it('inspector reports throughput, and names the burn share on a DoT line', () => {
+    const hud = mountHud();
+    // A crossbow: 34 damage every 0.95 s is ~36 DPS, no DoT share.
+    hud.inspectTower(
+      makeTower({ stats: { title: 'Iron Crossbow', damage: 34, range: 175, cooldown: 950, damageType: 'physical' } })
+    );
+    let stats = document.getElementById('inspect-stats').textContent;
+    expect(stats).toContain('DPS');
+    expect(stats).toContain('36');
+    expect(stats).not.toContain('burn');
+
+    // A siphon: the burn is part of the pitch, so it is named separately.
+    hud.inspectTower(
+      makeTower({
+        stats: {
+          title: 'Pitchfire Siphon',
+          damage: 18,
+          range: 105,
+          cooldown: 900,
+          damageType: 'fire',
+          dot: { kind: 'burn', damage: 6, tickMs: 500, durationMs: 2500 },
+        },
+      })
+    );
+    stats = document.getElementById('inspect-stats').textContent;
+    expect(stats).toContain('20');
+    expect(stats).toContain('+12 burn');
+  });
+
+  it('adds the bonus shots of a capstone to the DPS line', () => {
+    const hud = mountHud();
+    hud.inspectTower(
+      makeTower({
+        stats: {
+          title: 'Storm Repeater',
+          damage: 10,
+          range: 118,
+          cooldown: 90,
+          damageType: 'physical',
+          ability: { label: 'Storm Volley', shots: 2 },
+        },
+      })
+    );
+    // 10 damage x 2 shots every 0.09 s would read as 111 DPS.
+    expect(document.getElementById('inspect-stats').textContent).toContain('222');
+  });
+
   it('inspector shows stats, upgrades and closes cleanly', () => {
     const onUpgradeTower = vi.fn();
     const onSellTower = vi.fn();

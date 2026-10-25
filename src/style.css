@@ -1923,6 +1923,15 @@ body.is-fullscreen::before {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
+/* The DoT share of a tower's DPS, quieter than the headline number. */
+.stat-cell .dps-extra {
+  margin-left: 3px;
+  font-size: 0.72em;
+  letter-spacing: 0.02em;
+  color: var(--slot-muted);
+  white-space: nowrap;
+}
+
 .stat-cell .val {
   font-size: var(--fs-small);
   font-weight: 700;

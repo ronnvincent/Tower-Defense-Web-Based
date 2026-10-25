@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Tower } from '../src/entities/Tower.js';
-import { DECOR_ART } from '../src/data/towerDecor.js';
+import { DECOR_ART, DECOR_CROWN } from '../src/data/towerDecor.js';
+import { ENGINEER_LINES } from '../src/data/engineerDefenses.js';
+import { readPngAlpha, silhouetteDifference } from './helpers/png.js';
 import {
   LINE_BASE_PROJECTILE,
   TIERED_PROJECTILES,
@@ -178,21 +180,71 @@ function decorKeys(tower) {
   return (tower.decorParts || []).map((part) => part.key);
 }
 
+const CORE_LINES = ['archer', 'cannon', 'frost', 'forge', 'runes', 'banner'];
+
+const decorPath = (key) => path.join(ROOT, 'public/assets/towers/deco', DECOR_ART[key]);
+
 describe('tower decoration art', () => {
-  it('ships a pennant, shard and standard for all six defence lines', () => {
-    for (const line of ['archer', 'cannon', 'frost', 'forge', 'runes', 'banner']) {
+  it('ships a pennant, shard and standard for all eleven defence lines', () => {
+    for (const line of [...CORE_LINES, ...ENGINEER_LINES]) {
       for (const piece of ['pennant', 'crystal', 'cloth']) {
         const key = `${piece}-${line}`;
-        expect(DECOR_ART[key]).toBe(`${key}.png`);
-        expect(existsSync(path.join(ROOT, 'public/assets/towers/deco', DECOR_ART[key]))).toBe(true);
+        expect(DECOR_ART[key], key).toBe(`${key}.png`);
+        expect(existsSync(decorPath(key)), `${key} missing on disk`).toBe(true);
       }
     }
   });
 
   it('ships the shared pieces the tiers are built from', () => {
-    for (const key of ['deco-parapet', 'deco-plinth', 'deco-brazier', 'deco-flame-0', 'deco-flame-1', 'deco-flame-2']) {
+    for (const key of [
+      'deco-parapet',
+      'deco-rail',
+      'deco-plinth',
+      'deco-brazier',
+      'deco-flame-0',
+      'deco-flame-1',
+      'deco-flame-2',
+    ]) {
       expect(DECOR_ART[key], key).toBeTruthy();
-      expect(existsSync(path.join(ROOT, 'public/assets/towers/deco', DECOR_ART[key]))).toBe(true);
+      expect(existsSync(decorPath(key)), key).toBe(true);
+    }
+  });
+
+  it('names a crown for each family, and both crowns ship', () => {
+    expect(DECOR_CROWN.core).toBe('deco-parapet');
+    expect(DECOR_CROWN.engineer).toBe('deco-rail');
+    for (const key of Object.values(DECOR_CROWN)) {
+      expect(DECOR_ART[key], key).toBeTruthy();
+      expect(existsSync(decorPath(key)), key).toBe(true);
+    }
+  });
+
+  it('gives every engineer line its own sprit silhouette, not a recolour', () => {
+    // A recolour keeps the exact alpha mask, so pairwise silhouette difference
+    // is the honest test: the five engineer shards must each be their own shape.
+    const masks = ENGINEER_LINES.map((line) => readPngAlpha(decorPath(`crystal-${line}`)));
+    for (let i = 0; i < masks.length; i += 1) {
+      for (let j = i + 1; j < masks.length; j += 1) {
+        const difference = silhouetteDifference(masks[i], masks[j]);
+        expect(
+          difference,
+          `${ENGINEER_LINES[i]} and ${ENGINEER_LINES[j]} share a silhouette`
+        ).toBeGreaterThan(0.12);
+      }
+    }
+    // And the engineer family is taller than the keep shard, so the two
+    // families do not read as the same decoration at a glance.
+    const keep = readPngAlpha(decorPath('crystal-archer'));
+    expect(masks[0].width).toBeGreaterThan(keep.width);
+    expect(masks[0].height).toBeGreaterThan(keep.height);
+  });
+
+  it('stamps the engineer pennants, and flies them larger than a keep pennant', () => {
+    const keepPennant = readPngAlpha(decorPath('pennant-archer'));
+    for (const line of ENGINEER_LINES) {
+      const pennant = readPngAlpha(decorPath(`pennant-${line}`));
+      expect(pennant.width, line).toBeGreaterThan(keepPennant.width);
+      expect(pennant.height, line).toBeGreaterThan(keepPennant.height);
     }
   });
 });
@@ -209,6 +261,22 @@ describe('geometry changes per tier', () => {
     expect(keys).toContain('deco-parapet');
     expect(keys.filter((key) => key === 'pennant-archer')).toHaveLength(2);
     expect(tower.decorParts.length).toBe(3);
+  });
+
+  it('an engineer tower wears the iron gun rail instead of battlements', () => {
+    const { tower } = towerAtLevel(2, {}, 'gatling');
+    const keys = decorKeys(tower);
+    expect(keys).toContain('deco-rail');
+    expect(keys).not.toContain('deco-parapet');
+    expect(keys.filter((key) => key === 'pennant-gatling')).toHaveLength(2);
+  });
+
+  it('a level 5 engineer tower floats its own sprit, not the keep shard', () => {
+    const { tower } = towerAtLevel(5, {}, 'venom');
+    const keys = decorKeys(tower);
+    expect(keys.filter((key) => key === 'crystal-venom')).toHaveLength(2);
+    expect(keys).not.toContain('crystal-archer');
+    expect(keys).toContain('cloth-venom');
   });
 
   it('level 3 adds a fortified footing and a hung battle standard', () => {

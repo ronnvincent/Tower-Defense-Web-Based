@@ -36,6 +36,11 @@ DIM = (140, 155, 178, 255)
 
 LINES = [
     ("ARCHER", "archer"),
+    ("IRON CROSSBOW", "crossbow"),
+    ("CLOCKWORK REPEATER", "gatling"),
+    ("PITCHFIRE SIPHON", "flamer"),
+    ("VENOM STILL", "venom"),
+    ("HARPOON WINCH", "harpoon"),
     ("CANNON", "cannon"),
     ("FROST", "frost"),
     ("HAMMERFORGE", "forge"),
@@ -72,6 +77,27 @@ def read_slot_layout():
             "py": int(m.group(8)),
             "mount": int(m.group(9)),
         }
+    # The engineer lines live in their own generated manifest (their slots are
+    # 128 px weapon frames with measured pivots), so fold them into the same map.
+    engineer_src = open(os.path.join(ROOT, "src", "data", "engineerTowerArt.js")).read()
+    for line, body in re.findall(r"  (\w+): \{\n(.*?)\n  \},", engineer_src, re.S):
+        for m in re.finditer(
+            r"'([\w-]+)': \{ base: '([\w.-]+)', weapon: '([\w.-]+)', fw: (\d+), fh: (\d+), "
+            r"frames: (\d+), px: (\d+), py: (\d+), mount: (\d+)",
+            body,
+        ):
+            slot_name = m.group(1)
+            # Level 1 is keyed by the line alone, exactly like the keep slots.
+            layout[line if slot_name == "lvl1" else f"{line}-{slot_name}"] = {
+                "base": m.group(2),
+                "weapon": m.group(3),
+                "fw": int(m.group(4)),
+                "fh": int(m.group(5)),
+                "frames": int(m.group(6)),
+                "px": int(m.group(7)),
+                "py": int(m.group(8)),
+                "mount": int(m.group(9)),
+            }
     return layout
 
 
@@ -124,7 +150,7 @@ def main():
         body.alpha_composite(art, (margin + 20 + i * 90, y + 20))
         draw.text((margin + 8 + i * 90, y + 104),
                   "L1 wood" if i == 0 else "L2 iron", font=font(13), fill=DIM)
-    for i, key in enumerate(["archer", "cannon", "frost", "barricade", "forge", "runes", "banner"]):
+    for i, key in enumerate(["archer", "crossbow", "gatling", "flamer", "venom", "harpoon", "cannon", "frost", "barricade", "forge", "runes", "banner"]):
         card = Image.open(os.path.join(UI, f"card_{key}.png")).convert("RGBA")
         x = margin + 210 + i * 84
         body.alpha_composite(card, (x, y + 20))

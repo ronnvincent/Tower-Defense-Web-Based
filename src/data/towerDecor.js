@@ -9,6 +9,7 @@
 /** Static pieces shared by every line: texture key -> file. */
 export const DECOR_ART = {
   'deco-parapet': 'parapet.png',
+  'deco-rail': 'rail.png',
   'deco-plinth': 'plinth.png',
   'deco-brazier': 'brazier.png',
   'deco-flame-0': 'flame-0.png',
@@ -32,7 +33,25 @@ export const DECOR_ART = {
   'pennant-banner': 'pennant-banner.png',
   'crystal-banner': 'crystal-banner.png',
   'cloth-banner': 'cloth-banner.png',
+  'pennant-crossbow': 'pennant-crossbow.png',
+  'crystal-crossbow': 'crystal-crossbow.png',
+  'cloth-crossbow': 'cloth-crossbow.png',
+  'pennant-gatling': 'pennant-gatling.png',
+  'crystal-gatling': 'crystal-gatling.png',
+  'cloth-gatling': 'cloth-gatling.png',
+  'pennant-flamer': 'pennant-flamer.png',
+  'crystal-flamer': 'crystal-flamer.png',
+  'cloth-flamer': 'cloth-flamer.png',
+  'pennant-venom': 'pennant-venom.png',
+  'crystal-venom': 'crystal-venom.png',
+  'cloth-venom': 'cloth-venom.png',
+  'pennant-harpoon': 'pennant-harpoon.png',
+  'crystal-harpoon': 'crystal-harpoon.png',
+  'cloth-harpoon': 'cloth-harpoon.png',
 };
+
+/** Which crown each family wears: castle battlements vs an iron gun rail. */
+export const DECOR_CROWN = { core: 'deco-parapet', engineer: 'deco-rail' };
 
 /** Number of flame frames in the flicker loop. */
 export const FLAME_FRAMES = 3;

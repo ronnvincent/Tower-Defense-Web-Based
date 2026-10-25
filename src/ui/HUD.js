@@ -891,6 +891,7 @@ export class HUD {
         <div class="stat-cell"><span class="lbl">DAMAGE</span><span class="val">${s.damage}</span></div>
         <div class="stat-cell"><span class="lbl">RANGE</span><span class="val">${s.range}px</span></div>
         <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s</span></div>
+        <div class="stat-cell"><span class="lbl">DPS</span><span class="val">${this.describeDps(s)}</span></div>
         <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SIGNATURE</span><span class="val">${this.describeAbility(s)}</span></div>
@@ -904,6 +905,25 @@ export class HUD {
 
     if (anchorRatio) this.inspectorAnchorRatio = anchorRatio;
     this.repositionInspector();
+  }
+
+  /**
+   * Throughput in one number, plus the burn/poison share when there is one.
+   *
+   * Twelve lines cannot be compared on damage and cooldown alone: an 8-damage
+   * repeater out-damages a 75-damage harpoon, and a siphon's damage is mostly in
+   * the fire it leaves behind. The inspector states the direct rate and, for a
+   * DoT line, the extra damage per second its shot keeps ticking while lit.
+   */
+  describeDps(s) {
+    if (!s) return '—';
+    const seconds = Math.max(0.06, (s.cooldown || 0) / 1000);
+    const shots = Math.max(1, s.ability?.shots || 1);
+    const direct = Math.round(((s.damage || 0) * shots) / seconds);
+    if (!s.dot?.damage || !s.dot?.tickMs) return `${direct}`;
+    const kind = s.dot.kind === 'poison' ? 'poison' : 'burn';
+    const dotRate = Math.round(s.dot.damage / (Math.max(100, s.dot.tickMs) / 1000));
+    return `${direct} <span class="dps-extra">+${dotRate} ${kind}</span>`;
   }
 
   describeSpecial(s) {

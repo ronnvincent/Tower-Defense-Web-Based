@@ -147,10 +147,22 @@ metadata in `src/data/towerDecor.js`) and attached at runtime by
 
 | Tier | Sprite | Anchor |
 | --- | --- | --- |
-| 2 | `parapet.png` + `pennant-<line>.png` ×2 | crown behind the keep's top, flags on its edges |
+| 2 | `parapet.png` (keeps) / `rail.png` (engineer) + `pennant-<line>.png` ×2 | crown behind the keep's top, flags on its edges |
 | 3 | `plinth.png` + `cloth-<line>.png` | footing at the ground line, standard hung under the crown |
 | 4 | `brazier.png` + `flame-0..2.png` ×2 | base corners, ADD blend, 120 ms frame cycle |
 | 5 | `crystal-<line>.png` ×2 | hovering above the crown, opposite-phase bob |
+
+**Eleven lines, two crowns.** All eleven lines ship their own pennant, standard
+and tier-5 sprit (`DECOR_ART`). The six Spire keeps fly a plain cloth under a
+stone merlon crown; the five engineer lines fly a **larger, stamped** cloth
+(18 × 36 vs 14 × 30) under an **iron gun rail** (`rail.png`) with a barrel
+cradle, because a repeater under castle battlements looked wrong. Each engineer
+mark is a real silhouette — bolt, cog, flame, bubble cluster, barbed hook — and
+each tier-5 sprit is a matching shape (lance tip, gear, jagged ember, bubble
+cluster, barbed shard) drawn on a taller canvas than the keep shard.
+`tests/tower-decor.test.js` decodes the alpha channel of the five sprits and
+fails if any two share a silhouette, so "recolour and call it different" cannot
+sneak back in.
 
 Rebuilding the keeps from the source packs was still rejected: every pivot,
 mount height and muzzle offset in `towerVisuals.js` is calibrated to the

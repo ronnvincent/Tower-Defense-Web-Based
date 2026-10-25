@@ -7,7 +7,8 @@ import {
   NON_ROTATING_TYPES,
   MUZZLE_OFFSET,
 } from '../data/towerVisuals.js';
-import { DECOR_ART } from '../data/towerDecor.js';
+import { DECOR_ART, DECOR_CROWN } from '../data/towerDecor.js';
+import { ENGINEER_LINES } from '../data/engineerDefenses.js';
 import { projectileArtFor } from '../data/projectileArt.js';
 import { Projectile } from './Projectile.js';
 import { aimAngle, canFire, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
@@ -385,6 +386,10 @@ export class Tower {
     const ground = TILE_SIZE / 2;
     const topY = ground - this.artHeight;
     const line = DECOR_ART[`pennant-${this.typeKey}`] ? this.typeKey : 'archer';
+    // Engineer lines are gun emplacements, not castles: they wear an iron rail
+    // with a barrel cradle instead of stone battlements. The map lives in the
+    // generated decor manifest so a new family only has to add art, not code.
+    const crownKey = ENGINEER_LINES.includes(this.typeKey) ? DECOR_CROWN.engineer : DECOR_CROWN.core;
     const parts = this.decorParts;
 
     // --- tier 2: merlon crown + pennants ---------------------------------
@@ -393,9 +398,9 @@ export class Tower {
     const crownScale = 1 + (level - 2) * 0.06;
     const flagX = 24 + (level - 2) * 3;
 
-    if (this.hasDecor('deco-parapet')) {
+    if (this.hasDecor(crownKey)) {
       const crown = this.scene.add
-        .image(0, topY + 4, 'deco-parapet')
+        .image(0, topY + 4, crownKey)
         .setOrigin(0.5, 1)
         .setScale(crownScale);
       this.decorBack.add(crown);
