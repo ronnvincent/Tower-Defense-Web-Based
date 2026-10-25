@@ -266,6 +266,13 @@ the screen: `flipX = (travelX < 0) ≠ (profileFacing === 'west')`.
 | --- | --- |
 | grunt, runner, healer, colossus, warlord, magmalord, prismlord, voidherald | brute, swarm, shield, sandwyrm, frostwarden, obsidian |
 
+![The horde walking east, north and south](asset-integration/walk-orientation.png)
+
+*Real render, headless Chromium. Top: crossing a horizontal lane on the profile
+row — the scorpion and the clam beetle are mirrored because their art is inked
+looking west. Middle: walking away from the camera. Bottom: walking towards it.
+Every cell reports `rotation = 0`.*
+
 Bosses are scaled and re-graded from those same strips, so they carry the source
 creature's facing instead of being re-measured: `sandwyrm`/`obsidian` look west
 with `brute`/`swarm`, `frostwarden` with `shield`, and `magmalord`/`prismlord`/
