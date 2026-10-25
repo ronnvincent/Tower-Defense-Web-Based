@@ -648,17 +648,28 @@ export class HUD {
     if (!state) {
       strip.classList.add('hidden');
       strip.classList.remove('rival-down', 'rival-done');
+      this.rivalSignature = null;
       return;
     }
-    strip.classList.remove('hidden');
+
     const waves = Math.max(1, Number(state.totalWaves) || 8);
     const wave = Math.max(0, Number(state.wave) || 0);
+    const score = Number(state.score || 0).toLocaleString();
+    const hp = Number.isFinite(state.coreHp) ? Math.max(0, Number(state.coreHp)) : waves;
+    const maxHp = Math.max(1, Number(state.maxCoreHp) || 25);
+
+    // The strip is fed at 2 Hz; a caller on the frame loop must not be able to
+    // turn that into 60 style writes a second. Bail out before touching the DOM
+    // when nothing the strip shows has moved.
+    const signature = `${state.name}|${wave}|${waves}|${score}|${hp}|${maxHp}|${state.outcome || ''}`;
+    if (this.rivalSignature === signature && !strip.classList.contains('hidden')) return;
+    this.rivalSignature = signature;
+
+    strip.classList.remove('hidden');
     this.setText('rival-name', String(state.name || 'CHALLENGER').toUpperCase().slice(0, 16));
     this.setText('rival-wave', String(wave));
     this.setText('rival-waves', String(waves));
-    this.setText('rival-score', Number(state.score || 0).toLocaleString());
-    const hp = Number.isFinite(state.coreHp) ? Math.max(0, Number(state.coreHp)) : waves;
-    const maxHp = Math.max(1, Number(state.maxCoreHp) || 25);
+    this.setText('rival-score', score);
     const fill = document.getElementById('rival-core-fill');
     if (fill) fill.style.width = `${Math.max(0, Math.min(1, hp / maxHp)) * 100}%`;
     strip.classList.toggle('rival-down', hp <= 0);

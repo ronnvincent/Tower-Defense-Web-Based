@@ -282,8 +282,15 @@ export function snapshot(state, now = 0) {
   };
 }
 
-/** Apply a host snapshot on a joining client. */
-export function adoptSnapshot(state, snap) {
+/**
+ * Apply a host snapshot on a joining client.
+ *
+ * Absolute host timestamps are meaningless on another machine — the snapshot
+ * carries `countdownRemaining` instead — so the deadline is rebuilt from this
+ * client's own clock, which is why a phone whose clock is minutes off still
+ * starts its countdown correctly.
+ */
+export function adoptSnapshot(state, snap, now = Date.now()) {
   if (!snap || snap.roomCode !== state.roomCode) return state;
   state.hostId = snap.hostId;
   state.isHost = snap.hostId === state.selfId;
@@ -291,7 +298,7 @@ export function adoptSnapshot(state, snap) {
   state.seed = snap.seed;
   state.status = snap.status;
   state.countdownEndsAt = snap.status === MATCH_STATUS.COUNTDOWN
-    ? Date.now() + (snap.countdownRemaining || 0)
+    ? now + (snap.countdownRemaining || 0)
     : 0;
   state.clients = (snap.clients || []).map((client) => ({ ...client }));
   state.match.roomCode = snap.roomCode;

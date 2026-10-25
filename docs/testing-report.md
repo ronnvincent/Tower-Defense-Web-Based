@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 874 tests across 71 test suites.
-- **Pass Rate:** **100% (874 / 874 Passed)**
+- **Total Automated Unit Tests:** 889 tests across 74 test suites.
+- **Pass Rate:** **100% (889 / 889 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -21,6 +21,9 @@ The Mirror Arena adds three suites that need no network and no GPU:
 | `tests/duel-link.test.js` | 12 | The room-link UI: ONLINE is the default, the chips switch the transport the room is built with, the badge follows `open`/`closed`, the error line lives outside the entry grid so it is visible mid-room, the join button spells out `DIALING RELAY…` / `WAITING FOR HOST…`, the RELAY ADDRESS field saving/validating/resetting an override, and it opening itself when a dial fails on a host with no relay. |
 | `tests/pvp-relay.test.js` | 13 | **Real sockets against a real relay process.** It spawns `server/pvp-relay.mjs` on a free port and drives two genuine `PvpRoom` clients over the wire: host creates, guest joins, 2 seats, both ready, start, countdown, launch on both, live progress, knockout verdict on both, rematch. Also: a guest that arrives *before* the host is held and then seated, an unknown code is refused with the exact sentence the lobby prints, a third challenger is refused, a host that disappears mid-duel produces a forfeit verdict, a dead relay fails in ~3 s naming the exact address, and a hostname that is not this machine gets the "static host has no relay process" wording. Plus the transport-choice table as pure functions. |
 | `tests/relay-address.test.js` | 8 | The address resolver: `wss://`, `https://`, bare hosts, `host:port`, custom paths, junk rejection, `?relay=`, saved override, and the documented precedence saved → link → `VITE_PVP_RELAY` → same origin. |
+| `tests/pvp-sync.test.js` | 6 | **Is it live, and does it stay in sync?** Both seats byte-identical after every lobby change (this is the test that caught the host's arena pick never being broadcast), intent→rival-strip latency measured over real sockets, a four-minute clock skew that still starts both countdowns together, a 120-message burst that arrives in order with no stale score, an unchanged heartbeat that is not sent, and the per-snapshot cost. |
+| `tests/duel-telemetry.test.js` | 5 | The HUD's work budget: 60 fps becomes ≤ 9 rival paints and 2 reports a second; `progressKey` treats an unchanged heartbeat as nothing to say. |
+| `tests/rival-strip.test.js` | 4 | The strip in jsdom: repeated identical states do not touch the DOM, one changed number repaints, a knockout repaints even with frozen numbers, and hide/show re-arms. |
 
 > Why the relay test has to exist: `BroadcastChannel` is same-origin **and same-browser**,
 > so it can never prove two-device play. The suite above is the only test in the repo
@@ -237,8 +240,8 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  71 passed (71)
-Tests       874 passed (874)
+Test Files  74 passed (74)
+Tests       889 passed (889)
 Duration    34.2s
 ```
 

@@ -32,6 +32,7 @@ import {
 } from './LobbyState.js';
 import { MSG, OP, envelope, isValidRoomCode, makeRoomCode, normaliseRoomCode } from './lobbyProtocol.js';
 import { forfeit, opponentOf } from '../systems/PvpMatch.js';
+import { progressKey } from '../systems/DuelTelemetry.js';
 import { TRANSPORT, createTransport, linkError } from './transports.js';
 
 /** A joiner that hears nothing from the host for this long is told so. */
@@ -69,6 +70,8 @@ export class PvpRoom {
     /** True once the host has actually spoken to us. */
     this.peerSeen = false;
     this.peerWarned = false;
+    /** Last progress payload put on the wire; null forces the next one. */
+    this.lastProgressKey = null;
   }
 
   /* --------------------------------------------------------------- events */
@@ -117,6 +120,7 @@ export class PvpRoom {
     this.closed = false;
     this.peerSeen = false;
     this.peerWarned = false;
+    this.lastProgressKey = null;
     const roomCode = code ? normaliseRoomCode(code) : makeRoomCode();
     this.state = createLobbyState({
       roomCode,
@@ -136,6 +140,7 @@ export class PvpRoom {
     this.closed = false;
     this.peerSeen = false;
     this.peerWarned = false;
+    this.lastProgressKey = null;
     const roomCode = normaliseRoomCode(code);
     if (!isValidRoomCode(roomCode)) throw new Error('That room code is not valid');
     this.state = createLobbyState({
@@ -191,12 +196,10 @@ export class PvpRoom {
 
   pickArena(arenaId) {
     if (this.state?.isHost) {
-      const { changed } = applyIntent(this.state, {
-        clientId: this.selfId,
-        op: OP.ARENA,
-        payload: { arenaId },
-      }, this.now());
-      if (changed) this.#publish();
+      // Goes through the local-intent path so the challenger is *told*: this
+      // used to publish only to the host's own view, and the pick reached the
+      // other seat whenever the next unrelated broadcast happened to fire.
+      this.#applyLocalIntent({ clientId: this.selfId, op: OP.ARENA, payload: { arenaId } });
       return;
     }
     this.#sendIntent(OP.ARENA, { arenaId });
@@ -206,9 +209,18 @@ export class PvpRoom {
     this.#sendIntent(OP.START, {});
   }
 
-  /** Mid-match heartbeat so both players can watch each other. */
+  /**
+   * Mid-match heartbeat so both players can watch each other.
+   *
+   * Identical ticks are dropped before they reach the wire: most of a quiet
+   * wave is the same four numbers, and every accepted tick costs the host a
+   * reducer run plus a snapshot to both seats.
+   */
   reportProgress(progress) {
     if (!this.state || this.state.status !== 'live') return;
+    const key = progressKey(progress);
+    if (key === this.lastProgressKey) return;
+    this.lastProgressKey = key;
     this.#sendIntent(OP.PROGRESS, progress);
   }
 
@@ -277,7 +289,7 @@ export class PvpRoom {
       case MSG.SYNC: {
         if (this.state?.isHost) return;
         this.peerSeen = true;
-        adoptSnapshot(this.state, message.payload);
+        adoptSnapshot(this.state, message.payload, this.now());
         this.#publish();
         this.#maybeLaunch();
         // The joiner is not the authority, so the end of a match arrives as a
@@ -393,6 +405,7 @@ export class PvpRoom {
     const seat = this.seat;
     if (!seat) return;
     this.launched = true;
+    this.lastProgressKey = null;
     this.emit(ROOM_EVENTS.LAUNCH, {
       pvp: {
         roomCode: this.state.roomCode,

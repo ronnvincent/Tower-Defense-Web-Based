@@ -38,6 +38,7 @@ import { audio } from '../rendering/AudioSynth.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { relicBonuses } from '../systems/Relics.js';
+import { telemetryPlan } from '../systems/DuelTelemetry.js';
 import { blessingBonuses, canBuyBlessing, getBlessing } from '../systems/Blessings.js';
 import { CameraRig } from '../camera/CameraRig.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
@@ -1743,31 +1744,39 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Duel telemetry: paint the rival strip, and every ~0.7 s push my own wave /
+   * Duel telemetry: paint the rival strip, and every 0.5 s push my own wave /
    * points / core HP to the room so the other player's strip stays live.
    *
-   * Progress is cosmetic — it never decides the match — so it is throttled and
-   * dropped when the room is not connected.
+   * The strip is a remote readout, so it is repainted on a budget rather than
+   * every frame (see `DuelTelemetry`): reading `room.view` allocates the whole
+   * lobby view, and a style write per frame is layout for text that cannot have
+   * changed at 60 Hz. Progress is cosmetic — it never decides the match — so it
+   * is throttled and dropped when the room is not connected.
    */
   syncDuelTelemetry() {
     if (!this.level?.pvp || !this.pvp) return;
-    const room = window.gamePvp;
-    const rival = room?.view?.rival;
-    if (rival) {
-      this.hud?.setRivalState({
-        name: rival.name,
-        wave: rival.progress?.wave || 0,
-        totalWaves: this.waveManager.totalWaves,
-        score: rival.progress?.score || 0,
-        coreHp: rival.progress?.coreHp,
-        maxCoreHp: this.gameState.maxBaseHealth,
-        outcome: rival.progress?.alive === false ? 'ko' : rival.result?.outcome,
-      });
-    }
     const now = this.time?.now || 0;
-    if (now - (this.lastDuelReport || 0) < 700) return;
+    const plan = telemetryPlan(now, { paint: this.lastRivalPaint, report: this.lastDuelReport });
+
+    if (plan.paint) {
+      this.lastRivalPaint = now;
+      const rival = window.gamePvp?.view?.rival;
+      if (rival) {
+        this.hud?.setRivalState({
+          name: rival.name,
+          wave: rival.progress?.wave || 0,
+          totalWaves: this.waveManager.totalWaves,
+          score: rival.progress?.score || 0,
+          coreHp: rival.progress?.coreHp,
+          maxCoreHp: this.gameState.maxBaseHealth,
+          outcome: rival.progress?.alive === false ? 'ko' : rival.result?.outcome,
+        });
+      }
+    }
+
+    if (!plan.report) return;
     this.lastDuelReport = now;
-    room?.reportProgress?.({
+    window.gamePvp?.reportProgress?.({
       wave: this.waveManager.wavesCompleted,
       totalWaves: this.waveManager.totalWaves,
       score: this.economy.score,

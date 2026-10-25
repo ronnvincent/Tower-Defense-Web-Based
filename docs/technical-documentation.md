@@ -776,6 +776,35 @@ relay  → bye    {reason} then close    bad-code | code-taken | full | no-room 
   reported as `LINK LOST`, never silently redialled into a different room.
 - The relay's `bye` frame is flushed before the socket closes (`send` callback),
   because a bare `close()` can drop the very frame that explains the refusal.
+- A host's arena pick goes through the same local-intent path as every other
+  action. It used to apply to the host's state and publish only to the host's
+  own view, so the challenger's board kept the old arena until some unrelated
+  broadcast happened to fire. `tests/pvp-sync.test.js` fails if that returns.
+
+### 7.5c How live is the duel, measured
+
+Two seats trade tiny snapshots over one socket. There is no polling, no tick
+reconciliation and no shared simulation — each seat runs the same deterministic
+script from the same seed, so the horde is identical by construction (the only
+`Math.random()` on the battlefield is a cosmetic idle wobble).
+
+| What | How it is kept | Measured (localhost relay) |
+| --- | --- | --- |
+| Lobby change (ready, arena, start) | intent → host reducer → snapshot to both seats | arrives with the next message, no debounce |
+| Rival strip (wave / points / core HP) | 2 Hz heartbeat, unchanged ticks dropped | guest→host **p50 0.28 ms / p95 0.73 ms** · host→guest **0.25 / 0.31 ms** |
+| Countdown | host owns the deadline, each seat rebuilds it from `countdownRemaining` on its own clock | both seats within **< 1 ms** of each other; a phone 4 minutes off still starts on time |
+| Snapshot size | `{roomCode, arenaId, seed, status, clients, seats}` | **586 B** mid-match (≈ 137 KiB/min at 2 Hz both seats) |
+| Cost of adopting one | pure object maths, no DOM | **2.4 µs** per `adoptSnapshot` + `lobbyView` |
+| Rival strip repaint | budget in `src/systems/DuelTelemetry.js` | **≤ 9 paints/s** instead of 60, and 2 sends/s |
+
+The last row is the one that matters on a phone: `GameScene.syncDuelTelemetry()`
+runs on the frame loop, and reading `room.view` allocates the whole lobby view
+while a style write per frame forces layout. Both now sit behind
+`telemetryPlan()`, and `HUD.setRivalState` additionally bails out when nothing it
+shows has moved — a duplicate heartbeat costs no message, no allocation and no
+DOM write.
+
+
 - **Fairness:** relics, blessings and profile writes are skipped when
   `level.pvp` is true (`GameScene.trackStats`, `syncAchievements`, and the
   victory/defeat handlers), so duels cannot farm campaign progress.

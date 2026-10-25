@@ -228,6 +228,15 @@ result panels in jsdom: seat labels, arena picker locking, live progress,
 waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips, the
 link badge and the RELAY ADDRESS field.
 
+`tests/pvp-sync.test.js` (6) — how live the duel is: both seats byte-identical
+after every change, intent→strip latency over real sockets, a four-minute clock
+skew, a 120-message burst (ordered, no stale score), unchanged heartbeats that
+stay off the wire, and the per-snapshot cost.
+
+`tests/duel-telemetry.test.js` (5) and `tests/rival-strip.test.js` (4) — the
+HUD's work budget (≤ 9 paints/s instead of 60) and a strip that skips the DOM
+when nothing it shows has moved.
+
 `tests/relay-address.test.js` (8) — which address the ONLINE link dials:
 normalising what a human pastes (bare host, `https://`, `host:port`, custom
 path), rejecting junk, `?relay=`, the saved override and the precedence order.
@@ -236,5 +245,6 @@ Run them with:
 
 ```bash
 npx vitest run tests/pvp.test.js tests/lobby.test.js tests/duel-ui.test.js \
-  tests/duel-link.test.js tests/relay-address.test.js tests/pvp-relay.test.js
+  tests/duel-link.test.js tests/relay-address.test.js tests/pvp-relay.test.js \
+  tests/pvp-sync.test.js tests/duel-telemetry.test.js tests/rival-strip.test.js
 ```
