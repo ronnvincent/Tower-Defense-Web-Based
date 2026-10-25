@@ -111,8 +111,9 @@ Our circular buffer uses `head = (head + 1) % capacity`, which executes in **$O(
 3. **No re-search of accepted work.** Accepted lanes are never re-expanded — only
    the newest one generates spurs, which is Yen's own bound.
 4. **On the shipped maps** that is a few hundred BFS passes over at most 300
-   nodes and 1 200 edges: measured at **4–9 ms** for the largest battlefield,
-   inside the 400 ms the scene already spends generating textures.
+   nodes and 1 200 edges: measured at **0.13–1.29 ms** per battlefield (20-run
+   average, Node 22, worst case grassland's three near-equal routes), inside the
+   ~400 ms the scene already spends generating textures.
 
 ### Space Complexity Proof
 
