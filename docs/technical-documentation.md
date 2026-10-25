@@ -792,7 +792,7 @@ script from the same seed, so the horde is identical by construction (the only
 | --- | --- | --- |
 | Lobby change (ready, arena, start) | intent → host reducer → snapshot to both seats | arrives with the next message, no debounce |
 | Rival strip (wave / points / core HP) | 2 Hz heartbeat, unchanged ticks dropped | guest→host **p50 0.28 ms / p95 0.73 ms** · host→guest **0.25 / 0.31 ms** |
-| Countdown | host owns the deadline, each seat rebuilds it from `countdownRemaining` on its own clock | both seats within **< 1 ms** of each other; a phone 4 minutes off still starts on time |
+| Countdown | host owns the deadline, each seat rebuilds it from `countdownRemaining` on its own clock | both seats within **≤ 1 ms** of each other (median 1.0 ms over 10 runs, 3.2 s countdown); a phone 4 minutes off still starts on time |
 | Snapshot size | `{roomCode, arenaId, seed, status, clients, seats}` | **586 B** mid-match (≈ 137 KiB/min at 2 Hz both seats) |
 | Cost of adopting one | pure object maths, no DOM | **2.4 µs** per `adoptSnapshot` + `lobbyView` |
 | Rival strip repaint | budget in `src/systems/DuelTelemetry.js` | **≤ 9 paints/s** instead of 60, and 2 sends/s |
