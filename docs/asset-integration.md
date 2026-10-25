@@ -103,6 +103,8 @@ with five pennants, which is the bug this table replaces.
 | **Venom Still** | alchemist's works | 42 × 90 | 46 × 105 / 48 × 103 | 56 × 129 / 58 × 123 | glass flask half full of distillate, copper neck and stand, condenser coil, drip tap; sigil at 5 |
 | **Harpoon Winch** | dockyard crane | 50 × 84 | 56 × 97 / 58 × 95 | 68 × 119 / 70 × 113 | king post and jib, pulley and hook, rope reel, harpoon rack, water barrel; lantern at 5 |
 
+![The five engineer lines, level 1 to level 5](asset-integration/engineer-buildings.png)
+
 The footprint is derived from each line's own proportions (`PROPORTIONS` +
 `geometry()`), not hand-written per slot, and it is capped: 42–72 px wide by
 80–129 px tall, against 60–118 × 94–152 before. That cap is what stops a level-5
