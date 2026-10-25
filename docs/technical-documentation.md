@@ -447,6 +447,29 @@ Clearing a wave refunds 8 s of every cooldown, and the state machine is pure
 multiplies in `powerups.cooldownScale`, which is how one button reaches every
 defence on the map.
 
+**The sigils.** The rail shipped as three perfect circles with a radial
+gradient, a font emoji (`☄` `⚡` `✚`) and a conic sweep. Three problems with
+that: an emoji is a different picture on every platform, a circle with a radial
+glow is the stock mobile-game button, and a rotating pie is a timer, not a
+charge. They are now the same object as the rest of the HUD:
+
+- the plate is the kit's `btn_square` 9-sliced at 10 px, so the chamfer and the
+  bronze rim come from the same generator as the dock cards and the pause card;
+- the picture is a 64 px pixel sigil from `scripts/build_ui_kit.py`
+  (`glyph_meteor`, `glyph_overcharge`, `glyph_fortify`), drawn on the same
+  32-unit grid and with the same ink outline as the menu glyphs;
+- the cooldown is a **well** that fills from the bottom of the socket
+  (`--charge`, 0 → 1) instead of a pie sweep, with a countdown strip that only
+  exists while there is something to count;
+- ready is a single gold hairline inside the frame plus one 900 ms flash when
+  the cooldown ends — not a permanent glow, because three buttons breathing
+  forever is the eye-strain the effect pass bans.
+
+`tests/powerup-rail.test.js` pins the DOM and the flash; the look is pinned as a
+stylesheet contract in `tests/mobile-shell.test.js`.
+
+![The three sigils: ready, charging, and armed for targeting](asset-integration/powerup-sigils.png)
+
 | Enemy | Base HP | Speed | Siege | Reward | Score | Role |
 |---|:---:|:---:|:---:|:---:|:---:|---|
 | **Goblin Grunt** | 75 | 62 px/s | 10 | 🪙 7 | 10 pts | Standard foot soldier |

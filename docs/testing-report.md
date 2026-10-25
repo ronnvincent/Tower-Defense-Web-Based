@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 832 tests across 67 test suites.
-- **Pass Rate:** **100% (832 / 832 Passed)**
+- **Total Automated Unit Tests:** 839 tests across 68 test suites.
+- **Pass Rate:** **100% (839 / 839 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -227,8 +227,8 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  67 passed (67)
-Tests       832 passed (832)
+Test Files  68 passed (68)
+Tests       839 passed (839)
 Duration    34.2s
 ```
 
@@ -287,6 +287,7 @@ Duration    34.2s
 | `tests/spec-ui.test.js` | jsdom | 8 | A specialisation card with no branch art, two branches showing the same building, a role badge the stats no longer justify, a DPS preview computed with a different formula than `dps()`, an unclickable or wrongly-affordable card, a next-tier button with no tower art, or a maxed tower showing an empty list |
 | `tests/focus-target.test.js` | jsdom | 12 | A tap that marks the wrong creep in a swarm, a corpse that keeps holding the mark, a mark out of range that stops a tower from firing at anything, a targeting mode that outranks the player's instruction, or a focus chip that cannot be dismissed on a touch device |
 | `tests/mobile-shell.test.js` | jsdom | 19 | A phone getting the desktop bands, a build sheet that will not fold after a pick, a scrim that does not dismiss, a floating inspector on a thumb layout, or a toast that grows into a paragraph |
+| `tests/powerup-rail.test.js` | jsdom | 4 | A powerup drawn as an emoji again, an icon that does not exist on disk, a countdown that never clears, a ready flash that repeats every frame, or a tap that does not reach the scene |
 | `tests/haptics.test.js` | node | 8 | A buzz on a desktop, a buzz after the player muted it, a pattern long enough to read as an error dialog, or a throw from a blocked `navigator.vibrate` |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against

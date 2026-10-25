@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   POWERUPS,
   PowerupState,
@@ -14,9 +16,20 @@ describe('Powerup catalogue', () => {
     expect(new Set(POWERUPS.map((p) => p.hotkey)).size).toBe(3);
     for (const powerup of POWERUPS) {
       expect(powerup.name).toBeTruthy();
-      expect(powerup.glyph).toBeTruthy();
       expect(powerup.cooldownMs).toBeGreaterThan(1000);
       expect(powerup.description.length).toBeGreaterThan(20);
+    }
+  });
+
+  it('gives every powerup its own sigil, and the sigil exists on disk', () => {
+    // These are the kit's 64 px pixel glyphs — not font emoji, which render
+    // differently on every platform and were the reason the rail read as a
+    // generic mobile-game button.
+    const icons = POWERUPS.map((powerup) => powerup.icon);
+    expect(new Set(icons).size).toBe(POWERUPS.length);
+    for (const icon of icons) {
+      expect(icon).toMatch(/^\/assets\/ui-kit\/glyph_[a-z]+\.png$/);
+      expect(existsSync(resolve(process.cwd(), 'public', icon.replace(/^\//, '')))).toBe(true);
     }
   });
 
@@ -102,6 +115,7 @@ describe('PowerupState', () => {
     expect(first.key).toBe('meteor');
     expect(first.ready).toBe(false);
     expect(first.progress).toBe(0);
+    expect(first.icon).toMatch(/^\/assets\/ui-kit\/glyph_/);
     expect(first.remainingMs).toBeGreaterThan(0);
     // Mutating the snapshot must not touch the live state.
     first.ready = true;

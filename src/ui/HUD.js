@@ -368,10 +368,12 @@ export class HUD {
           (powerup) => `
           <button class="powerup-btn" data-powerup="${powerup.key}" title="${powerup.description}"
                   aria-label="${powerup.name} (${powerup.hotkey})">
-            <span class="powerup-glyph" aria-hidden="true">${powerup.glyph}</span>
-            <span class="powerup-key">${powerup.hotkey}</span>
-            <span class="powerup-sweep" aria-hidden="true"></span>
-            <span class="powerup-timer"></span>
+            <span class="powerup-plate">
+              <span class="powerup-well" aria-hidden="true"></span>
+              <img class="powerup-icon" src="${powerup.icon}" alt="" draggable="false" />
+              <span class="powerup-timer"></span>
+            </span>
+            <span class="powerup-key" aria-hidden="true">${powerup.hotkey}</span>
           </button>`
         )
         .join('');
@@ -382,19 +384,30 @@ export class HUD {
         });
       });
     }
+    this.powerupReady = this.powerupReady || {};
+    this.powerupFlash = this.powerupFlash || {};
     for (const powerup of list) {
       const button = rail.querySelector(`[data-powerup="${powerup.key}"]`);
       if (!button) continue;
-      button.classList.toggle('ready', Boolean(powerup.ready));
-      button.classList.toggle('targeting', Boolean(powerup.targeting && powerup.ready));
+      const ready = Boolean(powerup.ready);
+      button.classList.toggle('ready', ready);
+      button.classList.toggle('targeting', Boolean(powerup.targeting && ready));
       button.style.setProperty('--charge', String(Math.max(0, Math.min(1, powerup.progress))));
       button.style.setProperty('--accent', powerup.accent || '#f5c451');
       const timer = button.querySelector('.powerup-timer');
-      if (timer) {
-        timer.textContent = powerup.ready
-          ? ''
-          : `${Math.ceil((powerup.remainingMs || 0) / 1000)}s`;
+      const seconds = Math.ceil((powerup.remainingMs || 0) / 1000);
+      // The timer only exists while there is something to count: an empty
+      // strip under the sigil read as a broken glyph.
+      if (timer) timer.textContent = ready || seconds <= 0 ? '' : `${seconds}s`;
+
+      // Coming off cooldown is a single flash, not a permanent glow. Three
+      // buttons breathing forever is the eye-strain the effect pass banned.
+      if (ready && this.powerupReady[powerup.key] === false) {
+        button.classList.add('just-ready');
+        clearTimeout(this.powerupFlash[powerup.key]);
+        this.powerupFlash[powerup.key] = setTimeout(() => button.classList.remove('just-ready'), 950);
       }
+      this.powerupReady[powerup.key] = ready;
     }
   }
 
@@ -705,6 +718,10 @@ export class HUD {
     const open = this.isMobileShell && !this.dockCollapsed;
     scrim.classList.toggle('hidden', !open);
     scrim.setAttribute('aria-hidden', String(!open));
+    // The powerup rail is a live control that paints above the scrim; leaving
+    // it up over a dimmed map meant a tap meant to dismiss the sheet could
+    // fire a meteor instead. The sheet owns the corner while it is open.
+    this.container?.classList.toggle('dock-open', open);
   }
 
   /** Flip the dock between folded and open. */

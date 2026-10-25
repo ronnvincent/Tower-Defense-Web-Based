@@ -15,7 +15,7 @@ export const POWERUPS = [
   {
     key: 'meteor',
     name: 'Meteor Strike',
-    glyph: '☄',
+    icon: '/assets/ui-kit/glyph_meteor.png',
     hotkey: 'Q',
     cooldownMs: 26000,
     targeting: true,
@@ -25,7 +25,7 @@ export const POWERUPS = [
   {
     key: 'overcharge',
     name: 'Overcharge',
-    glyph: '⚡',
+    icon: '/assets/ui-kit/glyph_overcharge.png',
     hotkey: 'E',
     cooldownMs: 34000,
     targeting: false,
@@ -35,7 +35,7 @@ export const POWERUPS = [
   {
     key: 'fortify',
     name: 'Fortify',
-    glyph: '✚',
+    icon: '/assets/ui-kit/glyph_fortify.png',
     hotkey: 'R',
     cooldownMs: 42000,
     targeting: false,
@@ -128,7 +128,7 @@ export class PowerupState {
     return POWERUPS.map((powerup) => ({
       key: powerup.key,
       name: powerup.name,
-      glyph: powerup.glyph,
+      icon: powerup.icon,
       hotkey: powerup.hotkey,
       accent: powerup.accent,
       targeting: powerup.targeting,

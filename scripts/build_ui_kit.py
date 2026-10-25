@@ -413,6 +413,77 @@ def glyphs() -> dict:
         px(d, 20 - i, 12 + i, 2, 2, GOLD_LIT)
     out["glyph_close"] = img
 
+    # ------------------------------------------------------------------
+    # Powerup sigils. Same 32-unit grid and the same ink outline as the
+    # menu glyphs, because these sit on the same iron plates as everything
+    # else — a 64 px pixel sigil, never a font emoji.
+    # ------------------------------------------------------------------
+
+    # meteor — a burning stone falling down-left
+    img, d = canvas()
+    # ember tail: three tapering streaks, darkest at the tip
+    for i in range(9):
+        tone = (214, 122, 44, 255) if i < 3 else (170, 78, 30, 255) if i < 6 else (112, 48, 22, 255)
+        px(d, 14 - i, 16 + i, 2, 2, tone)
+    for i in range(6):
+        px(d, 17 - i, 19 + i, 1, 1, (238, 154, 62, 255))
+    # the stone
+    px(d, 18, 5, 9, 2, INK)
+    px(d, 17, 7, 11, 8, INK)
+    px(d, 18, 15, 9, 1, INK)
+    px(d, 18, 7, 8, 7, (150, 106, 78, 255))
+    px(d, 19, 7, 6, 2, (206, 168, 132, 255))
+    px(d, 23, 10, 3, 3, (104, 70, 52, 255))
+    # molten leading edge
+    px(d, 17, 8, 1, 5, (238, 140, 52, 255))
+    px(d, 17, 13, 2, 1, (238, 140, 52, 255))
+    px(d, 19, 15, 5, 1, (238, 140, 52, 255))
+    for x, y in ((9, 20), (6, 25), (16, 24), (27, 4)):
+        px(d, x, y, 1, 1, GOLD_LIT)
+    out["glyph_meteor"] = img
+
+    # overcharge — a bolt through the tower's coils
+    img, d = canvas()
+    bolt = [
+        (17, 3, 6, 3),
+        (15, 6, 5, 4),
+        (13, 10, 5, 3),
+        (8, 13, 11, 3),
+        (13, 16, 4, 4),
+        (11, 20, 4, 4),
+        (9, 24, 3, 4),
+    ]
+    for x, y, w, h in bolt:  # ink backing, one unit proud
+        px(d, x - 1, y - 1, w + 2, h + 2, INK)
+    for x, y, w, h in bolt:
+        px(d, x, y, w, h, (86, 196, 226, 255))
+    # lit inner edge
+    for x, y, w, h in bolt:
+        px(d, x, y, max(1, w - 2), 1, (176, 240, 255, 255))
+    px(d, 17, 3, 2, 2, (236, 253, 255, 255))
+    for x, y in ((6, 8), (25, 18), (5, 20), (27, 6)):
+        px(d, x, y, 1, 1, (140, 226, 255, 255))
+    out["glyph_overcharge"] = img
+
+    # fortify — the core's shield
+    img, d = canvas()
+    px(d, 10, 3, 12, 2, INK)
+    px(d, 8, 5, 16, 9, INK)
+    px(d, 9, 14, 14, 4, INK)
+    px(d, 12, 18, 8, 4, INK)
+    px(d, 14, 22, 4, 3, INK)
+    px(d, 11, 5, 10, 8, (74, 176, 126, 255))
+    px(d, 10, 13, 12, 3, (74, 176, 126, 255))
+    px(d, 13, 16, 6, 4, (74, 176, 126, 255))
+    px(d, 15, 20, 2, 2, (74, 176, 126, 255))
+    px(d, 12, 5, 8, 1, (126, 226, 168, 255))
+    px(d, 11, 6, 1, 6, (126, 226, 168, 255))
+    px(d, 15, 7, 2, 9, GOLD)
+    px(d, 15, 7, 1, 9, GOLD_LIT)
+    px(d, 11, 10, 10, 2, GOLD)
+    px(d, 19, 13, 2, 2, (54, 132, 94, 255))
+    out["glyph_fortify"] = img
+
     return out
 
 

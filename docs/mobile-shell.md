@@ -67,7 +67,7 @@ can actually do something — while a wave is running it is `display: none`.
 | Duel rival | wide strip | slim strip, same shoulder as the boss |
 | Focus chip | top left | top left, under the rail |
 | Kill-chain chip | under the bar | hidden (the score capsule owns the number) |
-| Powers | bottom-left rail | left edge, above `BUILD` |
+| Powers | bottom-left rail, above the dock | left edge above `BUILD`; hidden while the sheet is open |
 | Placement hint | inside the dock | one-line pill, bottom centre, `✕` to cancel |
 | Feedback | visual | visual + a 12 ms haptic tick |
 
@@ -136,6 +136,7 @@ not get re-proposed every sprint.
 | Tap a tower | inspector sheet up, above the `BUILD` row |
 | Tap `▶ NEXT` | start the next wave, or `CALL EARLY · +Ng` for the gold bonus |
 | Drag / pinch | pan / zoom the battlefield |
+| Tap a powerup | meteor arms a target, overcharge and fortify fire immediately |
 | Tap `⏸` | pause card with `RESUME`, `RESET VIEW`, `BLESSINGS`, `CODEX`, `LEAVE BATTLE` |
 | Tap `✕` on the inspector | close the sheet |
 | Tap the focus chip | release the focus target (there is no Esc key) |

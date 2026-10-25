@@ -298,12 +298,33 @@ describe('the phone layout is a different layout, not a smaller one', () => {
   });
 
   it('moves the powers and the placement pill into the thumb zone', () => {
-    expect(ruleBody('[data-shell="mobile"] .powerup-rail')).toMatch(
-      /bottom:\s*calc\(var\(--hud-corner\) \+ var\(--hud-build-h\) \+ 10px\)/
-    );
+    // The rail clears whichever is taller: the BUILD button or the open sheet
+    // (whose height HudLayout publishes as --dock-clearance). A fixed offset
+    // put the three sigils right on the sheet's shoulder.
+    const rail = ruleBody('[data-shell="mobile"] .powerup-rail');
+    expect(rail).toMatch(/bottom:\s*max\(/);
+    expect(rail).toMatch(/var\(--dock-clearance\)/);
     const hint = ruleBody('[data-shell="mobile"] #placement-hint');
     expect(hint).toMatch(/position:\s*fixed/);
     expect(hint).toMatch(/translateX\(-50%\)/);
+  });
+
+  it('takes the powerups off the screen while the forge sheet is open', () => {
+    const hidden = ruleBody('#hud-container.dock-open .powerup-rail');
+    expect(hidden).toMatch(/opacity:\s*0/);
+    expect(hidden).toMatch(/pointer-events:\s*none/);
+  });
+
+  it('draws the powerups as kit plates with pixel sigils, not emoji', () => {
+    const plate = ruleBody('.powerup-plate');
+    expect(plate).toMatch(/border-image-source:\s*url\(\/assets\/ui-kit\/btn_square\.png\)/);
+    expect(ruleBody('.powerup-icon')).toMatch(/image-rendering:\s*pixelated/);
+    // The old circular button and its font glyph are gone for good.
+    expect(CSS).not.toMatch(/\.powerup-glyph\s*\{/);
+    expect(CSS).not.toMatch(/\.powerup-sweep\s*\{/);
+    // Ready is a hairline rim; the charge is a well that fills.
+    expect(ruleBody('.powerup-btn.ready .powerup-plate')).toMatch(/box-shadow:/);
+    expect(ruleBody('.powerup-well')).toMatch(/height:\s*calc\(var\(--charge\) \* 100%\)/);
   });
 
   it('replaces the camera pill with a RESET VIEW action in the pause card', () => {
