@@ -1704,7 +1704,7 @@ export class GameScene extends Phaser.Scene {
     if (key === 'overcharge') {
       this.hud?.showToast('OVERCHARGE — every tower fires 70% faster for 7s', 'info');
       audio.playCombo(3);
-      this.tintTowers(0x8fe8ff, 0.35);
+      this.tintTowers(0x9fe8ff, 0.3);
       return true;
     }
 
@@ -1731,7 +1731,9 @@ export class GameScene extends Phaser.Scene {
       tower.topSprite.setTint(colour);
       this.time?.delayedCall?.(1200, () => tower.topSprite?.clearTint?.());
     }
-    if (alpha > 0) this.cameras?.main?.flash?.(90, 60, 140, 255);
+    // No full-screen flash: the tower tints are the feedback. A white frame
+    // across the board was the loudest part of the old juice pass.
+    if (alpha > 0) this.cameras?.main?.shake?.(80, 0.0015);
   }
 
   /**
@@ -1743,8 +1745,7 @@ export class GameScene extends Phaser.Scene {
     const element = 'explosive';
     this.vfx?.groundBlast?.(x, y, 1.6);
     this.vfx?.impact?.(x, y, element, { scale: 1.8, splash: radius });
-    this.cameras?.main?.shake?.(260, 0.012);
-    this.cameras?.main?.flash?.(120, 255, 170, 90);
+    this.cameras?.main?.shake?.(220, 0.008);
 
     let hits = 0;
     for (const enemy of this.activeEnemies) {

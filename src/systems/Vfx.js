@@ -61,6 +61,16 @@ const IMPACT_SCALE = {
   true: 0.75,
 };
 
+/** How big a line's own impact strip is drawn (128 px atlas frame). */
+const LINE_SCALE = {
+  archer: 0.5,
+  cannon: 0.86,
+  frost: 0.66,
+  forge: 0.8,
+  runes: 0.7,
+  banner: 0.62,
+};
+
 export class Vfx {
   /**
    * @param {Phaser.Scene} scene
@@ -113,75 +123,91 @@ export class Vfx {
    * muzzle sprite centred on the tower would cover the art the player paid to
    * upgrade.
    */
-  muzzle(x, y, angle, element = 'physical') {
+  muzzle(x, y, angle, element = 'physical', line = null) {
     if (!this.enabled) return;
     const tints = ELEMENT_TINT[element] || ELEMENT_TINT.physical;
-    const wide = element === 'explosive' || element === 'fire';
-    const texture = wide && this.scene.textures.exists('fx-muzzle-wide') ? 'fx-muzzle-wide' : 'fx-muzzle';
-    const flash = this.emitter(`muzzle-${element}`, texture, {
-      lifespan: 150,
-      speed: { min: 10, max: 60 },
-      scale: { start: wide ? 0.42 : 0.3, end: 0 },
-      alpha: { start: 0.95, end: 0 },
-      rotate: { min: -20, max: 20 },
-      blendMode: 'ADD',
-      tint: tints[0],
-      depth: 47,
-    });
-    flash?.explode(wide ? 7 : 4, x, y);
+    const lineTexture = line ? `fx-line-${line}-muzzle` : null;
+
+    // Every line gets its own flash shape (needle fan, smoke ring, ice star,
+    // ember cluster, rune diamond, rally ring). It is a single soft sprite
+    // that fades in 120 ms — a bright animated flash over a 64 px tile is what
+    // made the old shots hurt to look at.
+    if (lineTexture && this.scene.textures.exists(lineTexture)) {
+      const flash = this.scene.add
+        .image(x, y, lineTexture)
+        .setDepth(47)
+        .setRotation(angle + Math.PI / 2)
+        .setAlpha(0.85)
+        .setScale(0.6)
+        .setBlendMode('ADD');
+      this.scene.tweens?.add?.({
+        targets: flash,
+        alpha: 0,
+        scale: 0.9,
+        duration: 130,
+        ease: 'Quad.easeOut',
+        onComplete: () => flash.destroy(),
+      });
+    }
 
     const sparks = this.emitter(`spark-${element}`, 'fx-spark', {
-      lifespan: { min: 120, max: 260 },
-      speed: { min: 60, max: 210 },
+      lifespan: { min: 100, max: 200 },
+      speed: { min: 40, max: 130 },
       angle: {
-        min: (angle * 180) / Math.PI - 22,
-        max: (angle * 180) / Math.PI + 22,
+        min: (angle * 180) / Math.PI - 16,
+        max: (angle * 180) / Math.PI + 16,
       },
-      scale: { start: 0.34, end: 0 },
-      alpha: { start: 1, end: 0 },
+      scale: { start: 0.22, end: 0 },
+      alpha: { start: 0.7, end: 0 },
       blendMode: 'ADD',
-      tint: tints[1],
+      tint: tints[0],
       depth: 46,
     });
-    sparks?.explode(element === 'physical' ? 3 : 6, x, y);
+    sparks?.explode(element === 'physical' ? 2 : 3, x, y);
   }
 
   /**
    * The hit itself: an elemental burst, embers, and a puff of smoke that
    * lingers a beat longer than the flash.
    */
-  impact(x, y, element = 'physical', { scale = 1, splash = 0, shake = true } = {}) {
+  impact(x, y, element = 'physical', { scale = 1, splash = 0, shake = true, line = null } = {}) {
     if (!this.enabled) return;
-    const key = `fx-impact-${element}`;
-    const base = IMPACT_SCALE[element] ?? IMPACT_SCALE.physical;
-    this.burst(x, y, key, base * scale, { depth: 43 });
+    // A defence's own strip wins over the generic element burst: that is what
+    // makes a rune hit look like an implosion and a cannon hit like a crater.
+    const lineKey = line ? `fx-line-${line}-impact` : null;
+    const useLine = lineKey && this.ready(lineKey);
+    const key = useLine ? lineKey : `fx-impact-${element}`;
+    const base = useLine ? LINE_SCALE[line] ?? 0.62 : IMPACT_SCALE[element] ?? IMPACT_SCALE.physical;
+    this.burst(x, y, key, base * scale, { depth: 43, alpha: 0.9 });
 
     const tints = ELEMENT_TINT[element] || ELEMENT_TINT.physical;
     const debris = this.emitter(`impact-${element}`, 'fx-spark', {
-      lifespan: { min: 180, max: 420 },
-      speed: { min: 70, max: 260 },
-      scale: { start: 0.4, end: 0 },
-      alpha: { start: 1, end: 0 },
-      gravityY: 260,
+      lifespan: { min: 160, max: 320 },
+      speed: { min: 40, max: 150 },
+      scale: { start: 0.24, end: 0 },
+      alpha: { start: 0.75, end: 0 },
+      gravityY: 200,
       blendMode: 'ADD',
       tint: tints[1],
       depth: 45,
     });
-    debris?.explode(Math.round(6 * scale), x, y);
+    debris?.explode(Math.round((useLine ? 3 : 5) * scale), x, y);
 
-    const smoke = this.emitter('impact-smoke', 'fx-smoke', {
-      lifespan: { min: 420, max: 760 },
-      speed: { min: 20, max: 90 },
-      scale: { start: 0.34, end: 0.6 },
-      alpha: { start: 0.32, end: 0 },
-      rotate: { min: 0, max: 360 },
-      depth: 41,
-    });
-    smoke?.explode(Math.round(3 * scale), x, y);
+    if (!useLine) {
+      const smoke = this.emitter('impact-smoke', 'fx-smoke', {
+        lifespan: { min: 380, max: 640 },
+        speed: { min: 16, max: 70 },
+        scale: { start: 0.28, end: 0.5 },
+        alpha: { start: 0.22, end: 0 },
+        rotate: { min: 0, max: 360 },
+        depth: 41,
+      });
+      smoke?.explode(Math.round(2 * scale), x, y);
+    }
 
-    if (splash > 0) this.shockwave(x, y, Math.min(2.2, 0.7 + splash / 90), element);
-    if (shake && scale >= 1.4 && this.scene.cameras?.main?.shake) {
-      this.scene.cameras.main.shake(90, 0.0035);
+    if (splash > 0) this.shockwave(x, y, Math.min(1.7, 0.55 + splash / 130), element);
+    if (shake && scale >= 1.6 && this.scene.cameras?.main?.shake) {
+      this.scene.cameras.main.shake(70, 0.002);
     }
   }
 

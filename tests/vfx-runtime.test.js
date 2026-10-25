@@ -49,17 +49,26 @@ function fakeScene() {
     return node;
   };
 
-  const image = (x, y, key) => ({
-    kind: 'image',
-    key,
-    x,
-    y,
-    setDepth: vi.fn().mockReturnThis(),
-    setScale: vi.fn().mockReturnThis(),
-    setAlpha: vi.fn().mockReturnThis(),
-    setTint: vi.fn().mockReturnThis(),
-    setBlendMode: vi.fn().mockReturnThis(),
-  });
+  const image = (x, y, key) => {
+    const node = {
+      kind: 'image',
+      key,
+      x,
+      y,
+      destroyed: false,
+      setDepth: vi.fn().mockReturnThis(),
+      setScale: vi.fn().mockReturnThis(),
+      setAlpha: vi.fn().mockReturnThis(),
+      setRotation: vi.fn().mockReturnThis(),
+      setTint: vi.fn().mockReturnThis(),
+      setBlendMode: vi.fn().mockReturnThis(),
+      destroy: vi.fn(function destroy() {
+        node.destroyed = true;
+      }),
+    };
+    created.push(node);
+    return node;
+  };
 
   const scene = {
     add: {
@@ -108,16 +117,18 @@ describe('Vfx runtime', () => {
     expect(scene.cameras.main.shake).not.toHaveBeenCalled();
   });
 
-  it('aims the muzzle flash along the barrel and widens it for fire', () => {
+  it("fires the defence's own muzzle flash along the barrel", () => {
     const scene = fakeScene();
     const vfx = new Vfx(scene);
-    vfx.muzzle(32, 32, Math.PI / 2, 'explosive');
-    const flash = scene.explosions.find((entry) => entry.texture === 'fx-muzzle-wide');
-    expect(flash).toBeTruthy();
-    // The spark cone points where the barrel does (90° = down).
+    vfx.muzzle(32, 32, Math.PI / 2, 'explosive', 'cannon');
+    const flash = scene.created.find((node) => node.kind === 'image' && node.key === 'fx-line-cannon-muzzle');
+    expect(flash, 'cannon has no muzzle art').toBeTruthy();
+    expect(flash.setRotation).toHaveBeenCalled();
+    // The spark cone points where the barrel does (90° = down) and stays tight.
     const sparks = scene.explosions.find((entry) => entry.texture === 'fx-spark');
-    expect(sparks.config.angle.min).toBeCloseTo(68, 5);
-    expect(sparks.config.angle.max).toBeCloseTo(112, 5);
+    expect(sparks.config.angle.min).toBeCloseTo(74, 5);
+    expect(sparks.config.angle.max).toBeCloseTo(106, 5);
+    expect(sparks.config.alpha.start).toBeLessThan(0.8);
   });
 
   it('throws shards when a frost nova goes off', () => {
@@ -178,5 +189,20 @@ describe('Element mapping', () => {
     }
     // The aura glow is a single-frame sheet, not a particle texture.
     expect(FX_SHEETS['fx-glow'].frames).toBe(1);
+  });
+
+  it('gives every defence line its own impact and muzzle art', () => {
+    const lines = ['archer', 'cannon', 'frost', 'forge', 'runes', 'banner'];
+    const files = new Set();
+    for (const line of lines) {
+      const impact = FX_SHEETS[`fx-line-${line}-impact`];
+      const muzzle = FX_SHEETS[`fx-line-${line}-muzzle`];
+      expect(impact, `${line} has no impact strip`).toBeTruthy();
+      expect(muzzle, `${line} has no muzzle art`).toBeTruthy();
+      files.add(impact.file);
+      files.add(muzzle.file);
+    }
+    // Twelve distinct files: no line may reuse another line's effect.
+    expect(files.size).toBe(lines.length * 2);
   });
 });

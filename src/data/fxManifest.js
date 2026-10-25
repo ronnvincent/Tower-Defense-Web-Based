@@ -8,13 +8,13 @@
  */
 
 export const FX_SHEETS = {
-  'fx-impact-physical': { file: 'fx-impact-physical.png', frameWidth: 96, frameHeight: 96, frames: 9, frameRate: 34 },
-  'fx-impact-explosive': { file: 'fx-impact-explosive.png', frameWidth: 192, frameHeight: 192, frames: 9, frameRate: 28 },
-  'fx-impact-fire': { file: 'fx-impact-fire.png', frameWidth: 160, frameHeight: 160, frames: 9, frameRate: 30 },
-  'fx-impact-frost': { file: 'fx-impact-frost.png', frameWidth: 176, frameHeight: 176, frames: 9, frameRate: 26 },
-  'fx-impact-lightning': { file: 'fx-impact-lightning.png', frameWidth: 160, frameHeight: 160, frames: 9, frameRate: 34 },
-  'fx-impact-arcane': { file: 'fx-impact-arcane.png', frameWidth: 176, frameHeight: 176, frames: 9, frameRate: 26 },
-  'fx-impact-true': { file: 'fx-impact-true.png', frameWidth: 176, frameHeight: 176, frames: 9, frameRate: 28 },
+  'fx-impact-physical': { file: 'fx-impact-physical.png', frameWidth: 96, frameHeight: 96, frames: 8, frameRate: 34 },
+  'fx-impact-explosive': { file: 'fx-impact-explosive.png', frameWidth: 192, frameHeight: 192, frames: 8, frameRate: 28 },
+  'fx-impact-fire': { file: 'fx-impact-fire.png', frameWidth: 160, frameHeight: 160, frames: 8, frameRate: 30 },
+  'fx-impact-frost': { file: 'fx-impact-frost.png', frameWidth: 176, frameHeight: 176, frames: 8, frameRate: 26 },
+  'fx-impact-lightning': { file: 'fx-impact-lightning.png', frameWidth: 160, frameHeight: 160, frames: 8, frameRate: 34 },
+  'fx-impact-arcane': { file: 'fx-impact-arcane.png', frameWidth: 176, frameHeight: 176, frames: 8, frameRate: 26 },
+  'fx-impact-true': { file: 'fx-impact-true.png', frameWidth: 176, frameHeight: 176, frames: 8, frameRate: 28 },
   'fx-ground-blast': { file: 'fx-ground-blast.png', frameWidth: 192, frameHeight: 192, frames: 9, frameRate: 24 },
   'fx-shockwave': { file: 'fx-shockwave.png', frameWidth: 192, frameHeight: 192, frames: 9, frameRate: 32 },
   'fx-implosion': { file: 'fx-implosion.png', frameWidth: 192, frameHeight: 192, frames: 9, frameRate: 32 },
@@ -23,6 +23,18 @@ export const FX_SHEETS = {
   'fx-glow': { file: 'fx-glow.png', frameWidth: 128, frameHeight: 128, frames: 1, frameRate: 1 },
   'fx-glow-gold': { file: 'fx-glow-gold.png', frameWidth: 128, frameHeight: 128, frames: 1, frameRate: 1 },
   'fx-aura-ring': { file: 'fx-aura-ring.png', frameWidth: 160, frameHeight: 160, frames: 1, frameRate: 1 },
+  'fx-line-archer-impact': { file: 'fx-line-archer-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 36 },
+  'fx-line-archer-muzzle': { file: 'fx-line-archer-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-cannon-impact': { file: 'fx-line-cannon-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 24 },
+  'fx-line-cannon-muzzle': { file: 'fx-line-cannon-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-frost-impact': { file: 'fx-line-frost-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 28 },
+  'fx-line-frost-muzzle': { file: 'fx-line-frost-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-forge-impact': { file: 'fx-line-forge-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 30 },
+  'fx-line-forge-muzzle': { file: 'fx-line-forge-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-runes-impact': { file: 'fx-line-runes-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 26 },
+  'fx-line-runes-muzzle': { file: 'fx-line-runes-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
+  'fx-line-banner-impact': { file: 'fx-line-banner-impact.png', frameWidth: 128, frameHeight: 128, frames: 10, frameRate: 20 },
+  'fx-line-banner-muzzle': { file: 'fx-line-banner-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 },
 };
 
 /** Particle textures (single frames) fed to Phaser emitters. */

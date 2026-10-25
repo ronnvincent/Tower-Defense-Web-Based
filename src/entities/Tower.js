@@ -7,6 +7,8 @@ import {
   NON_ROTATING_TYPES,
   MUZZLE_OFFSET,
 } from '../data/towerVisuals.js';
+import { DECOR_ART } from '../data/towerDecor.js';
+import { projectileArtFor } from '../data/projectileArt.js';
 import { Projectile } from './Projectile.js';
 import { aimAngle, canFire, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
 import { audio } from '../rendering/AudioSynth.js';
@@ -112,6 +114,11 @@ export class Tower {
       this.updateLevelIndicator();
     }
 
+    // Decoration layers: `decorBack` sits behind the masonry so the parapet and
+    // pennants grow out of the silhouette, `decorFront` sits over it for the
+    // braziers and the orbiting crystals. Both are rebuilt on every upgrade.
+    this.buildDecorations();
+
     // Range display graphic (hidden by default)
     this.rangeCircle = scene.add.graphics();
     this.rangeCircle.setDepth(12);
@@ -150,6 +157,21 @@ export class Tower {
   }
 
   /** Art data for the current slot, with the sprite origin expressed as 0..1. */
+  /**
+   * Art key for this tower's shot.
+   *
+   * Lines share a projectile *type* (both the Archer and the Banner Keep fire
+   * 'arrow'), so the type table alone made them identical in flight. Each line
+   * now ships its own art, and levels 4–5 ship another, so an upgrade is
+   * visible in the projectile as well as on the tower.
+   */
+  get projectileArt() {
+    if (this.isBarricade) return null;
+    const lineArt = projectileArtFor(this.typeKey, this.level);
+    if (lineArt && this.scene?.textures?.exists?.(lineArt)) return lineArt;
+    return this.visual?.slotTexture || null;
+  }
+
   getVisual() {
     if (this.isBarricade) {
       return BARRICADE_VISUALS[this.level] || BARRICADE_VISUALS[1];
@@ -308,6 +330,208 @@ export class Tower {
     return this.targetingMode;
   }
 
+  /**
+   * Create the two decoration layers.
+   *
+   * Tiers are cumulative, so a maxed tower is a *bigger building*, not the same
+   * building in a hotter palette:
+   *
+   *   2  merlon crown + two pennants
+   *   3  gold reinforcement band, taller pennants
+   *   4  twin braziers with a flickering flame
+   *   5  two shards orbiting above the keep
+   */
+  buildDecorations() {
+    if (this.isBarricade || !this.scene?.add) return;
+    this.decorBack = this.scene.add.container(0, 0);
+    this.decorFront = this.scene.add.container(0, 0);
+    this.container.addAt(this.decorBack, 0);
+    this.container.add(this.decorFront);
+    this.decorParts = [];
+    this.decorFlameTimer = null;
+    this.refreshDecorations();
+  }
+
+  /** True when a decoration texture actually shipped with the build. */
+  hasDecor(key) {
+    return Boolean(key && this.scene?.textures?.exists?.(key));
+  }
+
+  /** Tear down every decoration sprite and the flame timer. */
+  clearDecorations() {
+    if (this.decorFlameTimer) {
+      this.decorFlameTimer.remove?.(false);
+      this.decorFlameTimer = null;
+    }
+    for (const part of this.decorParts || []) {
+      part?.destroy?.();
+    }
+    this.decorParts = [];
+  }
+
+  /**
+   * Rebuild the decoration stack for the current level.
+   *
+   * Called on every upgrade; `animate` springs the fresh parts into view so the
+   * new tier *arrives* instead of popping into place.
+   */
+  refreshDecorations(animate = false) {
+    if (!this.decorBack || !this.decorFront) return;
+    this.clearDecorations();
+
+    const level = this.level;
+    if (level < 2) return;
+
+    const ground = TILE_SIZE / 2;
+    const topY = ground - this.artHeight;
+    const line = DECOR_ART[`pennant-${this.typeKey}`] ? this.typeKey : 'archer';
+    const parts = this.decorParts;
+
+    // --- tier 2: merlon crown + pennants ---------------------------------
+    // The crown widens with every tier, so the tower's *top* grows too instead
+    // of only its colour; the pennants ride outwards with it.
+    const crownScale = 1 + (level - 2) * 0.06;
+    const flagX = 24 + (level - 2) * 3;
+
+    if (this.hasDecor('deco-parapet')) {
+      const crown = this.scene.add
+        .image(0, topY + 4, 'deco-parapet')
+        .setOrigin(0.5, 1)
+        .setScale(crownScale);
+      this.decorBack.add(crown);
+      parts.push(crown);
+    }
+
+    const pennantKey = `pennant-${line}`;
+    if (this.hasDecor(pennantKey)) {
+      const size = level >= 3 ? 1.2 : 1;
+      for (const side of [-1, 1]) {
+        const flag = this.scene.add
+          .image(side * flagX, topY + 2, pennantKey)
+          .setOrigin(0.5, 1)
+          .setScale(size);
+        this.decorBack.add(flag);
+        parts.push(flag);
+        this.scene.tweens?.add?.({
+          targets: flag,
+          angle: side * 6,
+          duration: 1500 + side * 120,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    }
+
+    // --- tier 3: fortified footing + a hung battle standard --------------
+    if (level >= 3 && this.hasDecor('deco-plinth')) {
+      const plinth = this.scene.add
+        .image(0, ground + 4, 'deco-plinth')
+        .setOrigin(0.5, 1)
+        .setAlpha(0.95);
+      this.decorBack.add(plinth);
+      parts.push(plinth);
+    }
+
+    const clothKey = `cloth-${line}`;
+    if (level >= 3 && this.hasDecor(clothKey)) {
+      // Hung from just under the crown, over the masonry — a wide band across
+      // the middle read as a fence and hid the keep's own crest.
+      const standard = this.scene.add
+        .image(0, topY + 8, clothKey)
+        .setOrigin(0.5, 0);
+      this.decorFront.add(standard);
+      parts.push(standard);
+    }
+
+    // --- tier 4: braziers -------------------------------------------------
+    if (level >= 4 && this.hasDecor('deco-brazier')) {
+      const flames = [];
+      for (const side of [-1, 1]) {
+        const bowl = this.scene.add
+          .image(side * 23, ground + 1, 'deco-brazier')
+          .setOrigin(0.5, 1);
+        this.decorFront.add(bowl);
+        parts.push(bowl);
+
+        const flameKey = side < 0 ? 'deco-flame-1' : 'deco-flame-2';
+        const flame = this.scene.add
+          .image(side * 23, ground - 9, flameKey)
+          .setOrigin(0.5, 1)
+          .setBlendMode?.('ADD')
+          .setAlpha(0.85);
+        this.decorFront.add(flame);
+        parts.push(flame);
+        flames.push(flame);
+        this.scene.tweens?.add?.({
+          targets: flame,
+          scaleY: 1.18,
+          scaleX: 0.92,
+          alpha: 0.62,
+          duration: 220 + (side + 2) * 40,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+
+      // Cycle the flame textures so the fire reads as moving, not as a glow.
+      let frame = 0;
+      const frameKeys = ['deco-flame-0', 'deco-flame-1', 'deco-flame-2'];
+      this.decorFlameTimer = this.scene.time?.addEvent?.({
+        delay: 120,
+        loop: true,
+        callback: () => {
+          frame = (frame + 1) % frameKeys.length;
+          flames.forEach((flame, index) => {
+            flame.setTexture?.(frameKeys[(frame + index) % frameKeys.length]);
+          });
+        },
+      });
+    }
+
+    // --- tier 5: orbiting shards ------------------------------------------
+    if (level >= MAX_LEVEL) {
+      const crystalKey = `crystal-${line}`;
+      if (this.hasDecor(crystalKey)) {
+        for (const side of [-1, 1]) {
+          const shard = this.scene.add
+            .image(side * 13, topY - 44, crystalKey)
+            .setOrigin(0.5, 1)
+            .setAlpha(0.9);
+          this.decorFront.add(shard);
+          parts.push(shard);
+          this.scene.tweens?.add?.({
+            targets: shard,
+            y: topY - 52,
+            angle: side * 12,
+            duration: 1600 + side * 90,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        }
+      }
+    }
+
+    if (animate) this.popDecorations();
+  }
+
+  /** Spring the freshly added parts into view. */
+  popDecorations() {
+    for (const part of this.decorParts || []) {
+      const finalScale = part.scale ?? 1;
+      this.scene.tweens?.add?.({
+        targets: part,
+        alpha: 1,
+        scale: finalScale,
+        duration: 260,
+        ease: 'Back.easeOut',
+        from: { alpha: 0, scale: 0.2 },
+      });
+    }
+  }
+
   /** Re-point both sprites at the art for the current level/specialisation. */
   applyVisual() {
     this.visual = this.getVisual();
@@ -420,6 +644,7 @@ export class Tower {
     // a taller structure AND a bigger weapon, so swapping only the top would
     // leave the two halves mismatched.
     this.applyVisual();
+    this.refreshDecorations(true);
 
     this.updateLevelIndicator();
     this.drawRangeCircle(0x4ee1ff);
@@ -646,10 +871,12 @@ export class Tower {
 
     // Element-coloured flash at the barrel tip — the single cheapest change
     // that makes a tower feel like it is *firing* rather than emitting.
-    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical');
+    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.typeKey);
 
     const shots = Math.max(1, s.ability?.shots || 1);
     const stats = {
+      // The firing line, so the impact can pick that defence's own effect.
+      line: this.typeKey,
       damage: this.attackDamage,
       speed: projSpeed,
       damageType: s.damageType || 'physical',
@@ -678,7 +905,7 @@ export class Tower {
         stats,
         this.context.activeEnemies,
         // Upgrade tiers can carry their own projectile and impact art.
-        this.visual.slotTexture || null
+        this.projectileArt
       );
       this.context.activeProjectiles.push(proj);
     };
@@ -695,6 +922,7 @@ export class Tower {
   }
 
   destroy() {
+    this.clearDecorations();
     this.isDestroyed = true;
     this.healthBar = null;
     if (this.rangeCircle) {

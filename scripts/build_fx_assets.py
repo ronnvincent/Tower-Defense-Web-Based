@@ -256,6 +256,241 @@ PARTICLES = {
 }
 
 
+# ---------------------------------------------------------------- line effects
+
+# Each defence answers with its own silhouette. The element strips above are
+# still there (enemy hits, boss abilities, splash fallbacks) but a tower's own
+# impact is drawn from scratch so no two lines share a burst: a ballista leaves
+# needles, a sling leaves a dust crater, a frost spire leaves shards, a forge
+# throws molten blobs, a rune implodes and a banner answers with a pure ring.
+#
+# Everything here is authored *dim*: no full-white frames, alpha capped around
+# 200 and edges blurred, because the board is 64 px per tile and a bright,
+# high-contrast burst over it reads as a strobe instead of an impact.
+LINE_FX = {
+    "archer": {"frame": 128, "frames": 10, "frameRate": 36},
+    "cannon": {"frame": 128, "frames": 10, "frameRate": 24},
+    "frost": {"frame": 128, "frames": 10, "frameRate": 28},
+    "forge": {"frame": 128, "frames": 10, "frameRate": 30},
+    "runes": {"frame": 128, "frames": 10, "frameRate": 26},
+    "banner": {"frame": 128, "frames": 10, "frameRate": 20},
+}
+
+
+def _ease(t: float) -> float:
+    return 1 - (1 - t) ** 2
+
+
+def _line_frame(kind: str, index: int, frames: int, side: int) -> Image.Image:
+    import math
+
+    t = index / (frames - 1)
+    image = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    cx = cy = side / 2
+    fade = max(0.0, 1 - t) ** 1.15
+
+    if kind == "archer":
+        # Four needle streaks out and a puff of pale dust: precise, quick, small.
+        for k in range(4):
+            angle = math.pi / 4 + k * math.pi / 2
+            reach = 12 + _ease(t) * 42
+            width = max(1, int(3 * (1 - t)))
+            draw.line(
+                [
+                    (cx + math.cos(angle) * 8, cy + math.sin(angle) * 8),
+                    (cx + math.cos(angle) * reach, cy + math.sin(angle) * reach),
+                ],
+                fill=(214, 226, 240, int(210 * fade)),
+                width=width,
+            )
+        draw.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=(240, 246, 255, int(150 * fade)))
+
+    elif kind == "cannon":
+        # A ring of earth and six chunks of road thrown outward.
+        radius = 8 + _ease(t) * 46
+        draw.ellipse(
+            (cx - radius, cy - radius * 0.72, cx + radius, cy + radius * 0.72),
+            outline=(176, 129, 82, int(170 * fade)),
+            width=max(2, int(5 * (1 - t))),
+        )
+        for k in range(6):
+            angle = k * math.tau / 6 + 0.4
+            dist = 10 + _ease(t) * 40
+            size = max(2, int(6 * (1 - 0.6 * t)))
+            px = cx + math.cos(angle) * dist
+            py = cy + math.sin(angle) * dist * 0.72 - math.sin(math.pi * t) * 14
+            draw.rectangle((px - size, py - size, px + size, py + size), fill=(104, 74, 48, int(210 * fade)))
+
+    elif kind == "frost":
+        # Six shards, each with a bright tip: reads as ice, never as fire.
+        for k in range(6):
+            angle = k * math.tau / 6 + t * 0.5
+            inner = 6
+            reach = 16 + _ease(t) * 40
+            half = max(1.5, 4.5 * (1 - t))
+            ax = cx + math.cos(angle) * inner
+            ay = cy + math.sin(angle) * inner
+            bx = cx + math.cos(angle) * reach
+            by = cy + math.sin(angle) * reach
+            nx, ny = math.cos(angle + math.pi / 2) * half, math.sin(angle + math.pi / 2) * half
+            draw.polygon([(ax + nx, ay + ny), (bx, by), (ax - nx, ay - ny)], fill=(186, 230, 248, int(205 * fade)))
+        radius = 10 + _ease(t) * 34
+        draw.ellipse(
+            (cx - radius, cy - radius, cx + radius, cy + radius),
+            outline=(150, 205, 228, int(120 * fade)),
+            width=2,
+        )
+
+    elif kind == "forge":
+        # Molten blobs on ballistic arcs plus a low shock ellipse on the ground.
+        for k in range(7):
+            spread = (k - 3) / 3
+            px = cx + spread * (10 + _ease(t) * 40)
+            py = cy - math.sin(math.pi * min(1, t * 1.1)) * (24 + abs(spread) * 10) + t * 26
+            size = max(2, int(6 * (1 - 0.55 * t)))
+            colour = (255, 156, 72, int(215 * fade)) if k % 2 else (255, 196, 118, int(225 * fade))
+            draw.ellipse((px - size, py - size, px + size, py + size), fill=colour)
+        radius = 8 + _ease(t) * 40
+        draw.ellipse(
+            (cx - radius, cy + 18 - radius * 0.3, cx + radius, cy + 18 + radius * 0.3),
+            outline=(255, 150, 70, int(150 * fade)),
+            width=2,
+        )
+
+    elif kind == "runes":
+        # An implosion: the ring falls inward while four motes keep their orbit,
+        # so the hit looks like the target was pulled into the rune, not blown up.
+        radius = 56 * (1 - _ease(t)) + 8
+        alpha = int(190 * min(1, t * 3) * (1 - t * 0.85))
+        draw.ellipse(
+            (cx - radius, cy - radius, cx + radius, cy + radius),
+            outline=(168, 136, 255, max(0, alpha)),
+            width=max(2, int(4 * (1 - t * 0.5))),
+        )
+        for k in range(4):
+            angle = k * math.tau / 4 + t * 2.4
+            px = cx + math.cos(angle) * 22
+            py = cy + math.sin(angle) * 22
+            draw.ellipse((px - 3, py - 3, px + 3, py + 3), fill=(206, 186, 255, int(210 * fade)))
+        if t < 0.75:
+            glyph = 14 * (1 - t)
+            draw.polygon(
+                [(cx, cy - glyph), (cx + glyph, cy), (cx, cy + glyph), (cx - glyph, cy)],
+                outline=(214, 196, 255, int(200 * (1 - t))),
+                width=2,
+            )
+
+    else:  # banner — a pure rally ring, no debris at all
+        for k in range(2):
+            phase = t - k * 0.18
+            if phase <= 0:
+                continue
+            radius = 10 + _ease(min(1, phase)) * 46
+            alpha = int(150 * max(0.0, 1 - phase) ** 1.2)
+            draw.ellipse(
+                (cx - radius, cy - radius, cx + radius, cy + radius),
+                outline=(255, 214, 130, alpha),
+                width=max(1, int(4 * (1 - phase))),
+            )
+        for k in range(3):
+            y = cy + 18 - _ease(t) * 46 - k * 6
+            alpha = int(170 * fade)
+            draw.line([(cx - 10, y), (cx, y - 7), (cx + 10, y)], fill=(255, 226, 160, alpha), width=2)
+
+    return image.filter(ImageFilter.GaussianBlur(0.4 if kind != "archer" else 0.2))
+
+
+def _line_muzzle(kind: str, side: int = 48) -> Image.Image:
+    image = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    cx = cy = side / 2
+    if kind == "archer":
+        for k in range(3):
+            x = cx + (k - 1) * 7
+            draw.line([(x, cy - 9), (x, cy + 9)], fill=(226, 236, 248, 200), width=2)
+    elif kind == "cannon":
+        draw.ellipse((cx - 11, cy - 11, cx + 11, cy + 11), outline=(178, 150, 120, 150), width=3)
+        draw.ellipse((cx - 5, cy - 5, cx + 5, cy + 5), fill=(232, 206, 168, 120))
+    elif kind == "frost":
+        for k in range(4):
+            angle = k * math_pi_over_2()
+            draw.polygon(
+                [
+                    (cx + _cos(angle) * 4, cy + _sin(angle) * 4),
+                    (cx + _cos(angle + 0.35) * 16, cy + _sin(angle + 0.35) * 16),
+                    (cx + _cos(angle - 0.35) * 16, cy + _sin(angle - 0.35) * 16),
+                ],
+                fill=(186, 230, 248, 190),
+            )
+    elif kind == "forge":
+        for k in range(5):
+            angle = k * (math_tau() / 5)
+            px = cx + _cos(angle) * 8
+            py = cy + _sin(angle) * 8
+            draw.ellipse((px - 3, py - 3, px + 3, py + 3), fill=(255, 176, 96, 190))
+        draw.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill=(255, 222, 168, 210))
+    elif kind == "runes":
+        draw.polygon([(cx, cy - 13), (cx + 11, cy), (cx, cy + 13), (cx - 11, cy)], outline=(196, 170, 255, 210), width=2)
+        draw.ellipse((cx - 3, cy - 3, cx + 3, cy + 3), fill=(224, 208, 255, 210))
+    else:
+        draw.ellipse((cx - 12, cy - 12, cx + 12, cy + 12), outline=(255, 214, 130, 180), width=3)
+    return image.filter(ImageFilter.GaussianBlur(0.4))
+
+
+def math_pi_over_2():
+    import math
+
+    return math.pi / 2
+
+
+def math_tau():
+    import math
+
+    return math.tau
+
+
+def _cos(value):
+    import math
+
+    return math.cos(value)
+
+
+def _sin(value):
+    import math
+
+    return math.sin(value)
+
+
+def build_line_fx(sheets: dict) -> None:
+    """Per-defence impacts and muzzle flashes."""
+    print("line effects")
+    for kind, spec in LINE_FX.items():
+        side = spec["frame"]
+        frames = [_line_frame(kind, i, spec["frames"], side) for i in range(spec["frames"])]
+        name = f"fx-line-{kind}-impact.png"
+        save(strip(frames, side), name)
+        sheets[f"fx-line-{kind}-impact"] = {
+            "file": name,
+            "frameWidth": side,
+            "frameHeight": side,
+            "frames": spec["frames"],
+            "frameRate": spec["frameRate"],
+        }
+
+        muzzle = _line_muzzle(kind)
+        muzzle_name = f"fx-line-{kind}-muzzle.png"
+        save(muzzle, muzzle_name)
+        sheets[f"fx-line-{kind}-muzzle"] = {
+            "file": muzzle_name,
+            "frameWidth": muzzle.width,
+            "frameHeight": muzzle.height,
+            "frames": 1,
+            "frameRate": 1,
+        }
+        print(f"  {kind:8s} impact + muzzle")
+
+
 def build() -> dict:
     os.makedirs(OUT, exist_ok=True)
     sheets: dict[str, dict] = {}
@@ -264,7 +499,11 @@ def build() -> dict:
     for element, spec in ELEMENTS.items():
         source = spec["source"]
         frames = []
-        for index in range(9):
+        # Frame 0 of every Kenney explosion is a full-white flash. Played at
+        # 28 fps over a 64 px battlefield it is a strobe, not a hit — the strip
+        # starts one frame later and the ramp's lightest stop is warm off-white
+        # instead of pure white.
+        for index in range(1, 9):
             image = load(f"{source}-{index:02d}.png")
             frames.append(duotone(image, ramp(spec["ramp"]), 1.0))
         side = spec["side"]
@@ -275,7 +514,7 @@ def build() -> dict:
             "file": name,
             "frameWidth": side,
             "frameHeight": side,
-            "frames": 9,
+            "frames": 8,
             "frameRate": spec["frameRate"],
         }
 
@@ -435,6 +674,9 @@ def build() -> dict:
         "frames": 1,
         "frameRate": 1,
     }
+
+    # ---- per-defence effects ----------------------------------------------
+    build_line_fx(sheets)
 
     # ---- particle singles --------------------------------------------------
     particles = {}

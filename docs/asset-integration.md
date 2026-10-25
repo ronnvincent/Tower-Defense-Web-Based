@@ -101,13 +101,24 @@ Levels 4 and 5 keep their branch's silhouette but ship their own textures:
 re-grades the level-3 art through the line's element ramp, adds a rim light and,
 at level 5, paints a power ring on the plinth.
 
-Rebuilding the keeps from the source packs was rejected on purpose: every pivot,
+**Tier geometry.** A re-grade on its own was rejected by playtesting: the result
+read as "same tower, warmer", never as an upgrade. Every tier above 1 therefore
+also gains parts, drawn by `scripts/build_tower_decor.py` (24 sprites, generated
+metadata in `src/data/towerDecor.js`) and attached at runtime by
+`Tower.refreshDecorations()`:
+
+| Tier | Sprite | Anchor |
+| --- | --- | --- |
+| 2 | `parapet.png` + `pennant-<line>.png` ×2 | crown behind the keep's top, flags on its edges |
+| 3 | `plinth.png` + `cloth-<line>.png` | footing at the ground line, standard hung under the crown |
+| 4 | `brazier.png` + `flame-0..2.png` ×2 | base corners, ADD blend, 120 ms frame cycle |
+| 5 | `crystal-<line>.png` ×2 | hovering above the crown, opposite-phase bob |
+
+Rebuilding the keeps from the source packs was still rejected: every pivot,
 mount height and muzzle offset in `towerVisuals.js` is calibrated to the
 level-3 sheet (`fw`/`fh`/`px`/`py`/`mount`), and a new canvas size would mean
-re-measuring 48 sprites by hand. A re-grade keeps the geometry exact while
-still reading as a different building on the battlefield. In motion the tier is
-sold by the effects — muzzle flash, elemental impact and the max-tier aura —
-not by pixels alone.
+re-measuring 48 sprites by hand. Decoration layers change the silhouette without
+touching a single measured value.
 
 `TOWER_VISUALS` derives the four ascended slots from `spec-a`/`spec-b`, so
 `SLOTS` is eight entries per line and `BootScene` loads them without a special
@@ -137,6 +148,13 @@ centre. Frost crystals never rotate (`NON_ROTATING_TYPES`) and simply bob.
 | `cannonball` | `proj-cannonball` (Tower 03) | `impact-cannon` |
 | `frost` | `proj-frost`, `-2`, `-3` per tier (Tower 02) | `impact-frost`, `-2`, `-3` |
 | `lightning` | `proj-lightning` (Tower 05) | `impact-lightning` |
+| `banner` | `proj-banner` (golden standard bolt) | `fx-line-banner-impact` |
+| any line, L4 | `proj-line-<line>-4` | `fx-line-<line>-impact` |
+| any line, L5 | `proj-line-<line>-5` | `fx-line-<line>-impact` |
+
+The tiered keys come from the generated `src/data/projectileArt.js`
+(`projectileArtFor(line, level)`), so `Tower` never hard-codes a file name; if a
+texture is missing the shot falls back to the branch's `slotTexture`.
 
 The Spire impact strips are the fallback. The shipped effects come from the
 Kenney library above (`src/systems/Vfx.js`), which picks a strip by *damage
@@ -364,8 +382,10 @@ the same ASCII and the same themed tiles.
 ## 6. Regenerating the art
 
 ```bash
-python3 scripts/build_spire_assets.py     # all art + src/data/spireManifest.js
-python3 scripts/terrain.py --contrast     # battlefield readability table
+python3 scripts/build_spire_assets.py   # towers/enemies/tiles + spireManifest.js
+python3 scripts/build_tower_decor.py    # per-tier decorations + towerDecor.js
+python3 scripts/build_projectiles.py    # per-line L4/L5 shots + projectileArt.js
+python3 scripts/terrain.py --contrast   # battlefield readability table
 ```
 
 Requires only the standard library plus the unpacked source packs in

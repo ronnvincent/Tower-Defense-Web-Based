@@ -73,6 +73,8 @@ export class Projectile {
       vfx.impact(x, y, element, {
         scale: options.scale ?? 1,
         splash: options.splash ?? 0,
+        line: this.stats.line || null,
+        shake: true,
       });
       return;
     }
@@ -134,7 +136,7 @@ export class Projectile {
       // radius so the area of effect is legible at a glance.
       this.scene.vfx?.groundBlast?.(impactX, impactY, Math.max(0.7, this.stats.splash / 70));
       this.spawnImpact(impactX, impactY, this.type, {
-        scale: Math.max(1, this.stats.splash / 60),
+        scale: Math.min(1.5, Math.max(0.8, this.stats.splash / 90)),
         splash: this.stats.splash,
       });
 
@@ -199,7 +201,7 @@ export class Projectile {
       }
 
       this.spawnImpact(impactX, impactY, this.type, {
-        scale: this.stats.damage >= 120 ? 1.35 : 1,
+        scale: this.stats.damage >= 160 ? 1.2 : 1,
       });
 
       if (this.scene.particleEmitter) {

@@ -2,6 +2,8 @@ import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
 import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_PALETTES, IMPACT_SHEETS } from '../data/spireManifest.js';
 import { FX_SHEETS, FX_PARTICLES } from '../data/fxManifest.js';
+import { DECOR_ART } from '../data/towerDecor.js';
+import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
@@ -90,6 +92,11 @@ export class BootScene extends Phaser.Scene {
       this.load.image(tier.key, `assets/towers/${tier.file}`);
     }
 
+    // 3b. Tower decorations — the per-tier parts that grow the silhouette.
+    for (const [key, file] of Object.entries(DECOR_ART)) {
+      this.load.image(key, `assets/towers/deco/${file}`);
+    }
+
     // 4. Enemies — animated 9-row strips (idle / move / death x 3 palettes).
     // Every biome x wave-tier re-grade is a separate sheet: the base strip, the
     // elite strip and the champion strip, per battlefield. Texture keys come
@@ -120,8 +127,17 @@ export class BootScene extends Phaser.Scene {
       'proj-hammer',
       'proj-forge',
       'proj-rune',
+      // Per-line shot art (scripts/build_projectiles.py): the banner keeps fire
+      // their own golden bolt, and every line upgrades its projectile at 4/5.
+      'proj-banner',
     ]) {
       this.load.image(key, `assets/projectiles/${key}.png`);
+    }
+    // Tier-4/5 shots live in the generated table so the loader cannot drift.
+    for (const tiers of Object.values(TIERED_PROJECTILES)) {
+      for (const key of Object.values(tiers)) {
+        this.load.image(key, `assets/projectiles/${key}.png`);
+      }
     }
     this.load.image('coin-sprite', 'assets/projectiles/coin.png');
 

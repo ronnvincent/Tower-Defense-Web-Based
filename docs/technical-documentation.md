@@ -257,10 +257,31 @@ branch, and the multiplier is carried by a named behaviour (`ability.shots`,
 `Projectile.impact` reads `nova`, and the HUD inspector prints the ability name
 under `SIGNATURE` — so a new tower gets the system for free.
 
-Tier 4/5 art is generated (`build_tower_ascension()`): the branch textures are
-re-graded through the line's element ramp, rim-lit, and at level 5 given a power
-ring on the plinth. Geometry is inherited, so pivots and muzzle offsets stay
-calibrated; `TOWER_VISUALS` expands `SLOTS` to eight per line.
+Tier 4/5 base textures are generated (`build_tower_ascension()`): the branch
+art is re-graded through the line's element ramp, rim-lit, and at level 5 given
+a power ring on the plinth. Geometry is inherited, so pivots and muzzle offsets
+stay calibrated; `TOWER_VISUALS` expands `SLOTS` to eight per line.
+
+**A re-grade alone was not enough.** Players read a palette shift as "the same
+tower, warmer", so every tier above 1 also *grows parts*. `Tower` owns two extra
+containers (`decorBack`, `decorFront`) rebuilt by `refreshDecorations()` on each
+upgrade, from generated art in `scripts/build_tower_decor.py`:
+
+| Tier | Added geometry | Runtime behaviour |
+| --- | --- | --- |
+| 1 | — | plain keep |
+| 2 | merlon crown + two pennants | pennants swing on a sine tween |
+| 3 | fortified footing + hung battle standard | crown widens 6%, pennants ride outwards |
+| 4 | twin braziers with flame | flame textures cycle every 120 ms + scale pulse |
+| 5 | two shards above the keep | shards bob and tilt in opposite phase |
+
+The tiers are cumulative, so the part count strictly increases (0 → 3 → 5 → 9 →
+11): a maxed tower is a different building, not a different tint. New parts
+spring in (`Back.easeOut`) when the upgrade lands.
+
+Projectiles get the same treatment: `src/data/projectileArt.js` maps each line
+to its own level-4/5 shot, and `Tower.projectileArt` prefers it. The Banner Keep
+now fires a golden `proj-banner` instead of borrowing the archer's arrow.
 
 ### Powerups (`src/systems/Powerups.js`)
 
