@@ -23,6 +23,7 @@ export class ResultScreenUI {
    *   onNext?: () => void,
    *   onReplay?: () => void,
    *   onMenu?: () => void,
+   *   onMap?: (result:object) => void,
    *   onLeaderboard?: (result:object) => void,
    * }} callbacks
    */
@@ -154,6 +155,9 @@ export class ResultScreenUI {
       actions.push('<button id="result-next" class="game-btn game-btn-primary">NEXT LEVEL ▶</button>');
     }
     actions.push(`<button id="result-replay" class="game-btn">${victory ? 'REPLAY' : 'RETRY'}</button>`);
+    // Straight back to the hub: the map is where the next stage is chosen, and
+    // it reports the stars and rewards this run actually banked.
+    actions.push('<button id="result-map" class="game-btn">WORLD MAP</button>');
     actions.push('<button id="result-board" class="game-btn">LEADERBOARD</button>');
     actions.push('<button id="result-menu" class="game-btn">MAIN MENU</button>');
 
@@ -196,6 +200,10 @@ export class ResultScreenUI {
     this.container.querySelector('#result-menu')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onMenu?.();
+    });
+    this.container.querySelector('#result-map')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onMap?.(this.result);
     });
     this.container.querySelector('#result-board')?.addEventListener('click', () => {
       audio.playClick();

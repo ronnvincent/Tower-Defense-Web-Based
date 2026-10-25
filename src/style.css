@@ -8789,3 +8789,1380 @@ html.draft-open body {
     letter-spacing: 1.2px;
   }
 }
+
+/* ==========================================================================
+   WORLD MAP — the explorable hub
+   --------------------------------------------------------------------------
+   One painted continent (public/assets/worldmap) under a CSS-transform camera.
+   The chrome is deliberately thin: a rail, a wallet strip and a contextual
+   panel. The art is the screen.
+
+   Layering inside #app:  HUD 100 · map 248 · screens 250 · modals 300.
+   The map lives in its own root (#world-map-root) because ResultScreenUI and
+   friends replace `#screen-container.innerHTML` — a camera state stored in
+   there would be wiped by the very victory screen that sends you back here.
+   ========================================================================== */
+
+#world-map-root {
+  position: absolute;
+  inset: 0;
+  z-index: 248; /* above the HUD, below every overlay screen and dialog */
+  pointer-events: none;
+}
+
+.wm-screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #05070b;
+  color: var(--ink);
+  font-family: var(--font-body);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: wm-fade-in 220ms ease-out both;
+}
+
+/* --- the plate and its camera -------------------------------------------- */
+
+.wm-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  outline: none;
+  touch-action: none;
+}
+
+.wm-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.wm-stage:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--gold-line);
+}
+
+.wm-camera {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.wm-plate {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+.wm-terrain {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.wm-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 90% at 50% 48%, transparent 52%, rgba(4, 6, 10, 0.45) 100%),
+    linear-gradient(180deg, rgba(4, 6, 10, 0.55) 0%, transparent 16%, transparent 84%, rgba(4, 6, 10, 0.6) 100%);
+}
+
+/* --- biomes: a wash and a name pin, never a rectangle -------------------- */
+
+.wm-region {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, var(--wm-fog, rgba(0, 0, 0, 0.2)) 0%, transparent 68%),
+    radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--wm-tint) 16%, transparent) 0%, transparent 62%);
+  opacity: 0.9;
+  mix-blend-mode: multiply;
+}
+
+.wm-region-label {
+  position: absolute;
+  transform: translate(-50%, -50%) scale(var(--wm-label-scale, 1));
+  transform-origin: center;
+  padding: 2px 9px;
+  border: 1px solid rgba(198, 158, 88, 0.28);
+  border-radius: 2px;
+  background: rgba(6, 9, 14, 0.55);
+  color: var(--ink-strong);
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.wm-region-label::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 4px;
+  height: 4px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--wm-tint, var(--gold-primary));
+  opacity: 0.7;
+}
+
+/* --- landmarks ----------------------------------------------------------- */
+
+.wm-landmark {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 180ms ease, filter 180ms ease;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45));
+}
+
+.wm-landmark:hover,
+.wm-landmark:focus-visible {
+  transform: translate(-50%, -100%) scale(1.045);
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.55)) brightness(1.12) saturate(1.06);
+  outline: none;
+}
+
+.wm-landmark:focus-visible .wm-landmark-tag {
+  border-color: var(--gold-primary);
+  color: var(--ink-strong);
+  box-shadow: 0 0 0 2px rgba(245, 196, 81, 0.35);
+}
+
+.wm-landmark.is-active {
+  transform: translate(-50%, -100%) scale(1.05);
+  filter: drop-shadow(0 0 14px rgba(245, 196, 81, 0.55)) brightness(1.1);
+}
+
+.wm-landmark-art {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.wm-landmark-halo {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 0;
+  width: 128%;
+  height: 34%;
+  transform: translate(-50%, 26%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 206, 128, 0.3), transparent 68%);
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.wm-landmark--banner .wm-landmark-art {
+  transform-origin: 50% 100%;
+  animation: wm-sway 6.4s ease-in-out infinite alternate;
+  animation-delay: var(--wm-delay, 0s);
+}
+
+.wm-landmark--castle .wm-landmark-halo {
+  background: radial-gradient(ellipse at center, rgba(255, 214, 140, 0.36), transparent 70%);
+  animation: wm-flicker 4.6s ease-in-out infinite alternate;
+}
+
+.wm-landmark[data-wm-id='forge'] .wm-landmark-halo {
+  background: radial-gradient(ellipse at center, rgba(255, 138, 70, 0.42), transparent 68%);
+  animation: wm-flicker 2.6s ease-in-out infinite alternate;
+}
+
+.wm-landmark[data-wm-id='shrine'] .wm-landmark-halo {
+  background: radial-gradient(ellipse at center, rgba(255, 226, 150, 0.5), transparent 66%);
+  animation: wm-pulse 3.4s ease-in-out infinite;
+}
+
+.wm-landmark[data-wm-id='arena'] .wm-landmark-halo {
+  background: radial-gradient(ellipse at center, rgba(255, 120, 120, 0.26), transparent 70%);
+}
+
+/* Unbeaten objective: a slow ring at the foot of the banner. */
+.wm-landmark-beacon {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 62%;
+  height: 16%;
+  transform: translate(-50%, 32%);
+  border-radius: 50%;
+  border: 2px solid rgba(245, 196, 81, 0.75);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wm-landmark.is-objective .wm-landmark-beacon {
+  animation: wm-beacon 2.8s ease-out infinite;
+}
+
+.wm-landmark.is-new .wm-landmark-beacon {
+  border-color: var(--emerald-primary);
+  animation: wm-beacon 1.4s ease-out 4;
+}
+
+/* The tag itself carries the news, so the reveal is readable without motion. */
+.wm-landmark.is-new .wm-landmark-tag {
+  border-color: var(--emerald-primary);
+  color: #eafff2;
+  box-shadow: 0 0 14px rgba(92, 242, 166, 0.45);
+}
+
+/* A locked road is dimmed, never hidden: you are meant to see where it goes. */
+.wm-landmark.is-locked .wm-landmark-art {
+  filter: saturate(0.32) brightness(0.72) contrast(0.96);
+}
+
+.wm-landmark.is-locked:hover .wm-landmark-art {
+  filter: saturate(0.5) brightness(0.86);
+}
+
+/* --- labels (map pins, not scenery: they counter-scale) ------------------ */
+
+.wm-landmark-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transform: translate(-50%, 6%) scale(var(--wm-label-scale, 1));
+  transform-origin: top center;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 200ms ease;
+}
+
+.wm-landmark-tag {
+  padding: 2px 8px;
+  border: 1px solid rgba(198, 158, 88, 0.42);
+  border-radius: 2px;
+  background: rgba(6, 9, 14, 0.78);
+  color: var(--ink-strong);
+  font-family: var(--font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+.wm-landmark-state {
+  padding: 1px 7px;
+  border-radius: 2px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  line-height: 1.6;
+  background: rgba(6, 9, 14, 0.8);
+  border: 1px solid currentColor;
+}
+
+.wm-state--cleared {
+  color: var(--emerald-primary);
+}
+
+.wm-state--next {
+  color: var(--gold-primary);
+}
+
+.wm-state--open {
+  color: var(--cyan-primary);
+}
+
+.wm-state--locked {
+  color: #9a9484;
+}
+
+/* Building labels would collide at cover zoom, so they wait until you look
+   closer. Banners and the castle stay labelled at every zoom. */
+.wm-screen.is-far .wm-landmark--building .wm-landmark-label {
+  opacity: 0;
+}
+
+.wm-screen.is-far .wm-landmark--building:hover .wm-landmark-label,
+.wm-screen.is-far .wm-landmark--building:focus-visible .wm-landmark-label,
+.wm-screen.is-far .wm-landmark--building.is-active .wm-landmark-label {
+  opacity: 1;
+}
+
+/* --- atmosphere ---------------------------------------------------------- */
+
+.wm-air {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wm-clouds--a,
+.wm-clouds--b {
+  position: absolute;
+  left: -20%;
+  width: 140%;
+  height: 40%;
+  transform: translate3d(var(--wm-cloud-x, 0px), var(--wm-cloud-y, 0px), 0);
+}
+
+.wm-clouds--a {
+  top: 0;
+  opacity: 0.5;
+}
+
+.wm-clouds--b {
+  top: 16%;
+  opacity: 0.3;
+}
+
+.wm-clouds--a::before,
+.wm-clouds--b::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 22% 52% at 14% 42%, rgba(228, 238, 255, 0.5), transparent 66%),
+    radial-gradient(ellipse 16% 42% at 38% 58%, rgba(216, 230, 250, 0.42), transparent 68%),
+    radial-gradient(ellipse 26% 60% at 63% 38%, rgba(236, 243, 255, 0.38), transparent 70%),
+    radial-gradient(ellipse 18% 46% at 86% 56%, rgba(220, 232, 250, 0.44), transparent 70%);
+  filter: blur(16px);
+  animation: wm-drift 150s linear infinite;
+}
+
+.wm-clouds--b::before {
+  animation-duration: 210s;
+  animation-direction: reverse;
+  filter: blur(26px);
+  opacity: 0.7;
+}
+
+.wm-mist {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.wm-mist--north {
+  left: 26%;
+  top: 2%;
+  width: 46%;
+  height: 21%;
+  background: radial-gradient(ellipse at center, rgba(206, 232, 255, 0.3), transparent 70%);
+  animation: wm-roll 34s ease-in-out infinite alternate;
+}
+
+.wm-mist--ravine {
+  left: 58%;
+  top: 54%;
+  width: 34%;
+  height: 26%;
+  background: radial-gradient(ellipse at center, rgba(186, 142, 255, 0.24), transparent 70%);
+  animation: wm-roll 46s ease-in-out infinite alternate-reverse;
+}
+
+/* The river: a slow specular sweep, not a second water texture. */
+.wm-water {
+  position: absolute;
+  left: 7%;
+  top: 21%;
+  width: 17%;
+  height: 31%;
+  transform: rotate(-14deg);
+  border-radius: 50%;
+  background: linear-gradient(
+    100deg,
+    transparent 12%,
+    rgba(168, 226, 255, 0.16) 38%,
+    rgba(214, 244, 255, 0.22) 50%,
+    rgba(168, 226, 255, 0.14) 62%,
+    transparent 86%
+  );
+  filter: blur(7px);
+  animation: wm-shimmer 11s ease-in-out infinite alternate;
+}
+
+.wm-embers {
+  position: absolute;
+  left: 4%;
+  top: 63%;
+  width: 46%;
+  height: 34%;
+}
+
+.wm-embers i {
+  position: absolute;
+  bottom: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #ff9d4d;
+  box-shadow: 0 0 7px rgba(255, 140, 60, 0.9);
+  opacity: 0;
+  animation: wm-rise 8s linear infinite;
+}
+
+.wm-embers i:nth-child(1) { left: 6%; animation-delay: 0s; }
+.wm-embers i:nth-child(2) { left: 19%; animation-delay: 2.4s; }
+.wm-embers i:nth-child(3) { left: 33%; animation-delay: 4.1s; }
+.wm-embers i:nth-child(4) { left: 47%; animation-delay: 1.2s; }
+.wm-embers i:nth-child(5) { left: 61%; animation-delay: 3.3s; }
+.wm-embers i:nth-child(6) { left: 74%; animation-delay: 5.5s; }
+.wm-embers i:nth-child(7) { left: 86%; animation-delay: 6.6s; }
+.wm-embers i:nth-child(8) { left: 52%; animation-delay: 7.3s; }
+
+.wm-birds {
+  position: absolute;
+  left: 0;
+  top: 18%;
+  width: 100%;
+  height: 12%;
+}
+
+.wm-birds i {
+  position: absolute;
+  width: 10px;
+  height: 5px;
+  border-top: 1.5px solid rgba(18, 22, 28, 0.55);
+  border-radius: 50% 50% 0 0;
+  animation: wm-flock 46s linear infinite;
+}
+
+.wm-birds i::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: -1.5px;
+  width: 10px;
+  height: 5px;
+  border-top: 1.5px solid rgba(18, 22, 28, 0.55);
+  border-radius: 50% 50% 0 0;
+}
+
+.wm-birds i:nth-child(1) { top: 30%; animation-delay: 0s; }
+.wm-birds i:nth-child(2) { top: 46%; animation-delay: -14s; }
+.wm-birds i:nth-child(3) { top: 22%; animation-delay: -28s; }
+
+/* --- top bar ------------------------------------------------------------- */
+
+.wm-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: calc(10px + var(--safe-top)) calc(12px + var(--safe-right)) 40px
+    calc(12px + var(--safe-left));
+  background: linear-gradient(180deg, rgba(4, 6, 10, 0.82) 0%, rgba(4, 6, 10, 0.4) 60%, transparent 100%);
+  pointer-events: none;
+}
+
+.wm-top > * {
+  pointer-events: auto;
+}
+
+.wm-brand {
+  min-width: 0;
+}
+
+.wm-brand-kicker {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.wm-brand-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(17px, 2.4vh, 26px);
+  font-weight: 900;
+  letter-spacing: 2px;
+  line-height: 1.1;
+  background: linear-gradient(180deg, #ffe9b0, #f5c451 46%, #a9782a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.wm-wallets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.wm-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(198, 158, 88, 0.32);
+  border-radius: 999px;
+  background: rgba(8, 11, 17, 0.72);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-wallet img {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+}
+
+.wm-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wm-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  border-radius: 3px;
+  background: rgba(8, 11, 17, 0.78);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.wm-icon img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}
+
+.wm-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wm-icon:hover,
+.wm-icon:focus-visible {
+  border-color: var(--gold-primary);
+  background: rgba(18, 23, 33, 0.95);
+  outline: none;
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+.wm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 13px;
+  border: 1px solid rgba(198, 158, 88, 0.42);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #1c2231 0%, #10141d 100%);
+  color: var(--ink-strong);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 120ms ease, filter 150ms ease;
+}
+
+.wm-btn:hover,
+.wm-btn:focus-visible {
+  border-color: var(--gold-primary);
+  filter: brightness(1.12);
+  outline: none;
+}
+
+.wm-btn:active {
+  transform: translateY(1px);
+}
+
+.wm-btn--primary {
+  background: linear-gradient(180deg, #f3c96b 0%, #d9a139 52%, #b57e23 100%);
+  border-color: rgba(60, 40, 8, 0.55);
+  color: var(--ink-on-gold);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.wm-btn--primary:hover,
+.wm-btn--primary:focus-visible {
+  filter: brightness(1.08);
+  border-color: #ffe9b0;
+}
+
+.wm-btn:disabled,
+.wm-btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  filter: grayscale(0.7) brightness(0.7);
+  border-color: rgba(198, 158, 88, 0.2);
+}
+
+.wm-btn--ghost {
+  background: rgba(8, 11, 17, 0.6);
+  border-color: rgba(198, 158, 88, 0.3);
+  color: var(--ink-muted);
+}
+
+/* --- camera rail --------------------------------------------------------- */
+
+.wm-rail {
+  position: absolute;
+  right: calc(12px + var(--safe-right));
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transform: translateY(-50%);
+  padding: 6px;
+  border: 1px solid rgba(198, 158, 88, 0.26);
+  border-radius: 999px;
+  background: rgba(6, 9, 14, 0.72);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.wm-rail-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(198, 158, 88, 0.34);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #1a202c 0%, #0d1118 100%);
+  color: var(--ink-strong);
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, filter 150ms ease;
+}
+
+.wm-rail-btn:hover,
+.wm-rail-btn:focus-visible {
+  border-color: var(--gold-primary);
+  color: #ffe9b0;
+  outline: none;
+}
+
+.wm-screen:not(.can-zoom-in) #wm-zoom-in,
+.wm-screen:not(.can-zoom-out) #wm-zoom-out {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wm-zoom-readout {
+  color: var(--ink-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-rail-btn--home {
+  margin-top: 2px;
+}
+
+.wm-home-mark {
+  position: relative;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.wm-home-mark::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+/* --- contextual panel ---------------------------------------------------- */
+
+.wm-panel {
+  position: absolute;
+  top: calc(74px + var(--safe-top));
+  right: calc(14px + var(--safe-right));
+  /* Hug the content: a card with three facts should not be a 700 px column. */
+  max-height: calc(100% - 128px - var(--safe-top) - var(--safe-bottom));
+  z-index: 4;
+  width: clamp(298px, 27vw, 384px);
+  padding: 16px 16px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(21, 26, 36, 0.97) 0%, rgba(11, 14, 20, 0.98) 100%);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 236, 190, 0.07);
+  pointer-events: auto;
+  animation: wm-panel-in 220ms ease-out both;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198, 158, 88, 0.4) transparent;
+}
+
+.wm-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wm-panel::-webkit-scrollbar-thumb {
+  background: rgba(198, 158, 88, 0.35);
+  border-radius: 3px;
+}
+
+.wm-card-head {
+  position: relative;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(198, 158, 88, 0.22);
+}
+
+.wm-eyebrow {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+}
+
+.wm-card-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(17px, 2.1vh, 22px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1.15;
+  color: var(--ink-strong);
+}
+
+.wm-state {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.wm-card-blurb {
+  margin: 0 0 12px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.wm-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 7px;
+  margin: 0 0 8px;
+}
+
+.wm-fact {
+  padding: 6px 8px;
+  border: 1px solid rgba(198, 158, 88, 0.16);
+  border-left: 2px solid rgba(198, 158, 88, 0.42);
+  border-radius: 2px;
+  background: rgba(6, 9, 14, 0.55);
+  min-width: 0;
+}
+
+.wm-fact dt {
+  color: var(--ink-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+
+.wm-fact dd {
+  margin: 2px 0 0;
+  color: var(--ink-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.wm-fact-accent {
+  color: var(--gold-primary) !important;
+}
+
+.wm-fact .muted {
+  color: var(--ink-muted);
+}
+
+.wm-pips {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+
+.wm-pips i {
+  display: inline-block;
+  width: 5px;
+  height: 9px;
+  transform: skewX(-12deg);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.wm-pips i.is-on {
+  background: var(--gold-primary);
+}
+
+.wm-stars {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: -2px;
+}
+
+.wm-star {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  opacity: 0.55;
+}
+
+.wm-star.is-earned {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(245, 196, 81, 0.55));
+}
+
+.wm-locked-note {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--crimson-primary);
+  background: rgba(95, 22, 34, 0.22);
+  color: var(--ink-red);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.wm-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.wm-mode-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wm-mode {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid rgba(198, 158, 88, 0.22);
+  border-radius: 3px;
+  background: rgba(8, 11, 17, 0.6);
+  color: inherit;
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.wm-mode:hover,
+.wm-mode:focus-visible {
+  border-color: var(--gold-primary);
+  background: rgba(24, 30, 41, 0.9);
+  outline: none;
+}
+
+.wm-mode img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: none;
+}
+
+.wm-mode-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wm-mode-body b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--ink-strong);
+}
+
+.wm-mode-body i {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  color: var(--ink-muted);
+}
+
+/* --- tooltip / toast / footer -------------------------------------------- */
+
+.wm-tip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  max-width: 220px;
+  padding: 5px 9px;
+  border: 1px solid rgba(198, 158, 88, 0.5);
+  border-radius: 3px;
+  background: rgba(6, 9, 14, 0.94);
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  transition: opacity 120ms ease;
+}
+
+.wm-tip-name {
+  display: block;
+  color: var(--ink-strong);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.wm-tip-meta {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.wm-foot {
+  position: absolute;
+  left: calc(14px + var(--safe-left));
+  bottom: calc(10px + var(--safe-bottom));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.wm-foot > * {
+  pointer-events: auto;
+}
+
+.wm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(233, 220, 196, 0.56);
+  font-family: var(--font-body);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.wm-link:hover,
+.wm-link:focus-visible {
+  color: var(--gold-primary);
+  outline: none;
+}
+
+.wm-hint {
+  margin: 0;
+  color: rgba(233, 220, 196, 0.42);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.wm-toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(46px + var(--safe-bottom));
+  z-index: 6;
+  padding: 8px 18px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(245, 196, 81, 0.5);
+  border-radius: 999px;
+  background: rgba(6, 9, 14, 0.92);
+  color: var(--ink-strong);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.wm-toast.is-in {
+  animation: wm-toast-in 280ms ease-out both;
+}
+
+/* --- motion -------------------------------------------------------------- */
+
+@keyframes wm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes wm-sway {
+  from { transform: rotate(-0.7deg); }
+  to { transform: rotate(0.9deg); }
+}
+
+@keyframes wm-flicker {
+  0% { opacity: 0.55; transform: translate(-50%, 26%) scale(0.98); }
+  40% { opacity: 1; }
+  100% { opacity: 0.7; transform: translate(-50%, 26%) scale(1.05); }
+}
+
+@keyframes wm-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@keyframes wm-beacon {
+  0% { opacity: 0.9; transform: translate(-50%, 32%) scale(0.55); }
+  70% { opacity: 0.15; transform: translate(-50%, 32%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, 32%) scale(1.25); }
+}
+
+@keyframes wm-drift {
+  from { transform: translate3d(-6%, 0, 0); }
+  to { transform: translate3d(6%, 0, 0); }
+}
+
+@keyframes wm-roll {
+  from { transform: translate3d(-2%, 0, 0) scale(1); opacity: 0.7; }
+  to { transform: translate3d(3%, 1.5%, 0) scale(1.08); opacity: 1; }
+}
+
+@keyframes wm-shimmer {
+  from { opacity: 0.45; filter: blur(7px) brightness(0.9); }
+  to { opacity: 0.9; filter: blur(5px) brightness(1.25); }
+}
+
+@keyframes wm-rise {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  12% { opacity: 0.9; }
+  70% { opacity: 0.6; }
+  100% { opacity: 0; transform: translateY(-150px) scale(0.4); }
+}
+
+@keyframes wm-flock {
+  from { transform: translateX(-12vw); }
+  to { transform: translateX(112vw); }
+}
+
+@keyframes wm-panel-in {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes wm-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* The intro is a one-shot: `is-intro` is removed after the tween, so a player
+   who comes back from a battle never sees the whole animation again. */
+.wm-screen.is-intro .wm-camera {
+  animation: wm-intro 900ms ease-out both;
+}
+
+@keyframes wm-intro {
+  from { opacity: 0; filter: brightness(0.5) saturate(0.8); }
+  to { opacity: 1; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wm-screen,
+  .wm-panel,
+  .wm-toast.is-in {
+    animation: none;
+  }
+  .wm-screen.is-intro .wm-camera {
+    animation: none;
+  }
+  .wm-landmark,
+  .wm-landmark--banner .wm-landmark-art,
+  .wm-landmark--castle .wm-landmark-halo,
+  .wm-landmark[data-wm-id='forge'] .wm-landmark-halo,
+  .wm-landmark[data-wm-id='shrine'] .wm-landmark-halo,
+  .wm-landmark-beacon,
+  .wm-clouds--a::before,
+  .wm-clouds--b::before,
+  .wm-mist,
+  .wm-water,
+  .wm-embers i,
+  .wm-birds i {
+    animation: none !important;
+  }
+  .wm-landmark:hover,
+  .wm-landmark:focus-visible,
+  .wm-landmark.is-active {
+    transform: translate(-50%, -100%);
+  }
+}
+
+/* --- small screens: the panel becomes a bottom sheet --------------------- */
+
+@media (max-width: 900px) {
+  .wm-panel {
+    top: auto;
+    max-height: none;
+    left: calc(8px + var(--safe-left));
+    right: calc(8px + var(--safe-right));
+    bottom: calc(8px + var(--safe-bottom));
+    width: auto;
+    max-height: min(58vh, 320px);
+    padding: 12px 12px 10px;
+    animation: wm-sheet-in 220ms ease-out both;
+  }
+
+  @keyframes wm-sheet-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .wm-card-title {
+    font-size: 16px;
+  }
+
+  .wm-card-blurb {
+    font-size: 11.5px;
+    margin-bottom: 9px;
+  }
+
+  .wm-facts {
+    gap: 5px;
+  }
+
+  .wm-fact {
+    padding: 5px 6px;
+  }
+
+  .wm-fact dd {
+    font-size: 11.5px;
+  }
+
+  .wm-rail {
+    right: calc(8px + var(--safe-right));
+    top: auto;
+    bottom: calc(52px + var(--safe-bottom));
+    transform: none;
+    flex-direction: row;
+    border-radius: 999px;
+    padding: 5px;
+  }
+
+  .wm-hint {
+    display: none;
+  }
+
+  .wm-brand-title {
+    font-size: 16px;
+  }
+
+  .wm-wallet {
+    height: 21px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  .wm-btn--ghost {
+    min-height: 26px;
+    padding: 4px 9px;
+    font-size: 9px;
+  }
+
+  .wm-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* With a sheet open the map still needs room: the toast steps up above it. */
+  .wm-screen.has-panel .wm-toast {
+    display: none;
+  }
+
+  /* The rail is the camera's home on a phone; a sheet or a column would sit on
+     top of it, so it steps aside while a panel is open (close the panel and the
+     controls are back exactly where they were). */
+  .wm-screen.has-panel .wm-rail {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media (max-height: 560px) and (min-width: 641px) {
+  .wm-screen.has-panel .wm-rail {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .wm-panel {
+    top: calc(58px + var(--safe-top));
+    left: auto;
+    right: calc(8px + var(--safe-right));
+    bottom: auto;
+    width: min(320px, 42vw);
+    max-height: calc(100% - 76px - var(--safe-top) - var(--safe-bottom));
+    padding: 10px 11px 9px;
+    animation: wm-panel-in 200ms ease-out both;
+  }
+
+  .wm-card-head {
+    padding-bottom: 7px;
+    margin-bottom: 7px;
+  }
+
+  .wm-card-title {
+    font-size: 15px;
+  }
+
+  .wm-eyebrow {
+    font-size: 8px;
+    letter-spacing: 1.8px;
+  }
+
+  .wm-state {
+    font-size: 7.5px;
+    padding: 0 5px;
+  }
+
+  .wm-card-blurb {
+    font-size: 11px;
+    margin-bottom: 7px;
+  }
+
+  .wm-facts {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .wm-fact {
+    padding: 4px 5px;
+  }
+
+  .wm-fact dt {
+    font-size: 7px;
+    letter-spacing: 1.2px;
+  }
+
+  .wm-fact dd {
+    font-size: 11px;
+  }
+
+  .wm-card-actions {
+    margin-top: 8px;
+    gap: 5px;
+  }
+
+  .wm-btn {
+    min-height: 26px;
+    padding: 4px 10px;
+    font-size: 9px;
+  }
+}
+
+@media (max-height: 430px) {
+  .wm-top {
+    padding-top: calc(6px + var(--safe-top));
+    padding-bottom: 26px;
+  }
+
+  .wm-brand-kicker {
+    font-size: 7.5px;
+    letter-spacing: 3px;
+  }
+
+  .wm-brand-title {
+    font-size: 14px;
+  }
+
+  .wm-panel {
+    max-height: min(64vh, 260px);
+  }
+
+  .wm-rail-btn {
+    width: 27px;
+    height: 27px;
+    font-size: 14px;
+  }
+
+  .wm-foot {
+    display: none;
+  }
+}

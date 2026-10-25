@@ -360,7 +360,10 @@ processed. Waves 4–5 look fine only because they contain no boss; wave 6 has o
   the one strip.
 - `tests/progression.test.js` pins the star boundaries (85 % / 50 %), the first-clear vs replay
   payouts, the unlock graph (`level-1` → `level-2` → `endless`) and the save-file merge/corruption paths.
-- `tests/campaign-ui.test.js` renders the world map and the result modal in jsdom and asserts the
+- `tests/world-map.test.js` mounts the world map in jsdom and asserts the camera clamps, the
+  landmark → briefing → deploy wiring, the eight War Room modes, the locked stage, the pan/zoom
+  gestures and the save-driven markers.
+- `tests/campaign-ui.test.js` renders the result modal in jsdom and asserts the
   node states, minimap URLs, star markup and the Next / Replay / Main Menu routing.
 - `tests/wave-flow.test.js` plays all six waves through `WaveManager` and asserts every spawn is
   released in order, the queue grows past its initial 32 slots, and each wave reports completion.

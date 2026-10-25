@@ -249,17 +249,37 @@ Manual checklist for a human browser session:
 
 ## 8. Campaign screens
 
-**World map** (`src/ui/LevelSelectUI.js`, styles under "CAMPAIGN UI" in `src/style.css`)
-- A single `.overlay-screen` inside `#modal-container`; the container stays
-  `pointer-events: none` so the battlefield below keeps its drags, and the
-  overlay re-enables pointer events for itself only.
-- Four stage nodes (three levels + Endless Siege) on a dashed `.track-line`.
-  Each node carries the generated minimap of *its own* battlefield, the level's
-  stars, and a padlock + `disabled` when it is still locked. The accent colour
-  comes from `THEMES[level.theme].accent` through a `--node-accent` custom
-  property, so a new biome needs no new CSS.
-- The header is the campaign wallet (gold, gems, total stars). `Esc`-free: the
-  only ways out are a node or MAIN MENU — the world map is also where a battle exits to.
+**World map — the hub** (`src/ui/WorldMapUI.js`, `src/data/worldMap.js`, styles
+under "WORLD MAP" in `src/style.css`)
+- One painted continent (1536×1024, `public/assets/worldmap/terrain-src.jpg`)
+  under a CSS-transform camera inside `#world-map-root` (z-index 248: above the
+  HUD, below every overlay screen and dialog). It lives in its own root because
+  `ResultScreenUI` empties `#screen-container` — a camera parked in there would
+  be wiped by the victory screen that sends you back to the map.
+- Camera: `x`, `y`, `scale` with `minScale` = the cover scale (the plate can
+  never show a bare edge) and `maxScale` ≈ the landmarks' native pixels. Drag,
+  wheel, two-finger pinch, `+`/`-`/arrows/`0`, and a rail with zoom + recentre.
+  Memory is stored plate-relative so a resize or a fullscreen toggle restores
+  the same corner of the world. Pointer travel > 6 px suppresses the click, so
+  a pan never launches a battle.
+- Landmarks are `<button>`s placed in plate percentages: 5 stage banners, the
+  castle overview, and seven buildings. Labels counter-scale (`1/scale`) so a
+  stage name is the same size on a phone at min zoom; building labels fade in
+  past 1.22× so the central kingdom stays readable when zoomed out.
+- The contextual panel is one card, hugged to its content, on the right at
+  ≥900 px and a bottom sheet (or a compact column on short landscape) below it.
+  It closes with BACK, Escape or a tap on empty ground and restores the camera
+  it borrowed.
+- Every landmark leads somewhere that already existed: stage briefings deploy
+  real `levelData` stages, the War Room opens the eight modes, the Royal Library
+  opens the codex + field manual, the Forge/Achievements/Champions' Hall open the
+  real screens (and return to the map, not the menu), the Shrine runs today's
+  real daily, and the Mirror Arena opens the duel lobby. No decorative landmark,
+  no dead button.
+- Discovery: a first clear that opens a road pulses the new banner, rings a
+  beacon on the current objective and prints one toast with the banked stars,
+  gold, gems and the road that opened. The intro zoom plays once per session —
+  returning from a battle never replays it.
 
 **Result screen** (`src/ui/ResultScreenUI.js`)
 - Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, a

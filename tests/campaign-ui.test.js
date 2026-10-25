@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { LevelSelectUI } from '../src/ui/LevelSelectUI.js';
 import { ResultScreenUI } from '../src/ui/ResultScreenUI.js';
 import { ProgressStore } from '../src/systems/Progression.js';
 import { getLevel, LEVELS, ENDLESS_LEVEL } from '../src/data/levelData.js';
@@ -19,87 +18,6 @@ const container = () => document.getElementById('modal-container');
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="modal-container"></div>';
-});
-
-describe('LevelSelectUI', () => {
-  let store;
-  let select;
-  let onSelectLevel;
-  let onClose;
-
-  beforeEach(() => {
-    store = new ProgressStore({ storage: fakeStorage() });
-    onSelectLevel = vi.fn();
-    onClose = vi.fn();
-    select = new LevelSelectUI(container(), store, { onSelectLevel, onClose });
-    select.show();
-  });
-
-  it('renders one node per campaign level plus Endless Siege', () => {
-    const nodes = [...document.querySelectorAll('.level-node')];
-    expect(nodes.map((n) => n.dataset.level)).toEqual([
-      'level-1',
-      'level-2',
-      'level-3',
-      'level-4',
-      'endless',
-    ]);
-    expect(document.querySelector('.overlay-title').textContent).toBe('CHOOSE YOUR BATTLE');
-  });
-
-  it('locks every node that has not been unlocked and shows the padlock', () => {
-    expect(document.querySelector('[data-level="level-1"]').disabled).toBe(false);
-    for (const id of ['level-2', 'level-3', 'level-4', 'endless']) {
-      const node = document.querySelector(`[data-level="${id}"]`);
-      expect(node.disabled).toBe(true);
-      expect(node.getAttribute('aria-disabled')).toBe('true');
-      expect(node.querySelector('.node-lock')).not.toBeNull();
-    }
-  });
-
-  it('uses the generated minimap for each theme', () => {
-    expect(document.querySelector('[data-level="level-1"] .node-art').style.backgroundImage).toContain(
-      'map_grassland.png'
-    );
-    expect(document.querySelector('[data-level="level-2"] .node-art').style.backgroundImage).toContain(
-      'map_desert.png'
-    );
-    expect(document.querySelector('[data-level="level-3"] .node-art').style.backgroundImage).toContain(
-      'map_ice.png'
-    );
-    expect(document.querySelector('[data-level="level-4"] .node-art').style.backgroundImage).toContain(
-      'map_crystal.png'
-    );
-    expect(document.querySelector('[data-level="endless"] .node-art').style.backgroundImage).toContain(
-      'map_volcanic.png'
-    );
-  });
-
-  it('selecting an open node reports its id, a locked node reports nothing', () => {
-    document.querySelector('[data-level="level-1"]').click();
-    expect(onSelectLevel).toHaveBeenCalledWith('level-1');
-
-    document.querySelector('[data-level="level-2"]').click();
-    expect(onSelectLevel).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows earned stars and unlocks the next node after a victory', () => {
-    store.recordVictory(getLevel('level-1'), { baseHealth: 25, maxBaseHealth: 25, score: 900 });
-    select.render();
-
-    const first = document.querySelector('[data-level="level-1"]');
-    expect(first.querySelectorAll('.star.earned')).toHaveLength(3);
-    expect(first.querySelector('.node-lock')).toBeNull();
-    expect(document.querySelector('[data-level="level-2"]').disabled).toBe(false);
-    expect(document.querySelector('[data-level="endless"]').disabled).toBe(false);
-  });
-
-  it('back button closes the overlay and reports it', () => {
-    document.getElementById('btn-level-back').click();
-    expect(onClose).toHaveBeenCalled();
-    expect(select.visible).toBe(false);
-    expect(document.getElementById('level-select')).toBeNull();
-  });
 });
 
 describe('ResultScreenUI', () => {

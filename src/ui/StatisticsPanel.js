@@ -53,6 +53,7 @@ export class StatisticsPanel {
     audio.playClick();
     const drawer = document.getElementById('codex-drawer');
     if (!drawer) return;
+    const wasOpen = this.openState;
     this.openState = false;
     drawer.classList.remove('open');
     drawer.setAttribute('aria-hidden', 'true');
@@ -61,6 +62,9 @@ export class StatisticsPanel {
     setTimeout(() => {
       if (!drawer.classList.contains('open')) drawer.classList.add('hidden');
     }, 260);
+    // The codex is reachable from the world map now, so whoever opened it has
+    // to get the player back. `wasOpen` keeps a double-close from re-firing.
+    if (wasOpen) this.callbacks.onClose?.();
   }
 
   startLive() {

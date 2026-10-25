@@ -7,7 +7,7 @@ import { HUD } from './ui/HUD.js';
 import { LeaderboardUI } from './ui/LeaderboardUI.js';
 import { StatisticsPanel } from './ui/StatisticsPanel.js';
 import { Leaderboard } from './systems/Leaderboard.js';
-import { LevelSelectUI } from './ui/LevelSelectUI.js';
+import { WorldMapUI } from './ui/WorldMapUI.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
 import { PvpLobbyUI } from './ui/PvpLobbyUI.js';
 import { DuelResultUI } from './ui/DuelResultUI.js';
@@ -18,7 +18,8 @@ import { AchievementsUI } from './ui/AchievementsUI.js';
 import { ForgeUI } from './ui/ForgeUI.js';
 import { BlessingsUI } from './ui/BlessingsUI.js';
 import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
-import { getNextLevel } from './data/levelData.js';
+import { getNextLevel, getLevel } from './data/levelData.js';
+import { MODES, MODE_KINDS } from './data/modeData.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { FullscreenController } from './system/FullscreenController.js';
@@ -87,6 +88,9 @@ window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, 
       gameScene.scene.start('MenuScene');
     }
   },
+  onClose: () => {
+    if (navReturn === 'map') restoreAfterPanel();
+  },
 });
 
 // ---------------------------------------------------------------------------
@@ -100,6 +104,41 @@ const menuOverlay = () => document.getElementById('main-menu-overlay');
 const hudLayer = () => document.getElementById('hud-container');
 
 /**
+ * Where a sub-screen should return to when it closes.
+ *
+ * The Forge, the Codex, the Monument and the Champions' Hall are all reachable
+ * from two places — the main menu and the world map — and each has to hand the
+ * player *back* to where they came from. One string, set by whoever opened the
+ * screen, read by every close handler.
+ */
+let navReturn = 'menu';
+
+/** Close a sub-screen: back to the map, or back to the main menu. */
+function restoreAfterPanel({ refresh = true } = {}) {
+  if (navReturn === 'map') {
+    navReturn = 'menu';
+    if (refresh) refreshMapAndShow();
+    return;
+  }
+  if (refresh) {
+    refreshDailyButton();
+    refreshMenuSummary();
+  }
+  menuOverlay()?.classList.remove('hidden');
+  hudLayer()?.classList.add('hidden');
+}
+
+/** Reveal the map with whatever the save now says. */
+function refreshMapAndShow() {
+  window.gameResultScreen?.hide?.();
+  menuOverlay()?.classList.add('hidden');
+  hudLayer()?.classList.add('hidden');
+  window.gameCodex?.hide?.();
+  window.gameLeaderboardUI?.hide?.();
+  window.gameWorldMap?.show();
+}
+
+/**
  * What the last battle was launched with.
  *
  * A mode run is a level *plus* flags — Rogue Siege is Endless with `rogue`, a
@@ -108,13 +147,22 @@ const hudLayer = () => document.getElementById('hud-container');
  */
 let lastLaunch = null;
 
-/** World map. The main menu is its own overlay, so hide that first. */
-/** Reveal the world map and clear every other layer. */
-function showLevelSelect() {
+/**
+ * Reveal the world map and clear every other layer.
+ *
+ * `arrival` is what the battle that just ended did — the map reports those real
+ * stars and rewards instead of replaying its intro like nothing happened.
+ */
+function showLevelSelect({ arrival = null } = {}) {
+  navReturn = 'menu';
   window.gameResultScreen?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.add('hidden');
-  window.gameLevelSelect?.show();
+  // A finished or abandoned run leaves a board behind the map. Stop it and park
+  // on the menu scene, so the map never animates on top of a live simulation
+  // (and so Deploy always boots through the same `MenuScene -> GameScene` path).
+  if (battleSceneIsUp()) game.scene.getScene('GameScene')?.scene?.start?.('MenuScene');
+  window.gameWorldMap?.show({ arrival });
 }
 
 function openLevelSelect() {
@@ -139,8 +187,9 @@ function quitToMap() {
  * restarted in place so Next / Replay never stack scenes.
  */
 function startLevel(levelId = 'level-1', options = {}) {
+  navReturn = 'menu';
   window.gameResultScreen?.hide?.();
-  window.gameLevelSelect?.hide?.();
+  window.gameWorldMap?.hide?.();
   window.gameAchievements?.hide?.();
   window.gameDuelResult?.hide?.();
   menuOverlay()?.classList.add('hidden');
@@ -303,14 +352,19 @@ function leaveDuelRoom() {
 }
 
 function openMainMenu() {
+  navReturn = 'menu';
   refreshDailyButton();
   refreshMenuSummary();
   window.gameResultScreen?.hide?.();
-  window.gameLevelSelect?.hide?.();
+  window.gameWorldMap?.hide?.();
   hudLayer()?.classList.add('hidden');
   document.getElementById('pause-overlay')?.classList.add('hidden');
   window.gameDuelResult?.hide?.();
   leaveDuelRoom();
+  // The overlay is revealed here, not by MenuScene.create(): the world map
+  // hides it, and if the menu scene is still parked behind the map then
+  // create() never runs again and the player would land on a black stage.
+  menuOverlay()?.classList.remove('hidden');
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
     gameScene.scene.start('MenuScene'); // stops the battle, then boots the menu
@@ -323,6 +377,7 @@ function openMainMenu() {
 
 window.gameFlow = {
   openLevelSelect,
+  openWorldMap: (options = {}) => showLevelSelect(options),
   startLevel,
   openMainMenu,
   quitToMap,
@@ -338,10 +393,10 @@ window.gameFlow = {
 };
 
 window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
-  onClose: () => {
-    hudLayer()?.classList.add('hidden');
-    menuOverlay()?.classList.remove('hidden');
-  },
+  // The Forge is reachable from the menu *and* the map; the close handler has
+  // to hand the player back to whichever one opened it.
+  onClose: () => restoreAfterPanel(),
+  onPurchase: () => refreshMenuSummary(),
 });
 
 // The blessings panel is in-battle UI: it reads the live scene rather than a
@@ -363,19 +418,77 @@ window.gameBlessings = new BlessingsUI(modalContainer, {
 });
 
 window.gameAchievements = new AchievementsUI(screenContainer, window.gameProgress, {
-  onClose: () => {
-    menuOverlay()?.classList.remove('hidden');
-    hudLayer()?.classList.add('hidden');
-  },
+  onClose: () => restoreAfterPanel(),
 });
 
-window.gameLevelSelect = new LevelSelectUI(screenContainer, window.gameProgress, {
-  onSelectLevel: (levelId) => startLevel(levelId),
-  onClose: () => {
-    menuOverlay()?.classList.remove('hidden');
-    hudLayer()?.classList.add('hidden');
-  },
-});
+/**
+ * The world map: the hub every inner screen hangs off.
+ *
+ * Its callbacks are deliberately thin — each one routes to a screen that
+ * already existed, so the map adds navigation, not a second copy of the game.
+ */
+window.gameWorldMap = new WorldMapUI(
+  document.getElementById('world-map-root') || screenContainer,
+  window.gameProgress,
+  {
+    daily: window.gameDaily,
+    onDeploy: (levelId) => startLevel(levelId),
+    onDaily: () => {
+      const run = refreshDailyButton();
+      if (!run) return;
+      window.gameDaily?.recordPlay(run.key);
+      startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
+    },
+    onDuel: () => window.gamePvpLobby?.show(),
+    onWarRoom: () => window.gameModes?.show(),
+    onMode: (modeId) => launchModeFromMap(modeId),
+    onLibrary: (target) => {
+      if (target === 'codex') {
+        window.gameCodex?.show();
+        return;
+      }
+      document.getElementById('instructions-modal')?.classList.remove('hidden');
+    },
+    onNavigate: (target) => {
+      // One table, so a landmark can only ever open a screen that exists.
+      const open = {
+        forge: () => window.gameForge?.show(),
+        achievements: () => window.gameAchievements?.show(),
+        leaderboard: () => window.gameLeaderboardUI?.show(),
+        codex: () => window.gameCodex?.show(),
+      }[target];
+      if (!open) return; // unknown target: stay on the map rather than strand
+      navReturn = 'map';
+      window.gameWorldMap?.hide();
+      open();
+    },
+    onMenu: () => openMainMenu(),
+    onCredits: () => document.getElementById('credits-modal')?.classList.remove('hidden'),
+    onSound: () => audio.toggleMute(),
+    onFullscreen: () => void fullscreen.toggle(),
+  }
+);
+
+/**
+ * Launch one War Room mode from the map.
+ *
+ * Blueprint and Co-op own a picker (nine boards / the duel lobby), and those
+ * pickers live inside the War Room, so those two open it and let it take over.
+ * Every other mode is a straight launch, through the same `ModesUI.launch`
+ * the War Room itself uses — one code path, so the map can never drift from
+ * the War Room's behaviour (rogue cards, anomaly seeds, contract boards).
+ */
+function launchModeFromMap(modeId) {
+  const mode = MODES.find((entry) => entry.id === modeId);
+  if (!mode) return;
+  window.gameWorldMap?.hide();
+  if (mode.kind === MODE_KINDS.PUZZLE || mode.kind === MODE_KINDS.COOP) {
+    window.gameModes?.show();
+    window.gameModes?.launch(modeId);
+    return;
+  }
+  window.gameModes?.launch(modeId);
+}
 
 window.gameResultScreen = new ResultScreenUI(screenContainer, {
   onNext: () => {
@@ -393,6 +506,17 @@ window.gameResultScreen = new ResultScreenUI(screenContainer, {
     startLevel(levelId);
   },
   onMenu: () => openMainMenu(),
+  onMap: (result) =>
+    showLevelSelect({
+      arrival: result
+        ? {
+            levelName: result.level?.name,
+            outcome: result.outcome,
+            stars: result.stars,
+            rewards: result.rewards,
+          }
+        : null,
+    }),
   onLeaderboard: (result) =>
     window.gameLeaderboardUI.show({
       status: result.outcome,
@@ -481,6 +605,11 @@ window.gameCodex = new StatisticsPanel(
   {
     onToggleBFSVisualizer: (enabled) => {
       getGameScene()?.toggleBFSVisualizer(enabled);
+    },
+    // Opened from the map it must come back to the map; opened from a battle
+    // (the HUD codex chip) it must simply close and leave the fight alone.
+    onClose: () => {
+      if (navReturn === 'map') restoreAfterPanel();
     },
   }
 );

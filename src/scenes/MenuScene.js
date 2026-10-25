@@ -38,9 +38,11 @@ export class MenuScene extends Phaser.Scene {
       particles.setDepth(2);
     }
 
-    // Mount or reveal the HTML main menu overlay
+    // Mount or reveal the HTML main menu overlay. The world map parks the game
+    // on this scene when a run ends (so no dead board keeps ticking behind the
+    // map), and in that case the menu must stay down until it is asked for.
     const menuOverlay = document.getElementById('main-menu-overlay');
-    if (menuOverlay) {
+    if (menuOverlay && !window.gameWorldMap?.isVisible) {
       menuOverlay.classList.remove('hidden');
     }
 

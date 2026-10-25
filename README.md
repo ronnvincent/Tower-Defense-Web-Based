@@ -80,14 +80,23 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 ## 🎮 How to Play & Controls
 
 ### Campaign
-Three hand-built battles plus an endless mode, chained by a star-rated world map:
+Four hand-built battles plus an endless mode, all chosen on an **explorable world
+map**: one painted continent you pan, pinch and zoom, with a banner for every
+stage and a castle, forge, library, war room, arena, shrine, champions' hall and
+monument you can walk into.
 
 | # | Level | Biome | Waves | Boss | First-clear bounty |
 |:-:|---|---|:-:|---|---|
 | 1 | **Verdant Marches** | Grassland | 6 | **The Warlord** — armoured juggernaut | 150 🪙 · 4 💎 |
 | 2 | **Sunscorch Mesa** | Desert | 7 | **Dune Tyrant** — Sandstorm Aura haste, Razor Winds below 45% | 200 🪙 · 6 💎 |
 | 3 | **Frostbite Hollow** | Ice | 8 | **Frost Warden** — freezes towers, shields itself, immune to slow when cornered | 260 🪙 · 8 💎 |
+| 4 | **Prism Depths** | Crystal | 9 | **Prism Warden** — refracts damage, shields, and reflects the whole board | 320 🪙 · 10 💎 |
 | ∞ | **Endless Siege** | Volcanic | ∞ | Rotating bosses every 5th wave | depth record only |
+
+The map's camera is real: drag, wheel or pinch to move, `+`/`-` (or the rail) to
+zoom between a whole-kingdom view and a building-level one, `0` to recentre, and
+`Esc` to step back. It remembers where you were across panels and battles, and a
+finished run reports its stars and rewards when you come back to it.
 
 ### War Room — eight modes, eight grounds
 
@@ -442,7 +451,8 @@ tower-defense-dsalgo/
 │   │   └── WaveManager.js      # Queue-driven wave spawner
 │   ├── ui/
 │   │   ├── HUD.js              # Status bar, build dock & tower inspector
-│   │   ├── LevelSelectUI.js    # Star-rated world map / stage nodes
+│   │   ├── WorldMapUI.js       # Explorable world-map hub: camera, landmarks
+│   │   ├── MissionBriefingUI.js# Stage briefing card read by the map
 │   │   ├── ResultScreenUI.js   # Victory, defeat & endless summary modal
 │   │   ├── LeaderboardUI.js    # High-score modal & name submission
 │   │   └── StatisticsPanel.js  # Live DSALGO telemetry & BFS overlay
