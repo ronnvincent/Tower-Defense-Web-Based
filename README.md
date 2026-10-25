@@ -138,6 +138,20 @@ above the wave counter and whose abilities telegraph before they fire.
 6. **Runestone (🪙 135):** Rune bolts that bypass 75% of armour. Branches into the **Void Lance** (true damage, ignores armour completely) or the **Arcane Nova** (magic splash).
 7. **Banner Keep (🪙 125):** Support keep that buffs every tower in its aura (+damage, +range) while still firing. Branches into the **Great Warbanner** (+32% damage, +14% range) or the **Muster Camp** (+15% fire rate and +1 gold per kill inside the aura).
 
+The dock is paged into two tabs — **KEEPS** (1–7) and **ENGINEER** (8, 9, 0, −, =) — so a phone
+never has to fit twelve cards in one row.
+
+#### Engineer line (gunpowder, fire, poison and rope)
+8. **Iron Crossbow (🪙 70):** Slow, armoured-piercing bolts. Branches into the **Repeater** (3.8 bolts/s) or the **Siege Arbalest** (65% armour pen, +25% vs bosses).
+9. **Clockwork Repeater (🪙 125):** Short-range six-barrel gun, the highest sustained DPS in the game. Branches into the **Storm Repeater** (11 rounds/s) or the **Shredder** (strips 8 armour per burst).
+0. **Pitchfire Siphon (🪙 95):** Close cone of burning pitch with a real burn DoT. Branches into the **Inferno Siphon** (hotter, faster ticks) or the **Napalm Mortar** (80 px burning pool).
+−. **Venom Still (🪙 105):** Poison that ignores armour completely. Branches into the **Plague Vat** (poison spreads to the pack) or the **Corrosive Still** (−20 armour while the poison works).
+=. **Harpoon Winch (🪙 115):** Barbed spear with a stun and bonus boss damage. Branches into the **Siege Harpoon** (+50% vs bosses) or the **Grapple Winch** (700 ms stun, then a slow).
+
+Every line reaches **level 5** and changes its *drawing* at every tier — the keeps grow a crown,
+pennants, braziers and floating shards, and each engineer tower grows turrets, boilers, fuel drums
+or spires — so an upgrade is a new building, not a new colour.
+
 ### Camera & Mouse Controls
 | Input | Action |
 |---|---|
@@ -162,6 +176,11 @@ above the wave counter and whose abilities telegraph before they fire.
 | <kbd>5</kbd> | Select Hammerforge |
 | <kbd>6</kbd> | Select Runestone |
 | <kbd>7</kbd> | Select Banner Keep |
+| <kbd>8</kbd> | Select Iron Crossbow |
+| <kbd>9</kbd> | Select Clockwork Repeater |
+| <kbd>0</kbd> | Select Pitchfire Siphon |
+| <kbd>-</kbd> | Select Venom Still |
+| <kbd>=</kbd> | Select Harpoon Winch |
 | <kbd>Q</kbd> | Powerup: Meteor Strike (then tap a tile) |
 | <kbd>E</kbd> | Powerup: Overcharge (all towers +70% fire rate, 7 s) |
 | <kbd>R</kbd> | Powerup: Fortify (repair palisades, +40 core) |

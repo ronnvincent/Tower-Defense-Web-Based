@@ -86,6 +86,44 @@ Game slots are `lvl1 → lvl2 → spec-a / spec-b`. Art data lives in
 | **Banner Keep** (`banner`) | Tower 06 (L1, L2, L3) | `t06_l01` → `t06_l02` → `t06_l03` / `t06_l03` + gold remap | Limestone keep flying a banner; the Muster Camp branch recolours the blue pennant to royal gold |
 | **Palisade** (`barricade`) | Tileset 1 walkway planks + stone coping | one sprite per tier | Vertical stakes with a stone cap, standing on the road |
 
+### The five engineer lines (authored, not imported)
+
+The Spire packs stop at six keeps, so the engineer roster is drawn from scratch
+by [`scripts/build_engineer_towers.py`](../scripts/build_engineer_towers.py) in
+the same 64 px side-view idiom (brickwork masked to a silhouette, iron banding,
+one accent colour per line). Nothing is recoloured: **every one of the 40 slots
+is a separate drawing**, and the canvas grows with the tier.
+
+| Line | Level 1 | Level 3 (a / b) | Level 5 (a3 / b3) | Signature machinery |
+| --- | --- | --- | --- | --- |
+| **Iron Crossbow** | 94 px | 124 / 116 px | 152 / 148 px | windlass wheel, second wheel at 4, spire at 5 |
+| **Clockwork Repeater** | 94 px | 124 / 116 px | 152 / 148 px | copper boiler, twin boilers at 4, crane arm at 5 |
+| **Pitchfire Siphon** | 94 px | 124 / 116 px | 152 / 148 px | fuel drum, twin drums at 4, burner bowl at 5 |
+| **Venom Still** | 94 px | 124 / 116 px | 152 / 148 px | glass vat, second vat at 4, overflow bulb at 5 |
+| **Harpoon Winch** | 94 px | 124 / 116 px | 152 / 148 px | winch drum + spare spears, 3 spears at 4, teal halo at 5 |
+
+Weapons are six-frame horizontal strips in a 128 × 128 frame with the pivot at
+`(64, 100)`; the art is scaled per slot (0.60 → 0.78) so the muzzle lands at
+≈1.05–1.35× the keep's height, matching the Spire sheets. The generator writes
+`src/data/engineerTowerArt.js`, and `towerVisuals.js` folds it into
+`TOWER_VISUALS` plus an exact `MUZZLE_OFFSET` per slot (`muzzleY` is measured
+from the drawn tip, never guessed).
+
+Shots and effects come from
+[`scripts/build_engineer_fx.py`](../scripts/build_engineer_fx.py):
+
+| Line | Projectile | Impact strip | Muzzle |
+| --- | --- | --- | --- |
+| crossbow | `proj-bolt`, `proj-bolt-heavy` | `fx-line-crossbow-impact` (needle burst) | triangular flash |
+| gatling | `proj-bullet` | `fx-line-gatling-impact` (casings + cone) | brass cone |
+| flamer | `proj-flame` | `fx-line-flamer-impact` (tongues + scorch) | ember spout |
+| venom | `proj-acid` | `fx-line-venom-impact` (bubbles + pool) | green glob |
+| harpoon | `proj-harpoon` | `fx-line-harpoon-impact` (spear + splinters) | teal diamond |
+
+The impact strips re-tint the shipped Kenney CC0 bursts (`blast`, `ember`,
+`arcane`, `ground`) with frame 0 skipped and alpha capped below white, so a
+burst can never strobe — the same rule the element strips follow.
+
 Tower 04, 05 and 06 each ship a single level-3 sheet, so the two branches of
 those lines share it and are told apart by a palette remap (`STORM_REMAP`,
 `ARCANE_REMAP`, `GOLD_REMAP` in the generator). Remaps are keyed by *output
@@ -382,10 +420,13 @@ the same ASCII and the same themed tiles.
 ## 6. Regenerating the art
 
 ```bash
-python3 scripts/build_spire_assets.py   # towers/enemies/tiles + spireManifest.js
-python3 scripts/build_tower_decor.py    # per-tier decorations + towerDecor.js
-python3 scripts/build_projectiles.py    # per-line L4/L5 shots + projectileArt.js
-python3 scripts/terrain.py --contrast   # battlefield readability table
+python3 scripts/build_spire_assets.py     # towers/enemies/tiles + spireManifest.js
+python3 scripts/build_tower_decor.py      # per-tier decorations + towerDecor.js
+python3 scripts/build_projectiles.py      # per-line L4/L5 shots + projectileArt.js
+python3 scripts/build_engineer_towers.py  # 5 engineer lines + engineerTowerArt.js
+python3 scripts/build_engineer_fx.py      # engineer shots + impacts + muzzles
+python3 scripts/build_fx_assets.py        # element + per-line effect atlases
+python3 scripts/terrain.py --contrast     # battlefield readability table
 ```
 
 Requires only the standard library plus the unpacked source packs in

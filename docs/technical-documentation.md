@@ -228,6 +228,11 @@ Wave-clear payout: $30 + 8w$ gold, $100w$ score.
 | **Runestone** | 🪙 135 | 170 px | 1.10 s | 30 | Magic bolts (75% armour bypass); L2 (🪙95) → Void Lance (🪙130, true damage) / Arcane Nova (🪙140, splash) |
 | **Banner Keep** | 🪙 125 | 155 px | 1.25 s | 16 | Aura: +15% damage, +6% range within 150 px; L2 (🪙85) → Great Warbanner (🪙115) / Muster Camp (🪙120, +gold per kill) |
 | **Palisade** | 🪙 30 | N/A | N/A | N/A | 420 HP wall on the road — enemies must break it; L2 (🪙35) → 900 HP + 20 thorns/s |
+| **Iron Crossbow** | 🪙 70 | 175 px | 0.95 s | 34 | Piercing bolts (20% pen); L2 (🪙60) → Repeater (🪙105, 3.8/s) / Siege Arbalest (🪙115, 65% pen, +25% boss) |
+| **Clockwork Repeater** | 🪙 125 | 118 px | 0.15 s | 8 | Shortest range, highest sustained DPS; L2 (🪙95) → Storm (🪙130, 11/s) / Shredder (🪙135, −8 armour per burst) |
+| **Pitchfire Siphon** | 🪙 95 | 105 px | 0.90 s | 18 | 34 px cone + burn DoT; L2 (🪙75) → Inferno (🪙115) / Napalm Mortar (🪙120, 80 px pool) |
+| **Venom Still** | 🪙 105 | 165 px | 1.10 s | 16 | Poison DoT that ignores armour; L2 (🪙85) → Plague Vat (🪙120, spreads) / Corrosive Still (🪙125, −20 armour) |
+| **Harpoon Winch** | 🪙 115 | 200 px | 2.20 s | 75 | 150 ms stun, 30% pen; L2 (🪙90) → Siege Harpoon (🪙145, +50% boss) / Grapple Winch (🪙140, 700 ms stun + slow) |
 
 ### The five-tier ladder (`src/data/towerAscension.js`)
 
@@ -253,7 +258,42 @@ it changes.
 
 The ladder is deliberately **not** linear in DPS: a capstone is 2.0–4.1× its
 branch, and the multiplier is carried by a named behaviour (`ability.shots`,
-`ability.nova`) rather than by a bigger number. `Tower.fire` reads `shots`,
+`ability.nova`) rather than by a bigger number.
+
+**How the roster is priced.** Raw DPS is the wrong yardstick once splash, DoT,
+chain and control exist: a 60 DPS venom still kills a pack that a 300 DPS
+crossbow cannot. Every branch is therefore scored on *effective* output —
+direct DPS plus the DoT tick rate — multiplied by a reach weight (support 2.6,
+chain 2.0, DoT+splash 2.1, DoT 1.8, control 1.7, splash 1.55, single 1.0) and a
+boss-damage bonus, then divided by the total gold to max it. The five engineer
+lines were costed this way, and the older lines were re-priced against them:
+
+- power per gold stays inside a **4.2× band** (support banner at the bottom, a
+  harpoon or chain-lightning at the top);
+- the cheapest and the dearest maxed tower are within **1.9×** of each other;
+- every branch still clears **1.6×** its level-3 DPS at the cap, so no upgrade
+  is a downgrade.
+
+`tests/engineer-defenses.test.js` recomputes those three bands from the data, so
+a future balance edit that breaks them fails CI instead of shipping.
+
+### Damage over time, stuns and enemy traits
+
+Five mechanics arrived with the engineer lines. All of them live on the entity,
+not in the scene, so they are unit-testable headlessly:
+
+| Mechanic | Where | Rule |
+| --- | --- | --- |
+| Burn / poison DoT | `Enemy.applyDot` + `updateDots` | ticks `dot.damage` every `tickMs` for `durationMs` as **true** damage (armour is skipped), one stack per `kind` — re-applying refreshes instead of duplicating |
+| Stun | `Enemy.applyStun` | freezes movement, scaled by the target's `stunResist` (bosses 0.4–0.7, capped at 90%) |
+| Boss bonus | `Projectile.hitEnemy` | `bossBonus` multiplies the hit only when `enemy.isBoss` |
+| Phalanx | `Enemy.applyDamage` | creeps packed with allies take 15–22% less, so splash is the answer |
+| Adaptive plate | `Enemy.applyDamage` | +2…3 armour per hit up to a cap, so armour break and true damage earn their slot |
+| Enrage | `Enemy.enrageMultiplier` | up to +30…45% speed at 1 HP, so a wounded runner still has to be finished |
+
+`Projectile.hitEnemy` is the single funnel for splash, single-target and chain
+hits, which is why a napalm shell applies its burn to everything in the pool
+exactly once. `Tower.fire` reads `shots`,
 `Projectile.impact` reads `nova`, and the HUD inspector prints the ability name
 under `SIGNATURE` — so a new tower gets the system for free.
 

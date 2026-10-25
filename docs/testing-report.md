@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 705 tests across 55 test suites.
-- **Pass Rate:** **100% (705 / 705 Passed)**
+- **Total Automated Unit Tests:** 740 tests across 57 test suites.
+- **Pass Rate:** **100% (740 / 740 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -29,6 +29,20 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (14 tests):
 | Level 1 has no decoration; 2 adds a crown + two pennants; 3 adds a plinth + standard; 4 lights two braziers; 5 floats two shards | The tier ladder is a *strict superset*, so every upgrade changes the silhouette |
 | The crown widens and the shards hover above it (never beside the flags) | Geometry, not palette, is what reads as "stronger" at 64 px |
 | `projectileArtFor()` returns the line's own shot at 4/5 and the banner bolt at 1–3, and `Tower.projectileArt` falls back to branch art when a texture is missing | Each line fires a different object, and a texture hiccup costs art, not a crash |
+
+### 1.3 Engineer roster coverage
+
+`tests/engineer-defenses.test.js` (24 tests) guards the whole second roster:
+
+| Group | What it proves |
+| --- | --- |
+| Roster | Five lines × 2 levels × 2 branches, and each line reaches its own signature (armour-piercing / burst rate / burn / poison / stun) rather than duplicating a neighbour |
+| Art | All 40 base + 40 weapon PNGs exist, and every tier's canvas is strictly taller and wider than the one below it — an upgrade is a new drawing, not a repaint |
+| Effects | Every line ships its own projectile sprite (no two share one), plus an impact and a muzzle strip registered in `fxManifest` |
+| DoT | Burn ticks as true damage past armour, expires, refreshes instead of stacking, coexists with poison, and kills mid-walk from `Enemy.update` |
+| Traits | Phalanx blunts a packed creep, adaptive armour hardens under fire (with a cap), enrage speeds a cornered runner (with a cap) |
+| Control | Stun halts movement and clears to exactly 0; bosses resist 40–70% of it; `bossBonus` pays out only against `isBoss` and carries DoT/stun through `Projectile.hitEnemy` |
+| Balance | Power-per-gold stays inside a 4.2× band across all 22 branches, cost spread stays under 1.9×, every branch still gains DPS at L4 and L5, and every boss still out-stats a brute |
 
 ---
 
@@ -210,7 +224,7 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (14 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  38 passed (38)
+Test Files  57 passed (57)
 Tests       518 passed (518)
 Duration    6.7s
 ```
@@ -229,11 +243,13 @@ Duration    6.7s
 | `tests/hud-boss-bar.test.js` | jsdom | 7 | Boss banner not appearing/updating, throwing on an incomplete boss object, or the extra-boss counter leaking `+0` / a negative count onto the strip |
 | `tests/hud-powerups.test.js` | jsdom | 6 | A powerup rail with no buttons, a cooling button that still looks ready, a sweep that never leaves 0, or a click that does not reach the scene |
 | `tests/vfx-runtime.test.js` | node | 9 | An impact that plays the wrong element, a splash that neither shakes nor drops a shockwave, a muzzle flash that ignores the barrel angle, or a scene without particle support that throws |
+| `tests/engineer-defenses.test.js` | jsdom | 24 | A line with two identical branches, a tier whose canvas does not grow, a shot that borrows another line's sprite, a burn that ignores armour break, a DoT that stacks forever, phalanx/adaptive/enrage that never fire (or never cap), a stun a boss does not resist, a `bossBonus` that pays out on grunts, or a rebalance that pushes power-per-gold outside its band |
 | `tests/tower-ascension.test.js` | node | 9 | A tower whose level 4/5 tier is missing, cheaper than the tier below, weaker in DPS than the tier below, has no signature ability at the cap, drifts out of its branch, has no ascended texture on disk, or reuses the level-3 muzzle |
 | `tests/powerups.test.js` | node | 10 | A powerup with no hotkey, a cooldown that recharges early or never, a failed use that still extends the cooldown, an overcharge window that outlives its duration, a wave-clear refund that can go negative |
 | `tests/vfx-assets.test.js` | node | 4 | An effect strip whose PNG is not exactly `frames × frameWidth`, a missing particle texture, or a tower damage type with no impact art |
 | `tests/flare-roster.test.js` | node | 10 | A Flare creature with no manifest entry or no walk cycle, a strip that no longer slices into 9 whole rows, a missing biome/tier skin, a new boss whose phases do not descend or whose ability is unknown, a boss rotated in before wave 25, or a new creep the horde never actually spawns |
 | `tests/boss-tracker.test.js` | jsdom | 9 | The strip showing the wrong boss when a titan and an anchor share a wave, a shield not counting toward the tracked pool, the panel blanking when the tracked boss dies first, a leaked boss never leaving the roster, or `syncBossPanel()` hiding a strip that still has a live boss |
+| `tests/dock-tabs.test.js` | jsdom | 11 | A card that belongs to no tab or two tabs at once, a tab that shows more than its own page, a remembered tab lost on reload, a stale stored tab, storage disabled mid-battle, a tab that stays focusable while hidden, or a hotkey from the other page not flipping the dock |
 | `tests/hud-responsive.test.js` | jsdom | 7 | A boss card that spans the screen again on a phone, a compact strip that drifts back over the toast lane, a dock fold that hides its own handle |
 | `tests/dock-fold.test.js` | jsdom | 8 | The forge toggle not folding/unfolding the cards, an armed defence surviving into a fold, the fold not remembered (or crashing without storage), a duel label leaking into the next campaign battle |
 | `tests/map-margin.test.js` | node | 6 | A spawn or core back on the map edge (half its art clipped), a gate buried under the top bar or the dock, a duel arena whose gates stop mirroring each other, a margin that severs the road network |
