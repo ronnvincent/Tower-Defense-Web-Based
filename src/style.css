@@ -1961,80 +1961,305 @@ body.is-fullscreen::before {
   gap: 6px;
 }
 
-.game-btn-spec {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 0;
-  background: transparent;
-  border: none;
-  border-image-source: var(--ui-card);
-  border-image-slice: 35 30 35 30 fill;
-  border-image-width: 13px 11px 13px 11px;
-  border-image-repeat: stretch;
-  border-style: solid;
-  border-radius: 0;
-  padding: 8px 9px;
-  cursor: var(--ui-cursor) 12 4, pointer;
-  color: var(--ink-strong);
-  transition: transform 0.16s ease, filter 0.16s ease;
-  white-space: normal;
-}
-
-.game-btn-spec:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.08);
-}
+/* --- specialisation cards -------------------------------------------------
+   Two paths, shown as two buildings. The old markup was a stack of buttons
+   with a title, a price and a paragraph — readable, but it looked like a
+   settings list, not like a choice worth getting excited about. Each card now
+   carries the art of the tower it buys, the branch lane, the role the stats
+   actually give it, and a before → after strip. */
 
 .spec-cards-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .spec-selection-block {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.spec-choice-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.spec-choice-hint {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--slot-muted);
+  white-space: nowrap;
+}
+
+.spec-card {
+  --lane: var(--gold-primary);
+  --lane-soft: rgba(245, 196, 81, 0.16);
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 5px;
-}
-
-.spec-btn-title {
-  font-family: var(--font-heading);
-  font-size: var(--fs-small);
-  font-weight: 700;
+  width: 100%;
+  padding: 8px 8px 7px;
+  text-align: left;
+  font-family: var(--font-body);
   color: var(--ink-strong);
-  line-height: 1.15;
+  background:
+    linear-gradient(180deg, var(--lane-soft), rgba(10, 14, 20, 0.86) 62%),
+    rgba(10, 14, 20, 0.86);
+  border: 1px solid rgba(245, 196, 81, 0.24);
+  border-left: 3px solid var(--lane);
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 3px 10px rgba(0, 0, 0, 0.35);
+  cursor: var(--ui-cursor) 12 4, pointer;
+  overflow: hidden;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
 }
 
-.spec-btn-cost {
-  font-size: var(--fs-small);
-  font-weight: 700;
-  color: var(--ink-gold);
+.spec-card.spec-lane-b {
+  --lane: var(--cyan-primary);
+  --lane-soft: rgba(96, 210, 255, 0.14);
+  border-color: rgba(96, 210, 255, 0.24);
+}
+
+/* A single diagonal highlight that sweeps across on hover: juice without a
+   strobe. `prefers-reduced-motion` turns it off further down. */
+.spec-card::after {
+  content: '';
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.1) 50%, transparent 58%);
+  transform: translateX(-70%);
+  pointer-events: none;
+  transition: transform 0.5s ease;
+}
+
+.spec-card:hover:not(:disabled),
+.spec-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--lane);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 6px 16px rgba(0, 0, 0, 0.45),
+    0 0 0 1px var(--lane-soft);
+}
+
+.spec-card:hover:not(:disabled)::after,
+.spec-card:focus-visible::after {
+  transform: translateX(70%);
+}
+
+.spec-card:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.55) brightness(0.8);
+}
+
+.spec-card:disabled .spec-card-cta {
+  color: var(--slot-muted);
+}
+
+.spec-card-top {
   display: flex;
   align-items: center;
-  gap: 1px;
-  margin: 1px 0 3px;
+  gap: 7px;
 }
 
-.spec-btn-desc {
+.spec-card-art {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 42px;
+  object-fit: contain;
+  object-position: bottom center;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+
+.spec-card-art-blank {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--lane);
+  opacity: 0.7;
+}
+
+.spec-card-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.spec-card-path {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--lane);
+  opacity: 0.9;
+}
+
+.spec-card-title {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.spec-card-role {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--lane);
+  padding: 1px 4px;
+  border: 1px solid var(--lane-soft);
+  border-radius: 2px;
+  align-self: flex-start;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.spec-card-role-next {
+  color: var(--gold-primary);
+  border-color: rgba(245, 196, 81, 0.35);
+}
+
+/* Three lines, then a fade: the full pitch is in the card's title tooltip, so a
+   long description cannot push the cost off the bottom of a phone panel. */
+.spec-card-pitch {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   font-size: var(--fs-micro);
   font-weight: 600;
+  line-height: 1.3;
   color: var(--ink-muted);
-  line-height: 1.25;
+}
+
+.spec-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.spec-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--slot-muted);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.spec-chip b {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.spec-chip i {
+  font-style: normal;
+  opacity: 0.5;
+  padding: 0 1px;
+}
+
+.spec-chip-up {
+  border-color: rgba(120, 226, 140, 0.4);
+  color: #9fe6ad;
+}
+
+.spec-chip-up b:last-child {
+  color: #b9f5c4;
+}
+
+.spec-chip-down {
+  border-color: rgba(240, 128, 110, 0.35);
+  color: #f0a08f;
+}
+
+.spec-chip-down b:last-child {
+  color: #ffb9a8;
+}
+
+.spec-card-cta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 1px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  color: var(--gold-primary);
+}
+
+.spec-card-cta b {
+  color: var(--gold-primary);
+}
+
+.spec-card-cta em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--lane);
+}
+
+.spec-card-wide {
+  border-left-width: 3px;
+}
+
+@media (max-width: 520px) {
+  .spec-cards-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spec-card-art {
+    width: 34px;
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spec-card,
+  .spec-card::after {
+    transition: none;
+  }
 }
 
 .max-spec-badge {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-family: var(--font-heading);
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.5px;
   padding: 7px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(245, 196, 81, 0.14);
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.2), rgba(245, 196, 81, 0.06));
   border: 1px solid var(--gold-line);
   color: var(--gold-primary);
+}
+
+.max-spec-stars {
+  letter-spacing: 0.18em;
+  color: var(--gold-primary);
+  text-shadow: 0 0 8px rgba(245, 196, 81, 0.55);
 }
 
 /* ==========================================================================

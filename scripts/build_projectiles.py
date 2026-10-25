@@ -269,6 +269,188 @@ def banner_5() -> Image.Image:
     return image
 
 
+# --- engineer lines: tier 4 / 5 -------------------------------------------
+#
+# The five engineer defences shipped with their own level-1 shot but kept it all
+# the way to level 5, so the last two upgrades of the line were invisible in
+# flight while the base lines swapped art. Each pair below continues the line's
+# own material: steel and brass for the crossbow, brass casings for the
+# repeater, burning pitch for the siphon, glass and distillate for the still,
+# and a roped harpoon for the winch.
+
+TOXIN_DARK = (34, 84, 44, 255)
+TOXIN = (110, 200, 92, 255)
+TOXIN_LIGHT = (186, 250, 150, 255)
+COPPER = (206, 118, 56, 255)
+COPPER_LIGHT = (248, 172, 104, 255)
+TEAL = (72, 170, 184, 255)
+TEAL_LIGHT = (160, 232, 236, 255)
+
+
+def crossbow_4() -> Image.Image:
+    """Barbed quarrel: a heavier bolt with swept barbs and a brass nock."""
+    image = blank(20, 46)
+    draw = ImageDraw.Draw(image)
+    draw.line([(10, 6), (10, 36)], fill=WOOD_DARK, width=3)
+    draw.line([(9, 8), (9, 34)], fill=WOOD, width=1)
+    draw.polygon([(10, 0), (15, 8), (10, 14), (5, 8)], fill=STEEL)
+    draw.polygon([(10, 2), (13, 8), (10, 12)], fill=STEEL_LIGHT)
+    draw.polygon([(10, 12), (16, 20), (12, 19), (10, 26)], fill=STEEL)
+    draw.polygon([(10, 12), (4, 20), (8, 19), (10, 26)], fill=STEEL)
+    draw.polygon([(10, 32), (14, 40), (10, 36), (6, 40)], fill=GOLD)
+    draw.line([(7, 30), (13, 30)], fill=GOLD_DARK)
+    return image
+
+
+def crossbow_5() -> Image.Image:
+    """Arbalest bolt: twin fins and a glowing brass tip."""
+    image = blank(24, 54)
+    draw = ImageDraw.Draw(image)
+    draw.line([(12, 8), (12, 50)], fill=WOOD_DARK, width=3)
+    draw.line([(11, 10), (11, 46)], fill=GOLD_DARK, width=1)
+    draw.polygon([(12, 0), (18, 10), (12, 18), (6, 10)], fill=STEEL_LIGHT)
+    draw.polygon([(12, 2), (15, 10), (12, 15)], fill=GOLD_LIGHT)
+    for side in (-1, 1):
+        x = 12 + side
+        draw.polygon([(x, 16), (x + side * 10, 24), (x, 30)], fill=GOLD)
+        draw.polygon([(x, 18), (x + side * 6, 24), (x, 28)], fill=GOLD_LIGHT)
+    draw.polygon([(12, 40), (17, 48), (12, 44), (7, 48)], fill=GOLD)
+    return image
+
+
+def gatling_4() -> Image.Image:
+    """Brass cased round with a copper penetrator — the repeater's belt round."""
+    image = blank(14, 30)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((5, 6, 9, 22), fill=GOLD_DARK)
+    draw.rectangle((6, 7, 8, 21), fill=GOLD)
+    draw.rectangle((6, 16, 8, 21), fill=GOLD_LIGHT)
+    draw.polygon([(7, 0), (11, 8), (7, 14), (3, 8)], fill=COPPER)
+    draw.polygon([(7, 2), (9, 8), (7, 11)], fill=COPPER_LIGHT)
+    draw.line([(4, 24), (10, 24)], fill=IRON_DARK)
+    draw.line([(5, 26), (9, 26)], fill=IRON)
+    return image
+
+
+def gatling_5() -> Image.Image:
+    """Belt cluster: three tracer rounds fanned out of a brass link."""
+    image = blank(22, 40)
+    draw = ImageDraw.Draw(image)
+    for x, y0, y1 in ((4, 10, 34), (11, 2, 34), (18, 12, 34)):
+        draw.rectangle((x - 2, y0 + 8, x + 2, y1), fill=GOLD_DARK)
+        draw.rectangle((x - 1, y0 + 9, x + 1, y1 - 1), fill=GOLD)
+        draw.polygon([(x, y0), (x + 3, y0 + 8), (x, y0 + 12), (x - 3, y0 + 8)], fill=EMBER)
+        draw.polygon([(x, y0 + 1), (x + 1, y0 + 8), (x, y0 + 10)], fill=EMBER_LIGHT)
+    draw.rectangle((1, 30, 21, 34), fill=IRON_DARK)
+    draw.rectangle((2, 31, 20, 33), fill=GOLD_DARK)
+    for x in range(4, 20, 5):
+        draw.point((x, 32), fill=GOLD_LIGHT)
+    return image
+
+
+def flamer_4() -> Image.Image:
+    """Pitch blob: a lumpy ember mass with a trailing tail."""
+    image = blank(18, 34)
+    draw = ImageDraw.Draw(image)
+    draw.polygon([(9, 2), (16, 14), (13, 26), (6, 30), (2, 18)], fill=EMBER_DARK)
+    draw.polygon([(9, 6), (14, 15), (12, 24), (7, 26), (4, 18)], fill=EMBER)
+    draw.ellipse((6, 8, 12, 18), fill=EMBER_LIGHT)
+    draw.line([(9, 26), (9, 33)], fill=EMBER_DARK, width=2)
+    draw.point((7, 30), fill=EMBER)
+    draw.point((11, 31), fill=EMBER)
+    return image
+
+
+def flamer_5() -> Image.Image:
+    """White-hot core in a burning shell: the apex of the siphon."""
+    image = blank(24, 44)
+    draw = ImageDraw.Draw(image)
+    draw.polygon([(12, 0), (22, 16), (18, 32), (12, 38), (6, 32), (2, 16)], fill=EMBER_DARK)
+    draw.polygon([(12, 4), (19, 17), (16, 30), (12, 34), (8, 30), (5, 17)], fill=EMBER)
+    draw.ellipse((8, 10, 16, 24), fill=EMBER_LIGHT)
+    draw.ellipse((10, 13, 14, 21), fill=CREAM)
+    for x in (5, 12, 19):
+        draw.point((x, 38), fill=EMBER)
+    draw.line([(12, 34), (12, 42)], fill=EMBER_DARK)
+    return image
+
+
+def venom_4() -> Image.Image:
+    """Glass ampoule: distillate caught in a stoppered vial."""
+    image = blank(14, 30)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((6, 2, 8, 6), fill=WOOD_DARK)
+    draw.rectangle((5, 6, 9, 10), fill=TOXIN_DARK)
+    draw.ellipse((2, 8, 12, 22), fill=TOXIN_DARK)
+    draw.ellipse((3, 10, 11, 21), fill=TOXIN)
+    draw.ellipse((4, 13, 10, 19), fill=TOXIN_LIGHT)
+    draw.arc((3, 9, 11, 21), 200, 280, fill=CREAM)
+    draw.polygon([(7, 22), (9, 28), (5, 28)], fill=TOXIN)
+    return image
+
+
+def venom_5() -> Image.Image:
+    """Alchemical orb: a bubbling sphere trailing droplets."""
+    image = blank(22, 36)
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((2, 2, 20, 20), fill=TOXIN_DARK)
+    draw.ellipse((3, 3, 19, 19), fill=TOXIN)
+    draw.ellipse((5, 6, 12, 14), fill=TOXIN_LIGHT)
+    draw.ellipse((7, 8, 10, 11), fill=CREAM)
+    for x, y in ((6, 16), (13, 15), (10, 18)):
+        draw.point((x, y), fill=TOXIN_LIGHT)
+    draw.polygon([(11, 20), (15, 28), (11, 26), (7, 28)], fill=TOXIN)
+    draw.line([(11, 26), (11, 34)], fill=TOXIN_DARK)
+    draw.point((9, 32), fill=TOXIN)
+    return image
+
+
+def harpoon_4() -> Image.Image:
+    """Roped harpoon: a barbed head with the line still attached."""
+    image = blank(16, 48)
+    draw = ImageDraw.Draw(image)
+    draw.line([(8, 6), (8, 40)], fill=WOOD_DARK, width=2)
+    draw.line([(7, 8), (7, 36)], fill=WOOD, width=1)
+    draw.polygon([(8, 0), (12, 10), (8, 14), (4, 10)], fill=STEEL)
+    draw.polygon([(8, 2), (10, 10), (8, 12)], fill=STEEL_LIGHT)
+    draw.polygon([(8, 10), (14, 16), (10, 18)], fill=STEEL)
+    draw.polygon([(8, 10), (2, 16), (6, 18)], fill=STEEL)
+    for y in range(22, 44, 4):
+        draw.line([(4, y), (11, y + 2)], fill=CREAM)
+    return image
+
+
+def harpoon_5() -> Image.Image:
+    """Anchor lance: a broad fluke head on a chain-wrapped shaft."""
+    image = blank(22, 56)
+    draw = ImageDraw.Draw(image)
+    draw.line([(11, 8), (11, 52)], fill=IRON_DARK, width=3)
+    draw.line([(10, 10), (10, 48)], fill=IRON, width=1)
+    draw.polygon([(11, 0), (17, 12), (11, 18), (5, 12)], fill=STEEL)
+    draw.polygon([(11, 2), (14, 12), (11, 15)], fill=STEEL_LIGHT)
+    for side in (-1, 1):
+        x = 11 + side
+        draw.polygon([(x, 14), (x + side * 10, 22), (x + side * 6, 26), (x, 22)], fill=STEEL)
+    draw.ellipse((9, 12, 13, 16), fill=GOLD)
+    for y in range(24, 50, 5):
+        draw.arc((6, y, 16, y + 6), 200, 340, fill=TEAL)
+        draw.point((11, y + 3), fill=TEAL_LIGHT)
+    return image
+
+
+ENGINEER_SPRITES = {
+    "proj-line-crossbow-4": crossbow_4,
+    "proj-line-crossbow-5": crossbow_5,
+    "proj-line-gatling-4": gatling_4,
+    "proj-line-gatling-5": gatling_5,
+    "proj-line-flamer-4": flamer_4,
+    "proj-line-flamer-5": flamer_5,
+    "proj-line-venom-4": venom_4,
+    "proj-line-venom-5": venom_5,
+    "proj-line-harpoon-4": harpoon_4,
+    "proj-line-harpoon-5": harpoon_5,
+}
+
 SPRITES = {
     "proj-line-archer-4": archer_4,
     "proj-line-archer-5": archer_5,
@@ -283,9 +465,13 @@ SPRITES = {
     "proj-banner": banner_base,
     "proj-line-banner-4": banner_4,
     "proj-line-banner-5": banner_5,
+    **ENGINEER_SPRITES,
 }
 
-LINES = ["archer", "cannon", "frost", "forge", "runes", "banner"]
+LINES = [
+    "archer", "cannon", "frost", "forge", "runes", "banner",
+    "crossbow", "gatling", "flamer", "venom", "harpoon",
+]
 
 
 def main() -> int:

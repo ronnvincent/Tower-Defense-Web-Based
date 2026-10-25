@@ -104,3 +104,36 @@ export function silhouetteDifference(a, b) {
   const union = Math.max(a.width * a.height, b.width * b.height);
   return differing / union;
 }
+
+/**
+ * Fraction of ink that differs between two sprites, anchored the way the game
+ * anchors them: bottom-centre on the tile's ground line.
+ *
+ * `silhouetteDifference` compares from the top-left corner, which is fine for
+ * same-size sprites but wrong for towers of different widths (the transparent
+ * margin would eat the whole difference). Towers hang from a shared ground line,
+ * so that is where the comparison starts. `band` limits the rows measured to
+ * the top fraction of the taller canvas — the crown is where a line's identity
+ * lives, while the straight stone shaft below it is deliberately shared.
+ */
+export function silhouetteDifferenceAnchored(a, b, { band = 1 } = {}) {
+  const width = Math.max(a.width, b.width);
+  const height = Math.max(a.height, b.height);
+  const ax = Math.floor((width - a.width) / 2);
+  const bx = Math.floor((width - b.width) / 2);
+  const ay = height - a.height;
+  const by = height - b.height;
+  const rows = Math.max(1, Math.round(height * band));
+  let differing = 0;
+  let ink = 0;
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const av = y >= ay ? a.alpha[(y - ay) * a.width + (x - ax)] : 0;
+      const bv = y >= by ? b.alpha[(y - by) * b.width + (x - bx)] : 0;
+      if (!av && !bv) continue;
+      ink += 1;
+      if (av !== bv) differing += 1;
+    }
+  }
+  return ink === 0 ? 0 : differing / ink;
+}

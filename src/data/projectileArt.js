@@ -21,6 +21,11 @@ export const TIERED_PROJECTILES = {
   forge: { 4: 'proj-line-forge-4', 5: 'proj-line-forge-5' },
   runes: { 4: 'proj-line-runes-4', 5: 'proj-line-runes-5' },
   banner: { 4: 'proj-line-banner-4', 5: 'proj-line-banner-5' },
+  crossbow: { 4: 'proj-line-crossbow-4', 5: 'proj-line-crossbow-5' },
+  gatling: { 4: 'proj-line-gatling-4', 5: 'proj-line-gatling-5' },
+  flamer: { 4: 'proj-line-flamer-4', 5: 'proj-line-flamer-5' },
+  venom: { 4: 'proj-line-venom-4', 5: 'proj-line-venom-5' },
+  harpoon: { 4: 'proj-line-harpoon-4', 5: 'proj-line-harpoon-5' },
 };
 
 /**

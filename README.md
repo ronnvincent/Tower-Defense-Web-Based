@@ -166,8 +166,11 @@ rebalanced live in [`docs/balance.md`](docs/balance.md), and `tests/branch-niche
 branch stops earning its gold.
 
 Every line reaches **level 5** and changes its *drawing* at every tier — the keeps grow a crown,
-pennants, braziers and floating shards, and each engineer tower grows turrets, boilers, fuel drums
-or spires — so an upgrade is a new building, not a new colour.
+pennants, braziers and floating shards, and the five engineer lines are five different buildings
+rather than one keep in five colours: an arbalest tower with a full-width prod, a squat iron bunker
+with a six-mouth drum, a domed copper boiler, a glass still, and a dockyard crane. Their tiers add
+structure (a second winch, a bigger drum, a priming tank), and their level-4 and level-5 shots are
+new art as well, so an upgrade is a new building, not a new colour.
 
 ### Camera & Mouse Controls
 | Input | Action |

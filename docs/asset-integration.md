@@ -90,21 +90,28 @@ Game slots are `lvl1 → lvl2 → spec-a / spec-b`. Art data lives in
 
 The Spire packs stop at six keeps, so the engineer roster is drawn from scratch
 by [`scripts/build_engineer_towers.py`](../scripts/build_engineer_towers.py) in
-the same 64 px side-view idiom (brickwork masked to a silhouette, iron banding,
-one accent colour per line). Nothing is recoloured: **every one of the 40 slots
-is a separate drawing**, and the canvas grows with the tier.
+the same 64 px side-view idiom: one shared brick shaft (the family resemblance)
+with a **different building on top of it for every line**. Nothing is recoloured
+and nothing is shared above the masonry — the five used to be one generic keep
+with five pennants, which is the bug this table replaces.
 
-| Line | Level 1 | Level 3 (a / b) | Level 5 (a3 / b3) | Signature machinery |
-| --- | --- | --- | --- | --- |
-| **Iron Crossbow** | 94 px | 124 / 116 px | 152 / 148 px | windlass wheel, second wheel at 4, spire at 5 |
-| **Clockwork Repeater** | 94 px | 124 / 116 px | 152 / 148 px | copper boiler, twin boilers at 4, crane arm at 5 |
-| **Pitchfire Siphon** | 94 px | 124 / 116 px | 152 / 148 px | fuel drum, twin drums at 4, burner bowl at 5 |
-| **Venom Still** | 94 px | 124 / 116 px | 152 / 148 px | glass vat, second vat at 4, overflow bulb at 5 |
-| **Harpoon Winch** | 94 px | 124 / 116 px | 152 / 148 px | winch drum + spare spears, 3 spears at 4, teal halo at 5 |
+| Line | Building | Level 1 | Level 3 (a / b) | Level 5 (a3 / b3) | Signature machinery |
+| --- | --- | --- | --- | --- | --- |
+| **Iron Crossbow** | tall arbalest tower | 44 × 84 px | 50 × 97 / 52 × 95 | 62 × 119 / 62 × 113 | full-width prod, V-string on a brass nut, loaded bolt; two winches and a counterweight at the top tiers |
+| **Clockwork Repeater** | squat iron bunker | 42 × 80 | 48 × 93 / 50 × 91 | 58 × 115 / 60 × 108 | flat riveted roof, six-mouth drum, smokestack, meshed cogs; a second drum on the flank at 5 |
+| **Pitchfire Siphon** | round fuel boiler | 44 × 85 | 48 × 99 / 50 × 97 | 58 × 122 / 60 × 116 | domed copper tank, banded belly, chimney with a fire mouth, lit firebox grate; priming tank at 5 |
+| **Venom Still** | alchemist's works | 42 × 90 | 46 × 105 / 48 × 103 | 56 × 129 / 58 × 123 | glass flask half full of distillate, copper neck and stand, condenser coil, drip tap; sigil at 5 |
+| **Harpoon Winch** | dockyard crane | 50 × 84 | 56 × 97 / 58 × 95 | 68 × 119 / 70 × 113 | king post and jib, pulley and hook, rope reel, harpoon rack, water barrel; lantern at 5 |
+
+The footprint is derived from each line's own proportions (`PROPORTIONS` +
+`geometry()`), not hand-written per slot, and it is capped: 42–72 px wide by
+80–129 px tall, against 60–118 × 94–152 before. That cap is what stops a level-5
+tower from colliding with its neighbour's upgrade badge on the board.
 
 Weapons are six-frame horizontal strips in a 128 × 128 frame with the pivot at
-`(64, 100)`; the art is scaled per slot (0.60 → 0.78) so the muzzle lands at
-≈1.05–1.35× the keep's height, matching the Spire sheets. The generator writes
+`(64, 100)`; the art is scaled per slot (0.52 → 0.68, following the smaller
+canvases) and the pivot is placed on the drawing's own deck at ~47 % of its
+height, so the barrel sits on the crown instead of floating above it. The generator writes
 `src/data/engineerTowerArt.js`, and `towerVisuals.js` folds it into
 `TOWER_VISUALS` plus an exact `MUZZLE_OFFSET` per slot (`muzzleY` is measured
 from the drawn tip, never guessed).

@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 778 tests across 62 test suites.
-- **Pass Rate:** **100% (778 / 778 Passed)**
+- **Total Automated Unit Tests:** 793 tests across 64 test suites.
+- **Pass Rate:** **100% (793 / 793 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -227,9 +227,9 @@ The per-tier art pass is pinned by `tests/tower-decor.test.js` (19 tests):
      ✓ does not call the removed BFS barricade API any more
      ✓ keeps Projectile splash gated on the splash radius, not the art type
 
-Test Files  58 passed (58)
-Tests       518 passed (518)
-Duration    6.7s
+Test Files  64 passed (64)
+Tests       793 passed (793)
+Duration    34.2s
 ```
 
 ---
@@ -283,6 +283,8 @@ Duration    6.7s
 | `tests/display-gate-dom.test.js` | jsdom | 14 | Real index.html gate markup, gates outside #app, inert/aria transitions, button callbacks, focus, HUD ⛶ mirroring |
 | `tests/mobile-layout.test.js` | jsdom | 24 | Placement hint covering the dock, floating HUD pinned to a stale dock height, stage leaving bands on a phone, missing viewport/touch-action lock, the wave readout splitting across lines, the pause card buried under a dialog |
 | `tests/viewport-lock.test.js` | jsdom | 9 | Page pinch-zoom on iOS, two-finger page scroll, ctrl+wheel and browser zoom shortcuts stealing the game's gestures |
+| `tests/engineer-art-distinct.test.js` | node | 7 | Two engineer lines that share a crown silhouette or a dock card (the five-generals problem), an upgrade that is a recolour, a tier that outgrows its 72 × 130 px budget, a weapon pivot drifting off the deck, or an apex shot that reuses the tier-4 sprite |
+| `tests/spec-ui.test.js` | jsdom | 8 | A specialisation card with no branch art, two branches showing the same building, a role badge the stats no longer justify, a DPS preview computed with a different formula than `dps()`, an unclickable or wrongly-affordable card, a next-tier button with no tower art, or a maxed tower showing an empty list |
 
 Contrast is verified separately by `npm run check:contrast` (36/36 WCAG AA pairs, measured against
 sampled sprite colours). Full UI notes: [ui-ux.md](ui-ux.md).
@@ -504,4 +506,52 @@ Behemoth (armour 70) the Siege Arbalest does **2.2x** what the Rapid Ranger does
 260 to 236, and it does that while stripping 40 armour for everything else on the
 field. Full tables: `docs/balance.md`, regenerated with
 `node scripts/balance-report.mjs`.
+
+## 9. Root-cause fix: five defences, one drawing
+
+**Symptom (reported from a screenshot of the board):** the five engineer
+defences — Iron Crossbow, Clockwork Repeater, Pitchfire Siphon, Venom Still,
+Harpoon Winch — looked alike and did not look like their names, and on a full
+board their upgrade badges overlapped (`335 / 180 / 160 / 90` stacked on the same
+tile).
+
+**Root cause:** `scripts/build_engineer_towers.py` had **one** `draw_base()` for
+all five lines. The line was only ever consulted for its accent colour
+(`accent_of()`) and for a handful of bolts-on props (`machines()`); the
+silhouette — shaft, crenellations, spires, turrets, banner, apex crystal — came
+from a shared `GEOMETRY` table keyed by *slot*, not by line. Additive growth then
+pushed the shared drawing to 118 × 152 px on a 64 px tile, which is why the
+badges collided. Measured ink coverage of the five dock cards before the fix:
+1373, 1386, 1358, 1375, 1394 px — five renders of the same object.
+
+**Fix:** one builder per line, and a footprint derived from the line's own
+proportions.
+
+1. `PROPORTIONS[line]` gives ground width, outward reach and crown height;
+   `geometry(line, slot)` derives the canvas, the shaft, the deck and `mount`
+   from them. Nothing about a canvas is hand-written per slot any more.
+2. Five builders — `build_crossbow`, `build_gatling`, `build_flamer`,
+   `build_venom`, `build_harpoon` — draw a different *building*: an arbalest
+   tower with a full-width prod and a V-string; a squat bunker with a six-mouth
+   drum, a smokestack and meshed cogs; a domed copper boiler with a lit firebox;
+   a glass flask of distillate on a copper stand; a dockyard crane with a king
+   post, a jib and a rope reel.
+3. `make_card()` crops the crown band instead of shrinking the whole tower, so
+   the 64 px dock tile shows the signature it has room for.
+4. The weapon pivot is measured from each drawing's ground line (`mount =
+   shaft + 11`) instead of the old `height − 30`.
+5. Tier-4 and tier-5 projectiles were added for the five lines
+   (`scripts/build_projectiles.py`), which previously kept their level-1 shot
+   all the way to the apex while the base lines swapped art.
+
+**Tests:** `tests/engineer-art-distinct.test.js` (7 tests) decodes the alpha
+channel of the generated PNGs and compares them bottom-centre anchored
+(`silhouetteDifferenceAnchored`). Every pair of lines differs on 22–65 % of its
+crown ink at level 1; every consecutive upgrade moves 26–55 %; no two dock cards
+share more than 24 % of their ink; every tier stays inside 72 × 130 px; and the
+apex shots are not recolours (≥ 10 % silhouette change). A recolour cannot pass
+any of those. `tests/spec-ui.test.js` (8 tests) covers the chooser rebuild in §3.
+
+**Live effect:** five silhouettes that can be named at a glance, and a board
+where a level-5 tower no longer sits on top of its neighbour's label.
 

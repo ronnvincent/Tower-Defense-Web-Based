@@ -354,6 +354,33 @@ capstone's extra volley is included), and a DoT line adds its tick rate as a
 quieter `+N burn` / `+N poison` suffix — the rate the shot keeps dealing while
 the target stays lit, not a guess at uptime.
 
+### The specialisation chooser
+
+At level 2 the inspector has to sell one of two futures, and it used to show two
+stacked buttons: a name, a price and a paragraph. Nothing on that panel showed
+the tower being bought or what it would do differently, so the branches read as
+interchangeable and the choice felt like a menu item.
+
+Each branch is now a card (`HUD.specCard`) that carries:
+
+- **the building itself** — `TOWER_VISUALS[typeKey][spec-a | spec-b]`, the same
+  art the tower will use on the board;
+- a **lane** (`PATH I` gold, `PATH II` cyan) so the pair is legible as a choice;
+- a **role** derived from the stats, not from copy: `HUD.describeRole()` reads
+  aura → burn/poison → boss bonus → armour break → splash → chain → stun/slow →
+  pierce → fire rate → range. A "CONTROL" badge cannot survive a patch that
+  removes the stun, and the Siege Harpoon is filed under BOSS HUNTER rather than
+  CONTROL even though it also stuns;
+- **before → after chips** for DPS, rate and range, priced with the same
+  `dps()` the balance suite uses, so the preview and the tower cannot disagree;
+- the cost as a call to action, and the whole card as the button — the player can
+  tap anywhere on the tower they want.
+
+`tests/spec-ui.test.js` pins all five, including that every card's art file
+exists and that the two branches never show the same sprite. On narrow screens
+the pair stacks into one column (≤ 520 px) and the pitch clamps to three lines,
+with the full text still in the card's tooltip.
+
 ### Powerups (`src/systems/Powerups.js`)
 
 Three hand-played tricks with independent cooldowns, on `Q` / `E` / `R` (the
@@ -545,6 +572,52 @@ overlay reads as a grid of squares, not as a gradient.
 Lane squares with water on opposite sides are **bridges**: the water is painted
 first, then the road as a 60 %-depth deck with two timber rails, so the river
 visibly continues underneath.
+
+### 7.4b Five buildings, not one keep (`scripts/build_engineer_towers.py`)
+
+The engineer roster shipped with five lines built from one generator function.
+It gave each line its own pennant colour and its own roof mount, and — because
+every tier only scaled the same drawing up — five identical grey keeps that
+grew to 118 px wide and collided with their own upgrade badges. The five names
+were the only thing telling them apart.
+
+The generator now derives each line's canvas from its own proportions
+(`PROPORTIONS`, `geometry()`), and each line owns a builder:
+
+| Line | Building | Reads as, at 64 px |
+|---|---|---|
+| Iron Crossbow | tall arbalest tower | a full-width prod, a V-string on a brass nut, a loaded bolt |
+| Clockwork Repeater | squat iron bunker | a flat riveted roof, a six-mouth drum, a smokestack, meshed cogs |
+| Pitchfire Siphon | round fuel boiler | a domed copper tank, a chimney with a fire mouth, a lit firebox grate |
+| Venom Still | alchemist's works | a glass flask half full of distillate, a neck, a condenser coil, a drip tap |
+| Harpoon Winch | dockyard crane | a king post and a horizontal jib, a pulley and hook, a rope reel |
+
+Tiers add *structure* — a second winch, a bigger drum, a priming tank, a second
+flask, more string planes — so an upgrade changes the silhouette. The base is
+mounted on the same brick shaft, because that shaft is the family resemblance;
+everything above it is the line.
+
+Three consequences worth keeping:
+
+- **Footprints are capped.** The art is 42–72 px wide and 80–129 px tall, against
+  60–118 × 94–152 before. `tests/engineer-art-distinct.test.js` fails above
+  72 × 130, which is the range where a 64 px tile starts overlapping its
+  neighbours' badges.
+- **`mount` is measured, not guessed.** It is `shaft + 11` from each drawing's
+  own ground line, so the weapon pivot sits on the deck at ~47 % of the art's
+  height for every line and tier. The old table hard-coded `height - 30` and
+  drifted the moment a canvas changed.
+- **The dock card is a crop of the crown, not a shrunk tower.** At 64 px the
+  signature is all there is room for: prod, drum, chimney, flask, crane. The
+  previous card scaled the whole 118 px keep down to 40 px, which is how five
+  different buildings became five grey slivers.
+
+Sprites are compared in the tests by alpha channel, anchored bottom-centre on
+the shared ground line (`silhouetteDifferenceAnchored` in `tests/helpers/png.js`).
+Recolours cannot pass: the pair-wise crown difference is 0.22–0.65, and every
+upgrade moves at least a quarter of the crown's ink. The five lines also carry
+their own tier-4 and tier-5 projectiles (`scripts/build_projectiles.py`), so the
+last two upgrades are visible in flight as well as on the building.
 
 ### 7.5 Adding a look
 1. Add or edit a ramp in `terrain.py` (`RAMPS` / `ROAD_RAMPS` / `WATER_RAMPS`).

@@ -1,4 +1,5 @@
 import { BUILD_OPTIONS, BUILD_GROUPS, getBuildDefinition, groupForBuild } from '../data/towerData.js';
+import { TOWER_VISUALS } from '../data/towerVisuals.js';
 import { dps } from '../data/towerAscension.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
@@ -996,38 +997,170 @@ export class HUD {
     return bits.length ? `${ability.label} · ${bits.join(', ')}` : ability.label;
   }
 
+  /**
+   * What a specialisation is *for*, in one or two words.
+   *
+   * The card used to be a name, a price and a sentence. A player at wave 9 has
+   * no time to parse a sentence, and the two branches of a line often read as
+   * interchangeable ("fast" vs "strong"). The role label is derived from the
+   * stats themselves, so it cannot drift from what the tower actually does: a
+   * branch only says CONTROL if it carries a slow or a stun.
+   */
+  describeRole(s) {
+    if (!s) return '—';
+    // Strongest identity first. A stun is checked last so a boss-killer that
+    // also stuns ("Siege Harpoon") is not filed under control, which is the
+    // branch's *side effect*, not its job.
+    if (s.aura) return 'SUPPORT';
+    if (s.dot) return s.dot.kind === 'poison' ? 'VENOM' : 'BURN';
+    if (s.bossBonus) return 'BOSS HUNTER';
+    if (s.armorBreak) return 'ARMOUR BREAK';
+    if (s.splash) return 'CROWD CLEAR';
+    if (s.chainTargets > 1) return 'CHAIN';
+    if (s.stunMs || s.slow) return 'CONTROL';
+    if (s.armorPenetration) return 'PIERCE';
+    if (s.cooldown <= 320) return 'RAPID FIRE';
+    if (s.range >= 240) return 'LONG RANGE';
+    return 'SINGLE TARGET';
+  }
+
+  /**
+   * The building the player is about to buy.
+   *
+   * Every line already ships art for each branch — showing it turns the choice
+   * from two paragraphs into two towers, which is what the player is actually
+   * deciding between. Falls back to nothing when a line has no art, so the card
+   * still renders.
+   */
+  upgradeArt(tower, slot) {
+    if (!slot) return null;
+    const line = TOWER_VISUALS[tower?.typeKey];
+    const visual = line?.[slot];
+    return visual?.base ? `/assets/towers/${visual.base}` : null;
+  }
+
+  /** Slot name for the "one option" upgrades (level 2 and the ascension tiers). */
+  nextSlot(tower) {
+    if (!tower) return null;
+    if (tower.level === 1) return 'lvl2';
+    if (!tower.specialization) return null;
+    const branch = tower.def?.specializations?.[tower.specialization]?.branch === 'spec-b'
+      ? 'spec-b'
+      : 'spec-a';
+    if (tower.level >= 4) return `${branch}3`;
+    return `${branch}2`;
+  }
+
+  /**
+   * The before/after numbers, as chips.
+   *
+   * A specialisation that trades damage for rate is a real choice, and the
+   * player should be able to see the trade without doing arithmetic. DPS uses
+   * the same `dps()` the balance suite uses, so the preview cannot promise
+   * something the tower will not deliver.
+   */
+  statChips(now, next) {
+    if (!next) return '';
+    const chips = [];
+    const chip = (label, before, after, format = (v) => v) => {
+      if (before === after) return;
+      const dir = after > before ? 'up' : 'down';
+      chips.push(
+        `<span class="spec-chip spec-chip-${dir}">${label} <b>${format(before)}</b>` +
+          `<i>→</i><b>${format(after)}</b></span>`
+      );
+    };
+    const rate = (s) => Math.round((1000 / Math.max(1, s.cooldown)) * 10) / 10;
+    if (now) {
+      chip('DPS', Math.round(dps(now)), Math.round(dps(next)));
+      chip('RATE', rate(now), rate(next), (v) => v.toFixed(1));
+      chip('RANGE', now.range ?? 0, next.range ?? 0);
+    } else {
+      chips.push(`<span class="spec-chip spec-chip-flat">DPS <b>${Math.round(dps(next))}</b></span>`);
+      chips.push(`<span class="spec-chip spec-chip-flat">RATE <b>${rate(next).toFixed(1)}</b>/s</span>`);
+    }
+    return `<span class="spec-card-chips">${chips.join('')}</span>`;
+  }
+
+  /** Attribute-safe text: descriptions are data, and `"` would end the title. */
+  static escAttr(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  /** One specialisation, as a card. */
+  specCard(opt, tower) {
+    const lane = opt.branch === 'spec-b' ? 'b' : 'a';
+    const art = this.upgradeArt(tower, opt.branch);
+    const artHtml = art
+      ? `<img class="spec-card-art" src="${art}" alt="" draggable="false" />`
+      : '<span class="spec-card-art spec-card-art-blank" aria-hidden="true">◆</span>';
+    return `
+      <button class="spec-card spec-lane-${lane} btn-upgrade-choice" data-choice="${opt.key}" title="${HUD.escAttr(opt.description)}">
+        <span class="spec-card-top">
+          ${artHtml}
+          <span class="spec-card-ident">
+            <span class="spec-card-path">PATH ${lane === 'a' ? 'I' : 'II'}</span>
+            <span class="spec-card-title">${opt.title}</span>
+            <span class="spec-card-role">${this.describeRole(opt)}</span>
+          </span>
+        </span>
+        <span class="spec-card-pitch">${opt.description}</span>
+        ${this.statChips(tower.stats, opt)}
+        <span class="spec-card-cta">
+          <img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" />
+          <b>${opt.upgradeCost}</b><em>UNLOCK</em>
+        </span>
+      </button>
+    `;
+  }
+
   renderUpgradeActions(tower) {
     const opts = tower.nextUpgrades;
     let html = '';
 
     if (opts.length === 1) {
       const opt = opts[0];
+      const art = this.upgradeArt(tower, this.nextSlot(tower));
+      const artHtml = art
+        ? `<img class="spec-card-art" src="${art}" alt="" draggable="false" />`
+        : '<span class="spec-card-art spec-card-art-blank" aria-hidden="true">▲</span>';
+      const ability = opt.ability?.label
+        ? `<span class="spec-card-role spec-card-role-next">${opt.ability.label.toUpperCase()}</span>`
+        : `<span class="spec-card-role spec-card-role-next">★${Math.min(5, tower.level + 1)}</span>`;
       html = `
-        <button id="btn-upgrade-tower" class="game-btn game-btn-upgrade" data-choice="${opt.key}">
-          UPGRADE · <img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-upgrade-cost">${opt.upgradeCost}</span>
+        <button id="btn-upgrade-tower" class="spec-card spec-card-wide" data-choice="${opt.key}">
+          <span class="spec-card-top">
+            ${artHtml}
+            <span class="spec-card-ident">
+              <span class="spec-card-path">NEXT TIER</span>
+              <span class="spec-card-title">${opt.title || tower.def?.name || 'Upgrade'}</span>
+              ${ability}
+            </span>
+          </span>
+          ${this.statChips(tower.stats, opt)}
+          <span class="spec-card-cta">
+            <img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" />
+            <b><span id="inspect-upgrade-cost">${opt.upgradeCost}</span></b><em>UPGRADE</em>
+          </span>
         </button>
       `;
     } else if (opts.length > 1) {
       html = `
         <div class="spec-selection-block">
-          <div class="spec-choice-title">CHOOSE A SPECIALISATION</div>
+          <div class="spec-choice-title">
+            <span>CHOOSE A SPECIALISATION</span>
+            <span class="spec-choice-hint">one path · rest of the run</span>
+          </div>
           <div class="spec-cards-row">
-            ${opts
-              .map(
-                (opt) => `
-              <button class="game-btn game-btn-spec btn-upgrade-choice" data-choice="${opt.key}" title="${opt.description}">
-                <span class="spec-btn-title">${opt.title}</span>
-                <span class="spec-btn-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${opt.upgradeCost}</span>
-                <span class="spec-btn-desc">${opt.description}</span>
-              </button>
-            `
-              )
-              .join('')}
+            ${opts.map((opt) => this.specCard(opt, tower)).join('')}
           </div>
         </div>
       `;
     } else {
-      html = `<div class="max-spec-badge">★ FULLY UPGRADED</div>`;
+      html = `<div class="max-spec-badge"><span class="max-spec-stars">★★★★★</span><span>FULLY UPGRADED</span></div>`;
     }
 
     html += `

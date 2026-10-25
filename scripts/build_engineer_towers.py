@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """Build the five engineer defence lines.
 
-The Spire pack stops at six keeps, so the five new lines are authored here in the
-same 64 px, side-view pixel idiom: chunky stone, iron banding and a coloured
-accent that says which line the tower belongs to.
+Each line is a *different building*, drawn from the ground line up:
 
-Unlike a re-grade, every slot is a different *drawing*: the geometry table below
-gives each tier its own footprint, height and ornament set, so a level-5 Crossbow
-Tower is a taller, wider, better-armed structure — not the level-3 art in another
-palette. Weapons are horizontal animation strips (six frames, drawn pointing up)
-that Phaser rotates around a pivot, exactly like the Spire sheets, so `TurretAim`
+    crossbow   Iron Crossbow        tall, narrow arbalest tower, great bow on top
+    gatling    Clockwork Repeater   squat iron bunker, six-hole drum, smokestack
+    flamer     Pitchfire Siphon     round riveted boiler, chimney, lit firebox
+    venom      Venom Still          glass distillate vats on a copper stand
+    harpoon    Harpoon Winch        timber winch, rope reel, long tilted gantry
+
+That is the point of the pass: the five used to share one generic keep and differ
+only in pennant colour, which made them unreadable at 64 px. Canvases are now
+derived from each line's own proportions (see `geometry()`), so the set is also
+~35 % smaller than the old 60–118 px towers and no longer collides with the
+upgrade badges on the board. Every tier adds structure — a second winch, a bigger
+drum, another flask — so an upgrade changes the silhouette, not just the palette.
+
+Weapons are horizontal animation strips (six frames, drawn pointing up) that
+Phaser rotates around a pivot, exactly like the Spire sheets, so `TurretAim`
 keeps working untouched.
 
     python3 scripts/build_engineer_towers.py
@@ -141,25 +149,74 @@ def masked_stone(size, polygon, face=STONE_M, highlight=True) -> Image.Image:
     edge.line(polygon + [polygon[0]], fill=STONE_D, width=1)
     return out
 
-
-# --------------------------------------------------------------- slot geometry
+# ------------------------------------------------------------------ proportions
 #
-# `foot` is the half-width at the ground line, `shoulder` the half-width at the
-# top of the shaft. Turrets, spires and banners are the per-tier silhouette.
-
-SLOTS = ["lvl1", "lvl2", "spec-a", "spec-b", "spec-a2", "spec-a3", "spec-b2", "spec-b3"]
-
-GEOMETRY = {
-    #               canvas      shaft              turrets  spire  banner
-    "lvl1": dict(w=60, h=94,  foot=17, shoulder=13, top=34, turrets=0, spire=False, banner=False),
-    "lvl2": dict(w=70, h=108, foot=21, shoulder=16, top=30, turrets=1, spire=False, banner=False),
-    "spec-a": dict(w=82, h=124, foot=24, shoulder=18, top=26, turrets=1, spire=False, banner=True),
-    "spec-b": dict(w=94, h=116, foot=28, shoulder=22, top=28, turrets=2, spire=False, banner=True),
-    "spec-a2": dict(w=96, h=138, foot=28, shoulder=21, top=22, turrets=2, spire=False, banner=True),
-    "spec-b2": dict(w=106, h=132, foot=32, shoulder=25, top=24, turrets=2, spire=True, banner=True),
-    "spec-a3": dict(w=108, h=152, foot=31, shoulder=23, top=16, turrets=2, spire=True, banner=True),
-    "spec-b3": dict(w=118, h=148, foot=35, shoulder=27, top=18, turrets=3, spire=True, banner=True),
+# The complaint that started this pass: all five lines were the *same keep* with a
+# differently coloured pennant, and every tier was that same keep grown wider
+# (up to 118 px, so the towers and their badge labels collided on the board).
+# A tower now gets its footprint from its own proportions — the bunker is wide
+# and squat, the arbalest tower is tall and narrow — and the whole set is ~35 %
+# smaller than before, which is what stops the labels overlapping.
+#
+# `foot`    half-width at the ground line
+# `spread`  how far the line's machinery reaches past the shaft
+# `head`    how tall the machinery above the crown is
+LINES = {
+    "crossbow": "Iron Crossbow",
+    "gatling": "Clockwork Repeater",
+    "flamer": "Pitchfire Siphon",
+    "venom": "Venom Still",
+    "harpoon": "Harpoon Winch",
 }
+
+PROPORTIONS = {
+    #                       ground   reach  crown
+    "crossbow": dict(foot=14, spread=10, head=46),   # tall, thin arbalest tower
+    "gatling": dict(foot=17, spread=6, head=42),     # wide, squat iron bunker
+    "flamer": dict(foot=15, spread=8, head=48),      # round boiler + chimney
+    "venom": dict(foot=14, spread=8, head=54),       # stacked glass vats
+    "harpoon": dict(foot=15, spread=12, head=46),    # timber winch + long gantry
+}
+
+SLOTS = ["lvl1", "lvl2", "spec-a", "spec-b", "spec-a2", "spec-b2", "spec-a3", "spec-b3"]
+
+# Growth is carried by the shaft, not by the canvas: the wall gets taller and
+# thicker, the machinery scales with it. Both lists are strictly increasing on
+# the chains the art test walks (lvl1 → lvl2 → spec-a → spec-a2 → spec-a3 for
+# height, lvl1 → lvl2 → spec-b → spec-b2 → spec-b3 for width).
+SLOT_SCALE = {
+    "lvl1": 0.84, "lvl2": 0.90, "spec-a": 0.96, "spec-b": 1.00,
+    "spec-a2": 1.06, "spec-b2": 1.10, "spec-a3": 1.18, "spec-b3": 1.22,
+}
+SLOT_SHAFT = {
+    "lvl1": 30, "lvl2": 34, "spec-a": 38, "spec-b": 34,
+    "spec-a2": 44, "spec-b2": 38, "spec-a3": 50, "spec-b3": 42,
+}
+
+TIER = dict(zip(SLOTS, [0, 0, 1, 1, 2, 3, 2, 3]))
+
+
+def geometry(line: str, slot: str) -> dict:
+    """Canvas and ground-line geometry for one line at one tier.
+
+    Derived, never hand-written, so a change to the proportions cannot leave the
+    five lines with mismatched canvases. `mount` is the distance from the tile's
+    ground line up to the deck the weapon pivots on.
+    """
+    prop = PROPORTIONS[line]
+    scale = SLOT_SCALE[slot]
+    foot = max(10, round(prop["foot"] * scale))
+    shoulder = max(7, foot - 3)
+    spread = max(4, round(prop["spread"] * scale))
+    head = round(prop["head"] * scale)
+    shaft = SLOT_SHAFT[slot]
+    height = 15 + shaft + head
+    width = 2 * (foot + spread) + 4
+    return dict(
+        w=width, h=height, cx=width // 2, ground=height - 1,
+        top=height - 12 - shaft, foot=foot, shoulder=max(7, shoulder),
+        spread=spread, head=head, shaft=shaft, mount=shaft + 11,
+    )
 
 
 def accent_of(line: str, bright: bool = False):
@@ -174,7 +231,7 @@ def accent_of(line: str, bright: bool = False):
     return light if bright else base
 
 
-# --------------------------------------------------------------- base ornaments
+# -------------------------------------------------------------------- masonry
 
 
 def merlons(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int, height: int, face=STONE_M) -> None:
@@ -190,231 +247,536 @@ def merlons(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int, height: int, fa
     draw.line((x0, y + height, x1, y + height), fill=STONE_D)
 
 
-def turret(image: Image.Image, cx: int, top: int, bottom: int, width: int,
-           accent, capped: bool) -> None:
-    """A slim side tower: the clearest 'this tier is bigger' signal."""
-    half = width // 2
-    poly = [(cx - half, top), (cx + half, top), (cx + half, bottom), (cx - half, bottom)]
-    image.alpha_composite(masked_stone(image.size, poly))
+
+# ------------------------------------------------------------------- structures
+
+
+def masonry(image: Image.Image, cx: int, top: int, bottom: int, foot: int, shoulder: int,
+            face=STONE_M) -> None:
+    """The stone shaft. Every line stands on one — it is the family resemblance."""
+    poly = [(cx - shoulder, top), (cx + shoulder, top), (cx + foot, bottom), (cx - foot, bottom)]
+    image.alpha_composite(masked_stone(image.size, poly, face))
     draw = ImageDraw.Draw(image)
-    merlons(draw, cx - half - 2, cx + half + 2, top - 5, 4, STONE_L)
-    for wy in range(top + 6, bottom - 8, 12):
-        draw.rectangle((cx - 2, wy, cx + 1, wy + 4), fill=WINDOW)
-    if capped:
-        draw.polygon([(cx - half - 3, top - 5), (cx + half + 3, top - 5), (cx, top - 20)], fill=accent)
-        draw.polygon([(cx - half - 3, top - 5), (cx, top - 20), (cx - 2, top - 5)], fill=dim(accent, 0.8))
+    draw.line((cx - shoulder, top, cx - foot, bottom), fill=STONE_D)
+    draw.line((cx + shoulder, top, cx + foot, bottom), fill=STONE_D)
 
 
-def flag(draw: ImageDraw.ImageDraw, x: int, y: int, height: int, colour) -> None:
-    draw.line((x, y, x, y - height), fill=IRON_M)
-    draw.polygon([(x + 1, y - height), (x + 13, y - height + 5), (x + 1, y - height + 10)], fill=colour)
-    draw.line((x + 1, y - height, x + 1, y - height + 10), fill=dim(colour, 0.7))
+def plinth(draw: ImageDraw.ImageDraw, cx: int, bottom: int, foot: int) -> None:
+    pw = foot + 6
+    draw.rectangle((cx - pw, bottom, cx + pw, bottom + 7), fill=STONE_D)
+    draw.rectangle((cx - pw + 1, bottom + 1, cx + pw - 1, bottom + 5), fill=STONE_M)
+    draw.line((cx - pw + 2, bottom, cx + pw - 2, bottom), fill=STONE_L)
+    for x in range(cx - pw + 3, cx + pw - 2, 6):
+        draw.line((x, bottom + 2, x, bottom + 4), fill=dim(STONE_M))
 
 
-def side_spire(image: Image.Image, cx: int, top: int, height: int, colour) -> None:
-    """A slim pinnacle beside the crown — the tier's height, kept off-centre so
-    the rotating weapon never hides it."""
-    draw = ImageDraw.Draw(image)
-    draw.polygon([(cx - 5, top), (cx + 5, top), (cx, top - height)], fill=colour)
-    draw.polygon([(cx - 5, top), (cx, top - height), (cx - 1, top)], fill=dim(colour, 0.76))
-    draw.line((cx, top - height, cx, top - height - 6), fill=IRON_M)
-    draw.polygon([(cx + 1, top - height - 6), (cx + 8, top - height - 3),
-                  (cx + 1, top - height)], fill=BRASS_M)
+def rivets(draw: ImageDraw.ImageDraw, x0: int, y0: int, x1: int, y1: int, step: int = 6,
+           colour=None) -> None:
+    colour = colour or dim(IRON_L, 0.9)
+    for x in range(x0 + 2, x1 - 1, step):
+        draw.point((x, y0 + 1), fill=colour)
+        draw.point((x, y1 - 1), fill=colour)
+    for y in range(y0 + 2, y1 - 1, step):
+        draw.point((x0 + 1, y), fill=colour)
+        draw.point((x1 - 1, y), fill=colour)
 
 
-def machines(draw: ImageDraw.ImageDraw, line: str, cx: int, top: int, bottom: int,
-             half: int, tier: int) -> None:
-    """Line-specific machinery bolted to the keep. `tier` is 0..3."""
-    accent = accent_of(line)
-    bright = accent_of(line, True)
-    left, right = cx - half, cx + half
+def gear(draw: ImageDraw.ImageDraw, cx: int, cy: int, r: int, teeth: int = 8,
+         face=BRASS_M, dark=BRASS_D) -> None:
+    """A cog. The gatling line is clockwork; its wall is covered in them."""
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=dark)
+    draw.ellipse((cx - r + 1, cy - r + 1, cx + r - 1, cy + r - 1), fill=face)
+    for i in range(teeth):
+        a = i * math.tau / teeth
+        tx = cx + round((r + 1) * math.cos(a))
+        ty = cy + round((r + 1) * math.sin(a))
+        draw.point((tx, ty), fill=face)
+    draw.ellipse((cx - r // 2, cy - r // 2, cx + r // 2, cy + r // 2), fill=dark)
 
-    if line == "crossbow":
-        # Windlass on the roof, growing a second wheel and a bolt rack.
-        draw.rectangle((left + 3, top - 12, right - 3, top - 4), fill=WOOD_D)
-        draw.rectangle((left + 4, top - 11, right - 4, top - 6), fill=WOOD_M)
-        draw.line((left + 5, top - 10, right - 5, top - 10), fill=WOOD_L)
-        wx = cx - 12
-        draw.ellipse((wx - 7, top - 24, wx + 7, top - 10), outline=STEEL_M, width=2)
-        draw.line((wx - 6, top - 17, wx + 6, top - 17), fill=STEEL_D)
-        draw.line((wx, top - 23, wx, top - 11), fill=STEEL_D)
-        draw.point((wx, top - 17), fill=STEEL_L)
-        if tier >= 2:
-            wx2 = cx + 12
-            draw.ellipse((wx2 - 7, top - 24, wx2 + 7, top - 10), outline=STEEL_M, width=2)
-            draw.line((wx2, top - 23, wx2, top - 11), fill=STEEL_D)
-        if tier >= 3:
-            for i, bx in enumerate((left - 2, left + 6)):
-                draw.line((bx, bottom - 34, bx, bottom - 54), fill=STEEL_M, width=2)
-                draw.polygon([(bx - 2, bottom - 56), (bx + 2, bottom - 56), (bx, bottom - 62)],
-                             fill=STEEL_L)
 
-    elif line == "gatling":
-        # Boiler(s) + pressure dial; the crane arm appears at tier 3.
-        for side in ([-1] if tier < 2 else [-1, 1]):
-            bx = cx + side * (half - 8)
-            draw.rectangle((bx - 6, top - 26, bx + 6, top - 2), fill=COPPER_D, outline=IRON_D)
-            draw.rectangle((bx - 4, top - 24, bx + 4, top - 4), fill=COPPER_M)
-            draw.rectangle((bx - 4, top - 16, bx + 4, top - 14), fill=BRASS_M)
-            draw.ellipse((bx - 6, top - 28, bx + 6, top - 24), fill=COPPER_L, outline=IRON_D)
-            draw.line((bx, top - 4, bx, top), fill=IRON_D)
-        draw.ellipse((cx - 6, top - 16, cx + 6, top - 4), fill=BRASS_M, outline=BRASS_D)
-        draw.line((cx, top - 10, cx + 3, top - 14), fill=BRASS_D)
-        draw.point((cx, top - 10), fill=BRASS_D)
-        if tier >= 3:
-            draw.line((left, top - 20, left - 8, top - 34), fill=STEEL_D, width=2)
-            draw.ellipse((left - 12, top - 40, left - 4, top - 32), fill=STEEL_M, outline=STEEL_D)
+def pipe(draw: ImageDraw.ImageDraw, points, width: int = 3, face=COPPER_M, edge=COPPER_D) -> None:
+    draw.line(points, fill=edge, width=width + 2, joint="curve")
+    draw.line(points, fill=face, width=width, joint="curve")
 
-    elif line == "flamer":
-        # Fuel drum(s) on the plinth and a lit burner channel up the face.
-        drums = [-1] if tier < 2 else [-1, 1]
-        for side in drums:
-            dx = cx + side * (half + 2)
-            draw.rectangle((dx - 5, bottom - 30, dx + 5, bottom - 6), fill=EMBER_D, outline=IRON_D)
-            draw.rectangle((dx - 3, bottom - 28, dx + 3, bottom - 8), fill=COPPER_M)
-            draw.rectangle((dx - 3, bottom - 20, dx + 3, bottom - 18), fill=EMBER_L)
-            draw.ellipse((dx - 5, bottom - 32, dx + 5, bottom - 26), fill=EMBER_M, outline=IRON_D)
-        draw.line((cx - 3, top + 6, cx - 3, bottom - 12), fill=EMBER_D, width=2)
-        draw.line((cx + 3, top + 6, cx + 3, bottom - 12), fill=EMBER_D, width=2)
-        for gy in range(top + 10, bottom - 14, 14):
-            draw.point((cx - 3, gy), fill=EMBER_M)
-            draw.point((cx + 3, gy), fill=EMBER_M)
-        if tier >= 3:
-            draw.ellipse((cx - 7, top - 18, cx + 7, top - 4), fill=EMBER_M, outline=EMBER_D)
-            draw.ellipse((cx - 4, top - 15, cx + 4, top - 7), fill=EMBER_L)
 
-    elif line == "venom":
-        # Glass still with sloshing fluid; a second vat and pipes higher up.
-        vats = 1 if tier < 2 else 2
-        for i in range(vats):
-            vx = cx - 16 if i == 0 else cx + 4
-            vy = top - 22 if i == 0 else top - 34
-            draw.rectangle((vx, vy, vx + 14, vy + 20), fill=TOX_D, outline=IRON_D)
-            draw.rectangle((vx + 2, vy + 6, vx + 12, vy + 18), fill=TOX_M)
-            draw.rectangle((vx + 3, vy + 7, vx + 11, vy + 10), fill=TOX_L)
-            draw.line((vx + 14, vy + 14, min(vx + 24, right), vy + 14), fill=IRON_M, width=2)
-        if tier >= 3:
-            draw.ellipse((cx - 5, top - 44, cx + 5, top - 34), fill=TOX_L, outline=TOX_M)
-
-    elif line == "harpoon":
-        # Winch drum, coiled rope and a rack of spare spears.
-        draw.rectangle((left + 1, top - 14, left + 21, top - 2), fill=WOOD_D, outline=WOOD_D)
-        for i in range(3):
-            draw.arc((left + 3, top - 13 + i * 3, left + 19, top - 3 + i * 3), 0, 180, fill=ROPE)
-        draw.ellipse((left + 1, top - 14, left + 21, top - 2), outline=IRON_M)
-        for i in range(3 if tier >= 2 else 2):
-            sx = right - 3 - i * 4
-            draw.line((sx, top - 2, sx, top - 20), fill=STEEL_M)
-            draw.polygon([(sx - 2, top - 20), (sx + 2, top - 20), (sx, top - 26)], fill=STEEL_L)
-        if tier >= 3:
-            draw.line((cx, top - 30, cx, top - 2), fill=TEAL_M, width=1)
-            draw.ellipse((cx - 8, top - 38, cx + 8, top - 22), outline=TEAL_L)
+def bloom(image: Image.Image, cx: int, cy: int, radius: int, colour, alpha: int = 90) -> None:
+    """A soft radial glow. Kept small and dim — no full-tile flashes."""
+    glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    rgb = (colour[0], colour[1], colour[2])
+    for step in range(radius, 0, -1):
+        fade = int(alpha * (1 - step / (radius + 1)) ** 1.7)
+        if fade > 0:
+            gd.ellipse((cx - step, cy - step, cx + step, cy + step), fill=rgb + (fade,))
+    image.alpha_composite(glow)
 
 
 def window_grid(draw: ImageDraw.ImageDraw, left: int, right: int, top: int, bottom: int,
                 tier: int) -> None:
-    """Two columns of glowing arrow-slits; the apex gets a lit great window."""
-    for wy in range(top + 14, bottom - 26, 20):
-        for wx in (left + 5, right - 8):
-            draw.rectangle((wx, wy, wx + 3, wy + 7), fill=WINDOW)
+    """Two columns of arrow-slits; the apex gets one lit great window."""
+    for wy in range(top + 12, bottom - 20, 16):
+        for wx in (left + 4, right - 7):
+            draw.rectangle((wx, wy, wx + 3, wy + 6), fill=WINDOW)
             draw.point((wx + 1, wy + 2), fill=GLOW)
     if tier >= 3:
         cx = (left + right) // 2
-        wy = top + 26
-        draw.ellipse((cx - 7, wy, cx + 7, wy + 12), fill=(24, 28, 38, 255))
-        draw.ellipse((cx - 6, wy + 1, cx + 6, wy + 11), fill=GLOW)
+        wy = top + 20
+        draw.ellipse((cx - 5, wy, cx + 5, wy + 9), fill=(24, 28, 38, 255))
+        draw.ellipse((cx - 4, wy + 1, cx + 4, wy + 8), fill=GLOW)
 
 
-def doorway(draw: ImageDraw.ImageDraw, cx: int, bottom: int, width: int = 14) -> None:
+def doorway(draw: ImageDraw.ImageDraw, cx: int, bottom: int, width: int = 12) -> None:
     half = width // 2
-    draw.rectangle((cx - half, bottom - 16, cx + half, bottom - 2), fill=WOOD_D)
-    draw.arc((cx - half, bottom - 26, cx + half, bottom - 6), 180, 360, fill=WOOD_M)
-    draw.line((cx, bottom - 15, cx, bottom - 3), fill=WOOD_M)
-    draw.rectangle((cx - half - 1, bottom - 17, cx + half + 1, bottom - 16), fill=STONE_L)
+    draw.rectangle((cx - half, bottom - 14, cx + half, bottom - 1), fill=WOOD_D)
+    draw.arc((cx - half, bottom - 23, cx + half, bottom - 5), 180, 360, fill=WOOD_M)
+    draw.line((cx, bottom - 13, cx, bottom - 2), fill=WOOD_M)
+    draw.rectangle((cx - half - 1, bottom - 15, cx + half + 1, bottom - 14), fill=STONE_L)
 
 
-def draw_base(line: str, slot: str) -> Image.Image:
-    geo = GEOMETRY[slot]
-    w, h = geo["w"], geo["h"]
-    cx = w // 2
-    top = geo["top"]
-    foot, shoulder = geo["foot"], geo["shoulder"]
-    tier = [0, 0, 1, 1, 2, 3, 2, 3][SLOTS.index(slot)]
-    accent = accent_of(line)
-    bright = accent_of(line, True)
-    bottom = h - 12  # keeping the last 12 px for the plinth
+def crown(draw: ImageDraw.ImageDraw, cx: int, shoulder: int, top: int, face=STONE_L) -> None:
+    merlons(draw, cx - shoulder - 2, cx + shoulder + 2, top - 5, 4, face)
+    draw.rectangle((cx - shoulder - 3, top - 7, cx + shoulder + 3, top - 5), fill=STONE_D)
 
-    image = blank(w, h)
+
+# --------------------------------------------------------------------- crossbow
+# Iron Crossbow: a tall, narrow arbalest tower. A great bow spans the crown with
+# limbs reaching past the wall, a stock down the middle and winches on the deck.
+
+
+CREAM = (238, 234, 216, 255)
+
+
+def wall_bands(draw, cx, foot, shoulder, top, ground, colour=IRON_D, band=7):
+    """Iron hoops around the shaft — the bunker and the boiler wear them."""
+    for y in range(top + band, ground - 10, band + 4):
+        half = shoulder + (foot - shoulder) * (y - top) // max(1, (ground - 10 - top))
+        draw.line((cx - half, y, cx + half, y), fill=colour)
+
+
+def streaks(draw, cx, foot, shoulder, top, ground, colour):
+    """Weathering down the wall: this line's own mark on the stone."""
+    for i in range(3):
+        x = cx - foot + 3 + i * 5
+        draw.line((x, top + 6 + i * 3, x, top + 14 + i * 4), fill=colour)
+
+
+def build_crossbow(image, g, tier):
+    cx, top, ground = g["cx"], g["top"], g["ground"]
+    foot, shoulder, head = g["foot"], g["shoulder"], g["head"]
     draw = ImageDraw.Draw(image)
+    bright = accent_of("crossbow", True)
 
-    # --- side turrets first, so the keep's wall overlaps their inner edge ----
-    turret_positions = {
-        0: [],
-        1: [(cx + shoulder + 4, top + 20)],
-        2: [(cx - shoulder - 12, top + 24), (cx + shoulder + 4, top + 24)],
-        3: [(cx - shoulder - 12, top + 30), (cx + shoulder + 4, top + 30), (cx + shoulder + 4, top + 4)],
-    }[geo["turrets"]]
-    for tx, ty in turret_positions:
-        turret(image, tx + 4, ty, bottom - 4, 11, accent, capped=tier >= 2)
+    masonry(image, cx, top, ground - 7, foot, shoulder)
     draw = ImageDraw.Draw(image)
+    crown(draw, cx, shoulder, top)
 
-    # --- keep shaft ---------------------------------------------------------
-    shaft = [(cx - shoulder, top), (cx + shoulder, top), (cx + foot, bottom), (cx - foot, bottom)]
-    image.alpha_composite(masked_stone(image.size, shaft))
-    draw = ImageDraw.Draw(image)
+    # Tall narrow buttresses: the arbalest tower is the slender one.
+    for side in (-1, 1):
+        bx = cx + side * (foot - 1)
+        draw.line((bx, top + 4, bx, ground - 8), fill=STONE_L)
+        draw.line((bx + side, top + 4, bx + side, ground - 8), fill=STONE_D)
 
-    # --- crown --------------------------------------------------------------
-    merlons(draw, cx - shoulder - 3, cx + shoulder + 3, top - 7, 6, STONE_L)
-    draw.rectangle((cx - shoulder - 4, top - 9, cx + shoulder + 4, top - 6), fill=STONE_D)
+    # Timber firing deck.
+    deck = shoulder + 3
+    draw.rectangle((cx - deck, top - 4, cx + deck, top + 2), fill=WOOD_D)
+    draw.rectangle((cx - deck + 1, top - 3, cx + deck - 1, top + 1), fill=WOOD_M)
+    draw.line((cx - deck + 2, top - 2, cx + deck - 2, top - 2), fill=WOOD_L)
 
-    # --- plinth -------------------------------------------------------------
-    pw = foot + 7
-    draw.rectangle((cx - pw, bottom, cx + pw, bottom + 8), fill=STONE_D)
-    draw.rectangle((cx - pw + 1, bottom + 1, cx + pw - 1, bottom + 6), fill=STONE_M)
-    draw.line((cx - pw + 2, bottom, cx + pw - 2, bottom), fill=STONE_L)
-    for x in range(cx - pw + 3, cx + pw - 2, 6):
-        draw.line((x, bottom + 2, x, bottom + 5), fill=dim(STONE_M))
+    # The prod: a thick bow across the full canvas width, tips drooping, string
+    # pulled back into a deep V on the nut. This is the shape that has to read at
+    # 64 px, so it is a filled band, not a hairline.
+    bow_y = top - round(head * 0.20)
+    span = g["w"] // 2 - 1
+    draw.line((cx - span, bow_y + 1, cx + span, bow_y + 1), fill=STEEL_D, width=4)
+    draw.line((cx - span, bow_y - 1, cx + span, bow_y - 1), fill=STEEL_M, width=3)
+    draw.line((cx - span + 2, bow_y - 2, cx + span - 2, bow_y - 2), fill=STEEL_L)
+    for side in (-1, 1):
+        tx = cx + side * span
+        draw.line((tx, bow_y - 2, tx, bow_y + 5), fill=BRASS_D, width=2)
+        draw.point((tx, bow_y + 5), fill=BRASS_L)
+    # Stock, from the deck up through the prod, with the nut at the catch point.
+    draw.rectangle((cx - 2, bow_y - 3, cx + 2, top + 2), fill=WOOD_D)
+    draw.rectangle((cx - 1, bow_y - 4, cx + 1, top + 2), fill=WOOD_M)
+    draw.rectangle((cx - 3, bow_y + 5, cx + 3, bow_y + 8), fill=BRASS_D)
+    draw.rectangle((cx - 2, bow_y + 5, cx + 2, bow_y + 7), fill=BRASS_M)
+    draw.line((cx - span, bow_y + 4, cx - 2, bow_y + 7), fill=CREAM)
+    draw.line((cx + span, bow_y + 4, cx + 2, bow_y + 7), fill=CREAM)
+    # Loaded bolt: a short shaft with fletching, not a mast.
+    tip = bow_y - round(head * 0.52)
+    draw.rectangle((cx - 1, tip + 4, cx + 1, bow_y + 1), fill=WOOD_L)
+    draw.polygon([(cx, tip), (cx + 2, tip + 4), (cx + 1, tip + 4), (cx, tip + 3),
+                  (cx - 1, tip + 4), (cx - 2, tip + 4)], fill=STEEL_L)
+    draw.line((cx - 1, bow_y, cx - 2, bow_y - 3), fill=CREAM)
+    draw.line((cx + 1, bow_y, cx + 2, bow_y - 3), fill=CREAM)
 
-    # --- line machinery -----------------------------------------------------
-    machines(draw, line, cx, top, bottom, shoulder, tier)
+    # Winch wheels on the deck; one for the arbalest, two for the battery.
+    wheels = [(cx - shoulder + 1, top - 9)]
+    if tier >= 2:
+        wheels.append((cx + shoulder - 1, top - 9))
+    for wx, wy in wheels:
+        r = 4 if tier < 3 else 5
+        draw.ellipse((wx - r, wy - r, wx + r, wy + r), fill=IRON_D)
+        draw.ellipse((wx - r + 1, wy - r + 1, wx + r - 1, wy + r - 1), fill=BRASS_D)
+        draw.ellipse((wx - 2, wy - 2, wx + 2, wy + 2), fill=BRASS_M)
+        draw.line((wx - r + 1, wy, wx + r - 1, wy), fill=BRASS_L)
 
-    # --- openings -----------------------------------------------------------
-    window_grid(draw, cx - foot + 2, cx + foot - 2, top, bottom, tier)
-    doorway(draw, cx, bottom, 12 + tier * 2)
+    # Bolt rack bolted to the wall — one bolt per tier.
+    rack_y = top + 12
+    draw.rectangle((cx - shoulder - 1, rack_y, cx - shoulder + 9, rack_y + 2), fill=IRON_D)
+    for i in range(min(4, tier + 1)):
+        bx = cx - shoulder + i * 3
+        draw.line((bx, rack_y - 5, bx, rack_y + 1), fill=WOOD_L)
+        draw.point((bx, rack_y - 6), fill=STEEL_L)
 
-    # --- banners ------------------------------------------------------------
-    if geo["banner"]:
-        flag(draw, cx - shoulder - 2, top - 8, 16 + tier * 2, accent)
-        if geo["turrets"] >= 2:
-            flag(draw, cx + shoulder + 2, top - 8, 16 + tier * 2, dim(accent, 0.85))
+    window_grid(draw, cx - foot, cx + foot, top, ground - 8, tier)
+    doorway(draw, cx, ground - 7, 9 + tier)
 
-    # --- spires -------------------------------------------------------------
-    if geo["spire"]:
-        # Off-centre on purpose: the weapon sprite is drawn over the tower's
-        # middle, so a centred spire would be invisible in play.
-        side_spire(image, cx - shoulder - 8, top - 4, 26, bright)
-        side_spire(image, cx + shoulder + 8, top - 4, 22, dim(bright, 0.86))
-        draw = ImageDraw.Draw(image)
-
-    # --- apex crystal -------------------------------------------------------
     if tier >= 3:
-        cyc = top - 32
-        draw = ImageDraw.Draw(image)
-        draw.polygon([(cx, cyc - 9), (cx + 6, cyc), (cx, cyc + 9), (cx - 6, cyc)], fill=bright)
-        draw.polygon([(cx, cyc - 9), (cx + 6, cyc), (cx, cyc + 1)], fill=GLOW)
-        draw.ellipse((cx - 12, cyc - 3, cx + 12, cyc + 3), outline=dim(bright, 0.9))
+        # Counterweight and a second string plane: the siege arbalest.
+        wy = top + 22
+        draw.ellipse((cx + foot - 5, wy - 6, cx + foot + 5, wy + 6), fill=IRON_D)
+        draw.ellipse((cx + foot - 4, wy - 5, cx + foot + 4, wy + 5), fill=IRON_M)
+        draw.line((cx + foot - 3, wy - 3, cx + foot + 3, wy + 3), fill=STEEL_D)
+        draw.line((cx - span + 1, bow_y + 10, cx + span - 1, bow_y + 10), fill=STEEL_D)
+        bloom(image, cx, tip - 2, 6, BRASS_L, 55)
 
-    # --- apex glow ----------------------------------------------------------
+
+def build_gatling(image, g, tier):
+    cx, top, ground = g["cx"], g["top"], g["ground"]
+    foot, shoulder, head = g["foot"], g["shoulder"], g["head"]
+    draw = ImageDraw.Draw(image)
+    bright = accent_of("gatling", True)
+
+    masonry(image, cx, top, ground - 7, foot, shoulder)
+    draw = ImageDraw.Draw(image)
+    # Iron hoops: the bunker is banded, the arbalest tower is not.
+    wall_bands(draw, cx, foot, shoulder, top, ground - 7)
+
+    # Flat armour plate instead of crenellations: the drum is the silhouette.
+    draw.rectangle((cx - shoulder - 2, top - 5, cx + shoulder + 2, top + 1), fill=IRON_D)
+    draw.rectangle((cx - shoulder - 1, top - 4, cx + shoulder + 1, top), fill=IRON_M)
+    draw.line((cx - shoulder, top - 3, cx + shoulder, top - 3), fill=IRON_L)
+    rivets(draw, cx - shoulder - 1, top - 4, cx + shoulder + 1, top, 6)
+
+    # The drum: iron body, copper rings, brass hub. (The flamer's boiler is the
+    # copper one, so the two must not be the same colour.)
+    r = max(7, round(head * 0.29))
+    dy = top - 3 - r
+    draw.ellipse((cx - r, dy - r, cx + r, dy + r), fill=IRON_D)
+    draw.ellipse((cx - r + 1, dy - r + 1, cx + r - 1, dy + r - 1), fill=COPPER_D)
+    draw.ellipse((cx - r + 2, dy - r + 2, cx + r - 2, dy + r - 2), fill=STEEL_M)
+    draw.arc((cx - r + 1, dy - r + 1, cx + r - 1, dy + r - 1), 195, 285, fill=STEEL_L)
+    # Six barrel mouths in a ring: the Gatling signature.
+    for i in range(6):
+        a = i * math.tau / 6 + 0.35
+        hx = cx + round(math.cos(a) * (r - 4))
+        hy = dy + round(math.sin(a) * (r - 4))
+        draw.ellipse((hx - 2, hy - 2, hx + 2, hy + 2), fill=IRON_D)
+        draw.point((hx, hy + 1), fill=STEEL_L)
+    draw.ellipse((cx - 3, dy - 3, cx + 3, dy + 3), fill=BRASS_D)
+    draw.ellipse((cx - 2, dy - 2, cx + 2, dy + 2), fill=BRASS_M)
+
+    # Smokestack, taller every tier — a chimney, not a mast.
+    sx = cx + shoulder - 2
+    sh = round(head * 0.66)
+    draw.rectangle((sx - 2, top - sh, sx + 2, top - 3), fill=IRON_D)
+    draw.rectangle((sx - 1, top - sh + 1, sx + 1, top - 3), fill=COPPER_D)
+    draw.rectangle((sx - 3, top - sh - 2, sx + 3, top - sh), fill=IRON_D)
+    draw.rectangle((sx - 2, top - sh - 1, sx + 2, top - sh), fill=EMBER_M)
+    bloom(image, sx, top - sh - 3, 4 + tier, EMBER_L, 85)
+
+    # Cogs in the wall — this is the clockwork line.
+    gear(draw, cx - shoulder + 3, top + 9, 4, 7)
+    if tier >= 1:
+        gear(draw, cx - shoulder + 9, top + 16, 3, 6, COPPER_L, COPPER_D)
+    if tier >= 2:
+        gear(draw, cx + shoulder - 5, top + 12, 5, 8, BRASS_L, BRASS_D)
+
+    # Ammunition belt running from the hopper into the drum.
+    draw.rectangle((cx - 5, top + 1, cx + 5, top + 7), fill=IRON_D)
+    draw.rectangle((cx - 4, top + 2, cx + 4, top + 6), fill=COPPER_M)
+    for i in range(min(4, tier + 2)):
+        draw.rectangle((cx - 5 + i * 3, top + 3, cx - 4 + i * 3, top + 5), fill=BRASS_L)
+    draw.line((cx - 4, top + 1, cx - 4, dy + r - 3), fill=BRASS_D)
+
+    window_grid(draw, cx - foot, cx + foot, top + 4, ground - 8, tier)
+    doorway(draw, cx, ground - 7, 11 + tier)
+
     if tier >= 3:
-        glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        gd = ImageDraw.Draw(glow)
-        rgb = (bright[0], bright[1], bright[2])
-        for step in range(3):
-            r = 20 + step * 3
-            gd.ellipse((cx - r, h - 9, cx + r, h - 1), outline=rgb + (90 - step * 26,), width=2)
-        image.alpha_composite(glow)
+        # A second drum on the flank: the bullet-tempest tier.
+        ex = cx - shoulder - 2
+        ey = top + 24
+        draw.ellipse((ex - 6, ey - 6, ex + 6, ey + 6), fill=IRON_D)
+        draw.ellipse((ex - 5, ey - 5, ex + 5, ey + 5), fill=IRON_M)
+        draw.ellipse((ex - 2, ey - 2, ex + 2, ey + 2), fill=BRASS_L)
+        bloom(image, cx, dy, r + 4, bright, 40)
 
-    return image
+
+def build_flamer(image, g, tier):
+    cx, top, ground = g["cx"], g["top"], g["ground"]
+    foot, shoulder, head = g["foot"], g["shoulder"], g["head"]
+    draw = ImageDraw.Draw(image)
+    bright = accent_of("flamer", True)
+
+    masonry(image, cx, top, ground - 7, foot, shoulder)
+    draw = ImageDraw.Draw(image)
+    streaks(draw, cx, foot, shoulder, top, ground, dim(COPPER_D, 0.55))
+
+    # The boiler: a domed copper tank with a riveted belly. Round on top, unlike
+    # the bunker's flat plate, so the silhouette alone tells them apart.
+    half = min(g["w"] // 2 - 4, shoulder + 1)
+    tank_h = round(head * 0.62)
+    bottom = top + 1
+    ty = bottom - tank_h
+    draw.rounded_rectangle((cx - half, ty + 3, cx + half, bottom), radius=3, fill=IRON_D)
+    draw.rounded_rectangle((cx - half + 1, ty + 4, cx + half - 1, bottom - 1), radius=3, fill=COPPER_D)
+    draw.ellipse((cx - half, ty, cx + half, ty + 8), fill=IRON_D)
+    draw.ellipse((cx - half + 1, ty + 1, cx + half - 1, ty + 7), fill=COPPER_M)
+    draw.rounded_rectangle((cx - half + 2, ty + 4, cx + half - 2, bottom - 2), radius=3, fill=COPPER_M)
+    draw.line((cx - half + 3, ty + 6, cx - half + 3, bottom - 4), fill=COPPER_L)
+    draw.line((cx + half - 3, ty + 6, cx + half - 3, bottom - 4), fill=dim(COPPER_D, 0.9))
+    rivets(draw, cx - half + 2, ty + 5, cx + half - 2, bottom - 2, 5, COPPER_L)
+    for by in (ty + tank_h // 3, ty + (tank_h * 2) // 3):
+        draw.line((cx - half + 1, by, cx + half - 1, by), fill=IRON_D)
+        draw.line((cx - half + 1, by + 1, cx + half - 1, by + 1), fill=dim(EMBER_L, 0.7))
+
+    # Chimney with a lit fire mouth.
+    chx = cx + half - 2
+    ch_h = round(head * 0.24)
+    draw.rectangle((chx - 2, ty - ch_h, chx + 2, ty + 3), fill=IRON_D)
+    draw.rectangle((chx - 1, ty - ch_h + 1, chx + 1, ty + 2), fill=COPPER_D)
+    draw.rectangle((chx - 3, ty - ch_h - 2, chx + 3, ty - ch_h), fill=IRON_D)
+    draw.rectangle((chx - 2, ty - ch_h - 1, chx + 2, ty - ch_h), fill=EMBER_M)
+    bloom(image, chx, ty - ch_h - 4, 5 + tier, EMBER_L, 95)
+
+    # Lit firebox door: the grate is what says "this one burns".
+    fby = bottom - max(7, tank_h // 3)
+    draw.rectangle((cx - 5, fby, cx + 5, bottom - 2), fill=IRON_D)
+    draw.rectangle((cx - 4, fby + 1, cx + 4, bottom - 3), fill=EMBER_D)
+    for gx in range(cx - 3, cx + 4, 2):
+        draw.line((gx, fby + 2, gx, bottom - 4), fill=EMBER_L)
+    bloom(image, cx, (fby + bottom) // 2, 7, EMBER_L, 75)
+
+    # Pipes: boiler → wall → plinth.
+    pipe(draw, [(cx - half + 1, bottom - 4), (cx - shoulder - 2, bottom - 4),
+                (cx - shoulder - 2, ground - 14)], 2)
+    if tier >= 1:
+        pipe(draw, [(cx + half - 1, bottom - 7), (cx + shoulder + 2, bottom - 7),
+                    (cx + shoulder + 2, ground - 18)], 2, COPPER_D, IRON_D)
+
+    window_grid(draw, cx - foot, cx + foot, top + 3, ground - 8, tier)
+    doorway(draw, cx, ground - 7, 10 + tier)
+
+    if tier >= 2:
+        # Bellows bolted to the flank.
+        bx = cx - shoulder - 5
+        draw.polygon([(bx, top + 15), (bx + 6, top + 12), (bx + 6, top + 24), (bx, top + 21)],
+                     fill=WOOD_D)
+        draw.polygon([(bx + 1, top + 16), (bx + 5, top + 14), (bx + 5, top + 22), (bx + 1, top + 20)],
+                     fill=WOOD_M)
+    if tier >= 3:
+        # A second pressure tank: two vessels is what says "siphon battery".
+        px = cx - half - 3
+        py = bottom - 12
+        draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill=IRON_D)
+        draw.ellipse((px - 4, py - 4, px + 4, py + 4), fill=COPPER_M)
+        draw.ellipse((px - 2, py - 2, px + 2, py + 2), fill=EMBER_L)
+        bloom(image, px, py, 6, EMBER_L, 60)
+
+
+def build_venom(image, g, tier):
+    cx, top, ground = g["cx"], g["top"], g["ground"]
+    foot, shoulder, head = g["foot"], g["shoulder"], g["head"]
+    draw = ImageDraw.Draw(image)
+    bright = accent_of("venom", True)
+
+    masonry(image, cx, top, ground - 7, foot, shoulder)
+    draw = ImageDraw.Draw(image)
+    streaks(draw, cx, foot, shoulder, top, ground, dim(TOX_D, 0.85))
+
+    # Copper stand on the crown.
+    stand = top - 2
+    draw.rectangle((cx - shoulder, stand, cx + shoulder, stand + 2), fill=COPPER_D)
+    draw.line((cx - shoulder + 1, stand, cx + shoulder - 1, stand), fill=COPPER_M)
+    for lx in (cx - shoulder + 1, cx + shoulder - 1):
+        draw.line((lx, stand + 2, lx, top + 4), fill=COPPER_D)
+
+    # The great glass flask: a narrow copper neck over a round glass belly, with
+    # the distillate filling the bottom half. A still, not a green dome.
+    r = max(6, round(head * 0.25))
+    vy = stand - 2 - r
+    # Copper tripod legs from the belly down to the stand.
+    for lx in (cx - r + 2, cx + r - 2):
+        draw.line((lx, vy + r - 2, lx + (2 if lx > cx else -2), stand), fill=COPPER_D)
+    # Neck and cork, drawn first so the belly laps over their base.
+    draw.rectangle((cx - 2, vy - r - 6, cx + 2, vy - r + 3), fill=IRON_D)
+    draw.rectangle((cx - 1, vy - r - 5, cx + 1, vy - r + 3), fill=COPPER_M)
+    draw.rectangle((cx - 3, vy - r - 8, cx + 3, vy - r - 5), fill=WOOD_D)
+    draw.rectangle((cx - 2, vy - r - 8, cx + 2, vy - r - 6), fill=WOOD_M)
+    # Glass belly: dark glass above the fill line, bright distillate below.
+    draw.ellipse((cx - r, vy - r, cx + r, vy + r), fill=IRON_D)
+    draw.ellipse((cx - r + 1, vy - r + 1, cx + r - 1, vy + r - 1), fill=dim(TOX_D, 0.55))
+    liquid = vy - round(r * 0.15)
+    draw.ellipse((cx - r + 2, liquid, cx + r - 2, vy + r - 2), fill=TOX_M)
+    draw.line((cx - r + 3, liquid, cx + r - 3, liquid), fill=TOX_L)
+    draw.arc((cx - r + 2, vy - r + 2, cx + r - 2, vy + r - 2), 200, 280, fill=(226, 255, 236, 190))
+    # Bubbles rising through the distillate.
+    for i in range(2 + tier):
+        bx = cx - r + 3 + (i * 5) % max(3, r * 2 - 6)
+        draw.point((bx, liquid + 3 + (i * 3) % max(2, r - 2)), fill=TOX_L)
+    bloom(image, cx, liquid + 2, r + 2, TOX_L, 40)
+
+    # Condenser coil on the right: one extra turn per tier.
+    coil_x = cx + shoulder - 1
+    for i in range(2 + tier):
+        cy = stand - 5 - i * 4
+        draw.arc((coil_x - 5, cy, coil_x + 5, cy + 5), 0, 180, fill=COPPER_M)
+
+    # Drip pipe into a catch basin on the left.
+    drip_x = cx - shoulder - 2
+    draw.line((drip_x, stand - 9, drip_x, stand + 2), fill=COPPER_D, width=2)
+    draw.line((drip_x + 1, stand - 9, drip_x + 1, stand + 2), fill=COPPER_M)
+    draw.rectangle((drip_x - 3, stand + 2, drip_x + 3, stand + 5), fill=IRON_D)
+    draw.rectangle((drip_x - 2, stand + 3, drip_x + 2, stand + 4), fill=TOX_M)
+
+    window_grid(draw, cx - foot, cx + foot, top + 2, ground - 8, tier)
+    doorway(draw, cx, ground - 7, 10 + tier)
+
+    if tier >= 2:
+        # A second flask: two vessels is what says "refinery".
+        sx = cx - shoulder + 1
+        sy = top + 9
+        draw.ellipse((sx - 5, sy - 5, sx + 5, sy + 5), fill=IRON_D)
+        draw.ellipse((sx - 4, sy - 4, sx + 4, sy + 4), fill=dim(TOX_D, 0.9))
+        draw.ellipse((sx - 4, sy - 1, sx + 4, sy + 3), fill=TOX_M)
+        draw.point((sx - 1, sy + 1), fill=TOX_L)
+    if tier >= 3:
+        # Alchemical sigil hovering over the vat.
+        sy = vy - r - 10
+        draw.ellipse((cx - 6, sy - 4, cx + 6, sy + 4), outline=bright)
+        draw.line((cx - 3, sy, cx + 3, sy), fill=TOX_L)
+        bloom(image, cx, sy, 8, TOX_L, 55)
+
+
+def build_harpoon(image, g, tier):
+    cx, top, ground = g["cx"], g["top"], g["ground"]
+    foot, shoulder, head = g["foot"], g["shoulder"], g["head"]
+    draw = ImageDraw.Draw(image)
+    bright = accent_of("harpoon", True)
+
+    masonry(image, cx, top, ground - 7, foot, shoulder)
+    draw = ImageDraw.Draw(image)
+    # Timber props leaning against the wall: the dockyard look.
+    for side in (-1, 1):
+        px = cx + side * (foot - 2)
+        draw.line((px, top + 8, px + side * 2, ground - 9), fill=WOOD_M, width=2)
+
+    # Timber marquee: a frame standing on the stone, not a wall.
+    frame = top - 3
+    draw.rectangle((cx - shoulder - 1, frame, cx + shoulder + 1, frame + 4), fill=WOOD_D)
+    draw.rectangle((cx - shoulder, frame + 1, cx + shoulder, frame + 3), fill=WOOD_M)
+    draw.line((cx - shoulder + 1, frame + 1, cx + shoulder - 1, frame + 1), fill=WOOD_L)
+    for side in (-1, 1):
+        px = cx + side * (shoulder - 1)
+        draw.rectangle((px - 1, frame + 3, px + 1, top + 8), fill=WOOD_D)
+        draw.point((px, frame + 5), fill=WOOD_L)
+
+    # Crane, not antenna: a king post with a horizontal jib and a diagonal stay.
+    gx1 = min(g["w"] // 2 - 2, cx + shoulder + round(head * 0.40))
+    post = frame - round(head * 0.52)
+    draw.rectangle((cx - 2, post, cx + 2, frame), fill=WOOD_D)
+    draw.rectangle((cx - 1, post + 1, cx + 1, frame), fill=WOOD_M)
+    draw.line((cx - 3, post, cx + 3, post), fill=WOOD_L)
+    draw.line((cx - 2, post + 1, gx1, post + 1), fill=WOOD_D, width=4)
+    draw.line((cx - 2, post, gx1, post), fill=WOOD_M, width=2)
+    draw.line((cx - 4, post + 4, gx1 - 4, post + 4), fill=WOOD_D)
+    # Diagonal stay back down to the roof.
+    draw.line((cx + 1, post + 3, cx + shoulder, frame - 1), fill=WOOD_D, width=2)
+    draw.line((cx + 1, post + 2, cx + shoulder, frame - 2), fill=WOOD_M)
+    # Counterweight at the short end of the jib.
+    draw.rectangle((cx - 6, post + 3, cx - 2, post + 8), fill=IRON_D)
+    draw.point((cx - 4, post + 5), fill=IRON_L)
+    # Pulley and a hanging hook.
+    draw.ellipse((gx1 - 4, post - 1, gx1 + 2, post + 5), fill=IRON_D)
+    draw.ellipse((gx1 - 3, post, gx1 + 1, post + 4), fill=BRASS_M)
+    draw.point((gx1 - 1, post + 2), fill=BRASS_L)
+    rope = round(head * 0.26) + tier * 2
+    draw.line((gx1 - 1, post + 4, gx1 - 1, post + 4 + rope), fill=ROPE)
+    hay = post + 4 + rope
+    draw.arc((gx1 - 4, hay, gx1 + 2, hay + 6), 0, 170, fill=STEEL_L, width=1)
+    draw.line((gx1 - 3, hay + 4, gx1 - 3, hay + 1), fill=STEEL_M)
+
+    # Rope reel — the anchor of the silhouette.
+    ry = top + 12
+    rr = 5 + min(tier, 3)
+    draw.ellipse((cx - rr, ry - rr, cx + rr, ry + rr), fill=IRON_D)
+    draw.ellipse((cx - rr + 1, ry - rr + 1, cx + rr - 1, ry + rr - 1), fill=WOOD_D)
+    draw.ellipse((cx - rr + 2, ry - rr + 2, cx + rr - 2, ry + rr - 2), fill=ROPE)
+    for i in range(2):
+        yy = ry - 1 + i * 2
+        draw.line((cx - rr + 2, yy, cx + rr - 2, yy), fill=dim(ROPE, 0.8))
+    draw.ellipse((cx - 1, ry - 1, cx + 1, ry + 1), fill=IRON_M)
+    if tier >= 2:
+        ry2 = ry + 2 * rr + 2
+        draw.ellipse((cx - 3, ry2 - 3, cx + 3, ry2 + 3), fill=IRON_D)
+        draw.ellipse((cx - 2, ry2 - 2, cx + 2, ry2 + 2), fill=ROPE)
+
+    # Harpoon rack on the right wall.
+    for i in range(min(4, tier + 1)):
+        hx = cx + shoulder - 2 - i * 3
+        hy = top + 8 + i
+        draw.line((hx, hy, hx + 1, hy + 10), fill=WOOD_M)
+        draw.polygon([(hx, hy - 3), (hx + 2, hy), (hx - 2, hy)], fill=STEEL_L)
+
+    # Water barrel at the foot on the left.
+    bx = cx - foot - 2
+    draw.rectangle((bx - 3, ground - 15, bx + 3, ground - 8), fill=WOOD_D)
+    draw.rectangle((bx - 2, ground - 14, bx + 2, ground - 9), fill=WOOD_M)
+    draw.line((bx - 2, ground - 12, bx + 2, ground - 12), fill=IRON_M)
+
+    window_grid(draw, cx - foot, cx + foot, top + 2, ground - 8, tier)
+    doorway(draw, cx, ground - 7, 9 + tier)
+
+    if tier >= 3:
+        # Harbour lantern hanging from the gantry.
+        lx, ly = gx1 - 7, post + 6
+        draw.line((lx, ly, lx, ly + 4), fill=IRON_D)
+        draw.rectangle((lx - 3, ly + 4, lx + 3, ly + 10), fill=IRON_D)
+        draw.rectangle((lx - 2, ly + 5, lx + 2, ly + 9), fill=bright)
+        bloom(image, lx, ly + 7, 8, (255, 226, 150), 80)
+
+
+BUILDERS = {
+    "crossbow": build_crossbow,
+    "gatling": build_gatling,
+    "flamer": build_flamer,
+    "venom": build_venom,
+    "harpoon": build_harpoon,
+}
+
+
+def draw_base(line: str, slot: str):
+    """Draw one line at one tier. Returns (image, mount)."""
+    g = geometry(line, slot)
+    tier = TIER[slot]
+    image = blank(g["w"], g["h"])
+    BUILDERS[line](image, g, tier)
+
+    draw = ImageDraw.Draw(image)
+    plinth(draw, g["cx"], g["ground"] - 7, g["foot"])
+
+    # Apex tiers leave a faint ring of their accent on the ground: the same
+    # visual language as the Spire keeps' level-5 aura, at a fraction of the
+    # brightness so a board full of them does not strobe.
+    if tier >= 3:
+        accent = accent_of(line, True)
+        rgb = (accent[0], accent[1], accent[2])
+        for step in range(2):
+            rr = g["foot"] + 4 + step * 3
+            image_draw = ImageDraw.Draw(image)
+            image_draw.ellipse((g["cx"] - rr, g["ground"] - 4, g["cx"] + rr, g["ground"] + 1),
+                               outline=rgb + (70 - step * 30,))
+    return image, g["mount"]
 
 
 # -------------------------------------------------------------------- weapons
@@ -575,8 +937,8 @@ TIP = {"crossbow": 98, "gatling": 84, "flamer": 90, "venom": 92, "harpoon": 98}
 # its keep, so every slot is scaled to the same proportions as the Spire sheets
 # (muzzle ≈ 1.05–1.35× the base height).
 ART_SCALE = {
-    "lvl1": 0.60, "lvl2": 0.64, "spec-a": 0.68, "spec-b": 0.68,
-    "spec-a2": 0.72, "spec-b2": 0.72, "spec-a3": 0.78, "spec-b3": 0.78,
+    "lvl1": 0.52, "lvl2": 0.55, "spec-a": 0.58, "spec-b": 0.58,
+    "spec-a2": 0.62, "spec-b2": 0.62, "spec-a3": 0.68, "spec-b3": 0.68,
 }
 
 
@@ -594,13 +956,54 @@ def draw_weapon(line: str, slot: str) -> Image.Image:
 
 # ---------------------------------------------------------------------- output
 
-LINES = {
-    "crossbow": "Iron Crossbow",
-    "gatling": "Clockwork Repeater",
-    "flamer": "Pitchfire Siphon",
-    "venom": "Venom Still",
-    "harpoon": "Harpoon Winch",
-}
+
+def make_card(line: str) -> Image.Image:
+    """A 64×64 dock icon that is *the line's crown*, zoomed.
+
+    The old card shrank the whole tower into the tile, so five different
+    buildings became five grey slivers — and because they were all one keep, the
+    icons were identical. The dock tile only has 64 px to say "this is the
+    harpoon winch, not the boiler", so it shows the signature and fills the
+    frame with it: the prod, the drum, the chimney, the flask, the crane.
+    """
+    slot = "spec-a"
+    g = geometry(line, slot)
+    art = Image.open(os.path.join(TOWERS, f"base_{line}-spec-a.png")).convert("RGBA")
+
+    # Band around the crown: the machinery plus the top of the wall under it.
+    y0 = max(0, g["top"] - g["head"] - 2)
+    y1 = min(art.height, g["top"] + round(g["shaft"] * 0.62))
+    band = art.crop((0, y0, art.width, y1))
+    inner = band.crop(band.getbbox() or (0, 0, band.width, band.height))
+
+    ratio = min(60 / inner.width, 56 / inner.height)
+    size = (max(1, round(inner.width * ratio)), max(1, round(inner.height * ratio)))
+    inner = inner.resize(size, Image.NEAREST)
+
+    icon = blank(64, 64)
+    shade = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    ImageDraw.Draw(shade).ellipse((32 - inner.width // 2, 57, 32 + inner.width // 2, 62),
+                                  fill=(0, 0, 0, 70))
+    icon.alpha_composite(shade)
+    icon.alpha_composite(inner, ((64 - inner.width) // 2, 58 - inner.height))
+    return icon
+
+
+def check_growth(records) -> None:
+    """Fail the build if a proportion change breaks the tier-growth contract.
+
+    `tests/engineer-defenses.test.js` asserts every tier chain gets strictly
+    taller / wider; catching it here means the art never ships out of contract.
+    """
+    by_line = {}
+    for rec in records:
+        by_line.setdefault(rec["line"], {})[rec["slot"]] = rec
+    for line, slots in by_line.items():
+        for chain, key in ((["lvl1", "lvl2", "spec-a", "spec-a2", "spec-a3"], "height"),
+                           (["lvl1", "lvl2", "spec-b", "spec-b2", "spec-b3"], "width")):
+            sizes = [slots[slot][key] for slot in chain]
+            if any(b <= a for a, b in zip(sizes, sizes[1:])):
+                raise SystemExit(f"{line}: {key} does not grow along {chain}: {sizes}")
 
 
 def main() -> int:
@@ -613,26 +1016,21 @@ def main() -> int:
             suffix = "" if slot == "lvl1" else f"-{slot}"
             base_name = f"base_{line}{suffix}.png"
             weapon_name = f"weapon_{line}{suffix}.png"
-            base = draw_base(line, slot)
+            base, mount = draw_base(line, slot)
             weapon = draw_weapon(line, slot)
             save(base, TOWERS, base_name)
             save(weapon, TOWERS, weapon_name)
             records.append(
                 dict(line=line, slot=slot, base=base_name, weapon=weapon_name,
                      fw=WEAPON_FRAME, fh=WEAPON_FRAME, frames=FRAMES,
-                     px=PIVOT[0], py=PIVOT[1], mount=base.height - 30,
+                     px=PIVOT[0], py=PIVOT[1], mount=mount,
                      muzzleY=-round(TIP[line] * ART_SCALE[slot]),
                      height=base.height, width=base.width)
             )
 
-        icon = blank(64, 64)
-        art = Image.open(os.path.join(TOWERS, f"base_{line}-spec-a.png")).convert("RGBA")
-        ratio = min(58 / art.width, 60 / art.height, 1.0)
-        art = art.resize((max(1, int(art.width * ratio)), max(1, int(art.height * ratio))),
-                         Image.LANCZOS)
-        icon.alpha_composite(art, ((64 - art.width) // 2, 64 - art.height - 2))
-        save(icon, ICONS, f"card_{line}.png")
+        save(make_card(line), ICONS, f"card_{line}.png")
 
+    check_growth(records)
     write_manifest(records)
     print(f"wrote {len(records)} base + {len(records)} weapon sheets, {len(LINES)} dock icons")
     return 0
