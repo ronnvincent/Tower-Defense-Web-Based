@@ -35,7 +35,8 @@ OUT = os.path.join(ROOT, "public", "assets", "tiles")
 
 GROUND_NAMES = ("grass", "grass_2", "grass_3")
 DECOR_KINDS = ("tuft", "bloom", "shard")
-ARENA_THEMES = ("caldera", "glacier", "oasis")
+# Arena palettes plus the three War Room biomes (see terrain.py).
+ARENA_THEMES = ("caldera", "glacier", "oasis", "moor", "highland", "marsh")
 
 
 def write_png(path, w, h, pixels):

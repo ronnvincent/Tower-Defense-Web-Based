@@ -202,17 +202,40 @@ describe('Enemy facing: the head points down the lane', () => {
     expect(westDrawn.sprite.flipX).toBe(false);
   });
 
-  it('mirrors single-pose imported art instead of switching rows', () => {
+  it('turns an imported creature by row, not by rotation', () => {
+    // The Flare pack is imported with three of its eight facings, so it obeys
+    // the same contract as the Spire horde: row 2 for a lane running east or
+    // west, row 1 for one running away from the camera, and no rotation at all
+    // — a rotated strip is exactly the "minotaur walking on its side" bug.
     const { enemy, sprite } = spawn('thrall');
-    expect(enemy.directional).toBe(false);
+    expect(enemy.directional).toBe(true);
+    expect(enemy.profileFacing).toBe('east');
+
     enemy.faceTravel(40, 0);
+    expect(enemy.direction).toBe('profile');
+    expect(enemy.animPrefix).toBe('enemy-thrall-d2');
     expect(sprite.flipX).toBe(false);
+    expect(deg(sprite.rotation)).toBe(0);
+
     enemy.faceTravel(-40, 0);
     expect(sprite.flipX).toBe(true);
     expect(deg(sprite.rotation)).toBe(0);
-    // A one-pose sheet has no north row to wear, so it keeps the south clip.
+
     enemy.faceTravel(0, -40);
-    expect(enemy.animPrefix).toBe('enemy-thrall-d0');
+    expect(enemy.direction).toBe('north');
+    expect(enemy.animPrefix).toBe('enemy-thrall-d1');
+    expect(sprite.flipX).toBe(false);
+  });
+
+  it('gives every imported boss the same heading contract', () => {
+    for (const type of ['ironhorn', 'ashwing', 'gravesworn', 'bonearcher', 'raider']) {
+      const { enemy } = spawn(type);
+      expect(enemy.directional, type).toBe(true);
+      enemy.faceTravel(40, 0);
+      expect(enemy.animPrefix, type).toBe(`enemy-${type}-d2`);
+      enemy.faceTravel(0, 40);
+      expect(enemy.animPrefix, type).toBe(`enemy-${type}-d0`);
+    }
   });
 
   it('holds its pose while standing still', () => {

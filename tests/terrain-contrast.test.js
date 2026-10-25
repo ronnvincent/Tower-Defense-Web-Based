@@ -34,7 +34,10 @@ describe('terrain surface contrast', () => {
       'desert',
       'glacier',
       'grassland',
+      'highland',
       'ice',
+      'marsh',
+      'moor',
       'oasis',
       'volcanic',
     ]);

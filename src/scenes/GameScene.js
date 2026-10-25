@@ -85,6 +85,8 @@ export class GameScene extends Phaser.Scene {
    * derived from it, so a restart is just another `scene.start`.
    */
   init(data) {
+    // The previous draft hand, so the next offer can steer away from it.
+    this.lastOffer = [];
     // A duel is a separate contract: the arena supplies the map, the horde and
     // the economy, and everything the player owns in the campaign is ignored.
     this.pvp = data?.pvp || null;
@@ -1125,7 +1127,8 @@ export class GameScene extends Phaser.Scene {
     const panel = window.gameDraft;
     if (!panel?.showCards) return;
     this.modePaused = true;
-    const cards = drawCards(this.runSeed, waveNumber, this.cardMods.cards);
+    const cards = drawCards(this.runSeed, waveNumber, this.cardMods.cards, undefined, this.lastOffer);
+    this.lastOffer = cards.map((card) => card.id);
     Promise.resolve(
       panel.showCards({
         cards,

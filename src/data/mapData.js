@@ -135,6 +135,166 @@ export const MAPS = {
     '..x..............x..', // 10
     'x...................', // 11
   ],
+  /* ---------------------------------------------------------------- War Room
+     One battlefield per mode. Before these, four of the eight modes booted the
+     same field (Rogue, Anomaly, Ascension and the Board all redirected to
+     Endless Siege), so the War Room read as eight buttons onto one map. Each
+     layout below is authored against the same contract as the campaign set —
+     two or three loopless lanes, gates two rows clear of the HUD, one column of
+     margin at the sides — and each carries its own biome, so a mode is
+     recognisable from the first frame. */
+  // Blackfen Hollow — A peat bog split by three causeways. The heather hides the far lane until it is too late.
+  'blackfen': [
+    '............~.......',
+    '........x...........',
+    '...##############...',
+    '...#..#.........#...',
+    '...#..#......x..#...',
+    '.S################B.',
+    '...#.....#..#...#...',
+    '...#.....####...#...',
+    '...#............#...',
+    '...##############...',
+    '.......x............',
+    '....~...............',
+  ],
+  // Shattered Reach — A broken prism shelf: three arms out of a cracked hub, and a vault wall on the far side.
+  'shattered': [
+    '....................',
+    '......#......#......',
+    '......#......#..x...',
+    '.##################.',
+    '......#..#~..#......',
+    '....x.#..#...#......',
+    '.S#####..#...#####B.',
+    '......#..#...#.x....',
+    '.##################.',
+    '...x..#......#..~...',
+    '......########......',
+    '....................',
+  ],
+  // Skyward Steps — Granite stair-terraces. Every switchback hands the horde one
+  // shelf higher than the last, and the two staircases part company four cells
+  // from the gate, so no single stack can watch both.
+  'skyward': [
+    '.......x............',
+    '.........~..........',
+    '.............#####B.',
+    '....############.#..',
+    '....#........#.#.#..',
+    '....#.########.###..',
+    '....#.#...~.........',
+    '....#.#....x........',
+    '.S#####.............',
+    '...x................',
+    '....................',
+    '....................',
+  ],
+  // Dune Circuit — An oval circuit with a chicane in the middle: long straights, one brutal bottleneck.
+  'dune': [
+    '......x.............',
+    '.................~..',
+    '....############....',
+    '....#....####..#....',
+    '....#....#..#..#....',
+    '.S###....#..#..###B.',
+    '....#..x.......#....',
+    '....#..........#....',
+    '....#..........#....',
+    '....############....',
+    '..~.................',
+    '...........x........',
+  ],
+  // Tidewatch Docks — Two plank piers joined by a quay. Water everywhere; the boardwalk is the only road.
+  'tidewatch': [
+    '....................',
+    '.....~~......~......',
+    '.........x..........',
+    '.################...',
+    '.......#..#.....#...',
+    '.......#..#..x..#...',
+    '.S#########.....#...',
+    '....#...........#...',
+    '...###############B.',
+    '....................',
+    '.....~~......~......',
+    '....................',
+  ],
+  // Throne of Ash — A ring around a dead caldera. Two wide lanes, one throat, and no cover at all.
+  'ash-throne': [
+    '....................',
+    '....................',
+    '.S#################.',
+    '.....#...#....#.....',
+    '.....#.x.#..~.#.....',
+    '.....#...#.x..#.....',
+    '.....##########.....',
+    '.....#.x.#..~.#.....',
+    '.....#...#....#.....',
+    '.#################B.',
+    '....................',
+    '....................',
+  ],
+  // Bastion Gate — A four-square keep: rotationally symmetric, built for two commanders on one field.
+  'bastion': [
+    '....................',
+    '..........~.........',
+    '...##############...',
+    '...#......#.....#...',
+    '...#..x...#..x..#...',
+    '.S################B.',
+    '...#......#.....#...',
+    '...#..x...#..x..#...',
+    '...#......#.....#...',
+    '...##############...',
+    '.........~..........',
+    '....................',
+  ],
+  // Emberfall Pass — A crossroad under a dry moat. Four ways in, four ways to be flanked.
+  'emberfall': [
+    '....................',
+    '...x................',
+    '.....##########.....',
+    '.....#..~#.~........',
+    '.....#...#..........',
+    '.S################B.',
+    '.........#....#.....',
+    '........~#.~..#.....',
+    '.........#....#.....',
+    '.....##########.....',
+    '.................x..',
+    '....................',
+  ],
+  // Frostgate Canyon — A frozen zigzag. The lanes never touch, so a single stack cannot watch both.
+  'frostgate': [
+    '.....~..............',
+    '..............x.....',
+    '....................',
+    '.S#######...#######.',
+    '.....#..#...#...#...',
+    '.....#..#...#...#...',
+    '.....#..#...#...##B.',
+    '.....#..#...#.......',
+    '.....########.......',
+    '....................',
+    '.........x..........',
+    '...............~....',
+  ],
+  // Prismatic Vault — A diamond of causeways around a crystal vault, with a spine straight through it.
+  'prismatic': [
+    '.........x..........',
+    '....................',
+    '......########......',
+    '......#..#...#......',
+    '......#..#~..#......',
+    '.S#####..#...#####B.',
+    '......#..#~..#......',
+    '......#..#...#......',
+    '......########......',
+    '....................',
+    '....................',
+    '..........x.........',
+  ],
 };
 
 /**

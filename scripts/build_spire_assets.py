@@ -605,9 +605,12 @@ ENEMY_SOURCES = {
     # Flare pack (CC-BY-SA 3.0) — imported by scripts/extract_flare_enemies.py
     # into the same 9-row idle/move/death layout, so biomes and tiers apply
     # unchanged. Frame sizes are the measured cell of each imported strip.
-    "thrall": ("flare/enemies/thrall", 65, 9),
+    "thrall": ("flare/enemies/thrall", 70, 9),
     "raider": ("flare/enemies/raider", 62, 9),
-    "bonearcher": ("flare/enemies/bonearcher", 80, 9),
+    "bonearcher": ("flare/enemies/bonearcher", 93, 9),
+    "ironhorn": ("flare/enemies/ironhorn", 112, 9),
+    "ashwing": ("flare/enemies/ashwing", 124, 9),
+    "gravesworn": ("flare/enemies/gravesworn", 152, 9),
 }
 
 
@@ -1033,9 +1036,9 @@ BOSS_SOURCES = {
     # Flare bosses. A full duotone would flatten the painted armour into a
     # silhouette, so these carry a sixth value: how hard to grade toward the
     # ramp. 0.55 tints them into their element and keeps the detail.
-    "ironhorn": ("flare/enemies/ironhorn", 103, 9, 1, (0x1A0F0A, 0x6B3A1E, 0xC97B3C, 0xFFE0B0), 0.55),
-    "ashwing": ("flare/enemies/ashwing", 122, 9, 1, (0x07120C, 0x1E4A34, 0x57A56F, 0xD6FFD9), 0.5),
-    "gravesworn": ("flare/enemies/gravesworn", 114, 9, 1, (0x0A0A12, 0x2A2C46, 0x6C7BA8, 0xE6ECFF), 0.55),
+    "ironhorn": ("flare/enemies/ironhorn", 112, 9, 1, (0x1A0F0A, 0x6B3A1E, 0xC97B3C, 0xFFE0B0), 0.55),
+    "ashwing": ("flare/enemies/ashwing", 124, 9, 1, (0x07120C, 0x1E4A34, 0x57A56F, 0xD6FFD9), 0.5),
+    "gravesworn": ("flare/enemies/gravesworn", 152, 9, 1, (0x0A0A12, 0x2A2C46, 0x6C7BA8, 0xE6ECFF), 0.55),
 }
 
 # What the nine rows of a strip actually are.
@@ -1056,8 +1059,9 @@ BOSS_SOURCES = {
 #
 # Directional sheets are now drawn from the matching row with no rotation at
 # all (see Enemy.faceTravel), which is the only way the head can point along the
-# lane. Flare's imported creatures are one-direction 3/4-view art, so they keep
-# the mirroring contract and mark `directional: false`.
+# lane. The Flare creatures are imported with three of their eight facings
+# (`scripts/extract_flare_enemies.py`), so they are directional too — the old
+# front-only import is what made the minotaur slide sideways down an east lane.
 #
 #   'south'  – row 0 already faces the camera; the strip is directional
 #   'north'  – (unused) row 0 faces away from the camera
@@ -1077,16 +1081,15 @@ ENEMY_FACING = {
     "prismlord": "north",
     "obsidian": "south",
     "voidherald": "south",
-    # Flare's creatures are drawn upright, in three-quarter view, with their
-    # feet on the ground — a minotaur turning to walk east would be a minotaur
-    # lying on its side. They are the one imported pack that must mirror, not
-    # rotate, so they declare the front-on contract.
-    "thrall": "camera",
-    "raider": "camera",
-    "bonearcher": "camera",
-    "ironhorn": "camera",
-    "ashwing": "camera",
-    "gravesworn": "camera",
+    # Flare's creatures ship eight hand-drawn facings; the importer lifts three
+    # of them (front / away / side) into the same rows as everything else, so
+    # they are heading-aware rather than mirror-only.
+    "thrall": "south",
+    "raider": "south",
+    "bonearcher": "south",
+    "ironhorn": "south",
+    "ashwing": "south",
+    "gravesworn": "south",
 }
 
 # Which way each creature's **profile row** faces when it is not mirrored.
@@ -1112,6 +1115,13 @@ ENEMY_PROFILE_FACING = {
     "brute": "west",      # scorpion: claws left, tail curling right
     "swarm": "west",      # clampbeetle: cream pincers on the left, wing on the right
     "shield": "west",     # magma crab: claws left, flipper right
+    # Flare pack - Flare's facing 4 is the left profile, drawn looking east.
+    "thrall": "east",
+    "raider": "east",
+    "bonearcher": "east",
+    "ironhorn": "east",
+    "ashwing": "east",
+    "gravesworn": "east",
 }
 
 # Bosses are scaled and re-graded from the same source strips, so they inherit
@@ -1149,16 +1159,24 @@ def build_bosses():
 def read_map_layouts():
     """Pull the ASCII battlefields out of src/data/mapData.js (single source)."""
     src = open(os.path.join(ROOT, "src", "data", "mapData.js")).read()
+    # Strip comments *before* reading the strings: the layouts are documented in
+    # prose, and an apostrophe in a comment ("the mode's ground") would otherwise
+    # be parsed as a one-cell map row — which is exactly how the crystal
+    # thumbnail once came out 852 px tall.
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    src = re.sub(r"//[^\n]*", "", src)
     base = re.search(r"export const MAP_LAYOUT = \[(.*?)\n\];", src, re.S).group(1)
     layouts = {"grassland": re.findall(r"'([^']*)'", base)}
     body = re.search(r"export const MAPS = \{(.*?)\n\};", src, re.S).group(1)
-    parts = re.split(r"\n\s{2}(\w+):\s*", "\n" + body)
-    for i in range(1, len(parts) - 1, 2):
-        name, chunk = parts[i], parts[i + 1]
-        if "MAP_LAYOUT" in chunk:
-            layouts[name] = layouts["grassland"]
-        else:
-            layouts[name] = re.findall(r"'([^']*)'", chunk)
+    # Each entry is `name: [` … `  ],` — quoted or bare, with or without the
+    # hyphens the War Room map ids use. Matching on the array literal (rather
+    # than splitting on the key) keeps a map from swallowing the ten that follow
+    # it, which is what happened when only bare word keys were recognised.
+    for name, chunk in re.findall(r"\n\s{2}'?([\w-]+)'?:\s*(?:MAP_LAYOUT|\[(.*?)\n\s{2}\],)", body, re.S):
+        layouts[name] = layouts["grassland"] if not chunk else re.findall(r"'([^']*)'", chunk)
+    for name, rows in layouts.items():
+        assert rows, f"{name} has no rows"
+        assert len({len(row) for row in rows}) == 1, f"{name} rows are ragged"
     return layouts
 
 
@@ -1179,6 +1197,26 @@ def read_map_biomes():
 
 
 BIOME_LETTER = {"i": "ice", "d": "desert", "v": "volcanic", "c": "crystal"}
+
+# Battlefield -> its own biome. Kept in step with `LEVELS` / `MODE_RUN_LEVELS` in
+# src/data/levelData.js: the thumbnail must show the ground the level loads.
+MAP_THEMES = {
+    "grassland": ("grassland", "grassland"),
+    "desert": ("desert", "desert"),
+    "ice": ("ice", "ice"),
+    "crystal": ("crystal", "crystal"),
+    "volcanic": ("volcanic", "volcanic"),
+    "blackfen": ("blackfen", "moor"),
+    "shattered": ("shattered", "crystal"),
+    "skyward": ("skyward", "highland"),
+    "dune": ("dune", "desert"),
+    "tidewatch": ("tidewatch", "marsh"),
+    "ash-throne": ("ash-throne", "volcanic"),
+    "bastion": ("bastion", "caldera"),
+    "emberfall": ("emberfall", "volcanic"),
+    "frostgate": ("frostgate", "ice"),
+    "prismatic": ("prismatic", "crystal"),
+}
 
 
 def average_colour(pixels, w, h, x0, y0, size):
@@ -1251,7 +1289,17 @@ def build_map_thumbnails():
     # against the average ground colour, the ice road is the worst offender
     # (65,80,94 vs a 95,118,142 sheet: nearly the same luminance) and the
     # volcanic road is close behind, so both are lifted harder.
-    ROAD_BOOST = {"grassland": 1.15, "desert": 1.05, "ice": 2.2, "volcanic": 1.85, "crystal": 1.35}
+    ROAD_BOOST = {
+        "grassland": 1.15,
+        "desert": 1.05,
+        "ice": 2.2,
+        "volcanic": 1.85,
+        "crystal": 1.35,
+        "moor": 1.55,
+        "highland": 1.5,
+        "marsh": 1.7,
+        "caldera": 1.2,
+    }
 
     def palette(theme):
         """Average ground/road/water/rock/foliage colour for one biome."""
@@ -1273,9 +1321,32 @@ def build_map_thumbnails():
         }
         return palettes[theme]
 
-    for theme in ("grassland", "desert", "ice", "volcanic", "crystal"):
-        layout = layouts.get(theme) or layouts["grassland"]
-        biome_rows = biomes.get(theme)
+    # One thumbnail per battlefield *and* per campaign theme. The theme files
+    # feed the world map (`LevelSelectUI`); the per-map ones let the War Room
+    # show the ground a mode actually boots, which is the whole point of giving
+    # every mode its own layout.
+    map_themes = dict(MAP_THEMES)
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh"):
+        map_themes.setdefault(theme, (theme, theme))
+    # `map_themes` now maps battlefield -> (battlefield, theme); build the theme
+    # list from its values so a theme never appears twice in the target list.
+    themes_seen = []
+    for _, theme in map_themes.values():
+        if theme not in themes_seen:
+            themes_seen.append(theme)
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh"):
+        if theme not in themes_seen:
+            themes_seen.append(theme)
+    targets = [(f"map_{theme}", theme, theme) for theme in themes_seen]
+    targets += [
+        (f"map-{map_id}", map_id, theme)
+        for map_id, (_, theme) in map_themes.items()
+        if map_id in layouts
+    ]
+
+    for out_name, map_id, theme in targets:
+        layout = layouts.get(map_id) or layouts["grassland"]
+        biome_rows = biomes.get(map_id)
         spawn = (0xB3, 0x88, 0xFF)
         base = (0xF5, 0xC4, 0x51)
 
@@ -1317,7 +1388,7 @@ def build_map_thumbnails():
                         out[i + 1] = min(255, round(colour[1] * f))
                         out[i + 2] = min(255, round(colour[2] * f))
                         out[i + 3] = 255
-        save(os.path.join(OUT, "ui", f"map_{theme}.png"), out, width, height, "<- battlefield minimap")
+        save(os.path.join(OUT, "ui", f"{out_name}.png"), out, width, height, "<- battlefield minimap")
 
 
 # ------------------------------------------------------------------- projectiles

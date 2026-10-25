@@ -17,6 +17,7 @@ import {
   clearAnomaly,
   createRunMods,
   hordeScaling,
+  repeatScale,
   summariseMods,
 } from '../src/systems/RunMods.js';
 import { DRAFT_CARDS, drawCards } from '../src/data/draftCards.js';
@@ -47,17 +48,27 @@ describe('RunMods — the rule bag', () => {
   it('applies a card effect, not just its name', () => {
     const card = DRAFT_CARDS.find((entry) => entry.id === 'whetstones');
     const next = applyCard(createRunMods(), card);
-    expect(next.damage).toBeCloseTo(1.12, 5);
+    expect(next.damage).toBeCloseTo(1.1, 5);
     expect(next.cards).toEqual(['whetstones']);
-    expect(summariseMods(next)).toEqual([{ key: 'damage', label: 'DMG +12%' }]);
+    expect(summariseMods(next)).toEqual([{ key: 'damage', label: 'DMG +10%' }]);
   });
 
-  it('stacks two of the same card multiplicatively', () => {
+  it('trims a repeat pick instead of stacking it flat', () => {
+    // A common may be taken again, but the second copy is worth half and the
+    // third a quarter (RunMods.REPEAT_FALLOFF). Five whetstones top out near
+    // +22 % total, which is what stops one card from being the whole run.
     const card = DRAFT_CARDS.find((entry) => entry.id === 'whetstones');
     const once = applyCard(createRunMods(), card);
     const twice = applyCard(once, card);
-    expect(twice.damage).toBeCloseTo(1.12 * 1.12, 4);
-    expect(twice.originals ?? once.damage).toBeCloseTo(1.12, 5);
+    expect(twice.damage).toBeCloseTo(1.1 * 1.05, 5);
+    expect(twice.damage).toBeLessThan(1.1 * 1.1);
+    let bag = createRunMods();
+    for (let i = 0; i < 5; i += 1) bag = applyCard(bag, card);
+    expect(bag.damage).toBeGreaterThan(1.2);
+    expect(bag.damage).toBeLessThan(1.23);
+    expect(repeatScale(0)).toBe(1);
+    expect(repeatScale(1)).toBeCloseTo(0.5, 5);
+    expect(repeatScale(9)).toBeCloseTo(0.1, 5);
   });
 
   it('never mutates the bag it was handed', () => {
@@ -76,7 +87,7 @@ describe('RunMods — the rule bag', () => {
     expect(during.enemyHealth).toBeCloseTo(1.15, 5);
     const after = clearAnomaly(card, anomaly);
     expect(after.enemyHealth).toBe(1);
-    expect(after.damage).toBeCloseTo(1.12, 5); // the card survives the wave
+    expect(after.damage).toBeCloseTo(1.1, 5); // the card survives the wave
     expect(after.anomalies).toEqual([]);
   });
 

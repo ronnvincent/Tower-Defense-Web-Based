@@ -7548,7 +7548,9 @@ body.is-fullscreen #app::after {
 .mode-card {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* crest · text · minimap · call-to-action. Puzzle and co-op cards paint no
+     battlefield, so their fourth cell simply collapses. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: clamp(8px, 1.1vw, 13px);
   min-height: clamp(72px, 9.6vh, 92px);
@@ -7632,6 +7634,42 @@ body.is-fullscreen #app::after {
   letter-spacing: 0.5px;
   color: var(--gold-primary);
   text-shadow: 0 2px 8px rgba(245, 196, 81, 0.35);
+}
+
+/* The mode's own battlefield, at thumbnail size: the War Room stopped being
+   eight doors onto one map, and the card is where a player sees that first. */
+.mode-map {
+  flex: 0 0 auto;
+  width: clamp(52px, 8.2vh, 68px);
+  aspect-ratio: 5 / 3;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  border: 1px solid rgba(245, 196, 81, 0.28);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.55);
+  image-rendering: pixelated;
+  filter: saturate(1.05);
+  transition: border-color 0.12s ease, filter 0.12s ease;
+}
+
+.mode-card:hover .mode-map,
+.mode-card:focus-visible .mode-map {
+  border-color: rgba(245, 196, 81, 0.62);
+  filter: saturate(1.15) brightness(1.08);
+}
+
+/* A 390 px-tall phone cannot afford a fourth column: drop the plate and keep
+   the crest, the blurb and the deploy tab, which are what the card is for. */
+@media (max-height: 470px), (max-width: 620px) {
+  .mode-map {
+    display: none;
+  }
+  .mode-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
 }
 
 .mode-body {

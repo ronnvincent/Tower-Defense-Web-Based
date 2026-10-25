@@ -39,8 +39,11 @@ const build = (layout) => {
 const overlaps = (a, b) => a.filter((cell) => b.includes(cell));
 
 describe('multi-lane routing', () => {
-  it('covers the five campaign maps and all three duel arenas', () => {
-    expect(BATTLEFIELDS).toHaveLength(8);
+  it('covers the campaign maps, the War Room battlefields and every duel arena', () => {
+    // 5 campaign stages + 10 War Room layouts + 3 duel arenas. The War Room
+    // layouts are held to the same contract as the campaign set: if a mode's
+    // map had one lane or a lane that never reaches the core, this fails.
+    expect(BATTLEFIELDS).toHaveLength(18);
   });
 
   it('gives every battlefield two or three routes', () => {

@@ -36,9 +36,9 @@ function pngSize(path) {
 describe('campaign tiles', () => {
   it('ships a full tile set (grass, rock, water, foliage, 16 road masks) per theme', () => {
     const themes = Object.values(THEMES);
-    // Five campaign biomes plus the three duel arenas, which ship their own
-    // palettes rather than borrowing a campaign tileset.
-    expect(themes).toHaveLength(8);
+    // Five campaign biomes, three duel arenas and three War Room biomes, each
+    // with its own palette rather than borrowing a campaign tileset.
+    expect(themes).toHaveLength(11);
 
     for (const theme of themes) {
       const suffix = theme.tileSuffix;

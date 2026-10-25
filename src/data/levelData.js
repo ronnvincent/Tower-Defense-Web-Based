@@ -99,6 +99,38 @@ export const THEMES = {
     baseTint: 0xf0fbff,
     blurb: 'A bright ice sheet cut by crevasses. Every shelf sees two switchbacks.',
   },
+  /* The three War Room biomes (scripts/terrain.py owns their palettes). They
+     exist so a mode's battlefield cannot be mistaken for a campaign stage. */
+  moor: {
+    id: 'moor',
+    name: 'Blackfen Hollow',
+    tileSuffix: '-moor',
+    accent: '#b48bd6',
+    fog: 'rgba(30, 16, 42, 0.34)',
+    portalTint: 0xc9a6ff,
+    baseTint: 0xe8dcff,
+    blurb: 'Cold heather over black peat. The far causeway is invisible until it is at your gate.',
+  },
+  highland: {
+    id: 'highland',
+    name: 'Skyward Steps',
+    tileSuffix: '-highland',
+    accent: '#cfd6d2',
+    fog: 'rgba(38, 44, 48, 0.26)',
+    portalTint: 0xa8d8ff,
+    baseTint: 0xf2f6f4,
+    blurb: 'Granite shelves stacked like stairs. Every lane climbs towards the core.',
+  },
+  marsh: {
+    id: 'marsh',
+    name: 'Tidewatch Docks',
+    tileSuffix: '-marsh',
+    accent: '#a8c06a',
+    fog: 'rgba(24, 40, 24, 0.3)',
+    portalTint: 0x8fe0a0,
+    baseTint: 0xeaf6d8,
+    blurb: 'Reed beds and standing water, crossed by bleached plank piers.',
+  },
   oasis: {
     id: 'oasis',
     name: 'Dust Meridian',
@@ -463,7 +495,10 @@ export const TITAN_RUSH_LEVEL = {
   index: 6,
   name: 'Titan Rush',
   theme: 'volcanic',
-  map: 'volcanic',
+  // Throne of Ash: a ring around a dead caldera. The old titan run borrowed the
+  // Endless Siege field, so two modes looked identical; this one is bare ground
+  // with two wide lanes and no cover to hide a titan behind.
+  map: 'ash-throne',
   blurb: 'Five titans, no trash. The Caldera holds its breath between them.',
   startingCoins: 480,
   baseHealth: 30,
@@ -486,8 +521,10 @@ export const TIME_ATTACK_LEVEL = {
   id: 'time-attack',
   index: 7,
   name: 'Time Attack',
-  theme: 'grassland',
-  map: 'grassland',
+  theme: 'desert',
+  // Dune Circuit: an oval with a chicane. Long straights plus one bottleneck is
+  // exactly the shape a three-minute score chase wants.
+  map: 'dune',
   blurb: 'Three minutes. No wave button. Every second you do not kill is a second you lose.',
   endless: true,
   timeLimitMs: 180_000,
@@ -501,8 +538,102 @@ export const TIME_ATTACK_LEVEL = {
   waves: [],
 };
 
+/**
+ * One level per War Room mode.
+ *
+ * Every run mode used to boot the Endless Siege field, so the War Room was
+ * eight doors onto one battlefield. These give each mode its own ground: the
+ * map is picked for the rule it has to carry, not for convenience —
+ *
+ *   Rogue Siege    a bog where one long causeway hides the far lane
+ *   Anomaly Waves  a cracked hub, so a rule twist can cut a lane off
+ *   Ascension      stacked shelves, so "climb" is literally what the lanes do
+ *   Titan Rush     a ring around a caldera: no cover, nowhere to hide a titan
+ *   Time Attack    an oval circuit: long straights to bank score on
+ *   Contract Board two piers and a quay, for objectives that sit apart
+ *
+ * They share `endless`' economy knobs, because the mode, not the map, decides
+ * how a run ends.
+ */
+const MODE_RUN_LEVELS = [
+  {
+    id: 'rogue-siege',
+    index: 8,
+    name: 'Rogue Siege',
+    theme: 'moor',
+    map: 'blackfen',
+    blurb: 'A bog with three causeways, a card after every wave, and a very long night.',
+    endless: true,
+    startingCoins: 320,
+    baseHealth: 25,
+    enemyHealthScale: 1.15,
+    reward: { gold: 0, gems: 0 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'ironhorn',
+    mode: 'rogue',
+    waves: [],
+  },
+  {
+    id: 'anomaly-waves',
+    index: 9,
+    name: 'Anomaly Waves',
+    theme: 'crystal',
+    map: 'shattered',
+    blurb: 'A cracked prism shelf. Every wave rewrites one rule of the fight.',
+    endless: true,
+    startingCoins: 320,
+    baseHealth: 25,
+    enemyHealthScale: 1.15,
+    reward: { gold: 0, gems: 0 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'prismlord',
+    mode: 'anomaly',
+    waves: [],
+  },
+  {
+    id: 'ascension',
+    index: 10,
+    name: 'Ascension',
+    theme: 'highland',
+    map: 'skyward',
+    blurb: 'Stair-terraces of granite. Every ten waves the ladder asks: climb, or bank it?',
+    endless: true,
+    startingCoins: 340,
+    baseHealth: 25,
+    enemyHealthScale: 1.12,
+    reward: { gold: 0, gems: 0 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'gravesworn',
+    mode: 'ascension',
+    waves: [],
+  },
+  {
+    id: 'contract-board',
+    index: 11,
+    name: 'Contract Board',
+    theme: 'marsh',
+    map: 'tidewatch',
+    blurb: 'Plank piers over a marsh. Three side bets ride on this run.',
+    endless: true,
+    startingCoins: 320,
+    baseHealth: 25,
+    enemyHealthScale: 1.1,
+    reward: { gold: 0, gems: 0 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'ashwing',
+    mode: 'contracts',
+    waves: [],
+  },
+];
+
 /** Every selectable node: campaign, Endless, and the mode levels. */
-export const ALL_LEVELS = [...LEVELS, ENDLESS_LEVEL, TITAN_RUSH_LEVEL, TIME_ATTACK_LEVEL];
+export const ALL_LEVELS = [
+  ...LEVELS,
+  ENDLESS_LEVEL,
+  TITAN_RUSH_LEVEL,
+  TIME_ATTACK_LEVEL,
+  ...MODE_RUN_LEVELS,
+];
 
 /** Look up a level by id (defaults to the first campaign level). */
 export function getLevel(id) {

@@ -60,20 +60,24 @@ describe('Flare creature data', () => {
     }
   });
 
-  it('mirrors upright art instead of rolling it onto its side', () => {
-    // Flare's creatures stand on the ground and face the camera. faceTravel()
-    // rotates a strip to its heading, which is right for the top-down Spire
-    // bugs and wrong here: a turning minotaur would end up horizontal. These
-    // six must keep the front-on contract and flip left/right only.
+  it('ships real north and profile rows, so nothing has to be rotated flat', () => {
+    // The Flare atlas carries eight hand-drawn facings; the importer lifts three
+    // of them (front 6, away 2, profile 4) into the same rows as the Spire set.
+    // Importing only the front pose is what made the minotaur slide down an east
+    // lane still facing the camera, so this is the regression that matters: a
+    // Flare creature must be heading-aware and must never be described as
+    // `camera` (mirror-only) again.
     for (const key of FLARE) {
-      expect(ENEMY_SHEETS[key].facing, `${key} would be rotated flat`).toBe('camera');
+      const sheet = ENEMY_SHEETS[key];
+      expect(sheet.facing, `${key} should use the south row`).toBe('south');
+      expect(sheet.directional, `${key} should switch rows, not rotate`).toBe(true);
+      expect(sheet.profileFacing, `${key} profile art faces east`).toBe('east');
+      // All nine rows exist: idle 0-2, walk 3-5, death 6-8.
+      expect(sheet.idle + sheet.move + sheet.death).toBeGreaterThan(0);
     }
-    // The Spire set is still the rotating half of the roster, so the two
-    // contracts must both be represented — one of them silently swallowing the
-    // other would be the regression.
+    // Every sheet in the roster names a facing the renderer understands.
     const declared = new Set(Object.values(ENEMY_SHEETS).map((sheet) => sheet.facing));
-    expect(declared.has('south')).toBe(true);
-    expect(declared.has('camera')).toBe(true);
+    for (const facing of declared) expect(['south', 'north', 'camera']).toContain(facing);
   });
 
   it('ships a 9-row strip whose rows all fit inside the frame grid', () => {

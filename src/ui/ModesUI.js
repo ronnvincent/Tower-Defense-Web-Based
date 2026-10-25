@@ -100,13 +100,20 @@ export class ModesUI {
     const grid = this.el.querySelector('#modes-grid');
     grid.innerHTML = MODES.map(
       (mode, index) => `
-        <button class="mode-card" data-mode-id="${mode.id}" role="listitem" type="button">
+        <button class="mode-card" data-mode-id="${mode.id}" role="listitem" type="button"${
+          mode.map ? ` data-mode-map="${mode.map}"` : ''
+        }>
           <span class="mode-crest" aria-hidden="true">${iconMarkup(mode)}</span>
           <span class="mode-body">
             <span class="mode-tag">${mode.tag}</span>
             <span class="mode-name">${mode.name}</span>
             <span class="mode-blurb">${mode.blurb}</span>
           </span>
+          ${
+            mode.map
+              ? `<span class="mode-map" aria-hidden="true" style="background-image:url('/assets/ui/map-${mode.map}.png')"></span>`
+              : ''
+          }
           <span class="mode-cta" aria-hidden="true">${index === MODES.length - 1 ? 'ALLY' : 'DEPLOY'}</span>
         </button>`
     ).join('');

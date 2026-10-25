@@ -16,9 +16,13 @@ boss grading and manifest all work unchanged.
 
 Why this shape:
 
-* **South-facing only.** Flare bakes eight facings into every atlas. The game
-  rotates one strip (`Enemy.faceTravel`), so importing all eight would multiply
-  the repo eightfold for a result no player could tell apart at 64 px.
+* **Three facings, not eight.** Flare bakes eight facings into every atlas. The
+  game's strip format carries exactly three (south / north / profile), and
+  `Enemy.faceTravel()` picks the row that matches the heading instead of
+  rotating the sprite. Importing only the full-front pose is what made the
+  minotaur look like it was sliding sideways: its body stayed square to the
+  camera while it travelled east. Three rows fix that for a third of the
+  pixels: front (dir 6), back (dir 2) and side (dir 4, drawn facing east).
 * **Baked shadows are removed.** Flare paints a soft black ellipse under every
   creature. The game draws its own shadow, and a baked one would rotate with
   the body — a tilted ground shadow reads as a bug. Only low-alpha near-black
@@ -48,13 +52,23 @@ OUT_DIR = os.path.join(ROOT, "src", "assets", "flare", "enemies")
 # to the camera (0) and reach the full front at 6, which is the pose our
 # `facing: 'south'` contract expects.
 SPEC = {
-    "thrall": {"mod": "fantasycore", "file": "zombie", "dir": 6},
-    "raider": {"mod": "fantasycore", "file": "goblin", "dir": 6},
-    "bonearcher": {"mod": "fantasycore", "file": "skeleton_archer", "dir": 6},
-    "ironhorn": {"mod": "fantasycore", "file": "minotaur", "dir": 6},
-    "ashwing": {"mod": "fantasycore", "file": "wyvern", "dir": 6},
-    "gravesworn": {"mod": "empyrean_campaign", "file": "skeleton_knight_boss", "dir": 6},
+    "thrall": {"mod": "fantasycore", "file": "zombie"},
+    "raider": {"mod": "fantasycore", "file": "goblin"},
+    "bonearcher": {"mod": "fantasycore", "file": "skeleton_archer"},
+    "ironhorn": {"mod": "fantasycore", "file": "minotaur"},
+    "ashwing": {"mod": "fantasycore", "file": "wyvern"},
+    "gravesworn": {"mod": "empyrean_campaign", "file": "skeleton_knight_boss"},
 }
+
+# Flare's eight facings run counter-clockwise from the back: 0/1 back-left and
+# back-right, 2 straight away, 3/5 the two rear three-quarters, 4 the left
+# profile (drawn facing east), 6 the full front, 7 the right profile.
+# Our strip wants front / away / side, in that order.
+DIRECTIONS = (
+    ("south", 6),
+    ("north", 2),
+    ("profile", 4),
+)
 
 # Animation name -> the sections that can stand in for it, best first.
 CLIPS = {
@@ -117,16 +131,25 @@ def build(name, spec, source_root):
 
     atlas = Image.open(atlas_path).convert("RGBA")
     sections = parse_atlas(anim_path)
-    clips = {name_: pick_clip(sections, name_, spec["dir"]) for name_ in CLIPS}
+
+    # clips[facing][clip] -> frames, one entry per facing we import.
+    clips = {}
+    for facing, direction in DIRECTIONS:
+        clips[facing] = {
+            clip: pick_clip(sections, clip, direction) for clip in CLIPS
+        }
 
     # Foot anchor space: a frame's rect is drawn at (-ox, -oy) relative to the
-    # creature's feet. Union of every clip gives one cell that never clips art.
+    # creature's feet. The union **over every facing** gives one cell that never
+    # clips art, which is required: a strip is a rigid grid, so all three rows
+    # have to share a cell.
     left = top = 1 << 30
     right = bottom = -(1 << 30)
-    for frames in clips.values():
-        for (_, _, w, h, ox, oy) in frames:
-            left, right = min(left, -ox), max(right, w - ox)
-            top, bottom = min(top, -oy), max(bottom, h - oy)
+    for per_clip in clips.values():
+        for frames in per_clip.values():
+            for (_, _, w, h, ox, oy) in frames:
+                left, right = min(left, -ox), max(right, w - ox)
+                top, bottom = min(top, -oy), max(bottom, h - oy)
 
     pad = 2
     cell_w = right - left + pad * 2
@@ -136,19 +159,20 @@ def build(name, spec, source_root):
     anchor_x = -left + (cell - cell_w) // 2 + pad
     anchor_y = -top + (cell - cell_h) // 2 + pad
 
-    cols = max(len(frames) for frames in clips.values())
+    cols = max(
+        len(frames)
+        for per_clip in clips.values()
+        for frames in per_clip.values()
+    )
     rows = 9
     sheet = Image.new("RGBA", (cell * cols, cell * rows), (0, 0, 0, 0))
 
-    # Rows 0-2 idle, 3-5 move, 6-8 death: three identical palette slots because
-    # the runtime recolours them per biome and per tier afterwards.
-    row_plan = {"idle": 0, "move": 3, "death": 6}
-    for clip, row_start in row_plan.items():
-        frames = clips[clip]
-        for index, (x, y, w, h, ox, oy) in enumerate(frames):
-            piece = strip_shadow(atlas.crop((x, y, x + w, y + h)))
-            piece = piece.crop((0, 0, w, h))
-            for palette in range(3):
+    # Rows 0-2 idle (south / north / profile), 3-5 move, 6-8 death — the layout
+    # `BootScene.createEnemyClips()` and `Enemy.faceTravel()` expect.
+    for row_start, clip in ((0, "idle"), (3, "move"), (6, "death")):
+        for palette, (facing, _) in enumerate(DIRECTIONS):
+            for index, (x, y, w, h, ox, oy) in enumerate(clips[facing][clip]):
+                piece = strip_shadow(atlas.crop((x, y, x + w, y + h)))
                 sheet.alpha_composite(
                     piece,
                     (
@@ -160,10 +184,13 @@ def build(name, spec, source_root):
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, f"{name}.png")
     sheet.save(out)
+    idle = len(clips["south"]["idle"])
+    move = len(clips["south"]["move"])
+    death = len(clips["south"]["death"])
     print(
         f"  {name:12s} <- {spec['mod']}/{spec['file']} "
         f"{cols}x{rows} of {cell}x{cell} "
-        f"(idle {len(clips['idle'])}, move {len(clips['move'])}, death {len(clips['death'])})"
+        f"(idle {idle}, move {move}, death {death}, 3 facings)"
     )
     return sheet
 

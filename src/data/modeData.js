@@ -6,6 +6,7 @@
  * never a new branch in three different files.
  *
  * Each mode says how to launch it:
+ *   map      the battlefield the card paints (a `map-<id>.png` minimap)
  *   levelId  which level the scene boots
  *   options  extra flags handed to `GameScene.init` (rogue / anomaly / …)
  *   kind     run | puzzle | coop — how the War Room launches it
@@ -25,9 +26,10 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'ROGUE SIEGE',
     icon: '🃏',
-    tag: 'ENDLESS + CARDS',
+    tag: 'BLACKFEN · CARDS',
     blurb: 'Every wave you clear, pick one of three cards. Build the run, not just the towers.',
-    levelId: 'endless',
+    map: 'blackfen',
+    levelId: 'rogue-siege',
     options: { rogue: true },
   },
   {
@@ -36,9 +38,10 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'ANOMALY WAVES',
     icon: '🌀',
-    tag: 'ENDLESS + MUTATIONS',
+    tag: 'SHATTERED REACH · MUTATIONS',
     blurb: 'Each wave rolls a rule twist — fog, stampede, twin titans. Answer it or lose the core.',
-    levelId: 'endless',
+    map: 'shattered',
+    levelId: 'anomaly-waves',
     options: { anomaly: true },
   },
   {
@@ -47,9 +50,10 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'ASCENSION',
     icon: '🗼',
-    tag: 'ENDLESS LADDER',
+    tag: 'SKYWARD STEPS · LADDER',
     blurb: 'Every ten waves, choose: climb for a tougher horde and a bigger score, or cash out.',
-    levelId: 'endless',
+    map: 'skyward',
+    levelId: 'ascension',
     options: { ascension: true },
   },
   {
@@ -58,8 +62,9 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'TITAN RUSH',
     icon: '👑',
-    tag: 'FIVE TITANS',
+    tag: 'THRONE OF ASH · FIVE TITANS',
     blurb: 'No trash waves. Five bosses back to back on the Caldera — a four-minute fight.',
+    map: 'ash-throne',
     levelId: 'titan-rush',
   },
   {
@@ -68,8 +73,9 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'TIME ATTACK',
     icon: '⏱',
-    tag: '3 MINUTES',
+    tag: 'DUNE CIRCUIT · 3 MINUTES',
     blurb: 'Three minutes of horde, one score. No wave button — the clock is the enemy.',
+    map: 'dune',
     levelId: 'time-attack',
   },
   {
@@ -78,9 +84,10 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.RUN,
     name: 'CONTRACT BOARD',
     icon: '📜',
-    tag: 'THREE SIDE BETS',
+    tag: 'TIDEWATCH · THREE BETS',
     blurb: 'Three objectives pinned to this run. Gold for each one banked, gems for a clean sweep.',
-    levelId: 'endless',
+    map: 'tidewatch',
+    levelId: 'contract-board',
     options: { contracts: true },
   },
   {
@@ -89,8 +96,8 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.PUZZLE,
     name: 'BLUEPRINT',
     icon: '🧩',
-    tag: 'PUZZLES',
-    blurb: 'Fixed towers, tight gold, no mercy. Solve the board with the tools you are given.',
+    tag: 'NINE BOARDS',
+    blurb: 'Fixed towers, tight gold, no mercy. Nine hand-built boards, each with its own answer.',
   },
   {
     id: 'coop',
@@ -98,7 +105,7 @@ export const MODES = Object.freeze([
     kind: MODE_KINDS.COOP,
     name: 'CO-OP SIEGE',
     icon: '🤝',
-    tag: 'TWO PLAYERS',
+    tag: 'THREE ARENAS · TWO PLAYERS',
     blurb: 'One fate, two boards. Clear the arena together — if either core falls, you both lose.',
   },
 ]);

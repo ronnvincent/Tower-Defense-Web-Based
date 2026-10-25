@@ -91,10 +91,51 @@ export function applyEffect(mods, effect = {}) {
  * name, rarity and blurb; a bare effect object is accepted too, so the same
  * function serves a card, an anomaly and a hand-written override.
  */
+/**
+ * How much of a repeat pick still lands.
+ *
+ * A common may be taken again and again, and stacking the same +10 % four times
+ * is how a draft stops being a choice: the third copy is worth half, the fourth
+ * a quarter, and the curve is flat by the fifth. Rare and uncommon cards are
+ * one-shot (the draw never re-offers them), so they always count in full.
+ */
+export const REPEAT_FALLOFF = 0.5;
+
+/** Effective weight of a card the player already owns `copies` times. */
+export function repeatScale(copies) {
+  const n = Math.max(0, Math.floor(Number(copies) || 0));
+  if (n === 0) return 1;
+  return Math.max(0.1, REPEAT_FALLOFF ** n);
+}
+
+/**
+ * Scale one effect towards neutral: multipliers move towards 1, additives
+ * towards 0. `instant` payouts are deliberately *not* scaled — gold and core HP
+ * are finite, one-off, and a repeat is supposed to buy them.
+ */
+function dampEffect(effect, scale) {
+  if (scale >= 1) return effect;
+  const out = { ...effect };
+  if (effect.mods) {
+    out.mods = {};
+    for (const [key, value] of Object.entries(effect.mods)) {
+      out.mods[key] = 1 + (Number(value) - 1) * scale;
+    }
+  }
+  if (effect.add) {
+    out.add = {};
+    for (const [key, value] of Object.entries(effect.add)) out.add[key] = Number(value) * scale;
+  }
+  return out;
+}
+
 export function applyCard(mods, card) {
   if (!card) return mods;
-  const next = applyEffect(mods, card.effect || card);
-  next.cards = [...(mods?.cards || []), card.id];
+  const owned = mods?.cards || [];
+  const copies = owned.filter((id) => id === card.id).length;
+  const effect = dampEffect(card.effect || card, repeatScale(copies));
+  const next = applyEffect(mods, effect);
+  next.cards = [...owned, card.id];
   return next;
 }
 
