@@ -45,9 +45,14 @@ export const MAP_LAYOUT = [
 ];
 
 /**
- * Named battlefields for the campaign. Grassland keeps the original three-route
- * map; the desert mesa forks around a central plateau, and the ice hollow is a
- * single serpentine canyon where one good palisade is worth a whole tower.
+ * Named battlefields for the campaign.
+ *
+ * Every one of them offers two or three real routes from the gate to the core,
+ * which `PathfindingSystem.computeLanes` derives from the ASCII: grassland keeps
+ * the original three-route map, the desert mesa forks around a central plateau,
+ * the ice hollow stacks three frozen canyons, and the crystal vault fans three
+ * arms out of the gate. A single palisade line therefore cannot choke a wave on
+ * any of them — the horde splits.
  */
 export const MAPS = {
   grassland: MAP_LAYOUT,
@@ -69,47 +74,49 @@ export const MAPS = {
     'x....x..............', // 0
     '...x................', // 1
     '.......~~...........', // 2
-    '....############....', // 3
-    '....#..xx......#....', // 4
+    '....############....', // 3  ← north canyon
+    '....#..........#....', // 4
     '....#..........##B..', // 5  ← core in the HUD-free band
-    '..x.#......x........', // 6
-    '.S###...........x...', // 7  ← gate in the HUD-free band
-    '............x.......', // 8
-    '...x..~~............', // 9
-    '........x.....~.....', // 10
-    'x..............x...x', // 11
+    '....############....', // 6  ← middle canyon
+    '.S###..........#....', // 7  ← gate in the HUD-free band
+    '....#..........#....', // 8
+    '....############....', // 9  ← south canyon
+    '..x...........x.....', // 10
+    'x...................', // 11
   ],
   // Endless Siege's battlefield — "The Convergence", 28x18, twice the area of a
   // campaign map and the only map in the game that changes biome underfoot.
   //
-  // A single 54-cell road snakes from a snowfield gate, over a meltwater river
-  // three times, through the dunes, down the caldera shelf and onto the crystal
-  // dais the core sits on. Each band is a different tile set (see MAP_BIOMES),
-  // so the horde visibly marches from winter into sand and then into fire — the
-  // point of the level is that the ground itself tells you how far you have come.
+  // Three roads cross it instead of one, each between 33 and 39 cells, and they
+  // part company within the first few tiles of the snowfield gate: the horde
+  // scatters down the west descent, the middle descent or all the way east, and
+  // only knits back together at the caldera shelf above the crystal dais. Each
+  // band is a different tile set (see MAP_BIOMES), so whichever road a creep
+  // takes it still marches from winter into sand and then into fire — the point
+  // of the level is that the ground itself tells you how far you have come.
   //
-  // Gates keep three rows and two columns of margin, and the road crosses the
-  // river only on tiles the layout marks as road, which the renderer draws as
-  // bridges over the water beneath.
+  // The meltwater river is crossed twice on purpose: a lane tile with water on
+  // both sides is a bridge, and `tests/endless-map.test.js` re-derives that from
+  // the ASCII instead of trusting this comment.
   volcanic: [
-    '............~~~~~~~......x..', // 0  meltwater source
-    '....x.......~~~~~~~...x.....', // 1
-    '.......x.....x~~~.x...x..x..', // 2
-    '..S##################....x..', // 3  <- snowfield gate
-    '.x.......x....~~~...#..x....', // 4
-    '...x.......x..~~~.x.#..x..x.', // 5
-    '.........############....x..', // 6
-    '..x......#...x~~~..x....x...', // 7
-    '.........#.x..~~~x...x...x..', // 8
-    '..x......#############...x..', // 9
-    '..x.~~~~......~~~...x#.....x', // 10
-    '...x~~~.....x.~~~....#....x.', // 11
-    '.........x.....#######......', // 12
-    '...x.......x...#########B.x.', // 13  <- crystal dais
-    '....~~~x............x.......', // 14
-    '..~~~~~~....x.......x.....x.', // 15
-    '..x~~~~..x....x..........x..', // 16
-    '...x..x....x.......x...x...x', // 17
+    '............~~~~~~~.........', // 0
+    '....x.......~~~~~~~.........', // 1
+    '.......x.....~~~..x....x....', // 2
+    '..S######################...', // 3
+    '..x...#.......#.........#...', // 4
+    '......#...x...#.........#...', // 5
+    '......#....~~~#~~~......#...', // 6
+    '......#.......#.........#..x', // 7
+    '......###################...', // 8
+    '..x.........x........#......', // 9
+    '................x...~#~~.~~~', // 10
+    '...~~~~~....x........#......', // 11
+    '..~~~~........x......#......', // 12
+    '.....................###B...', // 13
+    '....~~~............x........', // 14
+    '..~~~~~~.....x..............', // 15
+    '..~~~~~....x................', // 16
+    '...x..x....x......x....x....', // 17
   ],
   // Prism Depths: a four-turn spiral. Every switchback has one water pool and one
   // boulder field beside it, so the long straight runs are the only open build
@@ -118,15 +125,15 @@ export const MAPS = {
     'x.......x...........', // 0
     '...x.....~~.........', // 1
     '......x.............', // 2
-    '.S##############....', // 3  ← gate in the HUD-free band
-    '.........x.....#....', // 4
-    '....############....', // 5
-    '....#..x............', // 6
-    '....########B.......', // 7  ← core in the HUD-free band
-    '..x..........~......', // 8
-    '....x............x..', // 9
-    '....x....~~.........', // 10
-    '..x.........x......x', // 11
+    '.S##########........', // 3  ← north arm
+    '....#......#........', // 4
+    '....#......#........', // 5
+    '....###########B....', // 6  ← spine into the core
+    '....#......#........', // 7
+    '....##########......', // 8  ← south arm
+    '....................', // 9
+    '..x..............x..', // 10
+    'x...................', // 11
   ],
 };
 

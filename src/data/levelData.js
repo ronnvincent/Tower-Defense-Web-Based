@@ -379,7 +379,8 @@ export const ENDLESS_LEVEL = {
   name: 'Endless Siege',
   theme: 'volcanic',
   // The Convergence: a 28x18 four-biome battlefield, twice the area of a stage
-  // map, so the run has room to breathe and the road has 54 cells to defend.
+  // map, so the run has room to breathe. Three roads cross it (33-39 cells each)
+  // and they split within the first few tiles of the gate.
   map: 'volcanic',
   blurb: 'Winter, sand and fire in one march. No end, no dawn — only the next wave and a titan behind it.',
   endless: true,

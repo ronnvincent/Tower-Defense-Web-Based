@@ -15,9 +15,10 @@ import { THEMES } from '../src/data/levelData.js';
  * The Convergence — the endless battlefield.
  *
  * Two complaints drove this map: the horde was fighting in a shoebox, and the
- * caldera was one flat colour. So it is 28×18 (twice a campaign map), its road
- * is a 54-cell snake, and its ground is painted from four tile sets at once:
- * snowfield, dunes, caldera and the crystal dais under the core.
+ * caldera was one flat colour. So it is 28×18 (twice a campaign map), it carries
+ * three roads of 33-39 cells each rather than one 54-cell snake, and its ground
+ * is painted from four tile sets at once: snowfield, dunes, caldera and the
+ * crystal dais under the core.
  *
  * These tests pin the parts a hand edit could quietly break: the size, the
  * four-biome coverage, the road actually passing through every biome, and the
@@ -79,7 +80,10 @@ describe('The Convergence layout', () => {
 
   it('runs a road long enough to matter', () => {
     const route = shortestPath(map);
-    expect(route.length).toBeGreaterThan(40);
+    // Three lanes of 33-39 cells replaced one 54-cell snake: the shortest walk
+    // is shorter, but the horde that used to queue on a single road now picks
+    // one of three. 30 cells is still ~30 s at creep speed, not a stroll.
+    expect(route.length).toBeGreaterThan(30);
     // …but a creep must not take a minute and a half to reach the core at base
     // speed (62 px/s), or wave 1 would be a waiting game.
     const seconds = (route.length * TILE_SIZE) / 62;

@@ -11,6 +11,7 @@ import {
 import { getPvpLevel } from '../data/pvpArenas.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem } from '../systems/PathfindingSystem.js';
+import { paintLaneArrows, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { GameStateManager, STATUS } from '../systems/GameStateManager.js';
 import { WaveManager, earlyCallBonus } from '../systems/WaveManager.js';
@@ -139,9 +140,20 @@ export class GameScene extends Phaser.Scene {
     this.map = parseMap(this.level.mapLayout || getMapLayout(this.level.map));
     this.pathfinding = new PathfindingSystem(this.map);
     this.pathfinding.computeMainPath();
-    // Hash set of the cells the horde marches (row,col). Palisades may only be
-    // planted on this route — see PlacementSystem.validate.
-    this.routeCells = new Set(this.pathfinding.mainPath);
+    // The horde does not walk one file: every battlefield is asked for up to
+    // three loopless routes (Yen's k-shortest over the same road graph) and the
+    // spawner deals enemies out across them — see `spawnEnemy`. A single wall
+    // of palisades can no longer choke a whole wave.
+    this.pathfinding.computeLanes();
+    // Hash set of *every* cell the horde can march (row,col), so palisades and
+    // build validation cover the side lanes too — see PlacementSystem.validate.
+    this.routeCells = this.pathfinding.laneCells.size
+      ? this.pathfinding.laneCells
+      : new Set(this.pathfinding.mainPath);
+    // Which lane the next spawn joins. Reset per wave so the deal is identical
+    // on both duel seats: same wave script → same enemy → same lane.
+    this.laneWave = 0;
+    this.laneCursor = 0;
 
     // Relics are the meta-progression: a little more gold, a little more core.
     this.economy = new EconomyManager(this.level.startingCoins + this.relicBonuses.startingGold);
@@ -180,6 +192,11 @@ export class GameScene extends Phaser.Scene {
 
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
+    // Direction chevrons painted on the road itself, above the tiles (3) and
+    // under the portals and units (10): with two or three live routes the
+    // player has to be able to read where each one goes at a glance.
+    this.laneArrowGraphics = this.add.graphics().setDepth(LANE_ARROW_DEPTH);
+    this.drawLaneArrows();
     this.createParticleSystems();
     // Effects library: elemental impacts, muzzle flashes, novas and the
     // max-tier aura. Created after the particle systems so `spark` fallbacks
@@ -556,7 +573,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   spawnEnemy(typeKey, waveNumber) {
-    const enemy = new Enemy(this, typeKey, waveNumber, this.pathfinding.mainPath, {
+    // Deal the wave across the lanes in a fixed order: the k-th spawn of wave w
+    // walks lane k % laneCount. Selection is ordinal, never random, so both
+    // duel seats deal the same enemy onto the same route — the mirror holds.
+    if (this.laneWave !== waveNumber) {
+      this.laneWave = waveNumber;
+      this.laneCursor = 0;
+    }
+    const lane = this.pathfinding.laneAt(this.laneCursor);
+    this.laneCursor += 1;
+
+    const enemy = new Enemy(this, typeKey, waveNumber, lane, {
       onReachedBase: (e) => this.handleEnemyReachedBase(e),
       onDefeated: (e) => this.handleEnemyDefeated(e),
       onBossSpawn: (e) => {
@@ -1518,6 +1545,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Direction chevrons along every lane.
+   *
+   * The battlefield deals the horde across two or three routes, so each lane is
+   * marked with an arrow every other cell — the geometry and the palette live in
+   * `LaneArrows.js`, this only owns the Phaser object. Drawn once into a single
+   * Graphics at depth 4 (above the tiles at 3, under the portals and units at
+   * 10+) and never per frame.
+   */
+  drawLaneArrows() {
+    const graphics = this.laneArrowGraphics;
+    if (!graphics?.clear) return 0;
+    graphics.clear();
+    return paintLaneArrows(graphics, this.pathfinding?.lanes || [], TILE_SIZE);
+  }
+
   toggleBFSVisualizer(enabled) {
     this.isVisualizingBFS = enabled;
     if (enabled) {
@@ -1527,10 +1570,41 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Trace one lane of cell keys into the BFS overlay. */
+  strokeLane(graphics, lane, { width, color, alpha, dots = false }) {
+    if (!graphics || !lane?.length) return;
+    graphics.lineStyle(width, color, alpha);
+    graphics.beginPath();
+    lane.forEach((key, index) => {
+      const [r, c] = key.split(',').map(Number);
+      const x = c * TILE_SIZE + TILE_SIZE / 2;
+      const y = r * TILE_SIZE + TILE_SIZE / 2;
+      if (index === 0) graphics.moveTo(x, y);
+      else graphics.lineTo(x, y);
+      if (dots) {
+        graphics.fillStyle(color, Math.min(1, alpha + 0.1));
+        graphics.fillCircle(x, y, 3);
+      }
+    });
+    graphics.stroke();
+  }
+
   drawBFSVisualization() {
     this.bfsVisualizerGraphics.clear();
     const result = this.pathfinding.lastMainResult;
     if (!result || !result.path) return;
+
+    // The side lanes first, each in its own tint: the horde splits, so an
+    // overlay that only traced the shortest route would hide half the map.
+    const tints = [0x7fe3ff, 0xff9d6b, 0xb8f2a8];
+    (this.pathfinding.lanes || []).forEach((lane, index) => {
+      if (index === 0) return;
+      this.strokeLane(this.bfsVisualizerGraphics, lane, {
+        width: 3,
+        color: tints[(index - 1) % tints.length],
+        alpha: 0.75,
+      });
+    });
 
     // Draw active shortest path in glowing gold
     this.bfsVisualizerGraphics.lineStyle(5, 0xf5c451, 0.85);
