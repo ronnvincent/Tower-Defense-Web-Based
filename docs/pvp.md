@@ -143,11 +143,30 @@ Open the same URL on both phones. The lobby's entry screen offers two links:
 | **ONLINE** (default) | `WebSocketTransport` → `/pvp` on the page's own origin | two devices, two networks, any host that runs the relay |
 | **THIS BROWSER** | `BroadcastChannel` | two tabs of one browser; it can never reach another device |
 
-`vite.config.js` proxies `/pvp` for both `dev` and `preview`, so the client only
-ever needs its own page URL. A static host (Vercel, GitHub Pages) has no relay
-process — build with `VITE_PVP_RELAY=wss://relay.example/pvp` and run
-`server/pvp-relay.mjs` somewhere reachable. `?pvp=local` / `?pvp=relay` forces a
-link for one tab, and the choice is remembered in `localStorage['td-duel-link']`.
+`vite.config.js` proxies `/pvp` for both `dev` and `preview`, so during
+development the client only needs its own page URL. **A static host cannot do
+that**: Vercel, GitHub Pages and S3 have no process to hold a WebSocket open, so
+`wss://<your-game>/pvp` is a 404. For those deploys the relay runs somewhere
+else and the game is told where:
+
+| Source | Set it how | Use when |
+| --- | --- | --- |
+| Saved override | the lobby's **CHANGE RELAY** field | fixing a deployed build without rebuilding |
+| Link | `?relay=wss://relay.example/pvp` | trying a relay from a phone |
+| Build-time | `VITE_PVP_RELAY=wss://relay.example/pvp npm run build` | one address for every visitor |
+
+The first match wins, falling back to the same origin. `normaliseRelayUrl()`
+accepts `wss://…`, `https://…`, a bare host, `host:port` and a custom path, and
+defaults the path to `/pvp`.
+
+Hosting the relay is one file: `render.yaml` is a Render blueprint (free tier,
+Node 22, `node server/pvp-relay.mjs`, health check on `/health`). Any host that
+keeps a process alive works the same way — Railway, Fly, a VPS, or
+`docker run` of your own image. Free Render instances sleep when idle, so the
+first join of the day waits a few seconds with `DIALING RELAY…` on the button.
+
+`?pvp=local` / `?pvp=relay` forces the *kind* of link for one tab, and that
+choice is remembered in `localStorage['td-duel-link']`.
 
 The room board shows what is actually happening: `ONLINE · LINKED`,
 `… · WAITING FOR HOST` (the relay is holding your socket until the code exists),
@@ -204,14 +223,18 @@ before the host opens; an unknown code refused; a third challenger refused; a
 host that vanishes mid-duel forfeiting to the remaining seat; and a dead relay
 failing in ~3 s with instructions. Plus the link-choice table as pure functions.
 
-`tests/duel-ui.test.js` (11) and `tests/duel-link.test.js` (6) — the lobby and
+`tests/duel-ui.test.js` (11) and `tests/duel-link.test.js` (10) — the lobby and
 result panels in jsdom: seat labels, arena picker locking, live progress,
-waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips and the
-link badge.
+waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips, the
+link badge and the RELAY ADDRESS field.
+
+`tests/relay-address.test.js` (8) — which address the ONLINE link dials:
+normalising what a human pastes (bare host, `https://`, `host:port`, custom
+path), rejecting junk, `?relay=`, the saved override and the precedence order.
 
 Run them with:
 
 ```bash
 npx vitest run tests/pvp.test.js tests/lobby.test.js tests/duel-ui.test.js \
-  tests/duel-link.test.js tests/pvp-relay.test.js
+  tests/duel-link.test.js tests/relay-address.test.js tests/pvp-relay.test.js
 ```

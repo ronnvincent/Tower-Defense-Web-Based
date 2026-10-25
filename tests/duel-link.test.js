@@ -11,6 +11,7 @@ import { PvpLobbyUI } from '../src/ui/PvpLobbyUI.js';
 import { applyIntent, createLobbyState, lobbyView } from '../src/net/LobbyState.js';
 import { OP } from '../src/net/lobbyProtocol.js';
 import { TRANSPORT } from '../src/net/transports.js';
+import { RELAY_STORAGE_KEY, sameOriginRelay } from '../src/net/relayAddress.js';
 
 let container;
 
@@ -119,6 +120,85 @@ describe('duel room link', () => {
     delete button.dataset.busy;
     ui.paintJoinProgress('linking');
     expect(button.textContent).toBe('WAITING FOR HOST…');
+    ui.destroy();
+  });
+});
+
+describe('duel relay address', () => {
+  it('shows the address it will dial, and lets a player change it', () => {
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+
+    expect(document.querySelector('#pvp-link').textContent).toContain(sameOriginRelay());
+    expect(document.querySelector('#pvp-relay-setup').classList.contains('hidden')).toBe(true);
+
+    document.querySelector('#pvp-relay-toggle').click();
+    const panel = document.querySelector('#pvp-relay-setup');
+    expect(panel.classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#pvp-relay-toggle').getAttribute('aria-expanded')).toBe('true');
+
+    document.querySelector('#pvp-relay-input').value = 'https://mirror-arena.onrender.com/pvp';
+    document.querySelector('#pvp-relay-apply').click();
+
+    expect(ui.relayOverride).toBe('wss://mirror-arena.onrender.com/pvp');
+    expect(localStorage.getItem(RELAY_STORAGE_KEY)).toBe('wss://mirror-arena.onrender.com/pvp');
+    expect(document.querySelector('#pvp-link').textContent).toContain('wss://mirror-arena.onrender.com/pvp');
+    expect(panel.classList.contains('hidden')).toBe(true);
+    ui.destroy();
+  });
+
+  it('builds the room against the saved address', () => {
+    localStorage.setItem(RELAY_STORAGE_KEY, 'wss://mirror-arena.onrender.com/pvp');
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+    expect(ui.relayOverride).toBe('wss://mirror-arena.onrender.com/pvp');
+    expect(ui.room.relayUrl).toBe('wss://mirror-arena.onrender.com/pvp');
+    ui.destroy();
+  });
+
+  it('refuses junk instead of saving it', () => {
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+    document.querySelector('#pvp-relay-toggle').click();
+    document.querySelector('#pvp-relay-input').value = 'not a url';
+    document.querySelector('#pvp-relay-apply').click();
+
+    expect(ui.relayOverride).toBe(null);
+    expect(localStorage.getItem(RELAY_STORAGE_KEY)).toBe(null);
+    expect(document.querySelector('#pvp-error').classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#pvp-error').textContent).toMatch(/not a relay address/i);
+    ui.destroy();
+  });
+
+  it('opens the relay field when a dial fails and nothing is saved', () => {
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+    ui.ensureRoom();
+    ui.room.emit('status', 'error');
+    expect(document.querySelector('#pvp-relay-setup').classList.contains('hidden')).toBe(false);
+    ui.destroy();
+  });
+
+  it('does not nag once a relay is saved', () => {
+    localStorage.setItem(RELAY_STORAGE_KEY, 'wss://mirror-arena.onrender.com/pvp');
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+    ui.ensureRoom();
+    ui.room.emit('status', 'error');
+    expect(document.querySelector('#pvp-relay-setup').classList.contains('hidden')).toBe(true);
+    ui.destroy();
+  });
+
+  it('resets back to the page\'s own relay', () => {
+    localStorage.setItem(RELAY_STORAGE_KEY, 'wss://mirror-arena.onrender.com/pvp');
+    const ui = new PvpLobbyUI(container, {});
+    ui.show();
+    document.querySelector('#pvp-relay-toggle').click();
+    document.querySelector('#pvp-relay-reset').click();
+
+    expect(ui.relayOverride).toBe(null);
+    expect(localStorage.getItem(RELAY_STORAGE_KEY)).toBe(null);
+    expect(document.querySelector('#pvp-link').textContent).toContain(sameOriginRelay());
     ui.destroy();
   });
 });

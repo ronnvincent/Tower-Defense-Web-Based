@@ -736,6 +736,14 @@ GameScene ──reportSeat/reportProgress──► PvpRoom ──intent──►
 
   The lobby exposes the choice as two chips on the entry screen and remembers it
   in `localStorage['td-duel-link']`, so a room is never silently local.
+- **Which relay** (`src/net/relayAddress.js`): first match wins — the lobby's
+  saved RELAY ADDRESS → `?relay=` → `VITE_PVP_RELAY` → the same origin's `/pvp`.
+  `normaliseRelayUrl()` turns `https://…`, a bare host or `host:port` into a
+  `ws(s)://` URL and defaults the path to `/pvp`, so what a player pastes cannot
+  become a socket that never opens. This is the escape hatch for **static
+  deploys**: Vercel/Pages/S3 cannot hold a WebSocket open, so the relay has to
+  live elsewhere (`render.yaml` is a one-click blueprint) and the address is
+  supplied at runtime — no rebuild.
 - **The relay** (`server/pvp-relay.mjs`) forwards envelopes and knows nothing
   about the rules. `vite.config.js` proxies `/pvp` for **both** `npm run dev` and
   `npm run preview`, so the relay is reachable on the page's own origin — that is

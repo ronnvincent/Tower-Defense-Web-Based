@@ -118,14 +118,20 @@ a re-skinned campaign map.
   both ready up, the host picks the arena, a 3-second countdown opens the gates.
 - **Watch your rival:** the camera is map-aware (fits the whole arena at 0.75×) and
   a HUD strip carries the rival's wave, points and core HP live.
-- **Two devices:** the lobby defaults to an **ONLINE** room. Start the relay
-  (`npm run pvp:relay`) next to the server, open the game on both phones from the
-  same URL, and the client dials `/pvp` on that origin — the dev and preview
-  servers proxy it. The room board carries a live badge (`ONLINE · LINKED`,
-  `… · WAITING FOR HOST`, `… · LINK LOST`) so a link that is not up is visible.
-  `THIS BROWSER` (two tabs, no server) stays available for a quick demo, and
-  `?pvp=local` / `?pvp=relay` forces one. A static host has no relay process:
-  build with `VITE_PVP_RELAY=wss://<your-relay>/pvp`.
+- **Two devices:** the lobby defaults to an **ONLINE** room. Open the game on both
+  phones from the same URL and the client dials `/pvp` on that origin — the dev
+  and preview servers proxy it to `npm run pvp:relay` (or just use
+  `npm run pvp:dev`, which starts both). The room board carries a live badge
+  (`ONLINE · LINKED`, `… · WAITING FOR HOST`, `… · LINK LOST`) so a link that is
+  not up is visible, and the connect error names the address it tried.
+  `THIS BROWSER` (two tabs, no server) stays available for a quick demo;
+  `?pvp=local` / `?pvp=relay` forces the kind of link.
+- **Deployed on Vercel/Pages?** Those are static — no process can hold a
+  WebSocket, so `/pvp` will never answer there. Run the relay somewhere that
+  stays up (`render.yaml` is a one-click Render blueprint) and give the game its
+  address: tap **CHANGE RELAY** in the lobby and paste
+  `wss://<your-relay>/pvp` (saved per device), or build with
+  `VITE_PVP_RELAY=wss://<your-relay>/pvp` for every visitor.
 
 Full design, rules and architecture: [`docs/pvp.md`](docs/pvp.md).
 
@@ -317,6 +323,32 @@ npm run pvp:relay
 npm run preview
 ```
 
+### Deploying the duel relay (needed on Vercel / Pages)
+
+Vercel serves static files only — it cannot hold a WebSocket open, so a duel
+room cannot live there. The relay is a ~200-line Node process that only forwards
+envelopes between two sockets:
+
+```bash
+# A. one-click: Render → New → Blueprint → pick this repo (render.yaml)
+#    Render prints e.g. https://mirror-arena-relay.onrender.com
+# B. or anywhere that runs Node:
+node server/pvp-relay.mjs          # PORT/HOST env respected, /health for checks
+```
+
+Then point the game at it — either per device, with no rebuild:
+
+> DUEL → **CHANGE RELAY** → `wss://mirror-arena-relay.onrender.com/pvp` → USE THIS RELAY
+
+or for every visitor at build time:
+
+```bash
+VITE_PVP_RELAY=wss://mirror-arena-relay.onrender.com/pvp npm run build
+```
+
+The address can also be passed per link (`?relay=wss://…`) when testing from a
+phone. Resolution order: saved field → `?relay=` → `VITE_PVP_RELAY` → same origin.
+
 ---
 
 ## 📂 Project Directory Structure
@@ -325,6 +357,7 @@ npm run preview
 tower-defense-dsalgo/
 ├── index.html                  # Main application structure & modal frames
 ├── package.json                # Project manifest & scripts
+├── render.yaml                 # One-click blueprint for the duel relay (Render)
 ├── vite.config.js              # Vite & Vitest configuration
 ├── README.md                   # This master documentation
 ├── docs/                       # Technical defense & academic deliverables

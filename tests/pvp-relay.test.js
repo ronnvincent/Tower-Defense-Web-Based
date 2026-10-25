@@ -21,7 +21,7 @@ import {
   createTransport,
   linkError,
   preferredMode,
-  relayUrlFor,
+  unreachableMessage,
 } from '../src/net/transports.js';
 
 const RELAY_ENTRY = resolve(process.cwd(), 'server/pvp-relay.mjs');
@@ -99,12 +99,6 @@ describe('transport choice', () => {
     expect(preferredMode({ envUrl: 'ws://relay.test/pvp', loc: { protocol: 'file:', host: '', search: '' } })).toBe(
       TRANSPORT.RELAY
     );
-  });
-
-  it('derives a same-origin relay URL, wss on https', () => {
-    expect(relayUrlFor({ loc: page })).toBe('wss://example.test/pvp');
-    expect(relayUrlFor({ loc: { protocol: 'http:', host: '10.0.0.4:4173' } })).toBe('ws://10.0.0.4:4173/pvp');
-    expect(relayUrlFor({ envUrl: 'ws://relay.test/pvp' })).toBe('ws://relay.test/pvp');
   });
 
   it('builds a WebSocket transport for the served page, not a local one', () => {
@@ -281,19 +275,34 @@ describe('duel relay (real sockets)', () => {
 });
 
 describe('relay down', () => {
-  it('surfaces an unreachable relay instead of waiting forever', async () => {
+  it('names the address it could not reach, and how to start one', async () => {
     const deadPort = await freePort();
-    const room = new PvpRoom({ mode: 'relay', relayUrl: `ws://127.0.0.1:${deadPort}/pvp` });
+    const target = `ws://127.0.0.1:${deadPort}/pvp`;
+    const room = new PvpRoom({ mode: 'relay', relayUrl: target });
     const errors = [];
     room.on('error', (message) => errors.push(message));
     const started = Date.now();
     try {
-      await expect(room.host({ name: 'Ronn' })).rejects.toThrow(/Could not reach the duel relay/);
+      await expect(room.host({ name: 'Ronn' })).rejects.toThrow(target);
+      await expect(Promise.reject(new Error(errors[0]))).rejects.toThrow(/pvp:relay/);
       expect(Date.now() - started).toBeLessThan(12000);
       expect(room.status).toBe('error');
-      expect(errors.some((message) => /relay/i.test(message))).toBe(true);
     } finally {
       room.leave();
     }
   }, 25000);
+
+  it('speaks to a static deploy: no relay process to answer', async () => {
+    const room = new PvpRoom({ mode: 'relay', relayUrl: 'ws://defenseofkingdom.example/pvp' });
+    try {
+      await expect(room.host({ name: 'Ronn' })).rejects.toThrow(/static host has no relay process/);
+    } finally {
+      room.leave();
+    }
+  }, 25000);
+
+  it('describes a localhost relay as something to start', () => {
+    expect(unreachableMessage('ws://localhost:8787/pvp')).toMatch(/npm run pvp:relay/);
+    expect(unreachableMessage('wss://relay.example/pvp')).toMatch(/point the room at one you run/);
+  });
 });

@@ -30,6 +30,7 @@
  */
 
 import { MSG, envelope, validEnvelope } from './lobbyProtocol.js';
+import { isLocalRelay, normaliseRelayUrl, sameOriginRelay } from './relayAddress.js';
 
 const ROOM_PREFIX = 'tdl-duel-';
 
@@ -51,14 +52,6 @@ export function linkError(reason, fallback = 'Could not join that room') {
   return REASONS[reason] || fallback;
 }
 
-/** Relay URL advertised for this page: env override, else same-origin `/pvp`. */
-export function relayUrlFor({ envUrl = null, loc = globalThis.location } = {}) {
-  if (envUrl) return envUrl;
-  const host = loc?.host;
-  if (!host) return null;
-  const secure = loc.protocol === 'https:';
-  return `${secure ? 'wss' : 'ws'}://${host}/pvp`;
-}
 
 /**
  * Decide which transport a room should use. Pure so it can be unit-tested
@@ -134,6 +127,14 @@ export class BroadcastTransport {
   }
 }
 
+/** What to tell a player when a dial never reaches a relay. */
+export function unreachableMessage(url, verb = 'did not answer') {
+  if (isLocalRelay(url)) {
+    return `The duel relay at ${url} ${verb}. Start it with \`npm run pvp:relay\`.`;
+  }
+  return `No duel relay answered at ${url}. A static host has no relay process — point the room at one you run (see docs/pvp.md).`;
+}
+
 /** How many times an initial dial is retried before we admit the relay is down. */
 const ATTEMPT_DELAYS = [400, 900, 1800];
 /** How long the relay gets to seat us before the dial counts as failed. */
@@ -205,7 +206,7 @@ export class WebSocketTransport {
       } catch {
         /* already gone */
       }
-      this.#fail('The duel relay did not answer. Check that `npm run pvp:relay` is running.');
+      this.#fail(unreachableMessage(this.url, 'did not answer'));
     }, this.handshakeMs);
     this.handshakeTimer.unref?.();
 
@@ -231,9 +232,7 @@ export class WebSocketTransport {
         this.retryTimer.unref?.();
         return;
       }
-      this.#fail(
-        'Could not reach the duel relay. Start it with `npm run pvp:relay`, or host one and set VITE_PVP_RELAY.'
-      );
+      this.#fail(unreachableMessage(this.url));
     };
 
     socket.onopen = () => {
@@ -258,7 +257,21 @@ export class WebSocketTransport {
       // The relay speaks twice during a dial: `note` while it waits for the
       // host's room to exist, then `welcome` (seated) or `bye` (refused).
       if (message.type === MSG.NOTE) {
+        // The relay is holding the socket until the host's room exists. It will
+        // answer with `welcome` or `bye` on its own schedule, so stop counting
+        // against the dial timeout and give it a longer backstop.
         this.onStatus?.('linking');
+        clearTimeout(this.handshakeTimer);
+        this.handshakeTimer = setTimeout(() => {
+          if (this.seated || this.closed) return;
+          try {
+            socket.close();
+          } catch {
+            /* already gone */
+          }
+          this.#fail('The duel relay stopped answering while waiting for the host.');
+        }, this.handshakeMs * 2);
+        this.handshakeTimer.unref?.();
         return;
       }
       if (!this.seated) {
@@ -368,7 +381,7 @@ export function createTransport({
 } = {}) {
   const resolved = preferredMode({ mode, envUrl, loc });
   if (resolved === TRANSPORT.LOCAL) return new BroadcastTransport({ roomCode, selfId });
-  const target = url || relayUrlFor({ envUrl, loc });
+  const target = url || normaliseRelayUrl(envUrl) || sameOriginRelay(loc);
   if (!target) {
     // Asking for the relay with nowhere to dial is a configuration error, not
     // a reason to fall back to a link that can never leave this machine.

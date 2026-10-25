@@ -16,7 +16,14 @@ import { PVP_ARENAS, getArena } from '../data/pvpArenas.js';
 import { COUNTDOWN_MS, MAX_CLIENTS } from '../net/LobbyState.js';
 import { PvpRoom, ROOM_EVENTS } from '../net/PvpRoom.js';
 import { normaliseRoomCode } from '../net/lobbyProtocol.js';
-import { TRANSPORT, preferredMode, relayUrlFor } from '../net/transports.js';
+import { TRANSPORT, preferredMode } from '../net/transports.js';
+import {
+  normaliseRelayUrl,
+  readStoredRelay,
+  relayFromSearch,
+  sameOriginRelay,
+  writeStoredRelay,
+} from '../net/relayAddress.js';
 
 const NAME_KEY = 'td-duel-name';
 const LINK_KEY = 'td-duel-link';
@@ -48,6 +55,11 @@ export class PvpLobbyUI {
     this.lastFocus = null;
     /** 'relay' | 'local' — how the two devices reach each other. */
     this.linkMode = this.storedLinkMode();
+    /**
+     * An explicit relay address, for hosts that cannot proxy `/pvp` (Vercel,
+     * Pages, S3). Saved from the field below, or handed over in `?relay=`.
+     */
+    this.relayOverride = readStoredRelay() || relayFromSearch(globalThis.location?.search);
     this.build();
   }
 
@@ -89,6 +101,25 @@ export class PvpLobbyUI {
               </button>
             </div>
             <p id="pvp-link" class="pvp-link" role="status"></p>
+            <button id="pvp-relay-toggle" class="pvp-relay-toggle" type="button"
+                    aria-expanded="false" aria-controls="pvp-relay-setup">CHANGE RELAY</button>
+            <div id="pvp-relay-setup" class="pvp-relay-setup hidden">
+              <label class="pvp-relay-field">
+                <span>RELAY ADDRESS</span>
+                <input id="pvp-relay-input" class="game-input" type="url" inputmode="url"
+                       autocomplete="off" spellcheck="false" placeholder="wss://your-relay.example/pvp" />
+              </label>
+              <div class="pvp-relay-actions">
+                <button id="pvp-relay-apply" class="game-btn game-btn-subtle" type="button">USE THIS RELAY</button>
+                <button id="pvp-relay-reset" class="game-btn game-btn-subtle" type="button">RESET</button>
+              </div>
+              <p class="pvp-relay-note">
+                A page served by Vite answers <code>/pvp</code> itself. A static host
+                (Vercel, Pages) has no process to run the relay: host
+                <code>server/pvp-relay.mjs</code> somewhere that stays up, then paste its
+                <code>wss://…/pvp</code> address here.
+              </p>
+            </div>
           </div>
           <div class="pvp-col">
             <h3 class="pvp-h3">HOST A ROOM</h3>
@@ -183,6 +214,12 @@ export class PvpLobbyUI {
     this.$('pvp-code').addEventListener('keydown', (event) => {
       if (event.key === 'Enter') this.joinRoom();
     });
+    this.$('pvp-relay-toggle').addEventListener('click', () => this.toggleRelaySetup());
+    this.$('pvp-relay-apply').addEventListener('click', () => this.applyRelay());
+    this.$('pvp-relay-reset').addEventListener('click', () => this.applyRelay(null));
+    this.$('pvp-relay-input').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') this.applyRelay();
+    });
     this.$('pvp-name').value = this.storedName();
 
     this.onKeydown = (event) => {
@@ -207,6 +244,7 @@ export class PvpLobbyUI {
     this.$('pvp-name').value = this.storedName();
     this.$('pvp-code').value = '';
     this.hideError();
+    this.toggleRelaySetup(false);
     this.paintLink(null);
     setTimeout(() => this.$('pvp-code')?.focus({ preventScroll: true }), 30);
   }
@@ -243,7 +281,7 @@ export class PvpLobbyUI {
     // `mode` is the whole difference between a room in this browser and a room
     // two devices can share, so it is a first-class lobby choice, not a build
     // flag buried in the env.
-    this.room = new PvpRoom({ mode: this.linkMode });
+    this.room = new PvpRoom({ mode: this.linkMode, relayUrl: this.relayOverride });
     window.gamePvp = this.room;
 
     this.roomListeners.push(
@@ -253,7 +291,12 @@ export class PvpLobbyUI {
       this.room.on(ROOM_EVENTS.ERROR, (message) => this.showError(message)),
       this.room.on(ROOM_EVENTS.STATUS, (status) => {
         this.paintLink(this.room?.view || null);
-        if (this.screen === 'entry') this.paintJoinProgress(status);
+        if (this.screen === 'entry') {
+          this.paintJoinProgress(status);
+          // A dial that fails on a deploy with no local relay: put the fix in
+          // front of the player instead of making them hunt for it.
+          if (status === 'error' && !this.relayOverride) this.toggleRelaySetup(true, { focus: false });
+        }
         if (status === 'closed' && this.room?.view?.status === 'lobby') {
           this.showError('The duel link dropped. Leave the room and open it again.');
         }
@@ -323,6 +366,7 @@ export class PvpLobbyUI {
     room?.leave();
     this.setScreen('entry');
     this.hideError();
+    this.toggleRelaySetup(false);
     this.paintLink(null);
   }
 
@@ -481,13 +525,53 @@ export class PvpLobbyUI {
         line.textContent =
           'Two tabs of this browser only — a local room can never reach another device.';
       } else {
-        const url = room?.linkUrl || relayUrlFor();
+        const url = room?.linkUrl || this.relayTarget();
         line.textContent = url
           ? `Two devices through the relay at ${url}`
           : 'Two devices through the duel relay.';
+        this.$('pvp-relay-toggle').textContent = this.relayOverride ? 'CHANGE RELAY · SAVED' : 'CHANGE RELAY';
       }
     }
     return view;
+  }
+
+  /** The address the ONLINE link will dial. */
+  relayTarget() {
+    return this.relayOverride || sameOriginRelay();
+  }
+
+  toggleRelaySetup(force, { focus = true } = {}) {
+    const panel = this.$('pvp-relay-setup');
+    const open = force === undefined ? panel.classList.contains('hidden') : Boolean(force);
+    panel.classList.toggle('hidden', !open);
+    this.$('pvp-relay-toggle').setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const input = this.$('pvp-relay-input');
+    input.value = this.relayOverride || '';
+    if (focus) setTimeout(() => input.focus({ preventScroll: true }), 20);
+  }
+
+  /**
+   * Save (or clear, when `value` is null) the relay address. The room is torn
+   * down because a socket already points at the old address.
+   */
+  applyRelay(value) {
+    const clearing = value === null;
+    const raw = clearing ? '' : String((value ?? this.$('pvp-relay-input').value) || '').trim();
+    const url = clearing ? null : normaliseRelayUrl(raw);
+    if (!clearing && raw && !url) {
+      this.showError('That is not a relay address. Paste something like wss://relay.example/pvp.');
+      return;
+    }
+    const previous = this.room;
+    this.teardownRoom();
+    previous?.leave();
+    this.relayOverride = url;
+    writeStoredRelay(url);
+    this.hideError();
+    this.setScreen('entry');
+    this.paintLink(null);
+    if (url) this.toggleRelaySetup(false);
   }
 
   /** Keep the join button honest while a dial is in flight. */
