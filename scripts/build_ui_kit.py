@@ -490,6 +490,388 @@ def glyphs() -> dict:
 # ------------------------------------------------------------------ build
 
 
+# ============================================================== CINEMATIC KIT
+#
+# The first kit was one plate for everything: nine equal buttons on one navy
+# card. It was legible, but the menu still read as a web form. These plates are
+# the second pass — a real primary plaque with a struck-metal surface, plus the
+# cold steel / oxblood / blackened plates the other destinations sit on.
+#
+# Every one is still a 9-slice at a known geometry, so no layout rule changes:
+# only the corner boxes carry ornament, because those are the only bands that
+# never stretch. Anything drawn in the middle is horizontal (it may stretch
+# sideways, never smear).
+
+
+def _hash01(x: int, y: int, seed: int = 0) -> float:
+    """Deterministic value noise. No RNG: rebuilding must be byte identical."""
+    n = (x * 374761393 + y * 668265263 + seed * 2246822519) & 0xFFFFFFFF
+    n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
+    return ((n ^ (n >> 16)) & 0xFFFF) / 65535.0
+
+
+def grain(img: Image.Image, strength: float = 9.0, seed: int = 1, step: int = 1) -> Image.Image:
+    """Fine per-pixel luminance grain — kills the "flat CSS gradient" read."""
+    w, h = img.size
+    px = img.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            n = (_hash01(x // step, y // step, seed) - 0.5) * 2 * strength
+            px[x, y] = (clamp8(r + n), clamp8(g + n), clamp8(b + n), a)
+    return img
+
+
+def brushed(img: Image.Image, strength: float = 12.0, seed: int = 2, band: int = 3) -> Image.Image:
+    """Horizontal brush streaks: per-row offset noise, softened along y."""
+    w, h = img.size
+    rows = [(_hash01(0, y // band, seed) - 0.5) * 2 * strength for y in range(h)]
+    smooth = [(rows[max(0, y - 1)] + rows[y] * 2 + rows[min(h - 1, y + 1)]) / 4 for y in range(h)]
+    px = img.load()
+    for y in range(h):
+        d = smooth[y]
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            px[x, y] = (clamp8(r + d), clamp8(g + d), clamp8(b + d), a)
+    return img
+
+
+def specular(img: Image.Image, y: int, alpha: int = 46, height: int = 10) -> Image.Image:
+    """Soft light band falling off downward — reads as a curved metal surface."""
+    w, h = img.size
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(overlay)
+    for i in range(height):
+        a = clamp8(alpha * (1 - i / max(1, height)) ** 2.1)
+        d.line([(0, y + i), (w, y + i)], fill=(255, 246, 214, a))
+    return Image.alpha_composite(img, overlay)
+
+
+def corner_flourish(draw, cx: int, cy: int, sx: int, sy: int, lit, dark, s: int = 1):
+    """Corner work: a parallel cut behind the chamfer and one diamond stud.
+
+    Only the 9-slice corner boxes are safe to decorate — they are the one band
+    that never stretches — and at ~30 px on screen there is room for about
+    three shapes. Earlier passes tried scrollwork and it turned to mud.
+    """
+    x_dir = 1 if cx < sx else -1
+    y_dir = 1 if cy < sy else -1
+    cut = max(6, min(sx, sy) // 2)
+    inset = 7 * s
+    # second cut, parallel to the chamfer, one shade darker
+    draw.line(
+        [(cx + x_dir * inset, cy + y_dir * (cut + inset)),
+         (cx + x_dir * (cut + inset), cy + y_dir * inset)],
+        fill=dark, width=2 * s,
+    )
+    # diamond stud sitting on the diagonal, clear of the cut
+    fx = cx + x_dir * (cut * 0.62 + 6)
+    fy = cy + y_dir * (cut * 0.62 + 6)
+    r = max(3, 4 * s)
+    draw.polygon([(fx, fy - r - 1), (fx + r + 1, fy), (fx, fy + r + 1), (fx - r - 1, fy)], fill=INK)
+    draw.polygon([(fx, fy - r), (fx + r, fy), (fx, fy + r), (fx - r, fy)], fill=lit)
+    draw.polygon([(fx, fy - r + 2), (fx + r - 2, fy), (fx - r + 2, fy)], fill=mix(lit, (255, 255, 255, 255), 0.5))
+
+
+def plaque(w: int, h: int, sx: int, sy: int, *, stops, edge, accent, ink, ornament=True, glossed=True) -> Image.Image:
+    """The cinematic 9-slice: struck metal, engraved double rule, corner work."""
+    img = vgrad(w, h, stops)
+    img = brushed(img, strength=9.0, seed=7)
+    img = grain(img, strength=7.0, seed=3, step=2)
+    if glossed:
+        img = specular(img, int(h * 0.06), alpha=58, height=max(10, h // 7))
+    img = inner_shadow(img, max(8, min(sx, sy) // 4), alpha_top=190, alpha_side=120)
+
+    d = ImageDraw.Draw(img)
+    # 1 px ink outline separates the plate from whatever art is behind it.
+    ring(d, [0, 0, w - 1, h - 1], 2, INK)
+    # Struck metal edge: light where the hammer fell, dark where it turned away.
+    d.line([(2, 2), (w - 3, 2)], fill=mix(edge, (255, 255, 255, 255), 0.55), width=2)
+    d.line([(2, 3), (2, h - 4)], fill=mix(edge, (255, 255, 255, 255), 0.30), width=2)
+    d.line([(2, h - 3), (w - 3, h - 3)], fill=(0, 0, 0, 170), width=2)
+    d.line([(w - 3, 3), (w - 3, h - 4)], fill=(0, 0, 0, 120), width=2)
+    # Engraved groove: dark cut with a lit lower lip, like a chiselled line.
+    ring(d, [7, 7, w - 8, h - 8], 2, (0, 0, 0, 170))
+    ring(d, [9, 9, w - 10, h - 10], 1, mix(edge, (255, 255, 255, 255), 0.55))
+    ring(d, [11, 11, w - 12, h - 12], 1, (0, 0, 0, 110))
+    ring(d, [12, 12, w - 13, h - 13], 1, mix(accent, (255, 255, 255, 255), 0.22))
+
+    if ornament:
+        lit = mix(accent, (255, 246, 214, 255), 0.55)
+        dark = mix(accent, (0, 0, 0, 255), 0.55)
+        for cx, cy in ((0, 0), (w, 0), (0, h), (w, h)):
+            corner_flourish(d, cx, cy, sx, sy, lit, dark)
+    # Studs on the long edges only: a vertical stretch keeps a column of them
+    # straight, and they sit inside the top/bottom bands.
+    if ornament:
+        for cx in (sx // 2, w - sx // 2):
+            for cy in (sy // 2 + 2, h - sy // 2 - 2):
+                rivet(d, cx, cy, 2)
+
+    img = chamfer(img, sx, sy, accent)
+    # Restore the ink outline over the chamfer cut so the silhouette stays crisp.
+    ring(d, [0, 0, w - 1, h - 1], 1, (0, 0, 0, 80))
+    return img
+
+
+GOLD_STOPS = [(0.0, (255, 236, 174, 255)), (0.16, (247, 214, 128, 255)), (0.44, (230, 184, 74, 255)),
+              (0.72, (188, 134, 34, 255)), (0.93, (214, 166, 58, 255)), (1.0, (168, 116, 26, 255))]
+STEEL_STOPS = [(0.0, (74, 86, 106, 255)), (0.18, (52, 61, 76, 255)), (0.55, (36, 43, 56, 255)),
+               (0.86, (26, 31, 41, 255)), (1.0, (20, 24, 33, 255))]
+CRIMSON_STOPS = [(0.0, (132, 38, 50, 255)), (0.2, (104, 26, 37, 255)), (0.58, (82, 18, 28, 255)),
+                 (0.88, (58, 12, 20, 255)), (1.0, (46, 9, 15, 255))]
+DARK_STOPS = [(0.0, (48, 54, 66, 255)), (0.2, (34, 39, 49, 255)), (0.6, (24, 28, 36, 255)),
+              (0.88, (16, 19, 25, 255)), (1.0, (13, 16, 21, 255))]
+# Tiles sit on a near-black scrim, so they get one extra stop of lift: at
+# DARK_STOPS they read as holes rather than as plates bolted to the wall.
+TILE_STOPS = [(0.0, (64, 71, 86, 255)), (0.16, (48, 55, 68, 255)), (0.58, (34, 40, 50, 255)),
+              (0.88, (24, 28, 36, 255)), (1.0, (30, 35, 44, 255))]
+
+
+def tile_plate(w: int, h: int, sx: int, sy: int) -> Image.Image:
+    """Secondary tile: smaller ornament budget, so the grid stays quiet."""
+    img = plaque(w, h, sx, sy, stops=TILE_STOPS, edge=STEEL_LINE, accent=BRONZE, ink=INK,
+                 ornament=True, glossed=False)
+    d = ImageDraw.Draw(img)
+    d.line([(14, h - 16), (w - 15, h - 16)], fill=(0, 0, 0, 110), width=2)
+    d.line([(14, h - 15), (w - 15, h - 15)], fill=mix(BRONZE, (255, 255, 255, 255), 0.3), width=1)
+    return img
+
+
+def chip_plate(w: int, h: int, sx: int, sy: int) -> Image.Image:
+    """HUD resource chip: a small recessed socket with a gold rim."""
+    img = vgrad(w, h, [(0.0, (30, 35, 45, 255)), (0.55, (18, 22, 29, 255)), (1.0, (26, 31, 40, 255))])
+    img = grain(img, strength=6.0, seed=11, step=2)
+    img = inner_shadow(img, 7, alpha_top=200, alpha_side=130)
+    d = ImageDraw.Draw(img)
+    ring(d, [0, 0, w - 1, h - 1], 2, INK)
+    ring(d, [2, 2, w - 3, h - 3], 2, BRONZE_DARK)
+    ring(d, [4, 4, w - 5, h - 5], 1, GOLD_DARK)
+    ring(d, [5, 5, w - 6, h - 6], 1, (0, 0, 0, 120))
+    # lit bottom lip makes the socket read as a hole, not a pad
+    d.line([(6, h - 6), (w - 7, h - 6)], fill=(150, 168, 200, 90), width=1)
+    for cx in (max(12, sx // 2), w - max(12, sx // 2)):
+        rivet(d, cx, h / 2, 2)
+    return chamfer(img, sx, sy, BRONZE)
+
+
+# ------------------------------------------------------------ new marks
+#
+# 32 design units per edge (U px each), exactly like glyphs() above — a keep
+# drawn here sits next to the shipped anvil without a change of dialect.
+
+MARKS = {}
+
+
+def _mark(name):
+    def register(fn):
+        MARKS[name] = fn
+        return fn
+    return register
+
+
+def _units(canvas_units: int = 32):
+    img = Image.new("RGBA", (canvas_units * U, canvas_units * U), (0, 0, 0, 0))
+    return img, ImageDraw.Draw(img)
+
+
+def _px(d, x, y, w, h, color):
+    d.rectangle([x * U, y * U, (x + w) * U - 1, (y + h) * U - 1], fill=color)
+
+
+STONE = (86, 96, 114, 255)
+STONE_LIT = (132, 144, 164, 255)
+STONE_DARK = (52, 59, 72, 255)
+GATE = (8, 10, 14, 255)
+
+
+@_mark("keep")
+def _mark_keep():
+    img, d = _units()
+    # pennant
+    _px(d, 15, 2, 1, 8, (96, 84, 60, 255))
+    _px(d, 16, 2, 5, 3, GOLD)
+    _px(d, 16, 2, 3, 1, GOLD_LIT)
+    _px(d, 21, 3, 1, 1, GOLD_DARK)
+    # centre tower body + battlements
+    _px(d, 11, 12, 11, 16, STONE)
+    _px(d, 11, 12, 1, 16, STONE_LIT)
+    _px(d, 21, 12, 1, 16, STONE_DARK)
+    for x in (10, 13, 18, 21):
+        _px(d, x, 9, 2, 3, STONE)
+        _px(d, x, 9, 1, 3, STONE_LIT)
+    _px(d, 10, 12, 13, 1, STONE_DARK)
+    # gate: arch + portcullis
+    _px(d, 15, 18, 4, 10, GATE)
+    _px(d, 16, 17, 2, 1, GATE)
+    _px(d, 16, 20, 2, 6, (52, 44, 30, 255))
+    _px(d, 15, 22, 4, 1, (52, 44, 30, 255))
+    # lit windows
+    for x, y in ((12, 15), (19, 15), (12, 19), (19, 19)):
+        _px(d, x, y, 1, 2, GOLD)
+    # flanking turrets
+    for x in (6, 23):
+        _px(d, x, 16, 3, 12, STONE_DARK)
+        _px(d, x, 16, 1, 12, STONE)
+        for mx in (x, x + 2):
+            _px(d, mx, 13, 1, 3, STONE_DARK)
+        _px(d, x + 1, 19, 1, 2, GOLD)
+    # ground line
+    _px(d, 5, 28, 22, 1, STONE_DARK)
+    _px(d, 6, 29, 20, 1, (28, 32, 40, 255))
+    return img
+
+
+@_mark("warroom")
+def _mark_warroom():
+    img, d = _units()
+    # Crossed battle-axes. Mirror Arena owns the swords, so the war council gets
+    # axes: thick hafts, a crescent blade on each head, gold binding where they
+    # cross. Bold enough to survive at 32 px in the tile grid.
+    for i in range(19):
+        _px(d, 6 + i, 25 - i, 2, 2, (110, 86, 54, 255))
+        _px(d, 24 - i, 25 - i, 2, 2, (110, 86, 54, 255))
+        _px(d, 6 + i, 25 - i, 1, 1, (156, 126, 80, 255))
+        _px(d, 24 - i, 25 - i, 1, 1, (156, 126, 80, 255))
+    for mirror in (0, 1):
+        for i, (x0, x1) in enumerate(((25, 27), (24, 29), (23, 29), (22, 29), (22, 29),
+                                      (23, 29), (24, 29), (25, 27), (26, 27))):
+            y = 3 + i
+            if mirror:
+                _px(d, 32 - x1, y, x1 - x0, 1, STONE_LIT)
+                _px(d, 32 - x1, y, 1, 1, (222, 230, 240, 255))
+                _px(d, 32 - x0 - 1, y, 1, 1, STONE_DARK)
+            else:
+                _px(d, x0, y, x1 - x0, 1, STONE_LIT)
+                _px(d, x0, y, 1, 1, (222, 230, 240, 255))
+                _px(d, x1 - 1, y, 1, 1, STONE_DARK)
+    # binding over the crossing
+    _px(d, 13, 12, 6, 1, GOLD_DARK)
+    _px(d, 13, 13, 6, 2, GOLD)
+    _px(d, 13, 15, 6, 1, GOLD_DARK)
+    _px(d, 14, 13, 4, 1, GOLD_LIT)
+    return img
+
+
+@_mark("quill")
+def _mark_quill():
+    img, d = _units()
+    # Feather: a fat vane either side of a bright spine, tapering to a nib.
+    for i in range(15):
+        x = 8 + i
+        y = 24 - i
+        half = 1 + min(3, i // 4)
+        _px(d, x - half, y - 1, half * 2 + 1, 1, (236, 226, 204, 255))
+        _px(d, x - half, y - 1, 1, 1, (186, 174, 148, 255))
+        _px(d, x, y - 2, 1, 2, (250, 246, 234, 255))
+    _px(d, 23, 8, 2, 2, (236, 226, 204, 255))
+    _px(d, 24, 7, 1, 1, GOLD_LIT)
+    # nib + inkwell
+    _px(d, 6, 26, 2, 1, GOLD_DARK)
+    _px(d, 4, 26, 7, 4, STONE_DARK)
+    _px(d, 4, 26, 7, 1, STONE_LIT)
+    _px(d, 5, 27, 5, 2, (10, 12, 17, 255))
+    _px(d, 10, 25, 1, 2, GOLD)
+    return img
+
+
+@_mark("star")
+def _mark_star():
+    img, d = _units()
+    rows = {
+        4: (15, 2), 5: (15, 2), 6: (14, 4), 7: (14, 4), 8: (13, 6),
+        9: (9, 14), 10: (10, 12), 11: (11, 10), 12: (11, 10),
+        13: (10, 3), 14: (9, 2), 15: (8, 2),
+    }
+    for y, (x, w) in rows.items():
+        _px(d, x, y, w, 1, GOLD)
+    for y, (x, w) in ((13, (19, 3)), (14, (21, 2)), (15, (22, 2))):
+        _px(d, x, y, w, 1, GOLD)
+    _px(d, 11, 9, 1, 4, GOLD_LIT)
+    _px(d, 12, 8, 2, 1, GOLD_LIT)
+    _px(d, 13, 13, 6, 1, GOLD_DARK)
+    _px(d, 14, 14, 4, 1, GOLD_DARK)
+    return img
+
+
+@_mark("gem")
+def _mark_gem():
+    img, d = _units()
+    # Three flat zones read as a cut stone at 48 px; per-band facet noise did
+    # not (it just looked like a dirty gold blob).
+    rows = [(8, 9, 14), (9, 8, 16), (10, 7, 18), (11, 7, 18), (12, 7, 18), (13, 8, 16),
+            (14, 9, 14), (15, 10, 12), (16, 11, 10), (17, 12, 8), (18, 13, 6), (19, 14, 4)]
+    for y, x, w in rows:
+        _px(d, x, y, w, 1, GOLD)
+    # table highlight
+    _px(d, 9, 8, 14, 1, (255, 244, 196, 255))
+    _px(d, 10, 9, 5, 1, (255, 250, 220, 255))
+    # left lit facet
+    for y, x, w in rows[2:10]:
+        _px(d, x, y, max(1, w // 3), 1, (255, 238, 176, 255))
+    # right shaded facet
+    for y, x, w in rows[1:11]:
+        _px(d, x + w - max(1, w // 3), y, max(1, w // 3), 1, (186, 132, 32, 255))
+    # centre ridge
+    _px(d, 15, 10, 2, 6, (240, 200, 104, 255))
+    _px(d, 15, 16, 2, 1, (214, 166, 58, 255))
+    _px(d, 15, 17, 2, 1, (196, 146, 42, 255))
+    # sparkle
+    _px(d, 11, 9, 1, 1, (255, 255, 240, 255))
+    _px(d, 12, 10, 1, 1, (255, 252, 232, 255))
+    return img
+
+
+@_mark("flame")
+def _mark_flame():
+    img, d = _units()
+    body = [(5, 15, 3), (6, 14, 4), (7, 14, 5), (8, 13, 6), (9, 12, 8), (10, 11, 10),
+            (11, 10, 12), (12, 10, 12), (13, 9, 14), (14, 9, 14), (15, 10, 12),
+            (16, 10, 12), (17, 11, 10), (18, 12, 8), (19, 13, 6), (20, 14, 4)]
+    for y, x, w in body:
+        _px(d, x, y, w, 1, (255, 168, 62, 255))
+    for y, x, w in body[4:]:
+        _px(d, x + 1, y, w - 2, 1, (255, 206, 108, 255))
+    for y in range(11, 20):
+        _px(d, 15, y, 2, 1, (255, 240, 186, 255))
+    _px(d, 15, 6, 2, 4, (255, 214, 120, 255))
+    _px(d, 16, 3, 1, 3, (255, 236, 168, 255))
+    _px(d, 14, 9, 1, 3, (255, 244, 200, 255))
+    # ember at the base
+    _px(d, 13, 21, 6, 2, (196, 84, 30, 255))
+    _px(d, 14, 23, 4, 1, (120, 42, 18, 255))
+    return img
+
+
+@_mark("skull")
+def _mark_skull():
+    img, d = _units()
+    _px(d, 9, 7, 14, 15, (216, 208, 186, 255))
+    _px(d, 10, 6, 12, 1, (216, 208, 186, 255))
+    _px(d, 9, 7, 14, 1, (244, 240, 226, 255))
+    _px(d, 10, 20, 12, 2, (188, 178, 154, 255))
+    _px(d, 11, 22, 10, 3, (150, 140, 118, 255))
+    for x in (12, 15, 18, 21):
+        _px(d, x, 22, 1, 3, (96, 88, 72, 255))
+    # eye sockets
+    _px(d, 11, 11, 4, 4, GATE)
+    _px(d, 17, 11, 4, 4, GATE)
+    _px(d, 12, 12, 1, 1, GOLD)
+    _px(d, 18, 12, 1, 1, GOLD)
+    _px(d, 12, 17, 8, 2, GATE)
+    _px(d, 12, 15, 1, 2, (150, 140, 118, 255))
+    _px(d, 19, 15, 1, 2, (150, 140, 118, 255))
+    return img
+
+
+def heraldic_marks() -> dict:
+    return {f"glyph_{name}.png": fn() for name, fn in MARKS.items()}
+
+
 def average(img: Image.Image, inset: int = 0) -> str:
     """Mean colour of the opaque fill — the number the contrast audit uses."""
     w, h = img.size
@@ -565,6 +947,25 @@ def main() -> None:
         'cursor_click.png': cursor(clicked=True),
     }
     assets.update({f'{name}.png': img for name, img in glyphs().items()})
+    assets.update(heraldic_marks())
+    # Cinematic menu kit — see the CINEMATIC KIT section. Same geometry the
+    # old plates used, so a rule can swap one border-image for another.
+    assets.update({
+        'plaque_gold.png': plaque(
+            480, 200, 60, 56, stops=GOLD_STOPS, edge=GOLD_LIT, accent=GOLD, ink=(32, 20, 4, 255)
+        ),
+        'plaque_steel.png': plaque(
+            480, 200, 60, 56, stops=STEEL_STOPS, edge=STEEL_LINE, accent=BRONZE, ink=INK
+        ),
+        'plaque_crimson.png': plaque(
+            480, 200, 60, 56, stops=CRIMSON_STOPS, edge=(168, 70, 84, 255), accent=BRONZE, ink=INK
+        ),
+        'plaque_dark.png': plaque(
+            480, 200, 60, 56, stops=DARK_STOPS, edge=STEEL_LINE, accent=GOLD_DARK, ink=INK
+        ),
+        'plate_tile.png': tile_plate(240, 168, 30, 30),
+        'chip_metal.png': chip_plate(220, 96, 26, 24),
+    })
 
     for name, img in assets.items():
         img.save(os.path.join(args.out, name))
@@ -582,6 +983,12 @@ def main() -> None:
         'cardCrimson': average(assets['card_crimson.png'], 20),
         'slot': average(assets['slot.png'], 12),
         'slotSel': average(assets['slot_sel.png'], 12),
+        'plaqueGold': average(assets['plaque_gold.png'], 34),
+        'plaqueSteel': average(assets['plaque_steel.png'], 34),
+        'plaqueCrimson': average(assets['plaque_crimson.png'], 34),
+        'plaqueDark': average(assets['plaque_dark.png'], 34),
+        'tile': average(assets['plate_tile.png'], 20),
+        'chip': average(assets['chip_metal.png'], 18),
     }
 
     for name, img in sorted(assets.items()):

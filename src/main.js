@@ -197,8 +197,10 @@ function refreshDailyButton() {
   // The kicker ("DAILY CHALLENGE") is static markup, so the label only carries
   // today's rule — no more "DAILY: DAILY: MIDAS RUSH" on a two-line button.
   if (label) label.textContent = won ? 'CLEARED TODAY' : run.modifier.name.toUpperCase();
+  // The flame is the .menu-badge::before mark, not an emoji: the badge is a
+  // struck amber tag and emoji render as full-colour glyphs inside it.
   if (badge) {
-    badge.textContent = streak > 0 ? `🔥 ${streak}` : '';
+    badge.textContent = streak > 0 ? String(streak) : '';
     badge.classList.toggle('hidden', streak <= 0);
   }
   btn.classList.toggle('daily-claimed', won);

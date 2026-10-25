@@ -1,4 +1,65 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Rajdhani:wght@500;600;700&display=swap');
+/* --------------------------------------------------------------------------
+   TYPE — served from public/fonts, not from fonts.googleapis.com.
+   The old @import turned the first paint into a request to a third party that
+   every offline build, strict-CSP host and screenshot run had to stall on. The
+   OFL woff2 subsets are ~15 KB each; all eight together are one plate sprite.
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/cinzel-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cinzel-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/cinzel-latin-900-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel Decorative';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/cinzel-decorative-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel Decorative';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/fonts/cinzel-decorative-latin-900-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Rajdhani';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/rajdhani-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Rajdhani';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/rajdhani-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Rajdhani';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/rajdhani-latin-700-normal.woff2') format('woff2');
+}
 
 /* ==========================================================================
    DESIGN TOKENS — "OBSIDIAN & GOLD"
@@ -70,6 +131,7 @@
 
   /* Type scale — fluid so the HUD scales with the battlefield */
   --font-heading: 'Cinzel', 'Georgia', serif;
+  --font-display: 'Cinzel Decorative', 'Cinzel', 'Georgia', serif;
   --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
   --fs-micro: clamp(9px, 0.72vw, 11px);
   --fs-label: clamp(10px, 0.8vw, 12px);
@@ -119,7 +181,15 @@
   --ui-slot-sel: url('/assets/ui-kit/slot_sel.png');
   --ui-cursor: url('/assets/ui-kit/cursor.png');
   --ui-cursor-click: url('/assets/ui-kit/cursor_click.png');
-  --ui-menu-bg: url('/assets/ui-kit/menu-bg.jpg');
+  /* Cinematic menu plates — scripts/build_ui_kit.py. Plaques are 480x200
+     slice 60/56; tiles 240x168 slice 30; chips 220x96 slice 24. */
+  --ui-plaque-gold: url('/assets/ui-kit/plaque_gold.png');
+  --ui-plaque-steel: url('/assets/ui-kit/plaque_steel.png');
+  --ui-plaque-crimson: url('/assets/ui-kit/plaque_crimson.png');
+  --ui-plaque-dark: url('/assets/ui-kit/plaque_dark.png');
+  --ui-tile: url('/assets/ui-kit/plate_tile.png');
+  --ui-chip: url('/assets/ui-kit/chip_metal.png');
+  --ui-menu-bg: url('/assets/ui-kit/menu-keep.jpg');
 }
 
 /* ==========================================================================
@@ -1369,21 +1439,48 @@ body.is-fullscreen::before {
   flex-direction: column;
   align-items: center;
   gap: clamp(8px, 1.6vh, 14px);
-  width: min(420px, 100%);
-  padding: clamp(14px, 2.4vh, 24px) clamp(16px, 3vw, 28px);
-  border-radius: 16px;
-  border: 1px solid var(--gold-line);
-  background: linear-gradient(180deg, rgba(30, 24, 17, 0.98), rgba(11, 10, 9, 0.99));
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 232, 190, 0.12);
+  width: min(440px, 100%);
+  padding: clamp(12px, 2vh, 20px) clamp(14px, 2.6vw, 24px);
+  border-radius: 0;
+  border-style: solid;
+  border-width: 22px;
+  border-image-source: var(--ui-plaque-dark);
+  border-image-slice: 60 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  filter: drop-shadow(0 22px 46px rgba(0, 0, 0, 0.7));
   text-align: center;
 }
 
+/* The pause mark is two gold bars, drawn not typed: the ⏸ emoji this used to
+   carry renders as a tofu box on any device without an emoji font. */
 .pause-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: clamp(13px, 1.9vh, 17px);
-  letter-spacing: 2px;
+  letter-spacing: 2.2px;
   color: var(--gold-primary);
+}
+
+.pause-title::before,
+.pause-chip::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 9px;
+  height: 13px;
+  background:
+    linear-gradient(90deg, #f0cd80 0 3px, transparent 3px 6px, #f0cd80 6px 9px);
+  filter: drop-shadow(0 0 6px rgba(245, 196, 81, 0.45));
+}
+
+.pause-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pause-actions {
@@ -1427,11 +1524,16 @@ body.is-fullscreen::before {
   top: clamp(76px, 11vh, 96px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 5px 16px;
-  border-radius: 999px;
-  background: rgba(9, 14, 18, 0.88);
-  border: 1px solid var(--gold-line);
+  padding: 5px 14px 5px 11px;
+  min-height: 30px;
+  border-radius: 0;
+  border-style: solid;
+  border-width: 9px 12px;
+  border-image-source: var(--ui-chip);
+  border-image-slice: 24 fill;
+  border-image-repeat: stretch;
   color: var(--gold-primary);
+  font-family: var(--font-heading);
   font-size: var(--fs-label);
   font-weight: 700;
   letter-spacing: 1.4px;
@@ -2407,433 +2509,1006 @@ kbd {
 }
 
 /* ==========================================================================
-   MAIN MENU — one primary action, one daily, then a tile hub
+   MAIN MENU — "the keep at dusk"
    --------------------------------------------------------------------------
-   The old menu stacked nine full-width buttons in a 520 px column. On a
-   landscape phone that pushed a nested scrollbar across the title, and every
-   action shouted at the same volume, so nothing read as "start here".
-   Now PLAY is the single primary plate, the daily sits right under it (it is
-   its own reward loop), and the other six destinations fold into a 3x2 tile
-   hub. The card is a two-column grid above 620 px and a single column below
-   it; nothing scrolls on a 360 px-tall landscape viewport.
+   The old menu was an 880 px form card floating on near-black: nine plates at
+   the same volume, and the key art doing nothing but filling the gaps. This is
+   a game menu instead — the keep at dusk fills the frame, the title is the
+   lockup, and PLAY CAMPAIGN is struck gold.
+
+   Layers, back to front:
+     .menu-scene   key art, fog, torchlight, embers  (aria-hidden, decorative)
+     .menu-topbar  banner sigil · live save chips · fullscreen
+     .menu-body    title lockup + the action stack
+     .menu-footer  control footnote
+
+   Every animated layer is opacity/transform only, none of it sits above a
+   control, and all of it stops under prefers-reduced-motion.
    ========================================================================== */
 
 #main-menu-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 250;
-  pointer-events: auto;
-  padding: clamp(6px, 1.6vh, 18px);
-  /* Key art (scripts + generate pass) under two scrims: the plate stays the
-     brightest thing on screen and the art only sets the mood at the edges. */
-  background-color: #06080c;
-  background-image:
-    radial-gradient(120% 100% at 16% 0%, rgba(46, 34, 18, 0.5), rgba(4, 6, 10, 0.88) 62%),
-    linear-gradient(180deg, rgba(5, 7, 11, 0.62), rgba(5, 7, 11, 0.92)),
-    var(--ui-menu-bg);
-  background-position: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  color: var(--ink-strong);
+  background: #05070b;
+  font-family: var(--font-body);
+}
+
+/* ---- the scene ---------------------------------------------------------- */
+
+.menu-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Fills the single frame before the JPEG decodes: the same amber-to-void ramp
+   the painting opens with, so the menu never flashes grey. */
+.menu-scene::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(82% 72% at 74% 44%, #2b1c0b 0%, #0a0d13 58%, #05070b 100%);
+}
+
+.menu-sky {
+  position: absolute;
+  inset: -5%;
+  background-image: var(--ui-menu-bg);
+  background-position: 66% 44%;
   background-size: cover;
   background-repeat: no-repeat;
-  backdrop-filter: blur(1.5px);
+  transform: scale(1.04);
+  animation: menuSkyDrift 78s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
-.main-menu-card {
-  width: min(880px, 100%);
-  max-height: 100%;
-  overflow: hidden auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(198, 158, 88, 0.6) transparent;
-  border-style: solid;
-  border-width: 26px;
-  border-image-source: var(--ui-panel);
-  border-image-slice: 50 fill;
-  border-image-repeat: stretch;
-  border-radius: 0;
-  padding: clamp(2px, 1vh, 10px) clamp(8px, 1.6vw, 20px);
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: clamp(10px, 2.2vw, 32px);
-  align-items: center;
-  color: var(--ink-strong);
-  /* drop-shadow follows the chamfered corners of the plate; box-shadow would
-     paint a square halo around them. */
-  filter: drop-shadow(0 20px 54px rgba(0, 0, 0, 0.86)) drop-shadow(0 0 34px rgba(245, 196, 81, 0.08));
-  animation: menuCardDrop 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+@keyframes menuSkyDrift {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.09) translate3d(-1.8%, -1.2%, 0); }
 }
 
-@keyframes menuCardDrop {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.menu-wisp {
+  position: absolute;
+  left: -12%;
+  width: 124%;
+  height: 42%;
+  filter: blur(30px);
+  opacity: 0.34;
+  background:
+    radial-gradient(56% 100% at 28% 58%, rgba(150, 172, 205, 0.22), transparent 72%),
+    radial-gradient(48% 100% at 72% 44%, rgba(198, 194, 210, 0.14), transparent 74%);
+  animation: menuWisp 66s ease-in-out infinite alternate;
+  will-change: transform, opacity;
 }
 
-/* ---- brand column ------------------------------------------------------ */
+.menu-wisp--a { top: 30%; }
+.menu-wisp--b { top: 56%; opacity: 0.2; animation-duration: 92s; animation-delay: -24s; }
 
-.menu-brand {
+@keyframes menuWisp {
+  from { transform: translate3d(-4%, 0, 0) scaleY(1); opacity: 0.22; }
+  to { transform: translate3d(5%, -4%, 0) scaleY(1.14); opacity: 0.42; }
+}
+
+/* Torchlight from the keep's braziers. A soft amber bloom, never a "glow
+   effect": the peak opacity is low enough that it cannot wash out the HUD. */
+.menu-torch {
+  position: absolute;
+  left: 70%;
+  top: 38%;
+  width: 46vmin;
+  height: 46vmin;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 166, 74, 0.3) 0%,
+    rgba(255, 138, 48, 0.12) 40%,
+    rgba(255, 120, 40, 0) 70%
+  );
+  filter: blur(5px);
+  animation: menuTorchFlicker 6.4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+@keyframes menuTorchFlicker {
+  0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+  18% { opacity: 0.92; transform: translate(-50%, -50%) scale(1.04); }
+  33% { opacity: 0.62; transform: translate(-50%, -50%) scale(0.98); }
+  54% { opacity: 0.86; transform: translate(-50%, -51%) scale(1.03); }
+  76% { opacity: 0.66; transform: translate(-50%, -49.4%) scale(0.99); }
+}
+
+.menu-embers {
+  position: absolute;
+  inset: 0;
+}
+
+.menu-embers i {
+  position: absolute;
+  bottom: 10%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffdca4 0%, rgba(255, 150, 50, 0.9) 45%, rgba(255, 120, 40, 0) 72%);
+  opacity: 0;
+  animation: menuEmber 11s linear infinite;
+  will-change: transform, opacity;
+}
+
+.menu-embers i:nth-child(1) { left: 56%; animation-delay: 0s; }
+.menu-embers i:nth-child(2) { left: 62%; animation-delay: 1.8s; animation-duration: 13s; }
+.menu-embers i:nth-child(3) { left: 68%; animation-delay: 3.4s; animation-duration: 10s; }
+.menu-embers i:nth-child(4) { left: 74%; animation-delay: 5.2s; animation-duration: 14s; }
+.menu-embers i:nth-child(5) { left: 79%; animation-delay: 2.6s; animation-duration: 12s; }
+.menu-embers i:nth-child(6) { left: 85%; animation-delay: 6.8s; animation-duration: 15s; }
+.menu-embers i:nth-child(7) { left: 64%; animation-delay: 8.1s; animation-duration: 12.5s; }
+.menu-embers i:nth-child(8) { left: 72%; animation-delay: 9.4s; animation-duration: 16s; }
+
+@keyframes menuEmber {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.6); }
+  10% { opacity: 0.85; }
+  65% { opacity: 0.45; }
+  100% { opacity: 0; transform: translate3d(-34px, -190px, 0) scale(1.15); }
+}
+
+/* The scrim that makes the type legal: the art is bright in the middle, so the
+   left third is pulled almost to black while the keep keeps its sunset. */
+.menu-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(4, 6, 10, 0.93) 0%, rgba(4, 6, 10, 0.84) 24%, rgba(4, 6, 10, 0.46) 46%, rgba(4, 6, 10, 0.1) 68%, rgba(4, 6, 10, 0.3) 100%),
+    linear-gradient(180deg, rgba(4, 6, 10, 0.84) 0%, rgba(4, 6, 10, 0.08) 26%, rgba(4, 6, 10, 0.04) 56%, rgba(4, 6, 10, 0.94) 100%),
+    radial-gradient(130% 100% at 46% 50%, transparent 32%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* Carved ashlar behind the action column, drawn over the scrim (not under it)
+   so the wall is the surface the buttons sit on. Native tile size, never
+   `cover`: stretched courses read as a wireframe grid, not as masonry. */
+.menu-stone {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 56%;
+  background-image: url('/assets/ui-kit/menu-stone.jpg');
+  background-size: 640px 1024px;
+  background-repeat: repeat;
+  opacity: 0.52;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 34%, rgba(0, 0, 0, 0.5) 62%, transparent 88%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 34%, rgba(0, 0, 0, 0.5) 62%, transparent 88%);
+  pointer-events: none;
+}
+
+/* ---- top bar ------------------------------------------------------------ */
+
+.menu-topbar {
+  position: relative;
+  z-index: 3;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: clamp(4px, 0.9vh, 9px);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(6px, 1.1vw, 18px) clamp(8px, 1.4vw, 18px);
+  min-width: 0;
+  padding: clamp(9px, 1.5vh, 16px) clamp(14px, 2.4vw, 34px) clamp(4px, 0.7vh, 8px);
+  background: linear-gradient(180deg, rgba(4, 6, 10, 0.9), rgba(4, 6, 10, 0.34) 72%, transparent);
+}
+
+.menu-sigil {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
   min-width: 0;
 }
 
-.menu-eyebrow {
-  font-family: var(--font-heading);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 3.4px;
-  color: var(--ink-gold);
-  opacity: 0.92;
+/* A hanging war banner: the only swaying thing in the frame, so it reads as
+   cloth and not as a UI wobble. */
+.menu-banner {
+  width: 22px;
+  height: 32px;
+  flex: 0 0 auto;
+  transform-origin: top center;
+  animation: menuBannerSway 8s ease-in-out infinite;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.75));
 }
 
-.menu-main-title {
-  font-family: var(--font-heading);
-  font-size: clamp(23px, 4.6vh, 44px);
-  font-weight: 900;
-  line-height: 0.94;
-  letter-spacing: 2.5px;
-  color: var(--ink-strong);
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+@keyframes menuBannerSway {
+  0%, 100% { transform: rotate(-2.2deg); }
+  50% { transform: rotate(2.6deg); }
 }
 
-.menu-main-title span {
+.menu-sigil-name {
   display: block;
-  color: var(--gold-primary);
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9), 0 0 28px rgba(245, 196, 81, 0.22);
-}
-
-.menu-rule {
-  position: relative;
-  width: min(210px, 72%);
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--gold-primary) 22%, var(--gold-primary) 78%, transparent);
-  opacity: 0.75;
-}
-
-.menu-rule::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: var(--gold-primary);
-  box-shadow: 0 0 10px var(--gold-glow);
-}
-
-.menu-lede {
-  margin: 0;
-  max-width: 34ch;
-  font-size: var(--fs-small);
-  line-height: 1.35;
-  color: var(--ink-muted);
-  letter-spacing: 0.3px;
+  font-family: var(--font-heading);
+  font-size: clamp(10px, 1vw, 13px);
+  font-weight: 700;
+  letter-spacing: 2.8px;
+  color: var(--ink-gold);
+  white-space: nowrap;
 }
 
 .menu-summary {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 2px 0 0;
+  align-items: center;
+  gap: clamp(5px, 0.7vw, 9px);
+  margin: 0;
 }
 
-.menu-summary > div {
+/* Resource chip: a recessed socket with a gold rim. The values inside are the
+   live save data (#menu-stat-*), never a literal. */
+.menu-chip {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 62px;
-  padding: 0 4px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 8px;
+  min-height: 38px;
   border-style: solid;
-  border-width: 7px;
-  border-image-source: var(--ui-slot);
-  border-image-slice: 20 fill;
+  border-width: 11px 14px;
+  border-image-source: var(--ui-chip);
+  border-image-slice: 24 fill;
   border-image-repeat: stretch;
+  border-radius: 0;
 }
 
-.menu-summary dt {
+.menu-chip dt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
   font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.5px;
+  color: var(--slot-muted);
+}
+
+.menu-chip dt img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.menu-chip dd {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--slot-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- action column ------------------------------------------------------ */
+
+.menu-body {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, min(480px, 40vw)) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(16px, 3vw, 48px);
+  padding: 0 clamp(16px, 2.6vw, 40px);
+  min-height: 0;
+}
+
+.menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(7px, 1.15vh, 13px);
+  min-width: 0;
+  min-height: 0;
+}
+
+.menu-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 3.6px;
+  color: var(--ink-gold);
+  text-transform: uppercase;
+}
+
+.menu-eyebrow::before,
+.menu-eyebrow::after {
+  content: '';
+  height: 1px;
+  flex: 0 0 clamp(14px, 3vw, 34px);
+  background: linear-gradient(90deg, transparent, rgba(245, 196, 81, 0.65));
+}
+
+.menu-eyebrow::after {
+  background: linear-gradient(90deg, rgba(245, 196, 81, 0.65), transparent);
+}
+
+.menu-main-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.55), 0 10px 26px rgba(0, 0, 0, 0.6);
+}
+
+.menu-main-title span {
+  display: block;
+  white-space: nowrap;
+}
+
+.menu-title-pre {
+  font-size: clamp(26px, 4.4vh, 46px);
+  color: #f3e6c8;
+  letter-spacing: 0.06em;
+}
+
+/* Gold leaf: a four-stop ramp clipped to the glyphs, with a dark stroke so the
+   letters keep their edge against the sky. */
+.menu-title-main {
+  /* vw-aware cap: at 1920 the column is still 480 px wide, so a pure vh ramp
+     wrapped "OF KINGDOM" onto two lines and broke the lockup. */
+  font-size: clamp(28px, min(5.8vh, 6.2vw), 56px);
+  background-image: linear-gradient(
+    176deg,
+    #fff6d2 4%,
+    #f0cf83 26%,
+    #d9a63f 52%,
+    #b07c22 68%,
+    #e9c877 86%,
+    #fff2c8 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #e6c072;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgba(38, 22, 4, 0.42);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.6));
+}
+
+.menu-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(300px, 78%);
+  height: 10px;
+}
+
+.menu-rule::before,
+.menu-rule::after {
+  content: '';
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, transparent, rgba(245, 196, 81, 0.55));
+}
+
+.menu-rule::after {
+  background: linear-gradient(90deg, rgba(245, 196, 81, 0.55), transparent);
+}
+
+.menu-rule i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: linear-gradient(150deg, #ffe9b4, #b07c22);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px rgba(20, 12, 2, 0.7);
+}
+
+.menu-lede {
+  margin: 0;
+  max-width: 42ch;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.35;
   color: var(--ink-muted);
 }
 
-.menu-summary dd {
-  margin: 0;
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--ink-gold);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(7px, 1.1vh, 11px);
+  margin-top: clamp(2px, 0.6vh, 7px);
 }
 
 .menu-footnote {
   margin: 0;
   font-size: var(--fs-micro);
-  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0.3px;
   color: var(--ink-muted);
-  opacity: 0.82;
+  opacity: 0.86;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .menu-footnote kbd {
-  display: inline-block;
+  font-size: 9px;
   padding: 0 4px;
-  border: 1px solid rgba(198, 158, 88, 0.4);
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.45);
-  font-family: var(--font-body);
-  font-size: 0.95em;
-  color: var(--ink);
 }
 
-/* ---- action column ----------------------------------------------------- */
-
-.menu-actions {
+.menu-footer {
+  position: relative;
+  z-index: 3;
   display: flex;
-  flex-direction: column;
-  gap: clamp(5px, 1vh, 9px);
-  min-width: 0;
-}
-
-/* PLAY — the only gold plate on the screen. */
-.menu-play {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 1px;
-  min-height: clamp(50px, 9.4vh, 76px);
-  padding: 2px 8px;
+  gap: 12px;
+  padding: clamp(4px, 0.8vh, 10px) clamp(14px, 2.4vw, 34px) clamp(6px, 1.2vh, 14px);
+  background: linear-gradient(0deg, rgba(4, 6, 10, 0.88), transparent);
+}
+
+.menu-footer .menu-footnote {
+  margin-right: auto;
+}
+
+/* ---- action plates ------------------------------------------------------
+   One shared mechanism: the sprite supplies the struck metal, the engraved
+   double rule and the corner work; CSS only supplies state (hover lift,
+   brightened edge, pressed recess) and the type. Every plate is a real
+   <button>, so focus, Enter/Space and the keyboard ring come for free.
+   ------------------------------------------------------------------------ */
+
+.menu-play,
+.menu-daily,
+.menu-duel,
+.menu-modes,
+.menu-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1vw, 12px);
+  width: 100%;
+  padding: 0;
   border-style: solid;
-  border-width: 11px 22px;
-  border-image-source: var(--ui-btn-gold);
-  border-image-slice: 28 50 fill;
-  border-image-repeat: stretch;
   border-radius: 0;
-  background: transparent;
-  font-family: var(--font-heading);
-  color: var(--ink-on-gold);
-  cursor: var(--ui-cursor) 16 16, pointer;
-  pointer-events: auto;
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-
-.menu-play-main {
-  font-size: clamp(20px, 2.6vw, 30px);
-  font-weight: 900;
-  letter-spacing: 5px;
-  line-height: 1;
-  text-shadow: 0 1px 0 rgba(255, 246, 214, 0.55);
-}
-
-.menu-play-sub {
+  background-color: transparent;
+  background-repeat: no-repeat;
+  border-image-repeat: stretch;
   font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 3.2px;
-  opacity: 0.75;
+  text-align: left;
+  color: inherit;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  transition: filter 0.14s ease, transform 0.12s ease, border-color 0.14s ease;
+}
+
+.menu-play:hover,
+.menu-daily:hover,
+.menu-duel:hover,
+.menu-modes:hover,
+.menu-tile:hover {
+  filter: brightness(1.1) drop-shadow(0 0 10px rgba(245, 196, 81, 0.24));
+  transform: translateY(-1px);
+}
+
+.menu-play:active,
+.menu-daily:active,
+.menu-duel:active,
+.menu-modes:active,
+.menu-tile:active {
+  filter: brightness(0.9) saturate(0.94);
+  transform: translateY(1px);
+}
+
+.menu-play:focus-visible,
+.menu-daily:focus-visible,
+.menu-duel:focus-visible,
+.menu-modes:focus-visible,
+.menu-tile:focus-visible,
+.menu-link-btn:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 3px;
+}
+
+/* --- PLAY CAMPAIGN: the one gold plate ---------------------------------- */
+
+.menu-play {
+  min-height: clamp(76px, 11.4vh, 104px);
+  border-width: 30px 40px;
+  border-image-source: var(--ui-plaque-gold);
+  border-image-slice: 60 fill;
+  color: var(--ink-on-gold);
+  padding-left: clamp(10px, 1.6vw, 22px);
+  padding-right: clamp(10px, 1.6vw, 22px);
 }
 
 .menu-play:hover {
-  filter: brightness(1.06) drop-shadow(0 0 14px rgba(245, 196, 81, 0.35));
-  transform: translateY(-1px);
+  filter: brightness(1.09) drop-shadow(0 0 18px rgba(255, 208, 110, 0.42));
 }
 
-.menu-play:active {
-  transform: translateY(1px);
-  filter: brightness(0.96);
-}
-
-/* Daily — the second-most useful button, in iron so PLAY stays the hero. */
-.menu-daily {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: clamp(42px, 7.4vh, 56px);
-  padding: 2px 8px;
-  border-style: solid;
-  border-width: 10px 20px;
-  border-image-source: var(--ui-btn);
-  border-image-slice: 28 50 fill;
-  border-image-repeat: stretch;
-  border-radius: 0;
-  background: transparent;
-  text-align: left;
-  color: var(--ink);
-  cursor: var(--ui-cursor) 16 16, pointer;
-  pointer-events: auto;
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-
-.menu-daily:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.1);
-}
-
-.menu-daily-icon {
-  width: clamp(20px, 2.1vw, 26px);
-  height: auto;
+.menu-seal {
+  display: grid;
+  place-items: center;
+  width: clamp(34px, 4.6vh, 44px);
+  height: clamp(34px, 4.6vh, 44px);
   flex: 0 0 auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+  border-radius: 50%;
+  border: 2px solid rgba(52, 34, 8, 0.55);
+  background: radial-gradient(circle at 38% 28%, #4a3517 0%, #241705 62%, #150d03 100%);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.85),
+    inset 0 -1px 0 rgba(255, 226, 160, 0.18),
+    0 1px 0 rgba(255, 238, 190, 0.5);
 }
 
-.menu-daily-body {
+.menu-seal img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9));
+}
+
+.menu-play-arrow {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: rgba(48, 30, 4, 0.42);
+  filter: drop-shadow(0 1px 0 rgba(255, 244, 208, 0.4));
+}
+
+.menu-play-copy {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.menu-daily-kicker {
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 2.2px;
-  color: var(--ink-gold);
+.menu-play-main {
+  font-family: var(--font-heading);
+  font-size: clamp(24px, 3.6vh, 36px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 4px;
+  color: #2c1a03;
+  text-shadow: 0 1px 0 rgba(255, 244, 208, 0.55);
 }
 
-#menu-daily-label {
+.menu-play-sub {
+  font-size: clamp(9px, 1vw, 11px);
+  font-weight: 700;
+  letter-spacing: 4.4px;
+  color: #4a3208;
+  text-transform: uppercase;
+}
+
+/* --- DAILY + MIRROR ARENA: two mode plates, one row --------------------- */
+
+.menu-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(7px, 0.9vw, 11px);
+}
+
+.menu-daily,
+.menu-duel {
+  min-height: clamp(64px, 9.2vh, 82px);
+  border-width: 22px 26px;
+  border-image-slice: 60 fill;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.menu-daily {
+  border-image-source: var(--ui-plaque-steel);
+}
+
+.menu-duel {
+  border-image-source: var(--ui-plaque-crimson);
+}
+
+.menu-daily-icon,
+.menu-duel-icon,
+.menu-modes-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.85));
+}
+
+.menu-daily-body,
+.menu-duel-body,
+.menu-modes-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-daily-kicker,
+.menu-duel-kicker,
+.menu-modes-kicker {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.9px;
+  color: var(--ink-gold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-daily-kicker {
+  font-size: 8.5px;
+  letter-spacing: 1.4px;
+}
+
+#menu-daily-label,
+.menu-duel-title,
+.menu-modes-title {
   font-size: var(--fs-small);
   font-weight: 700;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   color: var(--ink-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.menu-daily.daily-claimed {
-  filter: saturate(0.6) brightness(0.92);
+#menu-daily-label {
+  font-size: clamp(10px, 1vw, 12px);
+  color: var(--ink);
 }
 
-/* Tile hub — six destinations, uniform weight, 52 px+ touch targets. */
+.menu-daily.daily-claimed #menu-daily-label {
+  color: var(--ink-gold);
+}
+
+.menu-daily.daily-claimed {
+  filter: saturate(0.72) brightness(0.94);
+}
+
+.menu-daily.daily-claimed:hover {
+  filter: saturate(0.9) brightness(1.04) drop-shadow(0 0 10px rgba(245, 196, 81, 0.2));
+}
+
+/* Streak counter: a struck amber tag with the flame mark, not an emoji. */
+.menu-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  padding: 1px 6px 1px 4px;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 700;
+  color: #2a1704;
+  background: linear-gradient(180deg, #ffd489, #e79a35);
+  box-shadow: 0 0 0 1px rgba(40, 22, 4, 0.55), 0 2px 6px rgba(255, 150, 50, 0.3);
+}
+
+.menu-badge::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  background: url('/assets/ui-kit/glyph_flame.png') center / contain no-repeat;
+  image-rendering: pixelated;
+}
+
+.menu-badge.hidden {
+  display: none;
+}
+
+.menu-modes-cta {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--ink-gold);
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  background: rgba(8, 5, 5, 0.55);
+}
+
+/* --- WAR ROOM: the full-width third door -------------------------------- */
+
+.menu-modes {
+  min-height: clamp(58px, 8.4vh, 72px);
+  border-width: 22px 30px;
+  border-image-source: var(--ui-plaque-dark);
+  border-image-slice: 60 fill;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.menu-modes-kicker {
+  letter-spacing: 2.6px;
+}
+
+/* --- the hub: six iron tiles -------------------------------------------- */
+
 .menu-tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(4px, 0.8vh, 8px);
+  gap: clamp(6px, 0.8vw, 9px);
 }
 
 .menu-tile {
-  display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 3px;
-  min-height: clamp(50px, 8.6vh, 68px);
-  padding: 3px 2px;
-  border-style: solid;
-  border-width: 9px;
-  border-image-source: var(--ui-card);
-  border-image-slice: 35 30 fill;
-  border-image-repeat: stretch;
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink);
-  cursor: var(--ui-cursor) 16 16, pointer;
-  pointer-events: auto;
-  transition: transform 0.1s ease, filter 0.1s ease;
+  gap: 4px;
+  min-height: clamp(68px, 9.2vh, 80px);
+  border-width: 16px 22px;
+  border-image-source: var(--ui-tile);
+  border-image-slice: 30 fill;
+  padding: 0;
+  text-align: center;
 }
 
 .menu-tile img {
-  width: clamp(19px, 2vw, 24px);
-  height: auto;
+  width: 32px;
+  height: 32px;
   image-rendering: pixelated;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.75));
+  opacity: 0.94;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
 }
 
 .menu-tile span {
+  font-family: var(--font-body);
+  font-size: clamp(9.5px, 0.9vw, 11px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.menu-tile:hover span {
+  color: var(--ink-gold);
+}
+
+/* --- fullscreen: a small iron key in the top bar ------------------------- */
+
+.menu-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px 0 9px;
+  border-style: solid;
+  border-width: 10px 12px;
+  border-image-source: var(--ui-btn-ghost);
+  border-image-slice: 24 fill;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-body);
   font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: 0.7px;
-  line-height: 1.1;
-  text-align: center;
-  color: var(--ink);
+  letter-spacing: 1.4px;
+  color: var(--ink-muted);
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  transition: filter 0.14s ease, color 0.14s ease;
 }
 
-.menu-tile:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.14);
+.menu-link-btn:hover {
+  color: var(--ink-gold);
+  filter: brightness(1.16) drop-shadow(0 0 8px rgba(245, 196, 81, 0.28));
 }
 
-.menu-tile:active {
-  transform: translateY(0);
-  filter: brightness(0.95);
+.menu-link-btn img {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
 }
 
-.menu-play:focus-visible,
-.menu-daily:focus-visible,
-.menu-tile:focus-visible {
-  outline: 2px solid var(--cyan-primary);
-  outline-offset: 2px;
-}
+/* ---- responsive -------------------------------------------------------- */
 
-.menu-links {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 24px;
-}
-
-@media (max-height: 430px) {
-  .menu-lede,
-  .menu-summary {
-    display: none;
+/* Laptop / tablet landscape: the column narrows, the type steps down. */
+@media (max-width: 1080px) {
+  .menu-body {
+    grid-template-columns: minmax(0, min(430px, 46vw)) minmax(0, 1fr);
   }
 
-  .menu-main-title {
-    font-size: clamp(18px, 5.6vh, 30px);
-  }
-
-  .menu-tile {
-    min-height: clamp(44px, 8vh, 56px);
-  }
-
-  /* The duel row is a mode switch, not a destination: keep it slim so the
-     whole menu still fits a 360-tall landscape phone without scrolling. */
-  .menu-duel {
-    min-height: 38px;
-    border-width: 8px 16px;
-  }
-
-  .menu-duel-kicker {
+  .menu-modes-cta {
     display: none;
   }
 }
 
-/* Portrait / narrow windows: one column, brand centred above the actions. */
-@media (max-width: 620px) {
-  .main-menu-card {
+/* Portrait and small windows: one column, art becomes the backdrop. */
+@media (max-width: 860px) {
+  #main-menu-overlay {
+    overflow-y: auto;
+  }
+
+  .menu-body {
     grid-template-columns: minmax(0, 1fr);
-    border-width: 20px;
-    gap: 10px;
+    align-content: center;
+    gap: 0;
+    padding: 0 clamp(12px, 4vw, 28px);
   }
 
-  .menu-brand {
-    align-items: center;
-    text-align: center;
+  .menu-panel {
+    gap: clamp(6px, 1vh, 10px);
+  }
+
+  .menu-sky {
+    background-position: 74% 40%;
+  }
+
+  .menu-vignette {
+    background:
+      linear-gradient(180deg, rgba(4, 6, 10, 0.92) 0%, rgba(4, 6, 10, 0.55) 34%, rgba(4, 6, 10, 0.72) 100%),
+      linear-gradient(90deg, rgba(4, 6, 10, 0.72), rgba(4, 6, 10, 0.28));
+  }
+
+  .menu-title-pre {
+    font-size: clamp(20px, 3.4vh, 30px);
+  }
+
+  .menu-title-main {
+    font-size: clamp(30px, 5.6vh, 46px);
   }
 
   .menu-lede {
+    font-size: var(--fs-small);
+  }
+
+  .menu-play {
+    min-height: clamp(68px, 10.6vh, 88px);
+    border-width: 24px 30px;
+  }
+
+  .menu-daily,
+  .menu-duel {
+    border-width: 18px 20px;
+    min-height: clamp(58px, 8.6vh, 72px);
+  }
+
+  .menu-modes {
+    border-width: 18px 24px;
+  }
+
+  .menu-tile {
+    border-width: 14px 16px;
+    min-height: clamp(54px, 7.8vh, 64px);
+  }
+
+  .menu-sigil-name {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+}
+
+/* Short landscape phones: the art stays, the prose goes. */
+@media (max-height: 560px) {
+  .menu-lede,
+  .menu-footnote {
     display: none;
   }
 
-  .menu-summary {
-    justify-content: center;
+  .menu-body {
+    align-items: center;
   }
 
-  .menu-rule {
-    width: min(160px, 60%);
+  .menu-panel {
+    gap: 6px;
+  }
+
+  .menu-main-title {
+    line-height: 1;
+  }
+
+  .menu-title-pre {
+    font-size: clamp(16px, 4vh, 22px);
+  }
+
+  .menu-title-main {
+    font-size: clamp(22px, 6vh, 32px);
+  }
+
+  .menu-play {
+    min-height: 54px;
+    border-width: 14px 24px;
+  }
+
+  .menu-play-main {
+    font-size: 20px;
+    letter-spacing: 3px;
+  }
+
+  .menu-seal {
+    width: 34px;
+    height: 34px;
+  }
+
+  .menu-daily,
+  .menu-duel {
+    min-height: 44px;
+    border-width: 12px 16px;
+  }
+
+  .menu-daily-kicker,
+  .menu-modes-kicker {
+    display: none;
+  }
+
+  .menu-modes {
+    min-height: 42px;
+    border-width: 12px 20px;
+  }
+
+  .menu-tile {
+    min-height: 40px;
+    border-width: 10px 12px;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .menu-tile img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .menu-daily-icon,
+  .menu-duel-icon,
+  .menu-modes-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .menu-play-arrow {
+    display: none;
+  }
+
+  .menu-tile span {
+    font-size: 8.5px;
+  }
+
+  .menu-chip {
+    min-height: 30px;
+    border-width: 8px 10px;
+  }
+
+  .menu-eyebrow {
+    display: none;
+  }
+}
+
+/* ---- motion: opt out of every layer, keep every state ------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-sky,
+  .menu-wisp,
+  .menu-torch,
+  .menu-embers i,
+  .menu-banner {
+    animation: none;
+  }
+
+  .menu-embers {
+    display: none;
+  }
+
+  .menu-play,
+  .menu-daily,
+  .menu-duel,
+  .menu-modes,
+  .menu-tile,
+  .menu-link-btn {
+    transition: filter 0.1s linear, color 0.1s linear;
+  }
+
+  .menu-play:hover,
+  .menu-daily:hover,
+  .menu-duel:hover,
+  .menu-modes:hover,
+  .menu-tile:hover {
+    transform: none;
   }
 }
 
@@ -2938,11 +3613,23 @@ kbd {
 }
 
 .result-title {
-  font-family: var(--font-heading);
-  font-size: var(--fs-title);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: clamp(16px, 2.6vh, 26px);
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
   color: var(--ink-strong);
   margin-bottom: 4px;
+}
+
+.victory-box .result-title {
+  color: #b8ffd4;
+  text-shadow: 0 0 18px rgba(92, 242, 166, 0.35);
+}
+
+.defeat-box .result-title {
+  color: #ffc0cb;
+  text-shadow: 0 0 18px rgba(255, 122, 144, 0.3);
 }
 
 .result-stats {
@@ -3300,37 +3987,6 @@ body.is-fullscreen #app::after {
 .fs-toggle.active {
   color: var(--gold-primary);
   filter: drop-shadow(0 0 6px var(--gold-glow));
-}
-
-.menu-link-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 5px 14px 5px 10px;
-  font-family: var(--font-body);
-  font-size: var(--fs-small);
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(198, 158, 88, 0.36);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-
-.menu-link-btn:hover,
-.menu-link-btn:focus-visible {
-  background: rgba(245, 196, 81, 0.14);
-  color: var(--ink-gold);
-  transform: translateY(-1px);
-  outline: none;
-}
-
-.menu-link-btn .fs-icon {
-  width: 15px;
-  height: 15px;
 }
 
 /* ==========================================================================
@@ -4060,14 +4716,6 @@ body.is-fullscreen #app::after {
     display: none;
   }
 
-  .menu-main-title {
-    font-size: 22px;
-  }
-
-  .menu-tile {
-    min-height: 46px;
-  }
-
   :root {
     --dock-clearance: 100px;
   }
@@ -4300,9 +4948,14 @@ body.is-fullscreen #app::after {
   align-items: center;
   justify-content: center;
   padding: clamp(8px, 2vh, 26px) clamp(10px, 2vw, 32px);
+  /* The same keep sits behind every DOM screen, buried under a heavier scrim
+     than the menu: opening the campaign map should feel like stepping back
+     into the world, not into a web page. */
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(38, 30, 18, 0.86), rgba(6, 8, 12, 0.96) 70%),
-    rgba(4, 6, 9, 0.9);
+    radial-gradient(120% 90% at 50% 12%, rgba(24, 18, 10, 0.42), rgba(4, 6, 10, 0.92) 74%),
+    linear-gradient(180deg, rgba(4, 6, 10, 0.64), rgba(4, 6, 10, 0.9)),
+    var(--ui-menu-bg) center 42% / cover no-repeat,
+    #05070b;
   pointer-events: auto;
   z-index: 5;
   overflow: auto;
@@ -4340,11 +4993,42 @@ body.is-fullscreen #app::after {
 
 .overlay-title {
   margin: 0;
-  font-family: 'Cinzel', serif;
-  font-size: clamp(18px, 3vh, 30px);
-  letter-spacing: 3px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(19px, 3.2vh, 32px);
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  background-image: linear-gradient(176deg, #fff6d2 4%, #f0cf83 30%, #d9a63f 58%, #b07c22 74%, #edcd80 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
   color: var(--gold-primary);
-  text-shadow: 0 2px 18px var(--gold-glow);
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgba(38, 22, 4, 0.35);
+  filter: drop-shadow(0 2px 12px rgba(245, 196, 81, 0.22));
+}
+
+/* Eyebrow + rule: the same lockup the menu uses, at panel scale. */
+.overlay-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: 3.4px;
+  color: var(--ink-gold);
+}
+
+.overlay-eyebrow::before,
+.overlay-eyebrow::after {
+  content: '';
+  height: 1px;
+  flex: 0 1 42px;
+  background: linear-gradient(90deg, transparent, rgba(245, 196, 81, 0.55));
+}
+
+.overlay-eyebrow::after {
+  background: linear-gradient(90deg, rgba(245, 196, 81, 0.55), transparent);
 }
 
 .wallet-row {
@@ -4358,15 +5042,21 @@ body.is-fullscreen #app::after {
 .wallet {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(245, 196, 81, 0.3);
-  background: rgba(10, 14, 20, 0.72);
-  color: var(--text-main);
+  gap: 7px;
+  padding: 0 12px 0 8px;
+  min-height: 32px;
+  border-radius: 0;
+  border-style: solid;
+  border-width: 10px 12px;
+  border-image-source: var(--ui-chip);
+  border-image-slice: 24 fill;
+  border-image-repeat: stretch;
+  color: var(--slot-text);
+  font-family: var(--font-heading);
   font-size: clamp(11px, 1.4vh, 13px);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .wallet img {
@@ -4411,9 +5101,13 @@ body.is-fullscreen #app::after {
   display: flex;
   flex-direction: column;
   padding: 0;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--node-accent, #f5c451) 45%, transparent);
-  background: linear-gradient(180deg, rgba(24, 21, 16, 0.96), rgba(9, 11, 15, 0.98));
+  border-radius: 0;
+  border-style: solid;
+  border-width: 12px 14px;
+  border-image-source: var(--ui-tile);
+  border-image-slice: 30 fill;
+  border-image-repeat: stretch;
+  background: transparent;
   color: var(--text-main);
   font-family: 'Rajdhani', sans-serif;
   text-align: left;
@@ -4428,8 +5122,8 @@ body.is-fullscreen #app::after {
 .level-node:hover:not([disabled]),
 .level-node:focus-visible:not([disabled]) {
   transform: translateY(-3px);
-  border-color: var(--node-accent, #f5c451);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 18px color-mix(in srgb, var(--node-accent, #f5c451) 34%, transparent);
+  filter: brightness(1.08) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--node-accent, #f5c451) 28%, transparent));
 }
 
 .level-node[disabled] {
@@ -4444,8 +5138,8 @@ body.is-fullscreen #app::after {
 
 .node-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 6px;
+  left: 6px;
   z-index: 2;
   min-width: 24px;
   height: 24px;
@@ -4478,7 +5172,8 @@ body.is-fullscreen #app::after {
 }
 
 .node-name {
-  font-family: 'Cinzel', serif;
+  font-family: var(--font-heading);
+  font-weight: 700;
   font-size: clamp(12px, 1.6vh, 15px);
   letter-spacing: 1px;
   color: var(--text-main);
@@ -4811,22 +5506,6 @@ body.is-fullscreen #app::after {
 /* ==========================================================================
    DAILY CHALLENGE + ACHIEVEMENTS (Sprint 2 retention layer)
    ========================================================================== */
-
-.menu-badge {
-  margin-left: 8px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 157, 60, 0.95), rgba(214, 96, 22, 0.95));
-  color: #1a0f06;
-  font-size: var(--fs-micro);
-  font-weight: 800;
-  letter-spacing: 0.4px;
-  box-shadow: 0 0 12px rgba(255, 157, 60, 0.45);
-}
-
-.menu-badge.hidden {
-  display: none;
-}
 
 /* A claimed daily stays visible (it is the streak reminder) but reads as spent.
    (The filter itself lives on .menu-daily.daily-claimed in the MAIN MENU block.) */
@@ -5278,77 +5957,6 @@ body.is-fullscreen #app::after {
    ========================================================================== */
 
 /* --- menu entry ----------------------------------------------------------- */
-
-.menu-duel {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: clamp(42px, 7.4vh, 56px);
-  padding: 2px 8px;
-  border-style: solid;
-  border-width: 10px 20px;
-  border-image-source: var(--ui-btn-crimson);
-  border-image-slice: 28 50 fill;
-  border-image-repeat: stretch;
-  border-radius: 0;
-  background: transparent;
-  text-align: left;
-  color: var(--ink-strong);
-  cursor: var(--ui-cursor) 16 16, pointer;
-  pointer-events: auto;
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-
-.menu-duel:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.12);
-}
-
-.menu-duel-icon {
-  width: clamp(20px, 2.1vw, 26px);
-  height: auto;
-  flex: 0 0 auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.72));
-}
-
-.menu-duel-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.menu-duel-kicker {
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 2.2px;
-  color: var(--ink-gold);
-}
-
-.menu-duel-title {
-  font-size: var(--fs-small);
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  color: var(--ink-strong);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-duel-cta {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 1.6px;
-  color: var(--ink-gold);
-  border: 1px solid rgba(245, 196, 81, 0.42);
-  background: rgba(10, 6, 6, 0.55);
-}
 
 /* --- shared overlay label ------------------------------------------------- */
 
@@ -6587,28 +7195,23 @@ body.is-fullscreen #app::after {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-/* Menu shell: the frame is 26 px of engraved iron on the desktop card, which is
-   52 px of a 390 px-tall screen. The keyboard footnote is a lie on a phone. */
-[data-shell="mobile"] .main-menu-card {
-  border-width: 16px;
-  padding: 0 6px;
-}
-
+/* Menu shell: the keyboard footnote is a lie on a phone, and every plate gets a
+   thumb-sized floor. The art already carries the scene at this width. */
 [data-shell="mobile"] .menu-footnote {
   display: none;
 }
 
 [data-shell="mobile"] .menu-tile {
-  min-height: 48px;
+  min-height: 46px;
 }
 
 [data-shell="mobile"] .menu-daily,
 [data-shell="mobile"] .menu-duel {
-  min-height: 44px;
+  min-height: 48px;
 }
 
 [data-shell="mobile"] .menu-play {
-  min-height: 56px;
+  min-height: 60px;
 }
 
 /* ==========================================================================
@@ -7376,87 +7979,6 @@ body.is-fullscreen #app::after {
    slot. A mode list should read as a wall of plaques bolted to the bastion,
    not as a grid of divs with a 1 px border.
    ========================================================================== */
-
-/* The menu's fourth door. Same plate language as the Duel button, gold instead
-   of crimson, so the eye reads "third mode" rather than "danger". */
-.menu-modes {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: clamp(42px, 7.4vh, 56px);
-  padding: 2px 8px;
-  border-style: solid;
-  border-width: 10px 20px;
-  border-image-source: var(--ui-btn-gold);
-  border-image-slice: 28 50 fill;
-  border-image-repeat: stretch;
-  border-radius: 0;
-  background: transparent;
-  text-align: left;
-  color: var(--ink-strong);
-  cursor: var(--ui-cursor) 16 16, pointer;
-  pointer-events: auto;
-  transition: transform 0.1s ease, filter 0.1s ease;
-}
-
-.menu-modes:hover,
-.menu-modes:focus-visible {
-  transform: translateY(-1px);
-  filter: brightness(1.12);
-  outline: none;
-}
-
-.menu-modes-icon {
-  width: clamp(20px, 2.1vw, 26px);
-  height: auto;
-  flex: 0 0 auto;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.72));
-}
-
-.menu-modes-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.menu-modes-kicker {
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 2.2px;
-  color: #3c2c0c;
-}
-
-.menu-modes-title {
-  font-size: var(--fs-small);
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  color: #1d1508;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-modes-cta {
-  flex: 0 0 auto;
-  padding: 2px 8px;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 1.6px;
-  color: #f7e3ad;
-  border: 1px solid rgba(60, 44, 12, 0.5);
-  background: rgba(22, 16, 6, 0.72);
-}
-
-@media (max-width: 560px) {
-  .menu-modes-cta {
-    display: none;
-  }
-}
 
 .modes-shell {
   width: min(1040px, 100%);

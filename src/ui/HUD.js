@@ -250,7 +250,7 @@ export class HUD {
 
       <div id="pause-overlay" class="pause-overlay hidden" role="dialog" aria-label="Battle paused">
         <div class="pause-card">
-          <p class="pause-title">⏸ SIMULATION PAUSED</p>
+          <p class="pause-title">SIMULATION PAUSED</p>
           <div class="pause-actions">
             <button id="btn-resume" class="game-btn game-btn-primary">RESUME</button>
             <button id="btn-reset-view" class="game-btn game-btn-gold" title="Fit the whole map (0)">RESET VIEW</button>
@@ -266,7 +266,7 @@ export class HUD {
         </div>
       </div>
 
-      <div id="pause-chip" class="pause-chip hidden">⏸ SIMULATION PAUSED</div>
+      <div id="pause-chip" class="pause-chip hidden">SIMULATION PAUSED</div>
 
       <div id="boss-banner" class="boss-panel hud-panel hidden">
         <div class="boss-title-row">

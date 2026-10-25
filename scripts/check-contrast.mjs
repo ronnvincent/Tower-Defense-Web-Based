@@ -46,6 +46,12 @@ const SURFACES = {
   cardCrimson: '#280b12', // card_crimson.png — boss banner
   slot: '#0f1219', // slot.png — stat chips, icon sockets
   slotSel: '#0f1219', // slot_sel.png — wave badge, selected card
+  plaqueGold: '#daac46', // plaque_gold.png — PLAY CAMPAIGN / primary CTAs
+  plaqueSteel: '#262e3b', // plaque_steel.png — daily, secondary modes
+  plaqueCrimson: '#55131d', // plaque_crimson.png — Mirror Arena
+  plaqueDark: '#1a1e27', // plaque_dark.png — War Room, full-width plates
+  tile: '#252b35', // plate_tile.png — the 3x2 destination grid
+  chip: '#151921', // chip_metal.png — save chips, wallet
   bgDeep: tokens['bg-deep'],
   bgGlass: '#0d141a', // codex drawer gradient midpoint
   gateCard: '#0f0c09', // darker end of the display-gate gradient
@@ -117,6 +123,18 @@ const PAIRS = [
   ['ink-gold', 'slot', 4.5, 'summary numbers'],
   ['ink-strong', 'slotSel', 4.5, 'wave badge numbers'],
   ['ink-muted', 'slotSel', 4.5, 'wave badge labels'],
+
+  // Cinematic menu plates (scripts/build_ui_kit.py — measured averages)
+  ['ink-on-gold', 'plaqueGold', 4.5, 'PLAY CAMPAIGN, victory CTAs'],
+  ['ink', 'plaqueSteel', 4.5, 'daily rule line, mode titles'],
+  ['ink-gold', 'plaqueSteel', 4.5, 'daily + duel kickers'],
+  ['ink-strong', 'plaqueCrimson', 4.5, 'Mirror Arena title'],
+  ['ink-gold', 'plaqueCrimson', 4.5, 'Mirror Arena kicker'],
+  ['ink', 'plaqueDark', 4.5, 'War Room subtitle'],
+  ['ink-gold', 'plaqueDark', 4.5, 'War Room kicker + OPEN'],
+  ['ink', 'tile', 4.5, 'destination tile labels'],
+  ['slot-text', 'chip', 4.5, 'save chip values'],
+  ['slot-muted', 'chip', 4.5, 'save chip labels'],
 
   // Dark glass — HUD backdrop, codex drawer
   ['text-main', 'bgDeep', 4.5, 'HUD text on the dark backdrop'],

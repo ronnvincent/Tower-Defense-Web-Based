@@ -10,7 +10,7 @@ Everything here is generated, deterministic and audited:
 | Layer | Owner |
 |---|---|
 | Sprites (plates, buttons, sockets, glyphs, cursors, FX) | `scripts/build_ui_kit.py` → `public/assets/ui-kit/` |
-| Menu key art | generated once, committed at `public/assets/ui-kit/menu-bg.jpg` |
+| Menu key art | `menu-keep.jpg` + `menu-stone.jpg`, committed at `public/assets/ui-kit/` (see §8) |
 | Tokens + all 9-slice rules | `src/style.css` |
 | Contrast proof | `scripts/check-contrast.mjs` (reads `:root`, measures sprite fills) |
 | Regression guard | `tests/ui-kit.test.js` |
@@ -141,8 +141,8 @@ Why this is more usable:
 Markup lives in `index.html`, styles in the `MAIN MENU` block of `src/style.css`, and
 `src/main.js` still binds the same ids — plus `refreshMenuSummary()` for the three chips.
 
-The key art (`menu-bg.jpg`) sits behind two scrims: a radial warm corner and a vertical
-darkening pass, so the text never fights the image.
+The key art sits behind two scrims: a radial warm corner and a vertical darkening
+pass, so the text never fights the image. (§8 replaced the original `menu-bg.jpg`.)
 
 ---
 
@@ -199,3 +199,53 @@ npm run build
 4. every `menu-*` id `main.js` binds still exists exactly once in the markup,
 5. the retired Cozy UI demo pack is not referenced by the stylesheet, the markup or the
    contrast audit.
+
+
+---
+
+## 8. Second pass — "the keep at dusk" (main-menu redesign)
+
+The Obsidian & Gold pass fixed materials but not composition: the menu was still an
+880 px form card on a black field, with nine plates at one volume. The redesign rebuilds
+the *page*, not the palette.
+
+### What changed
+
+| Area | Before | After |
+|---|---|---|
+| Background | near-black, `menu-bg.jpg` barely visible | `menu-keep.jpg` — a painted keep cliff at dusk, full-bleed, with a slow 78 s drift |
+| Left column | centred card | carved ashlar (`menu-stone.jpg`) over the art, masked so it dissolves right |
+| Title | `TOWER` / `DEFENSE` stacked in one gold-bar plate | `DEFENSE` / `OF KINGDOM` gold-leaf lockup in `Cinzel Decorative` |
+| Primary action | gold bar with the rest of the column | `plaque_gold.png` — struck metal, engraved double rule, corner studs, seal, engraved arrow |
+| Modes | crimson/steel bars | `plaque_crimson` (Mirror Arena), `plaque_steel` (Daily), `plaque_dark` (War Room) |
+| Hub | 3×2 iron tiles | same grid, on the lighter `plate_tile` so it reads as objects on the scrim |
+| HUD | save summary inside the card | save chips in the top bar (`chip_metal`), values still bound to `#menu-stat-*` |
+| Atmosphere | none | fog wisps, brazier bloom, eight embers, swaying war banner — all opacity/transform |
+
+### New art (all deterministic, `scripts/build_ui_kit.py`)
+
+`plaque_gold / steel / crimson / dark` (480×200, slice 60/56), `plate_tile` (240×168,
+slice 30), `chip_metal` (220×96, slice 24), and seven marks drawn in the existing
+pixel idiom: `keep`, `warroom` (crossed axes), `quill`, `star`, `gem`, `flame`, `skull`.
+
+Two painted plates are committed rather than generated — `menu-keep.jpg` (1672×941,
+posterised JPEG) and `menu-stone.jpg` (640×1024, tiling ashlar).
+
+### Type is served locally
+
+`@import url(fonts.googleapis.com …)` is gone. Eight OFL woff2 subsets (~15 KB each)
+live in `public/fonts/` with their licences, declared as `@font-face` with
+`font-display: swap`. First paint no longer waits on a third party, and the display
+face (`Cinzel Decorative`) is available to every screen, not just the menu.
+
+### Motion budget
+
+Sky drift 78 s, wisps 66 s / 92 s, brazier flicker 6.4 s, embers 10–16 s, banner sway
+8 s. All are `opacity`/`transform` only. `prefers-reduced-motion: reduce` sets
+`animation: none` on every decorative layer and drops the ember field entirely; hover,
+focus and pressed states stay.
+
+### Checks that now include the new surfaces
+
+`scripts/check-contrast.mjs` gained six measured fills (`plaqueGold`, `plaqueSteel`,
+`plaqueCrimson`, `plaqueDark`, `tile`, `chip`) and ten pairs: **57/57 pass at ≥ 4.5:1**.
