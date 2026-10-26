@@ -409,3 +409,22 @@ A defeat is headed by the kit's `glyph_skull.png`, a starless run by
 `glyph_swords.png`, and the unlock line by a CSS diamond. The card no longer
 relies on an emoji font: a headless Chromium with no colour-emoji font showed an
 empty box where `💀` / `⚔` / `🔓` used to be.
+
+---
+
+## 11. The Muster Hall (Request 29)
+
+- **Backdrop**: a generated pavilion plate (`pets-hall.webp`) with a light
+  scrim; the shell keeps its gold frame but drops the panel's opaque fill, so
+  the art reads through a `backdrop-filter` sheet rather than being hidden.
+- **Three columns**: side tabs (`RECRUIT` / `UPGRADE` / `VANGUARD`), the roster
+  of all five companions, and the selected companion's card. Tabs on the left
+  edge keep switching to one thumb on a phone.
+- **One companion**: the roster is a choice, not a stack — `TAKE INTO BATTLE`
+  moves the single active companion, and the header always says which one.
+- **Levels**: every companion runs 1–5. The UPGRADE tab prints `now → next` for
+  each stat, a five-pip ladder, the rest of the bill, and the one plate that
+  spends gold. The aura ring on the portrait grows with the level, so a maxed
+  companion reads as maxed from the roster.
+- **Numbers**: printed from `petAbility`, the same object the entity fights
+  with — a card can never advertise a number the battle does not use.

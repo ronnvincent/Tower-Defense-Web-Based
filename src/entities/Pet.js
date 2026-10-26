@@ -11,7 +11,7 @@
  * burn from a torch goblin expires with the same rules as a flame line.
  */
 
-import { PET_FOLLOW } from '../data/petData.js';
+import { PET_FOLLOW, PET_MAX_LEVEL, petAbility } from '../data/petData.js';
 import { unitMetrics } from '../data/unitArt.js';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -66,6 +66,11 @@ export class Pet {
   constructor(scene, definition, options = {}) {
     this.scene = scene;
     this.def = definition;
+    // The companion fights with the numbers its level actually buys; the shop
+    // prints its cards from the same function.
+    const level = Math.max(1, Math.min(PET_MAX_LEVEL, Math.round(Number(options.level) || 1)));
+    this.level = level;
+    this.stats = petAbility(definition, level);
     this.x = options.x ?? 0;
     this.y = options.y ?? 0;
     this.bounds = options.bounds || null;
@@ -95,7 +100,7 @@ export class Pet {
   }
 
   get ability() {
-    return this.def.ability;
+    return this.stats;
   }
 
   get ready() {
@@ -160,7 +165,7 @@ export class Pet {
   /** Fire the ability if it is off cooldown and there is something to do. */
   cast(enemies, hero) {
     if (!this.ready) return null;
-    const ability = this.def.ability;
+    const ability = this.stats;
     if (ability.id === 'mend') return this.mend(hero);
     if (ability.id === 'bomb') return this.bomb(enemies);
     const target = nearestTarget(this, enemies, ability.range);

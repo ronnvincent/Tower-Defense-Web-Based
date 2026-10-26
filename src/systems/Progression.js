@@ -12,6 +12,7 @@
  */
 
 import { LEVELS, getNextLevel } from '../data/levelData.js';
+import { PET_MAX_LEVEL, getPet, petUpgradeCost } from '../data/petData.js';
 import { DEFAULT_STATS, evaluateAchievements } from './Achievements.js';
 
 export const STORAGE_KEY = 'td-dsalgo:progress:v1';
@@ -91,6 +92,9 @@ export function createProfile() {
     // battle's own coins, and `pet` is the one that fights beside the Vanguard.
     pets: [], // owned pet ids
     pet: null, // equipped pet id
+    // Companion levels, `{ petId: 1..5 }`. A bought companion starts at 1 and
+    // every level is a real change to the numbers it fights with.
+    petLevels: {},
     heroRank: 1, // 1 vanguard · 2 captain · 3 warlord
   };
 }
@@ -144,6 +148,15 @@ export class ProgressStore {
         ? Array.from(new Set(parsed.pets.filter((id) => typeof id === 'string' && id)))
         : [];
       profile.pet = profile.pets.includes(parsed.pet) ? parsed.pet : profile.pets[0] || null;
+      // Levels belong to owned companions only; anything else is dropped and
+      // every value is clamped to the ladder the shop can actually sell.
+      const savedLevels = parsed.petLevels && typeof parsed.petLevels === 'object' ? parsed.petLevels : {};
+      const levels = {};
+      for (const id of profile.pets) {
+        const value = Math.round(Number(savedLevels[id]));
+        levels[id] = Number.isFinite(value) ? Math.min(PET_MAX_LEVEL, Math.max(1, value)) : 1;
+      }
+      profile.petLevels = levels;
       // Rank is a 1..3 ladder; an old or hand-edited save cannot invent a rank
       // the game has no sprite for.
       const rank = Math.round(Number(parsed.heroRank));
@@ -236,6 +249,9 @@ export class ProgressStore {
     if (this.profile.gold < cost) return { ok: false, reason: 'gold', gold: this.profile.gold };
     this.profile.gold -= cost;
     this.profile.pets.push(id);
+    // A fresh companion is level 1; the shop's upgrade tab is where it grows.
+    if (!this.profile.petLevels) this.profile.petLevels = {};
+    if (!this.profile.petLevels[id]) this.profile.petLevels[id] = 1;
     // The first companion bought is equipped straight away — buying something
     // and then having to find a second button to use it is a papercut.
     if (!this.profile.pet) this.profile.pet = id;
@@ -268,6 +284,46 @@ export class ProgressStore {
     this.profile.heroRank = next;
     this.save();
     return { ok: true, rank: next };
+  }
+
+  /** Level of an owned companion (1 for anything unknown). */
+  petLevel(id) {
+    const value = Math.round(Number(this.profile.petLevels?.[id]));
+    return Number.isFinite(value) ? Math.min(PET_MAX_LEVEL, Math.max(1, value)) : 1;
+  }
+
+  /** Level of every companion the player owns. */
+  get petLevels() {
+    return { ...(this.profile.petLevels || {}) };
+  }
+
+  /**
+   * Buy the next level of an owned companion with meta gold.
+   *
+   * Same result vocabulary as `buyPet` / `promoteHero` so one click handler can
+   * explain every refusal.
+   *
+   * @returns {{ ok:boolean, reason?:'unknown-pet'|'not-owned'|'maxed'|'gold', level:number, cost:number|null, gold:number }}
+   */
+  upgradePet(id) {
+    const pet = getPet(id);
+    const fail = (reason, cost = null) => ({
+      ok: false,
+      reason,
+      level: this.petLevel(id),
+      cost,
+      gold: this.profile.gold,
+    });
+    if (!pet) return fail('unknown-pet');
+    if (!this.ownsPet(id)) return fail('not-owned');
+    const level = this.petLevel(id);
+    if (level >= PET_MAX_LEVEL) return fail('maxed');
+    const cost = petUpgradeCost(pet, level);
+    if (this.profile.gold < cost) return fail('gold', cost);
+    this.profile.gold -= cost;
+    this.profile.petLevels[id] = level + 1;
+    this.save();
+    return { ok: true, level: level + 1, cost, gold: this.profile.gold };
   }
 
   /** Equip an owned companion, or `null` to send it home. */

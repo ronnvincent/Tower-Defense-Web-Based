@@ -1166,3 +1166,70 @@ The two emoji marks that used to head a defeat (`💀`) and a starless run (`⚔
 are now kit sprites (`glyph_skull.png`, `glyph_swords.png`), and the unlock line
 lost its `🔓` for a CSS diamond — the headless render showed an empty box where
 the emoji should be, and a shipped card may not depend on an emoji font.
+
+## 20. The Muster Hall becomes a real shop, and companions level up (Request 29)
+
+### 20.1 The plate
+
+`public/assets/ui-kit/pets-hall.webp` (1600×1067, 186 kB) is a generated
+pavilion plate — torch-lit stone, hanging banners, hay, a water trough and a
+castle on the cliff — kept at full width in `art-source/ui-kit/pets-hall-raw.png`
+(1536×1024 PNG) so it can be re-encoded without the generator. It is drawn by
+`.pets-screen` under a light scrim and by `.pets-backdrop`, a vignette layer.
+
+The shell no longer uses the opaque panel fill
+(`border-image-slice: 50` without `fill`); it paints its own translucent sheet
+with `backdrop-filter: blur(2.5px)`, so the torchlight reads through the frame
+instead of being covered by it.
+
+### 20.2 Layout
+
+Three columns, in the order a player shops:
+
+| column | always on screen | content |
+| --- | --- | --- |
+| tabs | yes | `RECRUIT`, `UPGRADE`, `VANGUARD` — the two the request asked for |
+| roster | yes | all five companions, with state (`ACTIVE` / `LV n` / `LOCKED`) |
+| detail | yes | portrait, level ladder, stats, skill, the action plate |
+
+The roster is a column, not a grid, so "all of them" fits without scrolling on
+every tested viewport (the compact rules drop the role line and the portrait to
+30 px for exactly that reason).
+
+### 20.3 Levels (new system)
+
+`data/petData.js` now owns the ladder: `PET_MAX_LEVEL = 5`,
+`PET_LEVEL_SCALE` (damage ×1.22 … ×2.05, cooldown ×0.93 … ×0.75, reach and
+blast radius to ×1.24, healing to ×2, slow capped at 0.6 so a companion can
+never out-slow a Frost Spire), `petUpgradeCost` (55 %/90 %/135 %/190 % of the
+recruit price, rounded to 5), `petStatRows` and `petSkill`.
+
+`petAbility(pet, level)` is the single source of truth: the `Pet` entity stores
+`this.stats = petAbility(def, level)` and its `get ability()` returns it, so
+every attack, burn tick, blast radius and mend uses the bought level. The shop
+prints its cards from the same function.
+
+`ProgressStore` gained `petLevels` (`{ id: 1..5 }`), `petLevel(id)`,
+`petLevels`, and `upgradePet(id)` → `{ ok, reason: 'unknown-pet'|'not-owned'|'maxed'|'gold', level, cost, gold }`.
+`buyPet` seeds level 1; `load()` drops levels for unowned ids and clamps the
+rest.
+
+### 20.4 Verified in Chromium against `dist/`
+
+| reading | desktop 1366×768 | phone shell 844×390 |
+| --- | --- | --- |
+| shell | `[123,136,1120,495]` | `[17,8,810,374]` |
+| tabs / roster / detail | 123 / 232 / 658 px | 101 / 143 / 482 px |
+| roster scroll | 324 = 324 (none) | 215 = 215 (none) |
+| detail scroll | 322 = 322 (none) | 210 = 210 · upgrade 217 / 213 (4 px) |
+| elements outside the frame | none | none |
+| companions listed | 5 | 5 |
+| console errors | none | none |
+
+Buying a level: gold 3000 → 2865 with `bramble` 2 → 3 (cost 135), flash
+`BRAMBLE REACHES LEVEL 3`. A live level-1 battle with a saved level-5 Bramble
+spawns `pet.level 5`, `stats.damage 82`, `stats.cooldownMs 6000`, texture
+`pet-squire`, 0 errors.
+
+Full suite: **106 files / 1282 tests** (12 new in `tests/pets.test.js`), build
+clean.

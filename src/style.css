@@ -5646,6 +5646,9 @@ body.is-fullscreen #app::after {
     width: min(780px, 100%);
     display: grid;
     grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+    /* One row, never taller than the frame: a dense run scrolls inside the
+       card instead of pushing the unlock line under the border. */
+    grid-template-rows: minmax(0, 1fr);
     align-items: center;
     gap: clamp(10px, 2.2vh, 18px);
     padding: clamp(6px, 1.4vh, 12px) clamp(12px, 1.8vw, 18px);
@@ -5702,8 +5705,27 @@ body.is-fullscreen #app::after {
     margin-top: 2px;
   }
 
+  /* Contract runs on a phone: three vertical rows cost 60 px of a 390 px card,
+     so they become chips that share a line. */
   .result-contracts {
-    margin-top: 4px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  .result-contracts-title {
+    flex: 1 0 100%;
+    margin: 0;
+  }
+
+  .result-contract {
+    flex: 0 1 auto;
+    gap: 6px;
+    padding: 1px 6px;
+    font-size: 9px;
+    white-space: nowrap;
   }
 }
 
@@ -5971,6 +5993,23 @@ body.is-fullscreen #app::after {
   color: #ffb86b;
 }
 
+/* Inline kit glyphs inside the meta rows keep their baseline and never inflate
+   the line box. */
+.result-inline-icon {
+  width: 1.1em;
+  height: 1.1em;
+  object-fit: contain;
+  vertical-align: -0.16em;
+  image-rendering: pixelated;
+  opacity: 0.95;
+}
+
+.result-contract em .result-inline-icon {
+  width: 1em;
+  height: 1em;
+  margin-left: 3px;
+}
+
 .result-achievements {
   color: var(--gold-primary);
 }
@@ -6116,252 +6155,794 @@ body.is-fullscreen #app::after {
 }
 
 /* --------------------------------------------------------------------------
-   COMPANION LODGE
-   Same shop grammar as the Forge, but the card leads with the creature: the
-   portrait is a cropped frame from the very sheet the entity animates, not a
-   separate icon, so what you buy is what walks beside you.
+   THE MUSTER HALL — companions
+   A painted plate behind three columns: the section tabs on the left edge, the
+   roster of five in the middle, and the selected companion's card on the right
+   with its stats, its skill and the one plate that spends gold. Exactly one
+   companion can walk with the Vanguard, so the roster is a choice, not a stack.
    -------------------------------------------------------------------------- */
 
-.pets-shell {
-  width: min(1100px, 100%);
-}
-
-.pets-note {
-  margin: 0;
-  max-width: 68ch;
-  text-align: center;
-  font-size: var(--fs-micro);
-  color: var(--ink-muted);
-  letter-spacing: 0.3px;
-}
-
-.pets-flash {
-  margin: 0;
-  padding: 5px 14px;
-  align-self: center;
-  border-radius: 3px;
-  border: 1px solid rgba(198, 158, 88, 0.4);
-  background: rgba(6, 10, 16, 0.72);
-  font-size: var(--fs-micro);
-  font-weight: 800;
-  letter-spacing: 1.1px;
-  text-align: center;
-}
-
-.pets-flash.good {
-  color: #b6f2b0;
-  border-color: rgba(150, 226, 132, 0.45);
-}
-
-.pets-flash.bad {
-  color: #ffb3a7;
-  border-color: rgba(226, 110, 92, 0.5);
-}
-
-.hero-rank {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: 'portrait body action';
-  align-items: center;
-  gap: 10px 14px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid rgba(198, 158, 88, 0.34);
+.pets-screen {
+  /* The generated pavilion plate: torch-lit stone, hay, banners. The scrim sits
+     on top of it rather than in a sibling layer so the whole screen can scroll
+     on a short viewport without the art sliding away. Kept light enough that
+     the tabletops, torches and hay read behind the shop. */
   background:
-    linear-gradient(180deg, rgba(245, 196, 81, 0.06), transparent 62%),
-    rgba(5, 8, 13, 0.62);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  /* The rank strip is a header, never a scroller. */
-  flex: 0 0 auto;
+    radial-gradient(120% 88% at 50% 6%, rgba(12, 9, 6, 0.18), rgba(4, 5, 8, 0.74) 86%),
+    linear-gradient(180deg, rgba(5, 7, 10, 0.26), rgba(4, 6, 9, 0.52) 78%),
+    url('/assets/ui-kit/pets-hall.webp') center 46% / cover no-repeat,
+    #05070b;
 }
 
-.hero-rank .pet-portrait {
-  grid-area: portrait;
+.pets-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 74% at 50% 44%, rgba(0, 0, 0, 0) 34%, rgba(0, 0, 0, 0.42) 100%),
+    linear-gradient(180deg, rgba(3, 4, 7, 0.42) 0%, transparent 20%, transparent 72%, rgba(3, 4, 7, 0.6) 100%);
 }
 
-.hero-rank-body {
-  grid-area: body;
+.pets-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1120px, 100%);
+  gap: clamp(6px, 1.1vh, 12px);
+  padding: clamp(6px, 1.2vh, 14px) clamp(8px, 1.4vw, 18px);
+  /* The frame only — the panel's opaque fill would hide the pavilion, so the
+     shop draws its own translucent sheet and lets the torchlight through. */
+  border-image-slice: 50;
+  background:
+    linear-gradient(180deg, rgba(9, 11, 15, 0.68), rgba(6, 8, 11, 0.82)),
+    radial-gradient(90% 70% at 18% 8%, rgba(120, 84, 30, 0.18), transparent 60%);
+  backdrop-filter: blur(2.5px) saturate(1.05);
+  -webkit-backdrop-filter: blur(2.5px) saturate(1.05);
+  box-shadow:
+    inset 0 0 0 1px rgba(245, 196, 81, 0.16),
+    0 22px 60px rgba(0, 0, 0, 0.6);
+}
+
+.pets-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: clamp(8px, 1.4vw, 18px);
+  flex-wrap: wrap;
+  text-align: left;
+}
+
+.pets-head-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.hero-rank .pet-action {
-  grid-area: action;
-  justify-content: flex-end;
-}
-
-.hero-rank-next {
-  margin: 4px 0 0;
-  font-size: var(--fs-micro);
-  line-height: 1.35;
-  color: var(--ink-muted);
-}
-
-.hero-rank-next .next-rank {
-  color: var(--gold-primary);
-  font-weight: 800;
-  letter-spacing: 1px;
-}
-
-.pet-grid {
-  list-style: none;
+.pets-eyebrow {
   margin: 0;
-  padding: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 3.2px;
+  color: var(--ink-gold);
+}
+
+.pets-wallets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-micro);
+}
+
+.pets-wallets .wallet.is-live {
+  border-color: rgba(92, 242, 166, 0.34);
+  color: var(--emerald-primary);
+}
+
+/* ---- the three columns ------------------------------------------------- */
+
+.pets-main {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-  gap: clamp(8px, 1.4vw, 14px);
-  overflow: auto;
-  align-content: start;
-  /* Only the cards scroll; the rank strip and the footer stay put. */
+  grid-template-columns: auto clamp(124px, 17vw, 236px) minmax(0, 1fr);
+  gap: clamp(8px, 1vw, 14px);
   flex: 1 1 auto;
   min-height: 0;
 }
 
-.pet-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    'portrait body'
-    'action action';
-  gap: 8px 12px;
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid rgba(198, 158, 88, 0.26);
-  background: rgba(5, 8, 13, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.pet-card.owned {
-  border-color: rgba(159, 231, 255, 0.42);
-  box-shadow: inset 0 0 22px rgba(159, 231, 255, 0.06);
-}
-
-.pet-card.equipped {
-  border-color: rgba(245, 196, 81, 0.6);
-  box-shadow:
-    inset 0 0 26px rgba(245, 196, 81, 0.1),
-    0 0 0 1px rgba(245, 196, 81, 0.18);
-}
-
-.pet-portrait {
-  grid-area: portrait;
-  display: block;
-  /* The sprite is a crop of a pixel-art sheet: keep the pixels square. */
-  image-rendering: pixelated;
-  border-radius: 4px;
-  border: 1px solid rgba(198, 158, 88, 0.28);
-  background-color: rgba(12, 18, 26, 0.9);
-  background-repeat: no-repeat;
-}
-
-.pet-body {
-  grid-area: body;
+.pets-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 
-.pet-head {
+.pets-tab {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pet-name {
-  color: var(--ink-strong);
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-}
-
-.pet-role {
-  font-size: var(--fs-micro);
-  font-weight: 800;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: clamp(96px, 9vw, 132px);
+  padding: 8px 10px;
+  border: 1px solid rgba(245, 196, 81, 0.22);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(24, 22, 20, 0.82), rgba(8, 9, 12, 0.88));
+  color: var(--ink-muted);
+  font-family: var(--font-heading);
+  font-size: var(--fs-small);
+  font-weight: 700;
   letter-spacing: 1.4px;
-  color: #9fe7ff;
+  text-align: left;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, transform 0.12s ease;
 }
 
-.pet-kind {
-  margin: 1px 0 0;
-  font-size: var(--fs-micro);
+.pets-tab-hint {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+  text-transform: none;
+}
+
+.pets-tab:hover {
+  border-color: rgba(245, 196, 81, 0.5);
+  color: var(--ink-strong);
+}
+
+.pets-tab.is-active {
+  border-color: rgba(245, 196, 81, 0.85);
+  color: var(--gold-primary);
+  background: linear-gradient(180deg, rgba(58, 42, 14, 0.9), rgba(20, 15, 8, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(255, 226, 150, 0.12);
+}
+
+.pets-tab.is-active .pets-tab-hint {
+  color: rgba(245, 196, 81, 0.72);
+}
+
+.pets-tab:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+}
+
+/* ---- roster ------------------------------------------------------------ */
+
+.pet-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 2px 0 0;
+  list-style: none;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.pet-grid.is-empty {
+  visibility: hidden;
+}
+
+.pet-card-btn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(20, 20, 24, 0.72), rgba(8, 9, 12, 0.8));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.pet-card-btn:hover {
+  border-color: rgba(245, 196, 81, 0.36);
+  background: linear-gradient(180deg, rgba(30, 26, 20, 0.8), rgba(10, 10, 13, 0.86));
+}
+
+.pet-card.selected .pet-card-btn {
+  border-color: rgba(245, 196, 81, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(255, 226, 150, 0.14);
+}
+
+.pet-card.locked .pet-card-btn {
+  opacity: 0.82;
+}
+
+.pet-card.locked .pet-portrait {
+  filter: grayscale(0.75) brightness(0.8);
+}
+
+.pet-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.pet-card .pet-name {
+  font-family: var(--font-heading);
+  font-size: var(--fs-small);
+  font-weight: 700;
   letter-spacing: 0.8px;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pet-blurb {
-  margin: 3px 0 0;
+.pet-card .pet-role {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+}
+
+.pet-card-state {
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pet-card-state.is-live {
+  color: var(--emerald-primary);
+}
+
+/* ---- portraits --------------------------------------------------------- */
+
+.pet-portrait {
+  display: block;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  background-color: rgba(10, 12, 16, 0.85);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* The level is shown on the art, not only in a number: each level adds a
+   heavier ring, so a maxed companion reads as maxed from the roster. */
+.pet-portrait.lv-2,
+.pet-hero-portrait.lv-2 {
+  box-shadow: inset 0 0 0 1px rgba(196, 206, 220, 0.45);
+}
+
+.pet-portrait.lv-3,
+.pet-hero-portrait.lv-3 {
+  box-shadow: inset 0 0 0 1px rgba(245, 196, 81, 0.6), 0 0 10px rgba(245, 196, 81, 0.16);
+}
+
+.pet-portrait.lv-4,
+.pet-hero-portrait.lv-4 {
+  box-shadow: inset 0 0 0 1px rgba(255, 214, 120, 0.8), 0 0 14px rgba(245, 196, 81, 0.26);
+}
+
+.pet-portrait.lv-5,
+.pet-hero-portrait.lv-5 {
+  box-shadow: inset 0 0 0 2px rgba(255, 226, 150, 0.9), 0 0 20px rgba(245, 180, 60, 0.4);
+}
+
+.pet-hero-portrait {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  background-color: rgba(8, 10, 14, 0.8);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.pet-level-badge {
+  position: absolute;
+  left: 50%;
+  /* Inside the art's bottom edge: a hanging badge painted over the tab strip
+     and the first stat row on a 390 px screen. */
+  bottom: 2px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  border-radius: 2px;
+  background: rgba(6, 8, 11, 0.94);
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink-gold);
+  white-space: nowrap;
+}
+
+/* ---- detail card ------------------------------------------------------- */
+
+.pets-detail {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 0.9vh, 10px);
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(6px, 1vh, 12px) clamp(8px, 1.2vw, 14px);
+  border: 1px solid rgba(245, 196, 81, 0.2);
+  border-radius: 4px;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(60, 46, 20, 0.24), transparent 62%),
+    rgba(9, 11, 15, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.06);
+  scrollbar-width: thin;
+}
+
+/* A squeezed flex column used to let the stat grid collapse and its boxes paint
+   over the bill and the fact chips; rows keep their height and the panel
+   scrolls instead. */
+.pets-detail > * {
+  flex: 0 0 auto;
+}
+
+.pets-detail-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.2vw, 14px);
+}
+
+.pets-detail-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pets-detail-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(18px, 2.6vh, 28px);
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #f5e6c2;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.pet-role-chip {
+  margin: 0;
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: 1px solid rgba(245, 196, 81, 0.32);
+  border-radius: 2px;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--ink-gold);
+}
+
+.pets-detail .pet-kind {
+  margin: 0;
   font-size: var(--fs-micro);
-  line-height: 1.3;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pets-detail .pet-blurb {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.45;
   color: var(--ink-muted);
 }
 
-.pet-stats {
-  margin: 5px 0 0;
+.pets-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(8px, 1.2vw, 16px);
+  min-height: 0;
+}
+
+.pets-mini-head {
+  margin: 0 0 4px;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-gold);
+}
+
+.pet-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 4px;
+}
+
+.pet-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pet-stat-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+}
+
+.pet-stat-value {
+  font-family: var(--font-heading);
+  font-size: clamp(12px, 1.6vh, 15px);
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+
+.pet-stat-next {
+  margin-left: 5px;
+  font-style: normal;
+  font-size: 0.78em;
+  color: var(--emerald-primary);
+}
+
+.pet-stat-next::before {
+  content: '→ ';
+  color: rgba(92, 242, 166, 0.6);
+}
+
+.pet-skill {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid rgba(245, 196, 81, 0.18);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pet-skill-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+}
+
+.pet-skill-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pet-skill-name {
+  margin: 0;
+  font-family: var(--font-heading);
   font-size: var(--fs-micro);
   font-weight: 700;
+  letter-spacing: 1.4px;
   color: var(--gold-primary);
 }
 
-.pet-action {
-  grid-area: action;
-  display: flex;
-  justify-content: flex-end;
+.pet-skill-text {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--ink-muted);
 }
 
-.pet-buy,
-.pet-equip {
-  padding: 3px 12px;
+.pet-skill-note,
+.pets-next-note {
+  margin: 4px 0 0;
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.pet-level-ladder {
+  display: flex;
+  gap: 3px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pet-level-pip {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.pet-level-pip.is-owned {
+  border-color: rgba(245, 196, 81, 0.7);
+  background: rgba(245, 196, 81, 0.16);
+  color: var(--gold-primary);
+}
+
+.pet-level-pip.is-next {
+  border-color: rgba(92, 242, 166, 0.7);
+  color: var(--emerald-primary);
+}
+
+/* Honest battle facts, and the rest of the upgrade bill. Both fill the lower
+   half of the card with information instead of air. */
+.pet-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pet-facts li {
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pet-cost-ladder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.pet-cost-ladder b {
+  font-family: var(--font-heading);
   font-size: var(--fs-micro);
+  letter-spacing: 1px;
+  color: var(--ink-gold);
+}
+
+.pet-cost-ladder .pet-cost-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: 1px solid rgba(245, 196, 81, 0.2);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pets-detail-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.pets-detail-foot .game-btn {
+  min-width: min(280px, 100%);
+}
+
+.pets-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
 }
 
 .pet-coin {
-  width: 12px;
-  height: 12px;
-  margin-left: 4px;
-  vertical-align: -1px;
+  width: 13px;
+  height: 13px;
+  image-rendering: pixelated;
 }
 
 .pet-equip-tag {
+  font-family: var(--font-heading);
   font-size: var(--fs-micro);
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: var(--ink-muted);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
 }
 
 .pet-equip-tag.is-live {
   color: var(--gold-primary);
 }
 
-@media (max-width: 720px), (max-height: 520px) {
-  .pet-grid {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+/* ---- footer ------------------------------------------------------------ */
+
+.pets-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 26px;
+}
+
+.pets-foot-note {
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.pets-flash {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.pets-flash.good {
+  color: var(--emerald-primary);
+}
+
+.pets-flash.bad {
+  color: var(--crimson-primary, #ff7a7a);
+}
+
+/* ---- compact: phones and short windows --------------------------------
+   The columns stay (a roster is a column, and the tabs are already on the
+   side), but every label loses a step and the hint lines go away. */
+
+@media (max-width: 900px), (max-height: 560px) {
+  .pets-main {
+    grid-template-columns: auto clamp(118px, 17vw, 156px) minmax(0, 1fr);
+    gap: 8px;
   }
 
-  .pet-blurb,
-  .pets-note,
-  .hero-rank-next {
+  .pets-tab {
+    width: clamp(84px, 12vw, 104px);
+    padding: 6px 8px;
+    font-size: var(--fs-micro);
+  }
+
+  .pets-tab-hint {
     display: none;
   }
 
-  .hero-rank {
-    padding: 6px 10px;
+  .pets-detail-name {
+    font-size: clamp(15px, 2.4vh, 20px);
   }
 
-  /* One row per companion: portrait, text, action. Two stacked rows per card
-     left the shop showing one and a half cards on a 390 px-tall screen. */
-  .pet-card {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: 'portrait body action';
+  .pets-detail .pet-blurb {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pet-skill-note,
+  .pets-next-note {
+    display: none;
+  }
+
+  .pets-foot-note {
+    display: none;
+  }
+
+  /* The roster keeps all five companions on screen: a smaller portrait, the
+     name over its state, and no role line. */
+  .pet-grid {
+    gap: 3px;
+  }
+
+  .pets-detail {
+    gap: 3px;
+  }
+
+  .pet-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pet-card-btn {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: 'portrait name' 'portrait state';
     align-items: center;
-    padding: 7px 10px;
+    gap: 1px 7px;
+    padding: 4px 6px;
   }
 
-  .pet-kind {
+  .pet-card-btn .pet-portrait {
+    grid-area: portrait;
+  }
+
+  .pet-card-text {
+    grid-area: name;
+  }
+
+  .pet-card-state {
+    grid-area: state;
+    font-size: 8px;
+  }
+
+  .pet-card .pet-role {
     display: none;
   }
 
+  .pet-card .pet-name {
+    font-size: var(--fs-micro);
+  }
+
+  /* The bill and the fact chips are desktop comfort; on a phone the action
+     plate already carries the next price. */
+  .pet-facts,
+  .pet-cost-ladder {
+    display: none;
+  }
+
+  .pets-detail {
+    padding: 6px 8px;
+  }
+
+  .pets-detail-grid {
+    gap: 6px;
+  }
+
+  .pet-skill {
+    padding: 4px 6px;
+  }
+}
+
+/* Portrait phones: the shop is a stack, not three columns. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .pets-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .pets-tabs {
+    flex-direction: row;
+  }
+
+  .pets-tab {
+    flex: 1 1 0;
+    width: auto;
+    align-items: center;
+    text-align: center;
+  }
+
   .pet-grid {
-    padding-bottom: 4px;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+  }
+
+  .pet-card {
+    flex: 0 0 auto;
+  }
+
+  .pet-card-btn {
+    grid-template-columns: auto;
+    justify-items: center;
+    gap: 2px;
+    width: auto;
+  }
+
+  .pet-card-state {
+    display: none;
+  }
+
+  .pets-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pets-head {
+    align-items: flex-start;
   }
 }
 

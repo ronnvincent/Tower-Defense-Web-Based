@@ -132,6 +132,146 @@ export function getPet(id) {
   return PETS.find((pet) => pet.id === id) || null;
 }
 
+/* ------------------------------------------------------------- upgrades */
+
+/** Every companion levels from 1 to 5. */
+export const PET_MAX_LEVEL = 5;
+
+/**
+ * What each level does to the base ability.
+ *
+ * Read as multipliers of the numbers in `PETS`: level 1 is the creature as
+ * written, and each further level raises damage/healing, reach and pace a step.
+ * The curve is deliberately front-loaded (the first upgrade is the biggest
+ * relative jump) so a cheap level on a cheap companion still feels like a buy,
+ * and flat at the top so a maxed pet can never out-scale its tower.
+ */
+export const PET_LEVEL_SCALE = Object.freeze([
+  Object.freeze({ damage: 1, cooldown: 1, range: 1, radius: 1, heal: 1, slow: 1 }),
+  Object.freeze({ damage: 1.22, cooldown: 0.93, range: 1.06, radius: 1.06, heal: 1.22, slow: 1.1 }),
+  Object.freeze({ damage: 1.46, cooldown: 0.86, range: 1.12, radius: 1.12, heal: 1.46, slow: 1.2 }),
+  Object.freeze({ damage: 1.74, cooldown: 0.8, range: 1.18, radius: 1.18, heal: 1.72, slow: 1.3 }),
+  Object.freeze({ damage: 2.05, cooldown: 0.75, range: 1.24, radius: 1.24, heal: 2, slow: 1.4 }),
+]);
+
+/** Cost to take a companion from `level` to `level + 1`, in meta gold. */
+const UPGRADE_STEPS = Object.freeze([0.55, 0.9, 1.35, 1.9]);
+
+export function petUpgradeCost(pet, level) {
+  if (!pet || level >= PET_MAX_LEVEL) return null;
+  const step = UPGRADE_STEPS[Math.max(0, Math.min(UPGRADE_STEPS.length - 1, level - 1))];
+  return Math.round((pet.price * step) / 5) * 5;
+}
+
+/**
+ * The ability as it actually plays at `level`.
+ *
+ * This is the single source of truth for both the entity and the shop: the
+ * shop's stat rows are printed from the same object the Pet fights with, so a
+ * card can never advertise a number the battle does not use.
+ */
+export function petAbility(pet, level = 1) {
+  if (!pet) return null;
+  const lv = Math.max(1, Math.min(PET_MAX_LEVEL, Math.round(Number(level) || 1)));
+  const scale = PET_LEVEL_SCALE[lv - 1];
+  const base = pet.ability;
+  const out = { ...base, level: lv };
+  if (typeof base.damage === 'number') out.damage = Math.round(base.damage * scale.damage);
+  if (typeof base.healRatio === 'number') {
+    out.healRatio = Math.round(base.healRatio * scale.heal * 1000) / 1000;
+  }
+  if (typeof base.cooldownMs === 'number') {
+    out.cooldownMs = Math.max(600, Math.round((base.cooldownMs * scale.cooldown) / 50) * 50);
+  }
+  if (typeof base.range === 'number') out.range = Math.round(base.range * scale.range);
+  if (typeof base.radius === 'number') out.radius = Math.round(base.radius * scale.radius);
+  // A companion may never slow harder than a Frost Spire's 60 % ceiling.
+  if (typeof base.slow === 'number') {
+    out.slow = Math.min(0.6, Math.round(base.slow * scale.slow * 100) / 100);
+  }
+  return out;
+}
+
+const secs = (ms) => `${(ms / 1000).toFixed(ms % 1000 === 0 ? 0 : 1)}s`;
+
+/** Four (or three) labelled numbers for a stat card at `level`. */
+export function petStatRows(pet, level = 1) {
+  const a = petAbility(pet, level);
+  if (!a) return [];
+  switch (a.id) {
+    case 'taunt':
+      return [
+        { label: 'DAMAGE', value: String(a.damage) },
+        { label: 'SLOW', value: `${Math.round(a.slow * 100)}%`, hint: secs(a.slowMs) },
+        { label: 'COOLDOWN', value: secs(a.cooldownMs) },
+        { label: 'REACH', value: String(a.range) },
+      ];
+    case 'mend':
+      return [
+        { label: 'HEAL', value: `${Math.round(a.healRatio * 100)}%`, hint: 'of max HP' },
+        { label: 'COOLDOWN', value: secs(a.cooldownMs) },
+        { label: 'REACH', value: String(a.range) },
+      ];
+    case 'shot':
+      return [
+        { label: 'DAMAGE', value: String(a.damage) },
+        { label: 'REACH', value: String(a.range) },
+        { label: 'COOLDOWN', value: secs(a.cooldownMs) },
+      ];
+    case 'burn':
+      return [
+        { label: 'BURN', value: String(a.damage), hint: `per ${secs(a.tickMs)}` },
+        { label: 'DURATION', value: secs(a.durationMs) },
+        { label: 'REACH', value: String(a.range) },
+        { label: 'COOLDOWN', value: secs(a.cooldownMs) },
+      ];
+    case 'bomb':
+      return [
+        { label: 'DAMAGE', value: String(a.damage) },
+        { label: 'BLAST', value: String(a.radius) },
+        { label: 'REACH', value: String(a.range) },
+        { label: 'COOLDOWN', value: secs(a.cooldownMs) },
+      ];
+    default:
+      return [{ label: 'COOLDOWN', value: secs(a.cooldownMs) }];
+  }
+}
+
+/** The signature move, as the shop names and describes it. */
+const SKILL_META = Object.freeze({
+  taunt: Object.freeze({
+    name: 'SHIELD BASH',
+    text: 'Charges the closest creep and staggers it, buying the towers a beat.',
+    icon: '/assets/ui-kit/glyph_swords.png',
+  }),
+  mend: Object.freeze({
+    name: 'MENDING WOOL',
+    text: 'Knits the Vanguard back together when its health falls low.',
+    icon: '/assets/ui-kit/glyph_fortify.png',
+  }),
+  shot: Object.freeze({
+    name: 'TRUE SHOT',
+    text: 'A flat arrow at the nearest creep. No wind-up, no splash, no waste.',
+    icon: '/assets/ui/icon_swords.svg',
+  }),
+  burn: Object.freeze({
+    name: 'TORCHBEARER',
+    text: 'Sets one creep alight; the fire keeps burning after the torch moves on.',
+    icon: '/assets/ui-kit/glyph_flame.png',
+  }),
+  bomb: Object.freeze({
+    name: 'LOB BOMB',
+    text: 'Drops a fused bomb on the thickest knot of the horde. Slow to reload.',
+    icon: '/assets/ui-kit/glyph_meteor.png',
+  }),
+});
+
+export function petSkill(pet) {
+  const meta = (pet && SKILL_META[pet.ability?.id]) || null;
+  if (!meta) return null;
+  return { id: pet.ability.id, ...meta };
+}
+
 /** How far behind the hero a companion walks, and how quickly it catches up. */
 export const PET_FOLLOW = Object.freeze({
   // Far enough behind the Vanguard that the two silhouettes never merge, close

@@ -117,10 +117,15 @@ export class ResultScreenUI {
 
     // Daily runs and achievement payouts are meta progress, so they sit below
     // the run numbers instead of competing with the star rating.
+    // Kit sprites instead of emoji: the card must not depend on the browser
+    // shipping a colour-emoji font (a headless Chromium renders those as boxes).
+    const icon = (src) => `<img class="result-inline-icon" src="${src}" alt="" />`;
     const dailyRow = result.daily
-      ? `<p class="result-daily">📅 DAILY · ${result.daily.modifier?.name || 'Challenge'}${
-          result.daily.streak ? ` · 🔥 ${result.daily.streak}-day streak` : ''
-        }${result.daily.gems ? ` · +${result.daily.gems}💎` : ''}</p>`
+      ? `<p class="result-daily">${icon('/assets/ui-kit/glyph_calendar.png')} DAILY · ${
+          result.daily.modifier?.name || 'Challenge'
+        }${result.daily.streak ? ` · ${icon('/assets/ui-kit/glyph_flame.png')} ${result.daily.streak}-day streak` : ''}${
+          result.daily.gems ? ` · +${result.daily.gems}${icon('/assets/ui/icon_gem.png')}` : ''
+        }</p>`
       : '';
     // A contract run's whole point is the three bets: print them on the card,
     // paid or not, so the player can see what the run actually earned.
@@ -133,7 +138,7 @@ export class ResultScreenUI {
                (row) =>
                  `<div class="result-contract ${row.done ? 'is-done' : ''}">
                     <span>${row.done ? '✓' : '○'} ${row.name}</span>
-                    <em>${row.done ? `+${row.reward}🪙` : `${Math.min(row.current, row.target)}/${row.target}`}</em>
+                    <em>${row.done ? `+${row.reward}${icon('/assets/ui/icon_coin.png')}` : `${Math.min(row.current, row.target)}/${row.target}`}</em>
                   </div>`
              )
              .join('')}
@@ -141,7 +146,9 @@ export class ResultScreenUI {
       : '';
 
     const achievementRow = Array.isArray(result.achievements) && result.achievements.length
-      ? `<p class="result-achievements">🏅 ${result.achievements.map((a) => a.name).join(' · ')}</p>`
+      ? `<p class="result-achievements">${icon('/assets/ui-kit/glyph_medal.png')} ${result.achievements
+          .map((a) => a.name)
+          .join(' · ')}</p>`
       : '';
 
     const unlockRow = unlockedIds.length

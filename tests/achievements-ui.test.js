@@ -80,7 +80,10 @@ describe('ResultScreenUI: meta rows', () => {
     });
     expect(container.querySelector('.result-daily').textContent).toContain('Midas Rush');
     expect(container.querySelector('.result-daily').textContent).toContain('4-day streak');
-    expect(container.querySelector('.result-daily').textContent).toContain('+4💎');
+    expect(container.querySelector('.result-daily').textContent).toContain('+4');
+    // The gem is a kit sprite now, not an emoji: the card may not depend on an
+    // emoji font being installed.
+    expect(container.querySelector('.result-daily img[src*="icon_gem"]')).not.toBeNull();
     expect(container.querySelector('.result-achievements').textContent).toContain('The Bastion Holds');
   });
 

@@ -2545,6 +2545,8 @@ export class GameScene extends Phaser.Scene {
     this.pet = new Pet(this, definition, {
       x: this.hero.x - PET_FOLLOW.offsetX,
       y: this.hero.y + PET_FOLLOW.offsetY,
+      // Bought levels are the numbers the companion fights with.
+      level: this.progress?.petLevel?.(definition.id) ?? 1,
     });
     return this.pet;
   }
