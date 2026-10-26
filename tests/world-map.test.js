@@ -274,6 +274,26 @@ describe('WorldMapUI', () => {
     ui.hide();
   });
 
+  it('hints the compositor only while the camera is moving', () => {
+    vi.useFakeTimers();
+    const { ui } = mount();
+    ui.show();
+    const root = document.getElementById('world-map');
+    // At rest the plate is not a promoted layer — that is the whole point.
+    expect(root.classList.contains('wm-is-panning')).toBe(false);
+
+    ui.markGesture();
+    expect(root.classList.contains('wm-is-panning')).toBe(true);
+    vi.advanceTimersByTime(300);
+    expect(root.classList.contains('wm-is-panning')).toBe(false);
+
+    // Leaving the map mid-gesture must not leave the hint on.
+    ui.markGesture();
+    ui.hide();
+    expect(root.classList.contains('wm-is-panning')).toBe(false);
+    vi.useRealTimers();
+  });
+
   it('opens the briefing for a banner and deploys the stage it names', () => {
     const { ui, callbacks } = mount();
     ui.show();

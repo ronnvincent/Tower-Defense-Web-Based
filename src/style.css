@@ -8647,11 +8647,18 @@ html.draft-open body {
   box-shadow: inset 0 0 0 2px rgba(245, 196, 81, 0.55);
 }
 
+/* No permanent `will-change` here. The camera is a plate-sized layer; hinting it
+   at rest promotes the whole map to its own compositor layer, which on a phone
+   means a multi-thousand-pixel raster that can be evicted mid-gesture (blank
+   tiles). The hint is asserted only while a gesture is actually running. */
 .wm-camera {
   position: absolute;
   top: 0;
   left: 0;
   transform-origin: 0 0;
+}
+
+.wm-screen.wm-is-panning .wm-camera {
   will-change: transform;
 }
 
@@ -9638,8 +9645,10 @@ html.draft-open body {
   width: 14px;
   height: 14px;
   image-rendering: pixelated;
-  opacity: 0.26;
-  filter: grayscale(1);
+  /* An empty slot has to read as a slot: at 0.26 the three stars of a fresh
+     stage vanished into the panel on a 390 px screen. */
+  opacity: 0.45;
+  filter: grayscale(1) brightness(1.2);
 }
 
 .wm-star.is-earned,
@@ -9672,6 +9681,15 @@ html.draft-open body {
 
 .wm-card-actions .wm-btn {
   flex: 1 1 auto;
+}
+
+/* Measured on a 390 px phone: the panel's two actions came out 32 px tall —
+   under the 40 px a thumb needs, and this is the one button that starts a
+   stage. Grow the target with the input, not with the viewport. */
+@media (pointer: coarse), (max-width: 700px) {
+  .wm-btn {
+    min-height: 46px;
+  }
 }
 
 /* War Room list: one row per real mode. */
@@ -9906,7 +9924,9 @@ html.draft-open body {
   }
 
   .wm-btn {
-    min-height: 30px;
+    /* 30 px measured on a phone; DEPLOY is the button that starts a stage and
+       a thumb needs 44. The border stays slim so the label still fits. */
+    min-height: 44px;
     border-width: 8px 12px;
     font-size: 10px;
     letter-spacing: 0.9px;
@@ -10666,6 +10686,14 @@ html.draft-open body {
   letter-spacing: 1.1px;
   cursor: pointer;
   transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+/* Four choices in a row are 30 px tall on a mouse, and the same 30 px is what a
+   thumb gets on a phone. Grow the target where the input is a finger. */
+@media (pointer: coarse), (max-width: 700px) {
+  .set-quality-opt {
+    min-height: 44px;
+  }
 }
 
 .set-quality-opt:hover {

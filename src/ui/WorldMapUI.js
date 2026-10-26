@@ -346,6 +346,7 @@ export class WorldMapUI {
       (event) => {
         event.preventDefault();
         this.cancelTween();
+        this.markGesture();
         const step = event.deltaMode === 1 ? 0.045 : 0.0016;
         this.zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * step));
       },
@@ -483,6 +484,7 @@ export class WorldMapUI {
   }
 
   zoomTowardsViewCentre(factor) {
+    this.markGesture();
     // Repeated taps must compound. A tween that is still running has already
     // claimed the camera, so the next step is measured from *its* target —
     // otherwise mashing "+" would only ever move one step at a time.
@@ -576,7 +578,26 @@ export class WorldMapUI {
     return performance.now() < (this.clickGuardUntil || 0);
   }
 
+  /**
+   * Hint the compositor only while the camera is moving.
+   *
+   * A permanent `will-change: transform` on `.wm-camera` keeps the entire
+   * 1536×1024 plate (and its landmarks) as one giant layer; at high zoom on a
+   * high-DPR phone that is more raster than the compositor will hold, and the
+   * tiles it drops paint black until the gesture stops. Adding the hint for the
+   * duration of the gesture keeps panning smooth without that risk.
+   */
+  markGesture() {
+    if (!this.el) return;
+    this.el.classList.add('wm-is-panning');
+    clearTimeout(this.gestureTimer);
+    this.gestureTimer = setTimeout(() => {
+      this.el?.classList.remove('wm-is-panning');
+    }, 220);
+  }
+
   onPointerDown(event) {
+    this.markGesture();
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     this.cancelTween();
     this.clickGuardUntil = 0;
@@ -608,6 +629,9 @@ export class WorldMapUI {
   onPointerMove(event) {
     if (!this.pointers.has(event.pointerId)) return;
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    // Keep the compositor hint alive for the whole drag, not just its first
+    // 220 ms — the timer is what turns it off again after the last move.
+    this.markGesture();
 
     if (this.pinch && this.pointers.size >= 2) {
       const [a, b] = [...this.pointers.values()];
@@ -1171,6 +1195,8 @@ export class WorldMapUI {
     this.toast?.classList.add('hidden');
     this.el.classList.add('hidden');
     this.el.classList.remove('is-intro');
+    this.el.classList.remove('wm-is-panning');
+    clearTimeout(this.gestureTimer);
   }
 
   get isVisible() {
