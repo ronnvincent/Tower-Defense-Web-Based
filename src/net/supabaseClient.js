@@ -136,12 +136,16 @@ export function createSupabaseClient({ url, anonKey, fetchImpl, timeoutMs = DEFA
       const timeout = Math.max(1000, Number(options.timeoutMs) || timeoutMs);
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const timer = setTimeout(() => controller?.abort(), timeout);
+      // A legacy anon key is a JWT and belongs in both headers. The newer
+      // publishable keys (`sb_publishable_...`) are opaque strings — sending one
+      // as a Bearer token makes PostgREST try to parse it as a JWT and reject it.
+      const bearer = /^ey[A-Za-z0-9_-]+\./.test(key) ? { Authorization: `Bearer ${key}` } : {};
       try {
         const response = await doFetch(`${base}/rpc/${name}`, {
           method: 'POST',
           headers: {
             apikey: key,
-            Authorization: `Bearer ${key}`,
+            ...bearer,
             'Content-Type': 'application/json',
             Accept: 'application/json',
           },
