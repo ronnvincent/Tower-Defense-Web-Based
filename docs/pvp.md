@@ -46,15 +46,20 @@ is treated the same way, so a rival is never left guarding an empty arena.
 
 ## 2. The arenas
 
-All three are **26 × 16 tiles (1664 × 1024 px)** — 73 % more ground than a
-campaign map — and are generated as a 180° rotation pair so that the layout you
-defend *is* the layout your rival defends, entered from the other gate.
+All three are **26 × 12 tiles (1664 × 768 px)** and are built by the same
+`buildArena` + `arenaLanes` grammar as every campaign board: rock rim, the horde
+entering at the top, a river across the middle with two or three crossings, and
+the keep at the bottom with two rows of margin under it.
 
-| Arena | Theme | Route length | Buildable tiles | Final boss |
-| --- | --- | --- | --- | --- |
-| Cinder Crown | `caldera` | 35 cells | 178 | Magma Lord — *The Caldera Regent* |
-| Frostspine | `glacier` | 37 cells | 218 | Frost Warden — *The Warden of the Pass* |
-| Dust Meridian | `oasis` | 43 cells | 220 | Sand Wyrm — *The Meridian Wyrm* |
+| Arena | Theme | Gates | Crossings | Lanes | Final boss |
+| --- | --- | --- | --- | --- | --- |
+| Cinder Crown | `caldera` | portal 5 → keep 20 | 3 | 23 / 23 / 27 | Magma Lord — *The Caldera Regent* |
+| Frostspine | `glacier` | portal 12 → keep 12 | 2 | 20 / 20 | Frost Warden — *The Warden of the Pass* |
+| Dust Meridian | `oasis` | portal 20 → keep 5 | 3 | 23 / 23 / 23 | Sand Wyrm — *The Meridian Wyrm* |
+
+Fairness does not come from rotating one board: both seats receive the **same
+level object**, byte for byte (`getPvpLevel`), so the map, the wave script, the
+gold and the boss are identical by construction.
 
 Each arena ships **its own tileset** — `scripts/build_arena_tiles.py` generates
 `-caldera`, `-glacier` and `-oasis` from `terrain.py`'s palettes, so a duel never
@@ -72,15 +77,17 @@ elemental regrades while the ground carries the new identity.
 
 Every arena has:
 
-- gates at `S(7,1)` and `B(8,24)` — one tile inside the rock frame, exact
-  rotational images of each other,
-- a water centrepiece that neither side can build on (so the halves mirror),
-- an outer rock border and enough shelf per half to place a full defence.
+- its portal on row 2 and its keep on row 9, each at least two tiles inside the
+  rock frame so neither gate is buried under the HUD,
+- a river across row 5 that neither side can build on, with 2–3 crossings,
+- the whole outer rock border, and enough shelf on our side for a full defence.
 
-Symmetry is **verified, not assumed**: `tests/pvp.test.js` re-derives the 180°
-rotation from the ASCII (treating `S` and `B` as the same gate symbol), checks
-the route exists, counts buildable tiles per half and rejects any arena whose
-halves differ by more than two tiles.
+The contract is **verified, not assumed**: `tests/pvp.test.js` checks the board
+size against `ARENA`, the rock rim on every edge (the river row excepted — it
+runs off both sides on purpose), the water row, the crossing count, the gate
+rows, 2–3 lanes of comparable length, the buildable shelf, and that no arena
+reuses a campaign layout. `tests/map-margin.test.js` checks each gate's own
+margin above/below and to the side.
 
 ---
 

@@ -1,29 +1,29 @@
 /**
- * pvpArenas.js — the three mirrored duel arenas.
+ * pvpArenas.js — the three duel arenas.
  *
- * Every arena is **26 x 16 tiles** (1664 x 1024 px), 73 % more ground than a
- * campaign map, and every one is 180°-rotationally symmetric: the layout you
- * build on is exactly the layout your rival gets, just entered from the other
- * gate. Symmetry is not decoration — it is what makes a race between two
- * identical wave scripts fair, and `tests/pvp.test.js` re-derives it from the
- * ASCII on every run so a hand edit cannot quietly break it.
+ * Every arena is built on the **same grammar as the campaign boards**: 26 x 12
+ * tiles, a rock rim all round, the horde entering at the top row, a river across
+ * the middle and the keep at the bottom with two rows of margin under it. A duel
+ * is not a different game with a different map language — it is the same game
+ * with both seats on the same board.
  *
- * Both players receive the *same* level object, so the horde (counts, types,
- * bosses, health scaling) is identical by construction; only the room and the
- * seed travel between clients. There is nothing to desync because nothing
- * about the wave plan is random.
+ * FAIRNESS
+ * --------
+ * The arenas used to be 26 x 16 and 180°-rotationally symmetric. Rotation is no
+ * longer the guarantee: both clients receive the *same* level object, byte for
+ * byte (see `getPvpLevel` and tests/pvp.test.js), so there is nothing to mirror.
+ * What must stay equal is the board, the wave script, the gold and the boss —
+ * and those are equal by construction.
+ *
+ * The three arenas differ in what the crossings cost you: Cinder Crown runs
+ * corner to corner and splits three ways, Frostspine is a centred two-bridge
+ * board, Dust Meridian sends the horde the other way across a pair of ponds.
  *
  *   S  spawn   B  base   #  road   .  buildable   x  rock   ~  water
- *
- * The gates are inset one tile behind the rock frame. The portal art is 96 px
- * and the core art 80 px on a 64 px tile, so a gate painted on the outermost
- * column is sliced in half by the camera bounds — the spawn and the core were
- * the first things to disappear on a phone. Keeping the whole `x` frame between
- * the gate and the edge gives both gates a visible margin, and because the
- * arenas are 180°-symmetric the inset is automatically mirrored for the rival.
  */
 
 import { THEMES } from './levelData.js';
+import { ARENA, arenaLanes, buildArena, scatterProps } from './arenaLayout.js';
 
 /** Shared rules. No relics, no blessings, no powerups: the arena equalises. */
 /**
@@ -46,62 +46,37 @@ export const PVP_RULES = Object.freeze({
   waves: 10,
 });
 
-const CINDER_CROWN = [
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-  'x.......xxxxxxxxxx.......x',
-  'x.......xxxxxxxxxx.......x',
-  'x....###################.x',
-  'x....#..............#..#.x',
-  'x....#...~~~~~~~~...#..#.x',
-  'x....#...~~~~~~~~...#..#.x',
-  'xS####...~~~~~~~~...#..#.x',
-  'x.#..#...~~~~~~~~...####Bx',
-  'x.#..#...~~~~~~~~...#....x',
-  'x.#..#...~~~~~~~~...#....x',
-  'x.#..#..............#....x',
-  'x.###################....x',
-  'x.......xxxxxxxxxx.......x',
-  'x.......xxxxxxxxxx.......x',
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-];
+/** One board from its spec, exactly like a campaign map. */
+const arenaBoard = (spec) => buildArena({ ...spec, lanes: arenaLanes(spec) });
 
-const FROSTSPINE = [
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-  'x...........~~~..........x',
-  'x..#########~~~..........x',
-  'x..#......#####..........x',
-  'x..#......##..#########..x',
-  'x..#......##..##......#..x',
-  'x..#......##..##..~~~.#..x',
-  'xS##......##..##..~~~.#..x',
-  'x..#.~~~..##..##......##Bx',
-  'x..#.~~~..##..##......#..x',
-  'x..#......##..##......#..x',
-  'x..#########..##......#..x',
-  'x..........#####......#..x',
-  'x..........~~~#########..x',
-  'x..........~~~...........x',
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-];
+const CINDER_CROWN = arenaBoard({
+  portalCol: 5,
+  baseCol: 20,
+  bridges: [6, 11, 16],
+  corridorRow: [4, 3, 4],
+  turnRow: 7,
+  rocks: scatterProps('cinder-crown', { count: 9, fromRow: 6, toRow: 10 }),
+  ponds: [[10, 2], [10, 23]],
+});
 
-const DUST_MERIDIAN = [
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-  'x........................x',
-  'x........................x',
-  'x...#############.######.x',
-  'x...#..#.#......#.#....#.x',
-  'x...#..#.#~~~~~~#.#....#.x',
-  'x...#..#.#~~~~~~#.#....#.x',
-  'xS###..#.#......#.#....#.x',
-  'x.#....#.#......#.#..###Bx',
-  'x.#....#.#~~~~~~#.#..#...x',
-  'x.#....#.#~~~~~~#.#..#...x',
-  'x.#....#.#......#.#..#...x',
-  'x.######.#############...x',
-  'x........................x',
-  'x........................x',
-  'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-];
+const FROSTSPINE = arenaBoard({
+  portalCol: ARENA.axisCol,
+  baseCol: ARENA.axisCol,
+  bridges: [6, 18],
+  corridorRow: [3, 4],
+  turnRow: 8,
+  rocks: scatterProps('frostspine', { count: 12, fromRow: 6, toRow: 10 }),
+});
+
+const DUST_MERIDIAN = arenaBoard({
+  portalCol: 20,
+  baseCol: 5,
+  bridges: [7, 13],
+  corridorRow: [3, 4],
+  turnRow: 7,
+  ponds: [[9, 11], [10, 17]],
+  rocks: scatterProps('dust-meridian', { count: 8, fromRow: 6, toRow: 10 }),
+});
 
 /**
  * The script both players run. A plain list, no RNG: seven pressure waves, two

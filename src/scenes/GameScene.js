@@ -86,6 +86,17 @@ import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 import { ProgressStore } from '../systems/Progression.js';
 import { waveAccent } from '../systems/EnemySkins.js';
 
+/**
+ * Which tile set the river row is painted with.
+ *
+ * `grassland` is the theme whose tile suffix is empty — the base sheet — so it
+ * doubles as the neutral set. Themed water is still used for ponds (a caldera
+ * pool is magma, a glacier hole is navy meltwater); the divider that splits the
+ * board is water on every map, which is what the brief asks for.
+ */
+const RIVER_THEME = 'grassland';
+
+
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
 const GROUND_VARIANT_KEYS = ['tile-grass', 'tile-grass_2', 'tile-grass_3'];
 /** Scatter props drawn on empty grass. */
@@ -726,28 +737,20 @@ export class GameScene extends Phaser.Scene {
 
         // 2. Surface: lane, water, boulder — each with its own autotile mask.
         if (isLane(r, c)) {
-          // The road is built, not grown — but each biome ships its own paving
-          // palette, and `scripts/terrain.py` audits that palette against that
-          // biome's own ground (tests/terrain-contrast.test.js). Drawing the
-          // neutral paving everywhere bypassed that audit, which is why the lane
-          // on the ice sheet was pale grey on pale grey. Single-biome maps now
-          // use their theme's road; the endless field is the one board that
-          // changes biome mid-lane, so it keeps the neutral paving — a road that
-          // turns lavender halfway down reads as a rendering bug.
+          // The road is built, not grown: one paving material per biome, laid
+          // over whatever the ground happens to be. `themed(key, null)` resolves
+          // to the level theme, so each battlefield paves with the palette that
+          // scripts/terrain.py tuned and tests/terrain-contrast.test.js audits
+          // against its own ground; the endless field passes a per-cell biome.
           const mask = maskAt(isLane, r, c);
-          const roadTheme = this.biomeGrid ? null : themeId;
-          const key =
-            themed(`tile-road-${mask}`, roadTheme) ||
-            themed(`tile-road-${mask}`, null) ||
-            themed('tile-road-15', null) ||
-            'tile-road-15';
+          const key = themed(`tile-road-${mask}`, themeId) || themed('tile-road-15', themeId) || 'tile-road-15';
           if (isBridge(r, c)) {
             // A bridge: the river keeps flowing underneath, and the road is
             // drawn as a narrower deck with timber rails so the crossing reads
             // as construction instead of a suspiciously dry patch of water.
             const underMask = maskAt(isWater, r, c);
             const under =
-              themed(`tile-water-${underMask}`, themeId) || themed('tile-water', themeId);
+              themed(`tile-water-${underMask}`, RIVER_THEME) || themed('tile-water', RIVER_THEME);
             if (under) {
               this.add.image(cx, cy, under).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
             }
@@ -770,7 +773,14 @@ export class GameScene extends Phaser.Scene {
           }
         } else if (type === TILE.WATER) {
           const mask = maskAt(isWater, r, c);
-          const key = themed(`tile-water-${mask}`, themeId) || themed('tile-water', themeId);
+          // The river row is the board's divider, and the brief is explicit: it
+          // is water on every map. Themed water still paints the ponds (a
+          // caldera pool is magma, a glacier hole is navy meltwater), but the
+          // line that splits the battlefield always asks for the neutral river
+          // set, so nobody reads the divide as a lava flow. `null` would fall
+          // back to the level theme, hence the explicit id.
+          const waterTheme = r === this.map.riverRow ? RIVER_THEME : themeId;
+          const key = themed(`tile-water-${mask}`, waterTheme) || themed('tile-water', waterTheme);
           if (key) {
             this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           } else {

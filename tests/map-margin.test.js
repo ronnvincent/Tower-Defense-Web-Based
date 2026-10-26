@@ -92,13 +92,20 @@ describe('battlefield margins', () => {
     }
   });
 
-  it('gives the rivals mirrored margins — the inset arena stays 180° symmetric', () => {
+  it('keeps each arena gate on its own bank, with a margin on both', () => {
+    // The duel boards follow the campaign grammar now: the horde enters above
+    // the river and the keep stands below it. Fairness comes from both seats
+    // receiving the identical layout, not from a rotated one, so this checks the
+    // margins each gate is entitled to.
     for (const arena of PVP_ARENAS) {
       const map = parseMap(arena.layout);
       const { spawn, base } = map;
-      expect(spawn.row + base.row, `${arena.id} gate rows`).toBe(map.rows - 1);
-      expect(spawn.col + base.col, `${arena.id} gate columns`).toBe(map.cols - 1);
-      expect(edgeTileClearance(map, spawn)).toBe(edgeTileClearance(map, base));
+      expect(spawn.row, `${arena.id} portal is not on the enemy bank`).toBeLessThan(map.riverRow);
+      expect(base.row, `${arena.id} keep is not on our bank`).toBeGreaterThan(map.riverRow);
+      expect(spawn.row, `${arena.id} portal has no margin above`).toBeGreaterThanOrEqual(2);
+      expect(base.row, `${arena.id} keep has no margin below`).toBeLessThanOrEqual(map.rows - 3);
+      expect(edgeTileClearance(map, spawn), `${arena.id} portal touches an edge`).toBeGreaterThanOrEqual(2);
+      expect(edgeTileClearance(map, base), `${arena.id} keep touches an edge`).toBeGreaterThanOrEqual(2);
     }
   });
 

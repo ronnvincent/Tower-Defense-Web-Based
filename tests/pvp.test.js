@@ -7,7 +7,8 @@ import {
   arenaSize,
   DEFAULT_ARENA_ID,
 } from '../src/data/pvpArenas.js';
-import { parseMap, TILE } from '../src/data/mapData.js';
+import { MAPS, parseMap, TILE } from '../src/data/mapData.js';
+import { ARENA } from '../src/data/arenaLayout.js';
 import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { getLevel, THEMES } from '../src/data/levelData.js';
@@ -29,16 +30,8 @@ import {
   setReady,
 } from '../src/systems/PvpMatch.js';
 
-/** S and B are a mirrored pair, so symmetry is checked on a shared symbol. */
-const gate = (ch) => (ch === 'S' || ch === 'B' ? 'G' : ch);
-
-const isSymmetric = (layout) => {
-  const rows = layout.length;
-  const cols = layout[0].length;
-  return layout.every((row, r) =>
-    row.split('').every((ch, c) => gate(layout[rows - 1 - r][cols - 1 - c]) === gate(ch))
-  );
-};
+/** The road cells that sit in the river row — one per crossing. */
+const crossingsOf = (layout) => (layout[ARENA.riverRow].match(/#/g) || []).length;
 
 const statsOf = (arena) => {
   const map = parseMap(arena.layout);
@@ -57,25 +50,59 @@ describe('duel arenas', () => {
     }
   });
 
-  it('are all 26 x 16 — a third larger than a campaign map on both axes', () => {
+  it('are built on the campaign grammar: 26 x 12, river across the middle', () => {
     for (const arena of PVP_ARENAS) {
       const size = arenaSize(arena);
-      expect(size, arena.id).toEqual({ rows: 16, cols: 26 });
-      expect(arena.layout.every((row) => row.length === 26), `${arena.id} ragged`).toBe(true);
+      expect(size, arena.id).toEqual({ rows: ARENA.rows, cols: ARENA.cols });
+      expect(arena.layout.every((row) => row.length === ARENA.cols), `${arena.id} ragged`).toBe(true);
+      // A rock rim on every edge, the way a campaign board is framed.
+      expect(arena.layout[0]).toBe('x'.repeat(ARENA.cols));
+      expect(arena.layout[ARENA.rows - 1]).toBe('x'.repeat(ARENA.cols));
+      for (let r = 0; r < ARENA.rows; r += 1) {
+        // The river runs off both edges of the board on purpose: it is a river,
+        // not a moat, so it is the one row allowed to break the side rim.
+        if (r === ARENA.riverRow) continue;
+        const row = arena.layout[r];
+        expect(row[0], `${arena.id} row ${r} has an open west edge`).toBe('x');
+        expect(row[ARENA.cols - 1], `${arena.id} row ${r} has an open east edge`).toBe('x');
+      }
     }
   });
 
-  it('are 180-degree symmetric, so both seats get exactly the same battlefield', () => {
+  it('splits the board with one river and two or three crossings', () => {
     for (const arena of PVP_ARENAS) {
-      expect(isSymmetric(arena.layout), `${arena.id} is not symmetric`).toBe(true);
+      const river = arena.layout[ARENA.riverRow];
+      // The river is the whole row: water, broken only where a lane crosses.
+      expect(river.replace(/[~#]/g, ''), `${arena.id} river is not continuous`).toBe('');
+      const crossings = crossingsOf(arena.layout);
+      expect(crossings, `${arena.id} offers ${crossings} crossing(s)`).toBeGreaterThanOrEqual(2);
+      expect(crossings, `${arena.id} offers ${crossings} crossing(s)`).toBeLessThanOrEqual(3);
     }
   });
 
-  it('mirror the gates: one spawn and one base, each other\'s rotation', () => {
+  it('puts the portal on the enemy row and the keep on the base row', () => {
     for (const arena of PVP_ARENAS) {
       const { map } = statsOf(arena);
-      expect(map.spawn, arena.id).toEqual({ row: 7, col: 1 });
-      expect(map.base, arena.id).toEqual({ row: 8, col: 24 });
+      expect(map.spawn.row, arena.id).toBe(ARENA.portalRow);
+      expect(map.base.row, arena.id).toBe(ARENA.baseRow);
+      // Both gates keep a visible margin: at least one cell of ground above the
+      // portal and two rows of ground below the keep.
+      expect(map.spawn.col).toBeGreaterThanOrEqual(2);
+      expect(map.spawn.col).toBeLessThanOrEqual(ARENA.cols - 3);
+    }
+  });
+
+  it('offers two or three routes of comparable length on every arena', () => {
+    for (const arena of PVP_ARENAS) {
+      const { map } = statsOf(arena);
+      const pf = new PathfindingSystem(map);
+      pf.computeLanes();
+      const lens = pf.lanes.map((lane) => lane.length);
+      expect(lens.length, `${arena.id} lane count`).toBeGreaterThanOrEqual(2);
+      expect(lens.length, `${arena.id} lane count`).toBeLessThanOrEqual(3);
+      expect(Math.max(...lens), `${arena.id} lanes ${lens}`).toBeLessThanOrEqual(
+        Math.ceil(Math.min(...lens) * 1.35)
+      );
     }
   });
 
@@ -83,30 +110,20 @@ describe('duel arenas', () => {
     for (const arena of PVP_ARENAS) {
       const { path } = statsOf(arena);
       expect(path.found, `${arena.id} has no route`).toBe(true);
-      expect(path.path.length).toBeGreaterThan(28);
+      expect(path.path.length).toBeGreaterThan(14);
     }
   });
 
-  it('leave enough shelf to build a real defence on both halves', () => {
+  it('leave enough shelf to build a real defence', () => {
     for (const arena of PVP_ARENAS) {
-      const { map, buildable } = statsOf(arena);
-      expect(buildable, arena.id).toBeGreaterThan(150);
-      // Both halves must be usable, not just the side the gates happen to favour.
-      const half = Math.floor(map.cols / 2);
-      const left = map.tiles.flatMap((row) => row.slice(0, half)).filter((t) => t === TILE.GRASS).length;
-      const right = map.tiles.flatMap((row) => row.slice(half)).filter((t) => t === TILE.GRASS).length;
-      expect(Math.abs(left - right), `${arena.id} halves are lopsided`).toBeLessThanOrEqual(2);
+      const { buildable } = statsOf(arena);
+      expect(buildable, arena.id).toBeGreaterThan(60);
     }
   });
 
   it('do not reuse a campaign layout', () => {
     const campaign = new Set(
-      ['level-1', 'level-2', 'level-3', 'level-4', 'level-5']
-        .map((id) => {
-          const level = getLevel(id);
-          return level?.mapLayout ? level.mapLayout.join('|') : null;
-        })
-        .filter(Boolean)
+      Object.values(MAPS).map((layout) => layout.join('|'))
     );
     for (const arena of PVP_ARENAS) {
       expect(campaign.has(arena.layout.join('|')), `${arena.id} duplicates a campaign map`).toBe(false);
@@ -155,53 +172,52 @@ describe('duel level contract', () => {
   });
 });
 
-describe('camera fit for larger maps', () => {
+describe('camera fit for the duel boards', () => {
   const VIEWPORT = { width: 1280, height: 768 };
-  const CAMPAIGN = { x: 0, y: 0, width: 20 * 64, height: 12 * 64 };
-  const ARENA = { x: 0, y: 0, width: 26 * 64, height: 16 * 64 };
+  // A duel board is the same size as a campaign board now, so this is the same
+  // fit the campaign camera asks for: pull back until the width fits.
+  const BOARD = { x: 0, y: 0, width: ARENA.cols * 64, height: ARENA.rows * 64 };
+  const FIT = VIEWPORT.width / BOARD.width;
 
-  it('keeps the campaign framed at exactly 1x', () => {
-    expect(fitZoom(CAMPAIGN, VIEWPORT)).toBe(1);
-    expect(zoomLimitsFor(CAMPAIGN, VIEWPORT).min).toBe(1);
+  it('frames the whole board inside a 1280 x 768 canvas', () => {
+    expect(fitZoom(BOARD, VIEWPORT)).toBeCloseTo(FIT, 5);
+    expect(fitZoom(BOARD, VIEWPORT)).toBeLessThan(1);
+    // At the fit zoom the board fills the canvas exactly on its tight axis.
+    expect(BOARD.width * FIT).toBeCloseTo(VIEWPORT.width, 5);
+    expect(zoomLimitsFor(BOARD, VIEWPORT).min).toBeCloseTo(FIT, 5);
   });
 
-  it('pulls a duel arena back so the whole battlefield fits', () => {
-    const fit = fitZoom(ARENA, VIEWPORT);
-    expect(fit).toBeCloseTo(0.75, 5);
-    expect(fit).toBeLessThan(1);
-    // At the fit zoom the arena fills the canvas exactly on its tight axis.
-    expect(ARENA.height * fit).toBeCloseTo(VIEWPORT.height, 5);
-  });
-
-  it('never zooms out below the hard floor on a tiny screen', () => {
+  it('fits the board on a phone in landscape without hitting the floor', () => {
     const phone = { width: 844, height: 390 };
-    expect(fitZoom(ARENA, phone)).toBe(ZOOM_LIMITS.min);
-    expect(ZOOM_LIMITS.min).toBeLessThan(1);
+    const fit = fitZoom(BOARD, phone);
+    expect(fit).toBeGreaterThan(ZOOM_LIMITS.min);
+    expect(fit).toBeLessThan(0.6);
+    // The floor is the safety net for screens smaller than any phone.
+    expect(ZOOM_LIMITS.min).toBeLessThan(fit);
   });
 
-  it('lets the arena pan from one gate to the other', () => {
+  it('lets the camera pan across the board when zoomed in', () => {
     const view = { ...VIEWPORT, zoom: 1.5 };
-    const atMin = clampScroll({ x: -9999, y: -9999 }, view, view.zoom, ARENA);
-    const atMax = clampScroll({ x: 9999, y: 9999 }, view, view.zoom, ARENA);
+    const atMin = clampScroll({ x: -9999, y: -9999 }, view, view.zoom, BOARD);
+    const atMax = clampScroll({ x: 9999, y: 9999 }, view, view.zoom, BOARD);
     const left = worldView({ ...view, scrollX: atMin.x, scrollY: atMin.y });
     const right = worldView({ ...view, scrollX: atMax.x, scrollY: atMax.y });
 
     expect(left.x).toBeCloseTo(0, 5);
     expect(left.y).toBeCloseTo(0, 5);
-    expect(right.x + right.width).toBeCloseTo(ARENA.width, 5);
-    expect(right.y + right.height).toBeCloseTo(ARENA.height, 5);
+    expect(right.x + right.width).toBeCloseTo(BOARD.width, 5);
+    expect(right.y + right.height).toBeCloseTo(BOARD.height, 5);
     expect(right.x).toBeGreaterThan(left.x);
   });
 
-  it('shows the entire arena at the fit zoom, with nothing clamped away', () => {
-    const fit = fitZoom(ARENA, VIEWPORT);
-    const view = { ...VIEWPORT, zoom: fit };
-    const scroll = clampScroll({ x: 0, y: 0 }, view, fit, ARENA);
+  it('shows the entire board at the fit zoom, with nothing clamped away', () => {
+    const view = { ...VIEWPORT, zoom: FIT };
+    const scroll = clampScroll({ x: 0, y: 0 }, view, FIT, BOARD);
     const rect = worldView({ ...view, scrollX: scroll.x, scrollY: scroll.y });
     expect(rect.x).toBeLessThanOrEqual(0.001);
     expect(rect.y).toBeLessThanOrEqual(0.001);
-    expect(rect.x + rect.width).toBeGreaterThanOrEqual(ARENA.width - 0.001);
-    expect(rect.y + rect.height).toBeGreaterThanOrEqual(ARENA.height - 0.001);
+    expect(rect.x + rect.width).toBeGreaterThanOrEqual(BOARD.width - 0.001);
+    expect(rect.y + rect.height).toBeGreaterThanOrEqual(BOARD.height - 0.001);
   });
 });
 

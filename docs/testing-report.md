@@ -784,3 +784,51 @@ placement, not the map.
 `validateBuild` still answers `road-tile` on a lane cell and `enemy-half` above
 the river; the DOM Start Wave button still opens the wave; zero page or console
 errors in all three runs. Suites: **1250 / 1250**; `npm run build` clean.
+
+## 14. Duel arenas on the shared grammar, and the ice lane (Request 22, third pass)
+
+### 14.1 The three duel arenas were still on the old language
+
+`pvpArenas.js` carried three hand-drawn 26 x 16 boards that were 180°-symmetric
+but shared nothing with the rest of the game: no river, no top-to-bottom march,
+gates on the side columns. The brief is one map language for every battlefield,
+so all three are now built by `buildArena` + `arenaLanes`, exactly like a
+campaign map:
+
+| arena | theme | gates | crossings | lanes |
+|---|---|---|---|---|
+| Cinder Crown | caldera | portal 5 → keep 20 | 3 | 23 / 23 / 27 |
+| Frostspine | glacier | portal 12 → keep 12 | 2 | 20 / 20 |
+| Dust Meridian | oasis | portal 20 → keep 5 | 3 | 23 / 23 / 23 |
+
+Fairness did not depend on rotation: both clients already receive the *same*
+level object (`getPvpLevel`), so what has to be equal is the board, the wave
+script, the gold and the boss — all equal by construction. `tests/pvp.test.js`
+now pins the grammar instead of the rotation (river across the middle, 2–3
+crossings, portal on row 2, keep on row 9 with a margin), and
+`tests/map-margin.test.js` checks each gate's own margin.
+
+Verified in the browser (`/tmp/browser/pvp.mjs`, canvas capture per arena):
+`pvp-cinder-crown` 3 lanes, `pvp-frostspine` 2 lanes, `pvp-dust-meridian` 3
+lanes, spawn (2,5)/(2,12)/(2,20), keep (9,20)/(9,12)/(9,5), zoom **0.563**,
+zero page or console errors.
+
+### 14.2 The divider is water everywhere
+
+`themed(key, null)` resolves to the *level* theme, not to the base sheet, so a
+"neutral" water lookup was really asking for the caldera set — which is magma.
+The river row now asks for `RIVER_THEME` (`grassland`, the suffix-less base set)
+explicitly, for both the water tiles and the underlay beneath a bridge. Ponds
+keep their themed water; only the line that splits the board is always a river.
+
+### 14.3 Frostbite Hollow had the weakest lane in the game
+
+`ROAD_RAMPS['ice']` ended on `0x748C9E`, which is the ice *ground's* own shadow,
+so the lane's highlights melted into the snow: **37.9** on the YCbCr audit, the
+lowest surface in the project. The ramp is now colder and stops at `0x465E78`
+— the same lane reads **57.0**. `python3 scripts/terrain.py --contrast` before
+and after; the tiles were regenerated with `scripts/build_arena_tiles.py`'s own
+writer (`build_theme('ice')`, 42 files, deterministic).
+
+Suite after all three changes: **1250 / 1250**; `npm run build` clean;
+`docs/pvp.md` updated with the new arena table.
