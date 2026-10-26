@@ -84,6 +84,10 @@ function safeStorage() {
 export function createProfile() {
   return {
     version: 1,
+    // The commander name claimed before the main menu. Kept in the save so the
+    // HUD, the ranking and the ledger all print the same string; the *proof*
+    // that this browser owns the name is the device key in CloudSave, not this.
+    username: '',
     unlocked: ['level-1'],
     stars: {}, // levelId -> 1..3
     bestScore: {}, // levelId -> number
@@ -118,7 +122,22 @@ export class ProgressStore {
   constructor({ storage, key = STORAGE_KEY } = {}) {
     this.storage = storage || safeStorage();
     this.key = key;
+    /** Listeners told about every write — CloudSave mirrors the save with one. */
+    this._saveListeners = new Set();
     this.profile = this.load();
+  }
+
+  /**
+   * Subscribe to every save. The cloud mirror uses this instead of the caller
+   * remembering to push after each of the twenty places that write progress.
+   *
+   * @param {(profile:object) => void} listener
+   * @returns {() => void} unsubscribe
+   */
+  onSave(listener) {
+    if (typeof listener !== 'function') return () => {};
+    this._saveListeners.add(listener);
+    return () => this._saveListeners.delete(listener);
   }
 
   load() {
@@ -154,6 +173,7 @@ export class ProgressStore {
         profile.relics = {};
       }
       profile.stats = { ...DEFAULT_STATS, ...(parsed.stats || {}) };
+      profile.username = typeof parsed.username === 'string' ? parsed.username.replace(/\s+/g, ' ').trim().slice(0, 16) : '';
       // Companions: unknown ids (a renamed or removed pet) are dropped rather
       // than carried around, and an equipped pet that is not owned is cleared.
       profile.pets = Array.isArray(parsed.pets)
@@ -203,7 +223,27 @@ export class ProgressStore {
     } catch {
       /* quota / private mode — the run continues with in-memory progress */
     }
+    for (const listener of this._saveListeners) {
+      try {
+        listener(this.profile);
+      } catch {
+        // A mirror that throws must never take the save down with it.
+      }
+    }
     return this.profile;
+  }
+
+  /**
+   * Remember the commander name. The gate calls this once the ledger has
+   * accepted it; it is also how a save restored from the ledger learns its name.
+   */
+  setUsername(name) {
+    const clean = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, 16) : '';
+    if (!clean) return this.profile.username || '';
+    if (this.profile.username === clean) return clean;
+    this.profile.username = clean;
+    this.save();
+    return clean;
   }
 
   reset() {

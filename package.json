@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:cloud": "node scripts/dev-with-cloud.mjs",
     "pvp:dev": "node scripts/dev-with-relay.mjs",
+    "cloud:dev": "node server/cloud-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

@@ -34,6 +34,9 @@ import { OrientationGate } from './system/OrientationGate.js';
 import { DisplayGateUI } from './ui/DisplayGateUI.js';
 import { GATE_MODE, gateBlocksGameplay } from './system/displayMode.js';
 import { lockViewport } from './system/viewportLock.js';
+import { CloudSave } from './systems/CloudSave.js';
+import { resolveSupabaseConfig, createSupabaseClient } from './net/supabaseClient.js';
+import { NameGateUI } from './ui/NameGateUI.js';
 
 // 1. Instantiate shared systems for UI
 const globalLeaderboard = new Leaderboard();
@@ -90,6 +93,15 @@ if (import.meta.env?.DEV || probeRequested) window.game = game;
 // Campaign progress outlives any single battle: GameScene.init() reads it for
 // the level definition, the unlock graph and the saved star ratings.
 window.gameProgress = new ProgressStore();
+
+// The realm ledger. `ProgressStore` stays the source of truth (localStorage,
+// offline, always); this mirrors every save into Supabase so the ranking and a
+// second device can read it. With no project configured the client reports the
+// cloud as off and the game runs exactly as it did before.
+const supabaseConfig = resolveSupabaseConfig();
+const cloudClient = createSupabaseClient(supabaseConfig);
+cloudClient.source = supabaseConfig.source;
+window.gameCloud = new CloudSave({ client: cloudClient, store: window.gameProgress });
 // One choice, one store: the briefing writes it, the battle scene reads it, and
 // the next launch remembers it.
 window.gameDifficulty = new DifficultyStore();
@@ -113,6 +125,7 @@ window.gameHUD = new HUD(hudContainer, {});
 // two-finger gesture always zooms the battlefield instead of the HUD.
 lockViewport();
 window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, {
+  cloud: window.gameCloud,
   onReturnToMenu: () => {
     const gameScene = game.scene.getScene('GameScene');
     if (gameScene && gameScene.scene.isActive()) {
@@ -156,6 +169,51 @@ function restoreAfterPanel({ refresh = true } = {}) {
   window.gameWorldMap?.hide?.();
   hudLayer()?.classList.add('hidden');
 }
+
+/** Reveal the main menu without touching the ledger or the map. */
+function revealMainMenu() {
+  const overlay = menuOverlay();
+  if (!overlay) return;
+  overlay.classList.remove('hidden', 'is-leaving');
+  hudLayer()?.classList.add('hidden');
+  window.gameWorldMap?.hide?.();
+}
+
+/* ----------------------------------------------------------- the name gate
+ *
+ * A commander name is required before the menu: it is the key the shared
+ * ranking and the save mirror are built on. The gate presents; `CloudSave`
+ * decides. `MenuScene.create()` leaves the menu down while
+ * `window.gameCloud.needsName` is true, so there is no frame where the menu is
+ * visible but unusable.
+ */
+const nameGate = new NameGateUI(document.getElementById('name-gate'), {
+  cloud: window.gameCloud,
+  onAccepted: () => {
+    revealMainMenu();
+    refreshContinueCue();
+  },
+});
+window.gameNameGate = nameGate;
+
+// A conflict means the ledger now has this name under a different device (a
+// reset project, a restored backup). The local save is kept, the name is not:
+// the gate comes back and asks for another one.
+window.gameCloud.subscribe((snap) => {
+  if (snap.status === 'conflict' && snap.statusReason === 'taken' && !nameGate.isOpen) {
+    window.gameCloud.releaseIdentity();
+    nameGate.reopen('taken');
+  }
+});
+
+window.gameCloud.start().then((snap) => {
+  if (snap.hasIdentity) {
+    revealMainMenu();
+    refreshContinueCue();
+  } else {
+    nameGate.open({ focus: false });
+  }
+});
 
 /** Reveal the map with whatever the save now says. */
 function refreshMapAndShow() {

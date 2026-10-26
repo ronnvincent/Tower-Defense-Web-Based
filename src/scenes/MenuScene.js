@@ -42,7 +42,11 @@ export class MenuScene extends Phaser.Scene {
     // on this scene when a run ends (so no dead board keeps ticking behind the
     // map), and in that case the menu must stay down until it is asked for.
     const menuOverlay = document.getElementById('main-menu-overlay');
-    if (menuOverlay && !window.gameWorldMap?.isVisible) {
+    // Behind the name gate the menu stays down: `main.js` reveals it the moment
+    // the ledger accepts a commander name, so there is never a clickable menu
+    // for a player who has not been named.
+    const waitingForName = Boolean(window.gameCloud?.needsName);
+    if (menuOverlay && !window.gameWorldMap?.isVisible && !waitingForName) {
       menuOverlay.classList.remove('hidden');
     }
 

@@ -1574,3 +1574,173 @@ down with the `fx-skull` puff instead of a death animation. Casts are drawn by
 the scene's effect layer rather than by a dedicated cast row. A pack that
 carries those rows is a download-and-repack job, not something this pass
 pretended to ship.
+
+## 24. A ledger behind the name (Request 33)
+
+The brief: put the game on Supabase so progression and achievements survive the
+browser, make a commander name mandatory before the main menu — no password —
+and refuse a name that someone already owns; the shared ranking comes later but
+the numbers it will rank on have to exist now.
+
+"Database first" is how this was built: the schema and the client that talks to
+it, then the gate in front of the menu. No leaderboard redesign was attempted
+beyond making the existing Hall of Champions read from the ledger.
+
+### 24.1 The schema (`supabase/migrations/0001_cloud_save.sql`, 477 lines)
+
+Three tables:
+
+| table | rows | why |
+| --- | --- | --- |
+| `players` | one per commander | `username` + a lower-cased, unique `username_key`, the owning `device_key`, and the four published ranking numbers (`power`, `level`, `stars`, `best_score`) |
+| `progress` | one per player | the save file as `jsonb` plus a monotonically increasing `revision` |
+| `player_achievements` | one per medal | so the ranking can count medals without parsing the blob |
+
+and seven `security definer` functions with `search_path` pinned:
+
+`cloud_ping`, `check_username`, `register_player`, `sync_progress`,
+`pull_progress`, `leaderboard_page`, `my_rank`.
+
+`anon` and `authenticated` get **no table privileges at all** — `revoke all`
+followed by `grant execute` on the seven functions only. RLS is enabled on all
+three tables with zero policies, so even a leaked anon key reads nothing it was
+not given by a function. The whole file is idempotent and wrapped in
+`begin; … commit;`.
+
+Two rules live in SQL rather than in the client, because a client can be edited:
+
+- `sync_progress` clamps every metric upward (`greatest(...)`) so a stale device
+  cannot lower a row, and rejects payloads over 128 KB.
+- The ranking order is fixed: **power DESC, level DESC, stars DESC,
+  best_score DESC, created_at ASC, id ASC**.
+
+### 24.2 Why there is no password
+
+A name and nothing else cannot authenticate anything. Instead the browser mints
+a random `device_key` on first run, keeps it in `localStorage`, and presents it
+on every write. It is never returned by any function, so reading the leaderboard
+cannot leak someone else's key, and the tables are unreachable anyway. The name
+is claimed once; `register_player` answers `{ ok: false, reason: 'taken' }` for
+anybody else, including the same person on a different device.
+
+What that buys and what it costs is written down in `supabase/README.md`: losing
+site data means losing the right to write that row — the name stays taken, which
+is exactly the requested behaviour, but the save behind it becomes read-only.
+Cross-device restore would need a real auth provider or a recovery code, and
+pretending a name-only identity can do that would be a lie.
+
+### 24.3 The client
+
+`src/net/supabaseClient.js` (171 lines) is the whole network layer: seven
+`POST {url}/rest/v1/rpc/{fn}` calls, a 9 s timeout, and a `ping()` that requires
+`{ ok: true, schema: 1 }` before the app will trust the endpoint. No SDK was
+added — a dependency-free PostgREST call was smaller than `@supabase/supabase-js`
+and its auth/realtime/storage modules combined.
+
+`src/systems/CloudSave.js` (595 lines) owns identity, claiming, debounced pushes
+(4 s / 12 s / 30 s retries) and the leaderboard reads. `src/systems/PlayerMetrics.js`
+(117 lines) is the single place the ranking numbers are computed:
+
+```
+power = 120·heroRank + 90·petLevel + 60·relicLevel
+      + 100·star + 150·achievement + 2·gems + 40·endlessWave
+commanderLevel = 1 + clearedLevels + floor((totalStars − clearedLevels) / 3)   → max 9
+```
+
+One bug was found and fixed during testing rather than papered over: calling
+`claimName()` before `start()` had resolved produced a local-only identity and
+silently skipped the "is this name free" check. `claimName()` now pings once
+when a ledger is configured but not yet online, then decides.
+
+### 24.4 The gate
+
+`src/ui/NameGateUI.js` (237 lines) is the only gate in the app. It opens before
+the menu on a browser with no identity, live-checks the name after a 380 ms
+debounce (`THAT NAME IS FREE` / `THAT NAME IS ALREADY CARVED INTO THE LEDGER —
+PICK ANOTHER`), and on a taken submit it keeps the gate open, shakes the panel,
+clears the field and stores nothing.
+
+The first screenshot of this pass showed the form floating on a near-black void,
+because the menu art is hidden while the gate is open. The gate now carries the
+same `menu-scene` painting as the menu (keep, sky, wisps, torch, embers,
+vignette) behind a scrim, and the panel uses the carved `--ui-panel` frame that
+every other dialog uses instead of a flat dark plate. Two layout corrections
+came out of measuring rather than eyeballing:
+
+| viewport | panel | gate scroll | overflow |
+| --- | --- | --- | --- |
+| 1366×768 | 470×431 | 768 / 768 | none |
+| 844×390 | 520×292 | 390 / 390 | none |
+| 667×375 | 520×286 | 375 / 375 | none |
+| 390×844 | 362×454 | 844 / 844 | none |
+
+The 844×390 and 667×375 cases used to overflow by 40 px and 44 px; a
+`max-height: 560px` block shrinks the title, the blurb (clamped to two lines),
+the input and the submit, so landscape phones fit without a scrollbar. The blurb
+was also shortened for every size — the first version was three long sentences
+that read like a license agreement.
+
+### 24.5 The Hall of Champions
+
+`src/ui/LeaderboardUI.js` was rewritten around two tabs:
+
+- **REALM RANKING** — `leaderboard_page` + `my_rank`, with explicit
+  loading / error-with-retry / empty states, a highlighted `YOU` row and a
+  `YOU ARE #2 OF 3 · POWER 1,604 · LEVEL 4 · 5★ · 2 MEDALS` summary.
+- **THIS DEVICE** — the existing local records table and its merge-sort
+  telemetry, unchanged in spirit.
+
+The old initials prompt is gone: a run is recorded under the commander name,
+because there is now exactly one name. Rank badges are drawn plates
+(`.rank-chip`, gold / silver / bronze) rather than 🥇🥈🥉 — the emoji rendered as
+tofu boxes on a system without a colour-emoji font, which looked like damage.
+
+### 24.6 Verification
+
+- **Tests**: `tests/player-metrics.test.js` (7), `tests/cloud-save.test.js` (20,
+  fake client + fake storage + fake timers), `tests/cloud-contract.test.js` (11,
+  parses the SQL, the client and the stand-in and asserts they agree) and
+  `tests/name-gate.test.js` (10, real `index.html` markup in jsdom). The suite
+  went from 1308 to **1356 passing / 111 files**. `npm run build` is clean:
+  `index-CQg-xLkd.js` 614.11 kB (176.66 gzip), `phaser-DFK5Ua9d.js` 1208.06 kB
+  (332.17 gzip), `index-Kh05SKQT.css` 189.14 kB (37.26 gzip).
+- **Contract checks that now fail loudly if the three sides drift**: every RPC
+  the client calls exists in the SQL and in the stand-in, every `p_` parameter
+  is read, `anon` holds no table grant, RLS is on for all three tables, every
+  data function is `security definer`, and `username_key` / `device_key` are
+  unique.
+- **Live browser probe** (`/tmp/browser/gate.mjs`, vite dev on 4300 + stand-in
+  on 8791): fresh browser → gate open, menu hidden, `LEDGER · LOCAL STAND-IN`,
+  `status: online`; taken name → the refusal message live, then on submit the
+  same message, gate still open, `is-shaking`, **no** identity written, input
+  empty; free name → `THAT NAME IS FREE`, gate closes, menu opens, identity
+  `{ mode: 'cloud', claimed: true }`; reload → gate skipped, name kept; a save
+  bump → `revision 3`, `my_rank { rank 1, power 1604, level 4, stars 5,
+  achievements 2 }`; a second commander at 5,400 → board
+  `[(1, Borin, 5,400), (2, Aria, 1,604), (3, Keeper, 0)]`, modal rows
+  `1 Borin… / 2 Aria… YOU / 3 Keeper…`, `YOU ARE #2 OF 3 · POWER 1,604 ·
+  LEVEL 4 · 5★ · 2 MEDALS`. **0 console errors, 0 failed requests.**
+- **Production build**: `vite preview` on 4320 with the same seven-call path —
+  gate opens on the keep art, the panel's frame resolves to
+  `/assets/ui-kit/frame_panel.png`, a name claims through `/supabase-dev`,
+  menu opens, `mode: cloud`, **0 console errors, 0 failed requests**.
+
+### 24.7 What was not verified — and must not be claimed
+
+The SQL in this pass **has never been executed**. The sandbox cannot reach
+`*.supabase.co` (TLS to the project host is refused at the egress proxy, which
+`curl` confirms), there is no `psql` and no local Postgres, so nothing here
+proves the migration is valid Postgres, that the grants behave as intended, or
+that `security definer` + `search_path` is airtight in production.
+
+What stands in for that is a contract test and a stand-in server
+(`server/cloud-dev.mjs`, 325 lines, JSON-file backed, same seven functions) that
+the whole gate → claim → sync → ranking path was exercised against. The stand-in
+runs no SQL, enforces no RLS and is **not** Supabase; it proves the client's
+calls and the app's behaviour, not the database's.
+
+To close that gap the migration has to be applied to a real project
+(`supabase/README.md` §1) and the same probe re-run with
+`?supabase=<url>&key=<anon key>`. Until then the honest statement is: schema and
+client are written, wired, contract-checked and browser-verified against the
+stand-in — not against Postgres.

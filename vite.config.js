@@ -8,6 +8,15 @@ const pvpProxy = {
   '/pvp': { target: 'ws://127.0.0.1:8787', ws: true, changeOrigin: true },
 };
 
+// The local ledger stand-in (`npm run cloud:dev`, server/cloud-dev.mjs). It
+// speaks the same seven-function contract as the Supabase migration, so the
+// page only ever talks to its own origin and the preview works without a
+// Supabase project. A real project is configured with VITE_SUPABASE_URL +
+// VITE_SUPABASE_ANON_KEY and never touches this path.
+const cloudProxy = {
+  '/supabase-dev': { target: 'http://127.0.0.1:8791', changeOrigin: true },
+};
+
 export default defineConfig({
   // Relative base so the production build works from any sub-folder
   // (e.g. GitHub Pages or opening dist/ through a static file server).
@@ -16,7 +25,7 @@ export default defineConfig({
     open: false,
     // Allow proxied preview hosts (e.g. *.e2b.app) to reach the dev server.
     allowedHosts: true,
-    proxy: pvpProxy,
+    proxy: { ...pvpProxy, ...cloudProxy },
     watch: {
       ignored: ['**/*.zip', '**/src/assets/**', '**/scripts/**'],
     },
@@ -25,7 +34,7 @@ export default defineConfig({
     open: false,
     // Same public-preview contract as `dev`, plus the relay path.
     allowedHosts: true,
-    proxy: pvpProxy,
+    proxy: { ...pvpProxy, ...cloudProxy },
   },
   build: {
     outDir: 'dist',

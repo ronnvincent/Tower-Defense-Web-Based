@@ -44,6 +44,59 @@
         <div class="battle-loading-track"><i id="battle-loading-fill"></i></div>
       </div>
 
+      <!-- Name Gate — the ledger's first page.
+           A commander name is required before the main menu: it is the row the
+           shared ranking is keyed on, and it is claimed once, permanently. The
+           panel is inert markup; `src/ui/NameGateUI.js` owns the behaviour and
+           `src/main.js` decides when the menu behind it may be revealed. -->
+      <div id="name-gate" class="name-gate hidden" role="dialog" aria-modal="true" aria-labelledby="name-gate-title">
+        <!-- The same key art the menu uses, so the first screen a player ever
+             sees is the keep at dusk rather than a form in a void. Decorative
+             only: nothing here takes a pointer. -->
+        <div class="menu-scene name-gate-scene" aria-hidden="true">
+          <div class="menu-sky"></div>
+          <div class="menu-wisp menu-wisp--a"></div>
+          <div class="menu-wisp menu-wisp--b"></div>
+          <div class="menu-torch"></div>
+          <div class="menu-embers"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="menu-vignette"></div>
+          <div class="menu-stone"></div>
+        </div>
+        <div class="name-gate-backdrop" aria-hidden="true"></div>
+        <form id="name-gate-form" class="name-gate-panel" autocomplete="off" novalidate>
+          <p class="name-gate-eyebrow">THE KEEPER'S LEDGER</p>
+          <h2 class="name-gate-title" id="name-gate-title">NAME YOUR COMMANDER</h2>
+          <p class="name-gate-blurb">
+            Carved into the realm's ledger: it keys your save, your medals and the shared
+            ranking. Claimed once — it cannot be changed.
+          </p>
+
+          <label class="sr-only" for="name-gate-input">Commander name</label>
+          <input
+            id="name-gate-input"
+            class="name-gate-input"
+            type="text"
+            name="username"
+            maxlength="16"
+            minlength="3"
+            placeholder="COMMANDER NAME"
+            autocomplete="off"
+            autocapitalize="words"
+            spellcheck="false"
+            aria-describedby="name-gate-hint name-gate-status"
+          />
+          <button id="name-gate-submit" class="game-btn game-btn-primary name-gate-submit" type="submit">
+            CLAIM THIS NAME
+          </button>
+
+          <p class="name-gate-hint" id="name-gate-hint">
+            3–16 characters · letters, numbers, space, full stop, dash, underscore
+          </p>
+          <p class="name-gate-status" id="name-gate-status" role="status" aria-live="polite"></p>
+          <p class="name-gate-cloud" id="name-gate-cloud">LEDGER · CHECKING…</p>
+        </form>
+      </div>
+
       <!-- Main Menu — "the keep at dusk".
            Full-bleed key art, a gold campaign plaque and the hub folded into a
            3x2 iron grid. Every id src/main.js binds is still here exactly once,
