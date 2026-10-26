@@ -779,6 +779,39 @@ def _mark_quill():
     return img
 
 
+@_mark("sound")
+def _mark_sound():
+    """Audio on — a horn with three waves. Same grid as every other glyph, so
+    the menu's sound key and the fullscreen key read as one set."""
+    img, d = _units()
+    _px(d, 5, 13, 4, 6, (150, 160, 176, 255))
+    _px(d, 5, 13, 4, 1, (198, 208, 222, 255))
+    _px(d, 9, 10, 4, 12, GOLD)
+    _px(d, 9, 10, 4, 1, GOLD_LIT)
+    _px(d, 13, 8, 2, 16, GOLD_LIT)
+    _px(d, 13, 8, 1, 16, GOLD)
+    for x, y, h in ((18, 13, 6), (21, 10, 12), (24, 7, 18)):
+        _px(d, x, y, 1, h, GOLD)
+        _px(d, x, y, 1, 1, GOLD_LIT)
+        _px(d, x, y + h - 1, 1, 1, GOLD_DARK)
+    return img
+
+
+@_mark("muted")
+def _mark_muted():
+    """Audio off — the same horn, struck through. The slash is the signal, not
+    a dimmed colour, so it survives a greyscale or colour-blind view."""
+    img, d = _units()
+    _px(d, 5, 13, 4, 6, (110, 118, 130, 255))
+    _px(d, 9, 10, 4, 12, (152, 162, 178, 255))
+    _px(d, 13, 8, 2, 16, (186, 196, 212, 255))
+    for i in range(10):
+        _px(d, 12 + i, 23 - i, 2, 2, (198, 74, 88, 255))
+    for i in range(9):
+        _px(d, 13 + i, 22 - i, 1, 1, (236, 128, 138, 255))
+    return img
+
+
 @_mark("star")
 def _mark_star():
     img, d = _units()

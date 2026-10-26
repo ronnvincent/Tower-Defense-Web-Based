@@ -249,6 +249,35 @@ Manual checklist for a human browser session:
 
 ## 8. Campaign screens
 
+**Main menu — one plate** (`#main-menu-overlay`, styles under "MAIN MENU" in
+`src/style.css`)
+- The menu carries the title lockup (`DEFENSE / OF KINGDOM`, Cinzel Decorative
+  over the painted keep at dusk), the edition line, one gold plaque
+  (**PLAY CAMPAIGN**) and two iron keys: sound and fullscreen. Nothing else.
+  Daily, duel, War Room, Forge, medals, champions, codex, field manual and
+  credits all moved to the realm — one navigation layer, no second copy of a
+  feature.
+- The key art is a generated painting (`public/assets/ui-kit/menu-keep.jpg`,
+  1672×941), with `menu-stone.jpg` as a dark granite grain behind the title
+  (rebuilt by `scripts/build_menu_stone.py`, seeded and reproducible) and CSS
+  layers for fog, torchlight and embers. All animation is opacity/transform and
+  stops under reduced motion.
+- The line under PLAY is the only live number on the screen: `BEGIN A NEW
+  CAMPAIGN`, `CONTINUE · FROSTBITE HOLLOW`, or `CAMPAIGN COMPLETE`. It is derived
+  from the save and reads the same `currentObjective()` the map beacon does
+  (`src/ui/menuCue.js`, five tests), so the menu can never point at a different
+  stage than the realm.
+- Both utility keys use kit glyphs (`glyph_sound` / `glyph_muted` /
+  `glyph_expand`) from one path table, `src/ui/soundIcon.js`, so the menu key,
+  the map key and the muted state cannot drift apart. The muted state is a slash
+  through the horn, not a dimmed colour.
+- PLAY sets `is-leaving` (a 240 ms fade), then reveals the map underneath, so
+  the hand-off is a crossfade rather than a cut. `Esc`/`F` still work.
+- Type is self-hosted: eight OFL woff2 subsets in `public/fonts` replace the old
+  `fonts.googleapis.com` `@import`, so the first paint never waits on a third
+  party (and works offline). Rajdhani for body, Cinzel for headings, Cinzel
+  Decorative for the lockup.
+
 **World map — the hub** (`src/ui/WorldMapUI.js`, `src/data/worldMap.js`, styles
 under "WORLD MAP" in `src/style.css`)
 - One painted continent (1536×1024, `public/assets/worldmap/terrain-src.jpg`)
@@ -267,15 +296,24 @@ under "WORLD MAP" in `src/style.css`)
   stage name is the same size on a phone at min zoom; building labels fade in
   past 1.22× so the central kingdom stays readable when zoomed out.
 - The contextual panel is one card, hugged to its content, on the right at
-  ≥900 px and a bottom sheet (or a compact column on short landscape) below it.
-  It closes with BACK, Escape or a tap on empty ground and restores the camera
-  it borrowed.
+  ≥900 px, a bottom sheet on narrow screens and a right-hand column on short
+  landscape (844×390), where a full-width sheet would hide the map it belongs
+  to. It closes with BACK, Escape or a tap on empty ground and restores the
+  camera it borrowed. The zoom rail steps left of the panel (and moves to the
+  top-left on small screens) so the camera controls are never covered.
 - Every landmark leads somewhere that already existed: stage briefings deploy
   real `levelData` stages, the War Room opens the eight modes, the Royal Library
-  opens the codex + field manual, the Forge/Achievements/Champions' Hall open the
-  real screens (and return to the map, not the menu), the Shrine runs today's
-  real daily, and the Mirror Arena opens the duel lobby. No decorative landmark,
-  no dead button.
+  opens the codex + field manual, the Shrine runs today's real daily, and the
+  Mirror Arena opens the duel lobby. No decorative landmark, no dead button.
+- The Forge, Champions' Hall and Monument answer with **live save data**, not a
+  blurb (`src/ui/WorldPanels.js`): owned relic levels and the next price with
+  READY / N SHORT, the top three runs that really finished on this device, and
+  earned-vs-locked medals with their real conditions. Empty states say so in
+  words; nothing is ever granted from the map.
+- The castle's objective card has three honest states, not two: `NEXT OBJECTIVE`
+  (a real stage, with MARCH ON IT), `CAMPAIGN COMPLETE` (every stage cleared) and
+  `NO OPEN ROAD` (nothing to point at but the ledger is not full) — the copy is
+  decided by the same `campaignSummary()` as the fact rows above it.
 - Discovery: a first clear that opens a road pulses the new banner, rings a
   beacon on the current objective and prints one toast with the banked stars,
   gold, gems and the road that opened. The intro zoom plays once per session —

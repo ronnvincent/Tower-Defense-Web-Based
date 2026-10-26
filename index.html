@@ -66,31 +66,18 @@
               <path d="M4.6 6.2h12.8" stroke="rgba(255,235,180,0.45)" stroke-width="1" />
               <path d="M11 9.6l2.9 3.9-2.9 3.9-2.9-3.9z" fill="#e9c46a" opacity="0.92" />
             </svg>
-            <span class="menu-sigil-copy">
-              <span class="menu-sigil-name">TOWER DEFENSE</span>
-            </span>
           </div>
 
-          <!-- Live save data. The ids are written by refreshMenuSummary(). -->
-          <dl class="menu-summary" aria-label="Save summary">
-            <div class="menu-chip">
-              <dt><img src="/assets/ui-kit/glyph_star.png" alt="" /><span>STARS</span></dt>
-              <dd id="menu-stat-stars">0/0</dd>
-            </div>
-            <div class="menu-chip">
-              <dt><img src="/assets/ui-kit/glyph_gem.png" alt="" /><span>GEMS</span></dt>
-              <dd id="menu-stat-gems">0</dd>
-            </div>
-            <div class="menu-chip">
-              <dt><img src="/assets/ui-kit/glyph_medal.png" alt="" /><span>MEDALS</span></dt>
-              <dd id="menu-stat-medals">0/0</dd>
-            </div>
-          </dl>
-
-          <button id="menu-btn-fullscreen" class="menu-link-btn hidden" type="button">
-            <img src="/assets/ui-kit/glyph_expand.png" alt="" />
-            <span id="menu-fullscreen-label">FULLSCREEN</span>
-          </button>
+          <!-- Utility only. Every destination lives inside the Realm now. -->
+          <div class="menu-tools">
+            <button id="menu-btn-sound" class="menu-icon" type="button" aria-pressed="false" aria-label="Toggle sound">
+              <img id="menu-sound-img" src="/assets/ui-kit/glyph_sound.png" alt="" />
+            </button>
+            <button id="menu-btn-fullscreen" class="menu-icon hidden" type="button" aria-pressed="false">
+              <img src="/assets/ui-kit/glyph_expand.png" alt="" aria-hidden="true" />
+              <span class="sr-only" id="menu-fullscreen-label">FULLSCREEN</span>
+            </button>
+          </div>
         </header>
 
         <div class="menu-body">
@@ -101,84 +88,24 @@
               <span class="menu-title-main">OF KINGDOM</span>
             </h1>
             <div class="menu-rule" role="presentation"><i></i></div>
-            <p class="menu-lede">
-              Five realms, one gate. Hold the line, bank the stars, and come back tomorrow for a new rule.
+
+            <button id="menu-btn-play" class="menu-play" type="button">
+              <span class="menu-seal"><img src="/assets/ui-kit/glyph_keep.png" alt="" /></span>
+              <span class="menu-play-copy">
+                <span class="menu-play-main">PLAY CAMPAIGN</span>
+                <span class="menu-play-sub" id="menu-play-sub">ENTER THE REALM</span>
+              </span>
+            </button>
+
+            <p class="menu-footnote">
+              Five realms, one gate. The Forge, the War Room, the library and the shrine
+              all wait on the world map.
             </p>
-
-            <div class="menu-actions">
-              <button id="menu-btn-play" class="menu-play" type="button">
-                <span class="menu-seal"><img src="/assets/ui-kit/glyph_keep.png" alt="" /></span>
-                <span class="menu-play-copy">
-                  <span class="menu-play-main">PLAY</span>
-                  <span class="menu-play-sub">CAMPAIGN</span>
-                </span>
-                <svg class="menu-play-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                  <path d="M1.6 6.3h7.3V3.4L15 8l-6.1 4.6V9.7H1.6z" fill="currentColor" />
-                </svg>
-              </button>
-
-              <div class="menu-row">
-                <button id="menu-btn-daily" class="menu-daily" type="button">
-                  <img class="menu-daily-icon" src="/assets/ui-kit/glyph_calendar.png" alt="" />
-                  <span class="menu-daily-body">
-                    <span class="menu-daily-kicker">DAILY CHALLENGE</span>
-                    <span id="menu-daily-label">TODAY'S RULE</span>
-                  </span>
-                  <span id="menu-daily-streak" class="menu-badge hidden"></span>
-                </button>
-
-                <button id="menu-btn-duel" class="menu-duel" type="button">
-                  <img class="menu-duel-icon" src="/assets/ui-kit/glyph_swords.png" alt="" />
-                  <span class="menu-duel-body">
-                    <span class="menu-duel-kicker">MIRROR ARENA</span>
-                    <span class="menu-duel-title">DUEL · 1v1</span>
-                  </span>
-                </button>
-              </div>
-
-              <button id="menu-btn-modes" class="menu-modes" type="button">
-                <img class="menu-modes-icon" src="/assets/ui-kit/glyph_warroom.png" alt="" />
-                <span class="menu-modes-body">
-                  <span class="menu-modes-kicker">WAR ROOM</span>
-                  <span class="menu-modes-title">8 MODES · TITANS, CARDS, PUZZLES</span>
-                </span>
-                <span class="menu-modes-cta">OPEN</span>
-              </button>
-
-              <nav class="menu-tiles" aria-label="More destinations">
-                <button id="menu-btn-forge" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_anvil.png" alt="" />
-                  <span>FORGE</span>
-                </button>
-                <button id="menu-btn-achievements" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_medal.png" alt="" />
-                  <span>ACHIEVEMENTS</span>
-                </button>
-                <button id="menu-btn-leaderboard" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_crown.png" alt="" />
-                  <span>CHAMPIONS</span>
-                </button>
-                <button id="menu-btn-codex" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_book.png" alt="" />
-                  <span>CODEX</span>
-                </button>
-                <button id="menu-btn-how-to-play" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_scroll.png" alt="" />
-                  <span>HOW TO PLAY</span>
-                </button>
-                <button id="menu-btn-credits" class="menu-tile" type="button">
-                  <img src="/assets/ui-kit/glyph_quill.png" alt="" />
-                  <span>CREDITS</span>
-                </button>
-              </nav>
-            </div>
           </section>
         </div>
 
         <footer class="menu-footer">
-          <p class="menu-footnote">
-            Drag to pan · scroll or pinch to zoom · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> cancels
-          </p>
+          <p class="menu-hintline"><kbd>F</kbd> fullscreen · <kbd>Enter</kbd> select · sound at the top right</p>
         </footer>
       </div>
 

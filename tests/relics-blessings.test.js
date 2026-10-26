@@ -226,6 +226,41 @@ describe('ForgeUI', () => {
   });
 });
 
+describe('Relic saves', () => {
+  // Regression: load() used to coerce `profile.relics` to an array, so every
+  // purchased relic (and the gems paid for it) vanished on the next page load.
+  it('keeps purchased relic levels across a reload', () => {
+    const storage = fakeStorage();
+    const first = new ProgressStore({ storage });
+    first.profile.relics = { 'war-chest': 2, 'swift-hands': 1 };
+    first.save();
+
+    const reloaded = new ProgressStore({ storage });
+    expect(reloaded.profile.relics).toEqual({ 'war-chest': 2, 'swift-hands': 1 });
+    expect(relicLevel(reloaded.profile.relics, 'war-chest')).toBe(2);
+  });
+
+  it('migrates the oldest array-shaped save to level 1 each', () => {
+    const storage = fakeStorage();
+    storage.setItem(
+      'td-dsalgo:progress:v1',
+      JSON.stringify({ unlocked: ['level-1'], relics: ['war-chest', 'reinforced-core'] })
+    );
+    const reloaded = new ProgressStore({ storage });
+    expect(reloaded.profile.relics).toEqual({ 'war-chest': 1, 'reinforced-core': 1 });
+  });
+
+  it('drops junk levels instead of trusting the file', () => {
+    const storage = fakeStorage();
+    storage.setItem(
+      'td-dsalgo:progress:v1',
+      JSON.stringify({ relics: { 'war-chest': '3', broken: -2, nope: 'x' } })
+    );
+    const reloaded = new ProgressStore({ storage });
+    expect(reloaded.profile.relics).toEqual({ 'war-chest': 3 });
+  });
+});
+
 describe('BlessingsUI', () => {
   it('lists blessings and buys through the provider', () => {
     const container = mount();

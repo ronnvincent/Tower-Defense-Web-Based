@@ -128,7 +128,8 @@ rated **1–3 stars** on the core health you kept (≥ 85 % = 3★, ≥ 50 % = 2
 
 ### Mirror Arena — 1v1 PvP
 
-A second mode, opened from **DUEL · 1v1 LOBBY** on the main menu. Two players
+A second mode, opened from the **Mirror Arena** on the world map (the menu is
+title + PLAY CAMPAIGN only). Two players
 share one room: both defend a **rotationally symmetric 26 × 16 arena** (73 % more
 ground than a campaign map) against the **identical 10-wave script** — seven
 pressure waves, two *bounty* waves and a boss — fight the same bosses, and start

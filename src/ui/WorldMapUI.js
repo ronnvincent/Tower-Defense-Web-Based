@@ -43,9 +43,17 @@ import {
 import { getLevel } from '../data/levelData.js';
 import { MODES } from '../data/modeData.js';
 import { missionBriefingMarkup, stateLabel } from './MissionBriefingUI.js';
+import {
+  forgeMarkup,
+  championsMarkup,
+  monumentMarkup,
+  objectiveMarkup,
+  recentMedalsMarkup,
+} from './WorldPanels.js';
 import { starSummary } from '../systems/Progression.js';
 import { dailyRun } from '../systems/DailyChallenge.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { SOUND_ON, soundIcon } from './soundIcon.js';
 
 /** How far past `minScale` the camera may go (clamped again in `measure`). */
 const MAX_ZOOM_FACTOR = 3.2;
@@ -176,7 +184,7 @@ export class WorldMapUI {
         </div>
         <div class="wm-tools">
           <button id="wm-sound" class="wm-icon" type="button" aria-label="Toggle sound" aria-pressed="false">
-            <img id="wm-sound-img" src="/assets/ui/icon_audio_on.png" alt="" />
+            <img id="wm-sound-img" src="${SOUND_ON}" alt="" />
           </button>
           <button id="wm-fullscreen" class="wm-icon" type="button" aria-label="Toggle fullscreen" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -704,6 +712,16 @@ export class WorldMapUI {
         return this.shrineMarkup();
       case 'arena':
         return this.arenaMarkup();
+      case 'forge':
+        return forgeMarkup({ progress: this.progress, landmark });
+      case 'champions':
+        return championsMarkup({
+          progress: this.progress,
+          records: this.callbacks.records?.() || [],
+          landmark,
+        });
+      case 'monument':
+        return monumentMarkup({ progress: this.progress, landmark });
       default:
         return this.destinationMarkup(landmark);
     }
@@ -721,25 +739,25 @@ export class WorldMapUI {
   overviewMarkup() {
     const summary = campaignSummary(this.progress);
     const objective = currentObjective(this.progress);
-    const objectiveName = objective ? objective.name.toUpperCase() : 'CAMPAIGN COMPLETE';
+    const recent = this.progress?.profile?.achievements || [];
     return `
       ${this.cardHead('THE KEEP · REALM OVERVIEW', 'Bastion Castle', 'THE BASTION')}
       <p class="wm-card-blurb">The last keep holds the realm's ledger: every star banked, every
         medal struck, and the next road worth marching.</p>
+      ${objectiveMarkup(objective, this.progress, summary)}
       <dl class="wm-facts">
         <div class="wm-fact"><dt>STARS</dt><dd>${summary.stars} / ${summary.maxStars}</dd></div>
         <div class="wm-fact"><dt>CAMPAIGN</dt><dd>${summary.cleared} / ${summary.total} cleared</dd></div>
         <div class="wm-fact"><dt>GOLD</dt><dd>${summary.gold.toLocaleString('en-US')}</dd></div>
         <div class="wm-fact"><dt>GEMS</dt><dd>${summary.gems}</dd></div>
         <div class="wm-fact"><dt>MEDALS</dt><dd>${summary.medals} / ${summary.maxMedals}</dd></div>
-        <div class="wm-fact"><dt>OBJECTIVE</dt><dd class="wm-fact-accent">${objectiveName}</dd></div>
       </dl>
+      ${
+        recent.length
+          ? `<p class="wm-subhead">LATEST MEDALS</p>${recentMedalsMarkup(this.progress)}`
+          : ''
+      }
       <footer class="wm-card-actions">
-        ${
-          objective
-            ? '<button id="wm-goal" class="wm-btn wm-btn--primary" type="button">GO TO OBJECTIVE</button>'
-            : ''
-        }
         <button id="wm-warroom" class="wm-btn" type="button">WAR ROOM</button>
         <button id="wm-panel-close" class="wm-btn" type="button">CLOSE</button>
       </footer>`;
@@ -1080,7 +1098,7 @@ export class WorldMapUI {
   setSoundState(muted) {
     const img = this.el?.querySelector('#wm-sound-img');
     const btn = this.el?.querySelector('#wm-sound');
-    if (img) img.src = muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
+    if (img) img.src = soundIcon(muted);
     btn?.setAttribute('aria-pressed', String(Boolean(muted)));
   }
 

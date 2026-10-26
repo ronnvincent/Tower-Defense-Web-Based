@@ -8,6 +8,7 @@ import { LeaderboardUI } from './ui/LeaderboardUI.js';
 import { StatisticsPanel } from './ui/StatisticsPanel.js';
 import { Leaderboard } from './systems/Leaderboard.js';
 import { WorldMapUI } from './ui/WorldMapUI.js';
+import { continueCue } from './ui/menuCue.js';
 import { ResultScreenUI } from './ui/ResultScreenUI.js';
 import { PvpLobbyUI } from './ui/PvpLobbyUI.js';
 import { DuelResultUI } from './ui/DuelResultUI.js';
@@ -22,6 +23,7 @@ import { getNextLevel, getLevel } from './data/levelData.js';
 import { MODES, MODE_KINDS } from './data/modeData.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
+import { soundIcon } from './ui/soundIcon.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
 import { DisplayGateUI } from './ui/DisplayGateUI.js';
@@ -120,11 +122,9 @@ function restoreAfterPanel({ refresh = true } = {}) {
     if (refresh) refreshMapAndShow();
     return;
   }
-  if (refresh) {
-    refreshDailyButton();
-    refreshMenuSummary();
-  }
+  if (refresh) refreshRealmLedger();
   menuOverlay()?.classList.remove('hidden');
+  window.gameWorldMap?.hide?.();
   hudLayer()?.classList.add('hidden');
 }
 
@@ -166,7 +166,6 @@ function showLevelSelect({ arrival = null } = {}) {
 }
 
 function openLevelSelect() {
-  refreshDailyButton();
   audio.playClick();
   showLevelSelect();
 }
@@ -228,52 +227,41 @@ function startLevel(levelId = 'level-1', options = {}) {
 }
 
 /**
- * Refresh the Daily Challenge button: streak flame, today's modifier and
- * whether the day is already claimed. Called on boot and whenever the menu is
- * shown, because midnight can pass while the tab is open.
+ * Today's real daily run, read from the calendar and the save file.
+ *
+ * The main menu no longer carries a daily button, so this is the single reader
+ * for the shrine on the world map (and for the map's own shrine panel, which
+ * computes the same thing from the same module).
  */
-function refreshDailyButton() {
+function dailyRunForToday() {
   const daily = window.gameDaily;
-  const btn = document.getElementById('menu-btn-daily');
-  if (!daily || !btn) return null;
+  if (!daily) return null;
   const run = dailyRun({
     unlockedIds: window.gameProgress ? window.gameProgress.profile.unlocked : ['level-1'],
   });
-  const streak = daily.currentStreak(run.key);
-  const won = daily.isWon(run.key);
-  const label = document.getElementById('menu-daily-label');
-  const badge = document.getElementById('menu-daily-streak');
-  // The kicker ("DAILY CHALLENGE") is static markup, so the label only carries
-  // today's rule — no more "DAILY: DAILY: MIDAS RUSH" on a two-line button.
-  if (label) label.textContent = won ? 'CLEARED TODAY' : run.modifier.name.toUpperCase();
-  // The flame is the .menu-badge::before mark, not an emoji: the badge is a
-  // struck amber tag and emoji render as full-colour glyphs inside it.
-  if (badge) {
-    badge.textContent = streak > 0 ? String(streak) : '';
-    badge.classList.toggle('hidden', streak <= 0);
-  }
-  btn.classList.toggle('daily-claimed', won);
-  btn.title = won
-    ? `${run.modifier.name} — cleared today. Replays pay no extra gems.`
-    : `${run.modifier.name}: ${run.modifier.blurb}`;
-  btn.dataset.level = run.levelId;
+  return { ...run, streak: daily.currentStreak(run.key), won: daily.isWon(run.key) };
+}
+
+/**
+ * Start today's run. Recording the play is what keeps the streak alive; the
+ * gems pay out on the win, in GameScene, exactly as they always have.
+ */
+function launchDaily() {
+  const run = dailyRunForToday();
+  if (!run) return null;
+  window.gameDaily?.recordPlay(run.key);
+  startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
   return run;
 }
 
 /**
- * Paint the menu's save summary (stars / gems / medals). Idempotent and cheap:
- * the menu re-reads it every time it is revealed, so a victory that just
- * banked stars is already reflected when the card drops in.
+ * Re-read the ledger on the world map. Every screen that can change gold, gems,
+ * stars or medals calls this on the way out, so the realm never shows a stale
+ * number (the Forge used to repaint the menu's three chips; those chips now
+ * live on the map).
  */
-function refreshMenuSummary() {
-  const progress = window.gameProgress;
-  if (!progress) return;
-  const stars = document.getElementById('menu-stat-stars');
-  const gems = document.getElementById('menu-stat-gems');
-  const medals = document.getElementById('menu-stat-medals');
-  if (stars) stars.textContent = `${progress.totalStars}/${progress.maxStars}`;
-  if (gems) gems.textContent = String(progress.gems);
-  if (medals) medals.textContent = `${progress.profile.achievements?.length || 0}/${ACHIEVEMENTS.length}`;
+function refreshRealmLedger() {
+  window.gameWorldMap?.refresh?.();
 }
 
 /**
@@ -353,8 +341,8 @@ function leaveDuelRoom() {
 
 function openMainMenu() {
   navReturn = 'menu';
-  refreshDailyButton();
-  refreshMenuSummary();
+  refreshRealmLedger();
+  syncSoundButtons();
   window.gameResultScreen?.hide?.();
   window.gameWorldMap?.hide?.();
   hudLayer()?.classList.add('hidden');
@@ -365,6 +353,7 @@ function openMainMenu() {
   // hides it, and if the menu scene is still parked behind the map then
   // create() never runs again and the player would land on a black stage.
   menuOverlay()?.classList.remove('hidden');
+  refreshContinueCue();
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
     gameScene.scene.start('MenuScene'); // stops the battle, then boots the menu
@@ -396,7 +385,7 @@ window.gameForge = new ForgeUI(screenContainer, window.gameProgress, {
   // The Forge is reachable from the menu *and* the map; the close handler has
   // to hand the player back to whichever one opened it.
   onClose: () => restoreAfterPanel(),
-  onPurchase: () => refreshMenuSummary(),
+  onPurchase: () => refreshRealmLedger(),
 });
 
 // The blessings panel is in-battle UI: it reads the live scene rather than a
@@ -432,13 +421,11 @@ window.gameWorldMap = new WorldMapUI(
   window.gameProgress,
   {
     daily: window.gameDaily,
+    // Champions' Hall reads the same board the LeaderboardUI shows. A getter,
+    // so a run finished after the map was built is on the wall when you look.
+    records: () => globalLeaderboard.getTop(3),
     onDeploy: (levelId) => startLevel(levelId),
-    onDaily: () => {
-      const run = refreshDailyButton();
-      if (!run) return;
-      window.gameDaily?.recordPlay(run.key);
-      startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
-    },
+    onDaily: () => launchDaily(),
     onDuel: () => window.gamePvpLobby?.show(),
     onWarRoom: () => window.gameModes?.show(),
     onMode: (modeId) => launchModeFromMap(modeId),
@@ -464,7 +451,11 @@ window.gameWorldMap = new WorldMapUI(
     },
     onMenu: () => openMainMenu(),
     onCredits: () => document.getElementById('credits-modal')?.classList.remove('hidden'),
-    onSound: () => audio.toggleMute(),
+    onSound: () => {
+      const muted = audio.toggleMute();
+      syncSoundButtons();
+      return muted;
+    },
     onFullscreen: () => void fullscreen.toggle(),
   }
 );
@@ -759,62 +750,90 @@ function bindGateToGameScene() {
 bindGateToGameScene();
 game.events.once('ready', bindGateToGameScene);
 
-// Paint the daily button and the save summary once at boot; both depend on the
-// calendar and the save file, which are ready by now.
-refreshDailyButton();
-refreshMenuSummary();
+// The world map owns the ledger now; paint it once the save is loaded so the
+// first reveal of the realm is already right.
+refreshRealmLedger();
+syncSoundButtons();
+refreshContinueCue();
 
-// 5. Bind Main Menu Actions
+// ---------------------------------------------------------------- main menu
+//
+// The menu is title + PLAY CAMPAIGN + two utility keys. Every other
+// destination (daily, duel, war room, forge, medals, champions, codex, manual,
+// credits) moved onto the world map, so there is exactly one navigation layer
+// and no second copy of a feature.
+
+const prefersReducedMotion = () =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Paint both sound keys (menu + map) from the one AudioSynth singleton. */
+function syncSoundButtons() {
+  const muted = Boolean(audio.muted);
+  for (const [btnId, imgId] of [
+    ['menu-btn-sound', 'menu-sound-img'],
+    ['wm-sound', 'wm-sound-img'],
+  ]) {
+    const btn = document.getElementById(btnId);
+    const img = document.getElementById(imgId);
+    if (btn) btn.setAttribute('aria-pressed', String(muted));
+    if (img) {
+      const next = soundIcon(muted);
+      if (!img.getAttribute('src')?.endsWith(next.split('/').pop())) img.setAttribute('src', next);
+    }
+  }
+}
+
+/**
+ * The plate's second line: where the next march actually goes.
+ *
+ * This is the continue cue — the only piece of live save data left on the menu,
+ * and it exists because "PLAY CAMPAIGN" alone cannot tell a returning keeper
+ * whether they are resuming or starting over. It reads the same
+ * `currentObjective()` the map's beacon and the castle panel use, so the menu,
+ * the map marker and the objective card can never disagree.
+ */
+function refreshContinueCue() {
+  const el = document.getElementById('menu-play-sub');
+  if (el) el.textContent = continueCue(window.gameProgress);
+}
+
+let menuLeaving = false;
+
+/** Fade the menu out, then reveal the realm behind it. */
+function enterRealm() {
+  if (menuLeaving) return;
+  const overlay = menuOverlay();
+  // PLAY opens the world map; the map is where a level is actually chosen.
+  if (!overlay || prefersReducedMotion()) {
+    showLevelSelect();
+    return;
+  }
+  menuLeaving = true;
+  overlay.classList.add('is-leaving');
+  setTimeout(() => {
+    overlay.classList.remove('is-leaving');
+    menuLeaving = false;
+    showLevelSelect();
+  }, 240);
+}
+
 document.getElementById('menu-btn-play')?.addEventListener('click', () => {
   // Must happen synchronously inside the click handler to count as a gesture.
   void fullscreen.request();
-  // PLAY opens the world map; the map is where a level is actually chosen.
-  openLevelSelect();
+  audio.playClick();
+  enterRealm();
+});
+
+document.getElementById('menu-btn-sound')?.addEventListener('click', () => {
+  audio.toggleMute();
+  audio.playClick();
+  syncSoundButtons();
 });
 
 document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => {
   audio.playClick();
   void fullscreen.toggle();
-});
-
-document.getElementById('menu-btn-daily')?.addEventListener('click', () => {
-  audio.playClick();
-  // Must happen inside the gesture, like PLAY.
-  void fullscreen.request();
-  const run = refreshDailyButton();
-  if (!run) return;
-  // Starting the run is what keeps the streak alive — winning pays the gems.
-  window.gameDaily?.recordPlay(run.key);
-  startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
-});
-
-document.getElementById('menu-btn-duel')?.addEventListener('click', () => {
-  audio.playClick();
-  window.gamePvpLobby?.show();
-});
-
-document.getElementById('menu-btn-modes')?.addEventListener('click', () => {
-  audio.playClick();
-  window.gameModes?.show();
-});
-
-document.getElementById('menu-btn-achievements')?.addEventListener('click', () => {
-  audio.playClick();
-  menuOverlay()?.classList.add('hidden');
-  hudLayer()?.classList.add('hidden');
-  window.gameAchievements?.show();
-});
-
-document.getElementById('menu-btn-forge')?.addEventListener('click', () => {
-  audio.playClick();
-  menuOverlay()?.classList.add('hidden');
-  hudLayer()?.classList.add('hidden');
-  window.gameForge?.show();
-});
-
-document.getElementById('menu-btn-how-to-play')?.addEventListener('click', () => {
-  audio.playClick();
-  document.getElementById('instructions-modal')?.classList.remove('hidden');
 });
 
 document.getElementById('btn-close-how')?.addEventListener('click', () => {
@@ -824,19 +843,6 @@ document.getElementById('btn-close-how')?.addEventListener('click', () => {
 document.getElementById('btn-done-how')?.addEventListener('click', () => {
   audio.playClick();
   document.getElementById('instructions-modal')?.classList.add('hidden');
-});
-
-document.getElementById('menu-btn-leaderboard')?.addEventListener('click', () => {
-  window.gameLeaderboardUI.show();
-});
-
-document.getElementById('menu-btn-codex')?.addEventListener('click', () => {
-  window.gameCodex.show();
-});
-
-document.getElementById('menu-btn-credits')?.addEventListener('click', () => {
-  audio.playClick();
-  document.getElementById('credits-modal')?.classList.remove('hidden');
 });
 
 document.getElementById('btn-close-credits')?.addEventListener('click', () => {

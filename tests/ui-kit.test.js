@@ -115,14 +115,33 @@ describe('UI kit — 9-slice geometry', () => {
   });
 });
 
-describe('Main menu — wiring contract', () => {
-  // Every id src/main.js binds must exist once in the markup: the menu is the
-  // only way into the game, so a renamed button is a soft-lock.
+describe('Main menu — one plate, two keys', () => {
+  // The menu is title + PLAY CAMPAIGN + sound/fullscreen. Every other
+  // destination moved to the world map, so these are the only ids it may bind.
   const wiredIds = [...main.matchAll(/getElementById\('(menu-[a-z-]+)'\)/g)].map((m) => m[1]);
   const uniqueWired = [...new Set(wiredIds)];
+  const RETIRED = [
+    'daily',
+    'duel',
+    'modes',
+    'forge',
+    'achievements',
+    'leaderboard',
+    'codex',
+    'how-to-play',
+    'credits',
+  ];
 
-  it('binds at least the nine original destinations', () => {
-    expect(uniqueWired.length).toBeGreaterThanOrEqual(9);
+  it('binds the campaign plate and the two utility keys, and nothing else', () => {
+    expect(uniqueWired.sort()).toEqual([
+      'menu-btn-fullscreen',
+      'menu-btn-play',
+      'menu-btn-sound',
+      // the screen-reader label inside the fullscreen key, not a destination
+      'menu-fullscreen-label',
+      // the continue cue under PLAY CAMPAIGN — copy, not a destination
+      'menu-play-sub',
+    ]);
   });
 
   for (const id of uniqueWired) {
@@ -132,16 +151,61 @@ describe('Main menu — wiring contract', () => {
     });
   }
 
-  it('keeps PLAY as the only primary plate and the hub as a tile nav', () => {
+  it('carries the title and one primary plate', () => {
+    expect(html).toContain('class="menu-main-title"');
     expect(html).toContain('class="menu-play"');
-    // Six secondary destinations, all tiles — no stacked full-width buttons.
-    const tiles = html.match(/class="menu-tile"/g) || [];
-    expect(tiles.length).toBe(6);
+    expect(html).toContain('PLAY CAMPAIGN');
+    expect(html).toContain('DSALGO BASTION EDITION');
   });
 
-  it('does not reintroduce the old scrolling button column', () => {
+  it('drops every retired destination from the markup', () => {
+    for (const slug of RETIRED) {
+      expect(html, `#menu-btn-${slug} is still in the menu`).not.toContain(`id="menu-btn-${slug}"`);
+    }
+    // …and the tile wall that used to hold four of them.
+    expect(html.match(/class="menu-tile"/g) || []).toEqual([]);
+    expect(css).not.toMatch(/\.menu-tile/);
     expect(html).not.toContain('menu-btn-list');
-    expect(css).not.toContain('.menu-btn-list');
+  });
+
+  it('moves the save ledger onto the world map', () => {
+    const map = read('src/ui/WorldMapUI.js');
+    // Resources and progress live on the realm now — the menu shows none.
+    expect(map).toContain('id="wm-gold"');
+    expect(map).toContain('id="wm-gems"');
+    expect(map).toContain('id="wm-stars"');
+    expect(html).not.toContain('menu-stat-');
+  });
+
+  it('keeps every retired feature reachable from a realm landmark', () => {
+    const map = read('src/ui/WorldMapUI.js');
+    const data = read('src/data/worldMap.js');
+    // Navigate-only buildings keep their real target ids…
+    for (const target of ['forge', 'achievements', 'leaderboard']) {
+      expect(data, `${target} has no landmark target`).toContain(`target: '${target}'`);
+    }
+    // …and the panels with their own screen bind a callback, not a menu button.
+    for (const hook of ['onWarRoom', 'onLibrary', 'onDaily', 'onDuel', 'onNavigate']) {
+      expect(map, `${hook} is not wired`).toContain(hook);
+    }
+    expect(html).toContain('id="world-map-root"');
+  });
+
+  it('keeps the sound key pointing at a real icon pair from the same kit', () => {
+    expect(html).toContain('id="menu-sound-img"');
+    // One source of truth for the two glyphs, shared by the menu key and the
+    // map key, so a muted game can never show a speaker with waves.
+    const icons = read('src/ui/soundIcon.js');
+    expect(icons).toContain("'/assets/ui-kit/glyph_sound.png'");
+    expect(icons).toContain("'/assets/ui-kit/glyph_muted.png'");
+    expect(existsSync('public/assets/ui-kit/glyph_sound.png')).toBe(true);
+    expect(existsSync('public/assets/ui-kit/glyph_muted.png')).toBe(true);
+    expect(main).toContain('soundIcon(');
+    expect(read('src/ui/WorldMapUI.js')).toContain('soundIcon(');
+    // The kit draws them: a sound key in the same 32-unit grid as the rest.
+    const kit = read('scripts/build_ui_kit.py');
+    expect(kit).toContain('@_mark("sound")');
+    expect(kit).toContain('@_mark("muted")');
   });
 });
 

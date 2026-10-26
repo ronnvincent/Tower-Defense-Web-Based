@@ -86,7 +86,7 @@ export function createProfile() {
     campaignComplete: false,
     achievements: [], // ids already paid out
     stats: { ...DEFAULT_STATS },
-    relics: [], // forge purchases (Sprint 3)
+    relics: {}, // forge purchases: { relicId: level }
   };
 }
 
@@ -113,7 +113,25 @@ export class ProgressStore {
         ? Array.from(new Set(['level-1', ...parsed.unlocked]))
         : ['level-1'];
       profile.achievements = Array.isArray(parsed.achievements) ? [...parsed.achievements] : [];
-      profile.relics = Array.isArray(parsed.relics) ? [...parsed.relics] : [];
+      // Relics are `{ relicId: level }`. This used to force an array, which
+      // silently threw away every purchased relic on the next page load — the
+      // gems were spent and the level was gone. Keep both shapes readable:
+      // an array is the oldest save format and means "owned, level 1".
+      const savedRelics = parsed.relics;
+      if (Array.isArray(savedRelics)) {
+        profile.relics = Object.fromEntries(
+          savedRelics.filter((id) => typeof id === 'string' && id).map((id) => [id, 1])
+        );
+      } else if (savedRelics && typeof savedRelics === 'object') {
+        const clean = {};
+        for (const [id, level] of Object.entries(savedRelics)) {
+          const value = Math.floor(Number(level));
+          if (id && Number.isFinite(value) && value > 0) clean[id] = value;
+        }
+        profile.relics = clean;
+      } else {
+        profile.relics = {};
+      }
       profile.stats = { ...DEFAULT_STATS, ...(parsed.stats || {}) };
       return profile;
     } catch {

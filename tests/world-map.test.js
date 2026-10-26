@@ -94,13 +94,15 @@ describe('world map data', () => {
       'library',
       'shrine',
       'arena',
-      'destination',
+      'forge',
+      'champions',
+      'monument',
     ]);
     const targets = new Set(['forge', 'achievements', 'leaderboard']);
     for (const entry of LANDMARKS) {
       expect(panels.has(entry.panel), `${entry.id} panel "${entry.panel}"`).toBe(true);
       if (entry.panel === 'briefing') expect(entry.levelId).toBeTruthy();
-      if (entry.panel === 'destination') expect(targets.has(entry.target)).toBe(true);
+      if (entry.target) expect(targets.has(entry.target), `${entry.id} → ${entry.target}`).toBe(true);
     }
     // The castle is the overview, and it is the only one.
     expect(LANDMARKS.filter((entry) => entry.panel === 'overview')).toHaveLength(1);

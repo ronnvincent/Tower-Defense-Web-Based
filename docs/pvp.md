@@ -6,7 +6,8 @@ script at the same time. Nothing is sent between players except readiness, the
 arena pick and each seat's result — there are no units to send, no map to
 sabotage, and therefore no way for a match to be decided by latency.
 
-The mode lives on the main menu as **DUEL · 1v1 LOBBY**.
+The mode lives on the world map as the **Mirror Arena**. (The main menu is
+title + PLAY CAMPAIGN only; every secondary destination moved into the realm.)
 
 ---
 

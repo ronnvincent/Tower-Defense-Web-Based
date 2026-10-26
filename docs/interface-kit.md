@@ -54,9 +54,16 @@ already used, so swapping art touched no layout:
 | `card_crimson.png` | 281×342 | `35 30` | boss banner |
 | `slot.png` | 137×148 | `20` | stat chips, icon sockets, inputs |
 | `slot_sel.png` | 138×148 | `20` | wave badge, selected card |
-| `glyph_*.png` | 64×64 | — | menu tiles, daily icon |
+| `glyph_*.png` | 64×64 | — | menu keys, realm panels, mode sigils (46 marks) |
 | `cursor*.png` | 32×32 | — | gold crosshair |
 | `fx_ring.png`, `fx_glow.png` | 128×128 | — | in-canvas shockwaves / boss halo |
+| `menu-stone.jpg` | 640×1024 | — | granite film behind the title (not a 9-slice) |
+
+The two sound keys are glyphs from this same grid — `glyph_sound.png` (horn and
+three waves) and `glyph_muted.png` (the same horn struck through) — so the menu's
+sound key, the map's sound key and the fullscreen key read as one set. The muted
+state is the *slash*, not a dimmed colour, so it survives greyscale.
+`src/ui/soundIcon.js` is the only place their paths are written down.
 
 Design language, applied consistently:
 
@@ -73,7 +80,11 @@ Design language, applied consistently:
 
 ```bash
 python3 scripts/build_ui_kit.py --preview /tmp/ui-kit.png   # needs Pillow
+python3 scripts/build_menu_stone.py                          # seeded granite slab
 ```
+
+Both are deterministic: rebuilding from the same source produces byte-identical
+files, so a rebuild never churns the repo.
 
 The script prints the **measured average colour of each plate**. Those numbers are the
 `SURFACES` table in `scripts/check-contrast.mjs`: the audit must measure the art that is
@@ -109,37 +120,40 @@ Measured pairs (all ≥ 4.5:1, `npm run check:contrast`, 47 pairs):
 **Before:** one column, nine full-width peach buttons, inner scrollbar overlapping the
 title, no hierarchy.
 
-**After:** two columns on anything wider than 620 px, one column below.
+**Now (request 14):** one plate, one action.
 
 ```
-┌───────────────────────────────┬──────────────────────────────────┐
-│ DSALGO BASTION EDITION        │  ██████  PLAY  (gold)  ██████    │
-│ TOWER                         │  [ daily challenge · streak ]    │
-│ DEFENSE                       │  [forge] [medals] [champions]    │
-│ ─────◆─────                   │  [codex] [how to] [credits]      │
-│ one line of flavour           │  [ fullscreen ]                  │
-│ STARS 12/45 GEMS 73 MEDALS…   │                                  │
-│ controls hint                 │                                  │
-└───────────────────────────────┴──────────────────────────────────┘
+        ┌──────────────────────────────────────────────┐
+        │              D E F E N S E                   │
+        │            OF KINGDOM                        │
+        │        ── DSALGO BASTION EDITION ──          │
+        │                                              │
+        │        ████  PLAY CAMPAIGN  ████             │
+        │        return to the realm · 12/45 stars      │
+        │                                          ◉ ◉ │  ← sound · fullscreen
+        └──────────────────────────────────────────────┘
 ```
 
 Why this is more usable:
 
-- **One primary action.** PLAY is the only gold plate on the screen; the eye lands there
-  first instead of parsing nine equal buttons.
-- **Nothing scrolls.** The card is `max-height: 100%` with the hub sized in `clamp()` /
-  `vh` units; on a 360 px-tall landscape phone the content is ~300 px, so the inner
-  scrollbar (and the clipped title) is gone.
-- **Six destinations keep their labels** but ride as 52 px+ tiles — thumb-sized, uniform,
-  and each one recognisable by glyph before the label is read.
-- **The daily is promoted**, because it is the only button with a *reason to return
-  tomorrow*: it shows today's modifier name and the streak flame inline.
-- **The save summary is on the front door**: stars, gems and medals are visible without
-  opening a submenu.
-- **Fullscreen is demoted to a small pill**, not one of nine equal actions.
+- **One action.** PLAY CAMPAIGN is the only plaque on the screen. Every other
+  destination (daily, duel, War Room, Forge, medals, champions, codex, field manual,
+  credits) lives on the world map, in a place that looks like what it does.
+- **Nothing to parse.** No second navigation row, no secondary button grid, no save
+  summary competing with the title — the wallets (gold/gems/stars) moved onto the map
+  top bar, where the campaign actually is.
+- **Two utilities stay**, as 44 px icon keys in the corner: sound and fullscreen.
+  They are settings, not destinations, and they had nowhere else to live before a
+  profile exists.
+- **The title is the composition.** A Cinzel Decorative lockup over the painted keep,
+  a granite grain plate behind it (`scripts/build_menu_stone.py`, seeded), fog and
+  embers at rest — the plate is a painting, not a button list on a gradient.
+- **One line of guidance** under the plaque: the campaign totals, or "begin a new
+  campaign" on a fresh save. It is the only number on the screen and it is live.
 
-Markup lives in `index.html`, styles in the `MAIN MENU` block of `src/style.css`, and
-`src/main.js` still binds the same ids — plus `refreshMenuSummary()` for the three chips.
+Markup lives in `index.html` (`#menu-btn-play`, `.menu-tools`), styles in the
+`MAIN MENU` block of `src/style.css`, and `src/main.js` binds the ids and keeps
+`syncSoundButtons()` in step with the audio state.
 
 The key art sits behind two scrims: a radial warm corner and a vertical darkening
 pass, so the text never fights the image. (§8 replaced the original `menu-bg.jpg`.)
@@ -211,25 +225,32 @@ the *page*, not the palette.
 
 ### What changed
 
+The menu went through two passes. The first gave it materials; the second
+(request 14) cut it down to one action and moved every destination into the realm.
+
 | Area | Before | After |
 |---|---|---|
 | Background | near-black, `menu-bg.jpg` barely visible | `menu-keep.jpg` — a painted keep cliff at dusk, full-bleed, with a slow 78 s drift |
-| Left column | centred card | carved ashlar (`menu-stone.jpg`) over the art, masked so it dissolves right |
+| Left column | centred form card | a dark granite film (`menu-stone.jpg`) over the art, masked so it dissolves right |
 | Title | `TOWER` / `DEFENSE` stacked in one gold-bar plate | `DEFENSE` / `OF KINGDOM` gold-leaf lockup in `Cinzel Decorative` |
-| Primary action | gold bar with the rest of the column | `plaque_gold.png` — struck metal, engraved double rule, corner studs, seal, engraved arrow |
-| Modes | crimson/steel bars | `plaque_crimson` (Mirror Arena), `plaque_steel` (Daily), `plaque_dark` (War Room) |
-| Hub | 3×2 iron tiles | same grid, on the lighter `plate_tile` so it reads as objects on the scrim |
-| HUD | save summary inside the card | save chips in the top bar (`chip_metal`), values still bound to `#menu-stat-*` |
-| Atmosphere | none | fog wisps, brazier bloom, eight embers, swaying war banner — all opacity/transform |
+| Primary action | gold bar with eight siblings below it | `plaque_gold.png` — struck metal, engraved double rule, corner studs, a seal, an engraved chevron, and one live line: `CONTINUE · …` |
+| Secondary doors | daily, arena, war room, six tiles, credits | **gone from the menu** — each is a building or a banner on the world map |
+| HUD | save summary inside the card | **gone from the menu** — gold / gems / stars live on the map's top bar |
+| Top bar | none | the crest, then two 44 px keys: sound (`glyph_sound` / `glyph_muted`) and fullscreen (`glyph_expand`) |
+| Atmosphere | none | fog wisps, brazier bloom, eight embers, a swaying war banner — all opacity/transform |
 
-### New art (all deterministic, `scripts/build_ui_kit.py`)
+### New art (all deterministic)
 
 `plaque_gold / steel / crimson / dark` (480×200, slice 60/56), `plate_tile` (240×168,
-slice 30), `chip_metal` (220×96, slice 24), and seven marks drawn in the existing
-pixel idiom: `keep`, `warroom` (crossed axes), `quill`, `star`, `gem`, `flame`, `skull`.
+slice 30), `chip_metal` (220×96, slice 24), and nine marks drawn in the existing
+pixel idiom: `keep`, `warroom` (crossed axes), `quill`, `star`, `gem`, `flame`,
+`skull`, `sound`, `muted`.
 
-Two painted plates are committed rather than generated — `menu-keep.jpg` (1672×941,
-posterised JPEG) and `menu-stone.jpg` (640×1024, tiling ashlar).
+`menu-keep.jpg` (1672×941, posterised JPEG) is a painted plate. `menu-stone.jpg`
+(640×1024) is generated by `scripts/build_menu_stone.py` — seeded granite grain,
+broad mottling and seven hairline cracks, **no mortar grid**: an earlier pass cut
+ashlar blocks into it and at 64 % width the joints read as a wireframe table under
+the title. It is drawn once, stretched, at 52 % opacity.
 
 ### Type is served locally
 

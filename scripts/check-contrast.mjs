@@ -49,7 +49,8 @@ const SURFACES = {
   plaqueGold: '#daac46', // plaque_gold.png — PLAY CAMPAIGN / primary CTAs
   plaqueSteel: '#262e3b', // plaque_steel.png — daily, secondary modes
   plaqueCrimson: '#55131d', // plaque_crimson.png — Mirror Arena
-  plaqueDark: '#1a1e27', // plaque_dark.png — War Room, full-width plates
+  plaqueDark: '#21242a', // plaque_dark.png — War Room, world-map panel
+  menuStone: '#161719', // menu-stone.jpg — the granite behind the title
   tile: '#252b35', // plate_tile.png — the 3x2 destination grid
   chip: '#151921', // chip_metal.png — save chips, wallet
   bgDeep: tokens['bg-deep'],
@@ -149,6 +150,27 @@ const PAIRS = [
   ['text-main', 'gateCard', 4.5, 'gate body copy emphasis'],
   ['text-muted', 'gateCard', 4.5, 'gate body copy'],
   ['text-dim', 'gateCard', 4.5, 'gate footnote + "play without fullscreen" link'],
+
+  // World map — the panel and the plaque text sitting on it
+  ['ink-strong', 'plaqueDark', 4.5, 'map panel title'],
+  ['ink-muted', 'plaqueDark', 4.5, 'map panel labels'],
+  ['ink-gold', 'plaqueDark', 4.5, 'map panel eyebrow'],
+];
+
+/**
+ * Colours that are not design tokens yet (one-off text on the map and menu).
+ * Audited here anyway, against the surface each one is actually drawn on, so
+ * "it looked fine in the screenshot" is not the test.
+ */
+const LITERAL_PAIRS = [
+  ['#e8dcc4', '#0a0c11', 4.5, 'landmark name plate'],
+  ['#cbbda6', '#21242a', 4.5, 'map panel body copy'],
+  ['#f1e4c9', '#21242a', 4.5, 'map panel fact values'],
+  ['#ffdf9f', '#21242a', 4.5, 'map panel state chips'],
+  ['#c2b299', '#161719', 4.5, 'menu footnote over the granite'],
+  ['#c9c1b1', '#21242a', 4.5, 'locked note'],
+  ['#ffd894', '#21242a', 4.5, 'objective meta + forged values'],
+  ['#f2e4c6', '#1d1e22', 4.5, 'map wallet values'],
 ];
 
 let failures = 0;
@@ -176,10 +198,22 @@ for (const [fgName, bgName, min, where] of PAIRS) {
   );
 }
 
+for (const [fg, bg, min, where] of LITERAL_PAIRS) {
+  const ratio = contrast(fg, bg);
+  const ok = ratio >= min;
+  if (!ok) failures += 1;
+  rows.push(
+    `  ${ok ? '✓' : '✗'} ${String(ratio.toFixed(2)).padStart(5)}:1  ` +
+      `${`${fg} on ${bg}`.padEnd(34)} ${where}`
+  );
+}
+
 console.log('\nWCAG 2.1 contrast audit — HUD + panels\n');
 console.log(rows.join('\n'));
 console.log(
-  `\n${PAIRS.length - failures}/${PAIRS.length} pairs pass ` +
+  `\n${PAIRS.length + LITERAL_PAIRS.length - failures}/${
+    PAIRS.length + LITERAL_PAIRS.length
+  } pairs pass ` +
     '(normal text requires 4.5:1)\n'
 );
 
