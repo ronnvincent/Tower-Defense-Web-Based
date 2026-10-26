@@ -18,7 +18,10 @@ export const STARTING_COINS = 220;
 export const STARTING_BASE_HEALTH = 25;
 
 /** Refund ratio when selling a tower (70% of everything spent on it). */
-export const SELL_REFUND_RATIO = 0.7;
+// A defence sells back 60 % of everything sunk into it (build + upgrades), never
+// of the current market price. The ratio is centralised here so the HUD, the
+// inspector and the tests cannot drift apart.
+export const SELL_REFUND_RATIO = 0.6;
 
 /** Largest simulation step in ms (prevents huge jumps after a tab switch). */
 export const MAX_FRAME_DELTA = 50;

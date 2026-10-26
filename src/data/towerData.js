@@ -25,6 +25,7 @@
  * existing defence line hit harder.
  */
 
+import { SELL_REFUND_RATIO } from '../config/gameConfig.js';
 import { ENGINEER_TOWER_TYPES, ENGINEER_LINES } from './engineerDefenses.js';
 
 const CORE_TOWER_TYPES = {
@@ -501,6 +502,6 @@ export function getBuildDefinition(key) {
   return key === 'barricade' ? BARRICADE : TOWER_TYPES[key] ?? null;
 }
 
-export function calculateSellRefund(totalInvested, refundRate = 0.7) {
+export function calculateSellRefund(totalInvested, refundRate = SELL_REFUND_RATIO) {
   return Math.floor(totalInvested * refundRate);
 }

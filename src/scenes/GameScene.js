@@ -42,6 +42,7 @@ import { PowerupState, POWERUPS, METEOR, FROST, frostTargets } from '../systems/
 import { difficultyFor } from '../systems/Difficulty.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
+import { Hero, HERO, HERO_TEXTURE, HERO_SHEET, HERO_FRAME } from '../entities/Hero.js';
 import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
@@ -195,7 +196,11 @@ export class GameScene extends Phaser.Scene {
     const keys = enemyTexturesForLevel(this.level);
     const needsEnemies = keys.some((key) => !this.textures.exists(key));
     const needsFx = !hasBattleFxArt(this.textures);
-    if (!needsEnemies && !needsFx) return;
+    // The Vanguard is one small strip, loaded with the first battle and reused
+    // for every later one — it never belongs to boot, because the realm screens
+    // do not draw it.
+    const needsHero = !this.textures.exists(HERO_TEXTURE);
+    if (!needsEnemies && !needsFx && !needsHero) return;
 
     const overlay = document.getElementById('battle-loading');
     const fill = document.getElementById('battle-loading-fill');
@@ -216,6 +221,12 @@ export class GameScene extends Phaser.Scene {
 
     if (needsEnemies) queueEnemySheets(this.load, this.textures, this.level);
     if (needsFx) queueBattleFxArt(this.load);
+    if (needsHero) {
+      this.load.spritesheet(HERO_TEXTURE, HERO_SHEET, {
+        frameWidth: HERO_FRAME.width,
+        frameHeight: HERO_FRAME.height,
+      });
+    }
   }
 
   create() {
@@ -256,6 +267,13 @@ export class GameScene extends Phaser.Scene {
     this.waveLaneIndex = 0;
     this.laneHintDrawn = false;
     this.duelReported = false;
+    // The Vanguard stands one road cell short of the core, so it starts inside
+    // the fight instead of behind it. Created here — after the lane graph, before
+    // the HUD — so both the panel and the first wave already know it exists.
+    this.hero = null;
+    this.pendingHeroMove = false;
+    this.heroHudTimer = 0;
+    this.spawnHero();
     // Run-long rules (draft cards, anomalies, ascension). Neutral here, so the
     // campaign and the duel behave exactly as they did before modes existed.
     this.cardMods = createRunMods();
@@ -404,6 +422,8 @@ export class GameScene extends Phaser.Scene {
         onZoomOut: () => this.cameraRig.zoomBy(1 / 1.25),
         onZoomReset: () => this.cameraRig.reset(),
         onPowerup: (key) => this.handlePowerup(key),
+        onHeroMove: () => this.armHeroMove(),
+        onHeroStrike: () => this.castHeroStrike(),
         onClearFocus: () => this.setFocusFire(null),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
@@ -1096,6 +1116,11 @@ export class GameScene extends Phaser.Scene {
         `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}${rule}`,
         'info'
       );
+      if (this.hero?.isDown) {
+        this.hero.revive();
+        this.syncHeroHud();
+        this.hud?.showToast('VANGUARD BACK ON ITS FEET', 'success');
+      }
       const bounty = Boolean(this.waveManager.currentWave.bounty);
       this.setBroodColour(wave, bounty ? 0xffc94a : null);
       if (bounty) {
@@ -1711,6 +1736,20 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 0c. A move order waiting for a target: the next tap on the field walks the
+    // Vanguard there. It sits above building and inspecting for the same reason
+    // the spells do — an armed order must never be swallowed by a tower tap.
+    if (this.pendingHeroMove) {
+      this.pendingHeroMove = false;
+      this.hud?.setHeroArmed?.(false);
+      if (this.hero?.moveTo(worldX, worldY)) {
+        audio.playClick();
+        this.hud?.showToast('VANGUARD MOVING', 'info');
+      }
+      this.syncHeroHud();
+      return;
+    }
+
     // 0. Upgrade badge above a defence?
     const badgeTower = this.badges?.hitTest(worldX, worldY);
     if (badgeTower) {
@@ -1754,6 +1793,106 @@ export class GameScene extends Phaser.Scene {
       this.handleDeselectTower();
       this.hud?.closeInspector();
     }
+  }
+
+  /**
+   * Put the Bastion Vanguard on the field.
+   *
+   * The spawn cell is the last road tile before the core: the hero belongs where
+   * the fight ends, not at the gate where it would meet the horde alone. The walk
+   * bounds are the map minus half a tile, so a move order cannot put it off the
+   * board.
+   */
+  spawnHero() {
+    if (!this.hero && this.add && this.map) {
+      const path = this.pathfinding?.mainPath || [];
+      const cell = path.length > 1 ? path[path.length - 2] : null;
+      const [row, col] = cell
+        ? String(cell).split(',').map(Number)
+        : [this.map.base.row, this.map.base.col];
+      const x = col * TILE_SIZE + TILE_SIZE / 2;
+      const y = row * TILE_SIZE + TILE_SIZE / 2;
+      this.hero = new Hero(this, {
+        x,
+        y,
+        bounds: {
+          x0: TILE_SIZE / 2,
+          y0: TILE_SIZE / 2,
+          x1: this.map.cols * TILE_SIZE - TILE_SIZE / 2,
+          y1: this.map.rows * TILE_SIZE - TILE_SIZE / 2,
+        },
+      });
+      this.syncHeroHud();
+    }
+    return this.hero;
+  }
+
+  /** What the HUD panel needs, one small object. */
+  heroSnapshot() {
+    const hero = this.hero;
+    if (!hero) return null;
+    return {
+      health: hero.health,
+      maxHealth: hero.maxHealth,
+      down: hero.isDown,
+      strikeReady: hero.strikeReady,
+      strikeCooldownMs: hero.strikeCooldownMs,
+      strikeCooldownMax: HERO.strike.cooldownMs,
+      moving: Boolean(hero.destination),
+    };
+  }
+
+  syncHeroHud() {
+    this.hud?.setHero?.(this.heroSnapshot(), { armed: this.pendingHeroMove });
+  }
+
+  /** Arm the next tap as a move order. A second press disarms it. */
+  armHeroMove() {
+    if (!this.hero || this.hero.isDown) {
+      this.hud?.showToast('THE VANGUARD IS DOWN — it returns next wave', 'warning');
+      return false;
+    }
+    this.pendingHeroMove = !this.pendingHeroMove;
+    this.hud?.setHeroArmed?.(this.pendingHeroMove);
+    if (this.pendingHeroMove) {
+      this.hud?.showToast('MOVE ORDER — tap the ground', 'info');
+    }
+    return this.pendingHeroMove;
+  }
+
+  /**
+   * Shieldbreaker Strike.
+   *
+   * The shockwave is a *ground* sweep: `Hero.strike` re-checks range and
+   * liveness per enemy and visits each one once, so a clump cannot be hit twice
+   * by the same cast. Flying creeps are untouched by design.
+   */
+  castHeroStrike() {
+    if (!this.hero) return { hits: 0, ready: false };
+    if (!this.hero.strikeReady) {
+      audio.playError();
+      this.hud?.showToast('SHIELDBREAKER RECHARGING', 'warning');
+      return { hits: 0, ready: false };
+    }
+    const result = this.hero.strike(this.activeEnemies);
+    // Same audio/visual grammar as the spells: a metal crunch and a gold ring
+    // which is scaled to the ability's real radius (Vfx takes a scale, not px).
+    audio.playEnemyHit?.();
+    this.cameras.main.shake(140, 0.004);
+    this.vfx?.shockwave?.(this.hero.x, this.hero.y, HERO.strike.radius / 60, 'explosive');
+    this.vfx?.impact?.(this.hero.x, this.hero.y, 'explosive', {
+      scale: 1.2,
+      splash: HERO.strike.radius,
+      shake: false,
+    });
+    this.hud?.showToast(
+      result.hits > 0
+        ? `SHIELDBREAKER — ${result.hits} ${result.hits === 1 ? 'creep' : 'creeps'} struck`
+        : 'SHIELDBREAKER — nothing in reach',
+      result.hits > 0 ? 'success' : 'info'
+    );
+    this.syncHeroHud();
+    return result;
   }
 
   /**
@@ -2888,6 +3027,16 @@ export class GameScene extends Phaser.Scene {
       this.activeProjectiles[i].update(clampedDelta);
     }
     compactInPlace(this.activeProjectiles, (p) => !p.isDead);
+
+    // 4b. The Vanguard walks, swings and takes contact damage on the same clock.
+    if (this.hero) {
+      this.hero.update(clampedDelta, this.activeEnemies);
+      this.heroHudTimer += clampedDelta;
+      if (this.heroHudTimer >= 120) {
+        this.heroHudTimer = 0;
+        this.syncHeroHud();
+      }
+    }
 
     // 5. Boss Status HUD Update
     const tracked = this.bossRoster.prune();

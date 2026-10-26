@@ -3,6 +3,7 @@ import { TOWER_TYPES, calculateSellRefund } from '../src/data/towerData.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { WAVES, countWaveEnemies } from '../src/data/waveData.js';
 import { calculateDamage, DAMAGE_TYPE } from '../src/systems/CombatCalculator.js';
+import { SELL_REFUND_RATIO } from '../src/config/gameConfig.js';
 
 describe('Tower Progression & Specialization Architecture', () => {
   it('defines 3 distinct progression levels for the Ballista Tower with branching specializations', () => {
@@ -73,14 +74,17 @@ describe('Tower Progression & Specialization Architecture', () => {
     const lvl2 = archer.levels[1]; // Upgrade cost: 50 -> Total: 110
     const rapid = archer.specializations.rapid; // Upgrade cost: 90 -> Total: 200
 
+    // The specification fixes the ratio at 60 % of recorded spend.
+    expect(SELL_REFUND_RATIO).toBe(0.6);
+
     const baseRefund = calculateSellRefund(archer.cost);
-    expect(baseRefund).toBe(Math.floor(60 * 0.7)); // 42
+    expect(baseRefund).toBe(Math.floor(60 * SELL_REFUND_RATIO)); // 36
 
     const lvl2Refund = calculateSellRefund(archer.cost + lvl2.upgradeCost);
-    expect(lvl2Refund).toBe(Math.floor(110 * 0.7)); // 77
+    expect(lvl2Refund).toBe(Math.floor(110 * SELL_REFUND_RATIO)); // 66
 
     const specRefund = calculateSellRefund(archer.cost + lvl2.upgradeCost + rapid.upgradeCost);
-    expect(specRefund).toBe(Math.floor(200 * 0.7)); // 140
+    expect(specRefund).toBe(Math.floor(200 * SELL_REFUND_RATIO)); // 120
   });
 });
 

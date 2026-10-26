@@ -102,6 +102,71 @@ export class HUD {
     this.layout = new HudLayout().observe();
   }
 
+  /**
+   * Hero panel.
+   *
+   * Called from the scene's simulation tick (throttled to ~8 Hz), so it writes
+   * text and one width per update and never touches layout in between. A downed
+   * hero keeps the panel up — the point of the down state is that the player can
+   * see why the Vanguard stopped answering.
+   *
+   * @param {{health:number,maxHealth:number,down:boolean,strikeReady:boolean,strikeCooldownMs:number,strikeCooldownMax:number,moving:boolean}|null} hero
+   * @param {{armed?:boolean}} [options]
+   */
+  setHero(hero, { armed = false } = {}) {
+    const panel = document.getElementById('hero-panel');
+    if (!panel) return;
+    if (!hero) {
+      panel.classList.add('hidden');
+      return;
+    }
+    panel.classList.remove('hidden');
+    panel.classList.toggle('is-down', Boolean(hero.down));
+    panel.classList.toggle('is-armed', Boolean(armed) && !hero.down);
+
+    const ratio = hero.maxHealth ? hero.health / hero.maxHealth : 0;
+    const fill = document.getElementById('hero-hp-fill');
+    if (fill) fill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+    const hpText = document.getElementById('hero-hp-text');
+    if (hpText) hpText.textContent = `${Math.ceil(hero.health)} / ${hero.maxHealth}`;
+
+    const state = document.getElementById('hero-state');
+    if (state) {
+      state.textContent = hero.down ? 'DOWN' : hero.moving ? 'MOVING' : 'HOLDING';
+    }
+
+    const strike = document.getElementById('hero-strike');
+    if (strike) {
+      strike.disabled = !hero.strikeReady;
+      strike.classList.toggle('is-ready', Boolean(hero.strikeReady));
+      // The ring fills as the ability recharges — one custom property write.
+      const charge = hero.strikeReady
+        ? 1
+        : 1 - hero.strikeCooldownMs / Math.max(1, hero.strikeCooldownMax);
+      strike.style.setProperty('--charge', String(Math.max(0, Math.min(1, charge))));
+    }
+    const label = document.getElementById('hero-strike-label');
+    if (label) {
+      label.textContent = hero.strikeReady
+        ? 'STRIKE'
+        : `${Math.ceil(hero.strikeCooldownMs / 1000)}s`;
+    }
+
+    const move = document.getElementById('hero-move');
+    if (move) {
+      move.disabled = Boolean(hero.down);
+      move.setAttribute('aria-pressed', String(Boolean(armed) && !hero.down));
+    }
+  }
+
+  /** Arm/disarm the move button without repainting the whole panel. */
+  setHeroArmed(armed) {
+    const move = document.getElementById('hero-move');
+    const panel = document.getElementById('hero-panel');
+    if (move) move.setAttribute('aria-pressed', String(Boolean(armed)));
+    panel?.classList.toggle('is-armed', Boolean(armed));
+  }
+
   /* ================================================================= SHELL */
 
   /**
@@ -344,6 +409,30 @@ export class HUD {
       </div>
 
       <div id="powerup-rail" class="hud-panel powerup-rail" role="group" aria-label="Powerups"></div>
+
+      <div id="hero-panel" class="hud-panel hero-panel hidden" aria-label="Bastion Vanguard"
+           title="Bastion Vanguard — MOVE arms a tap, STRIKE is Shieldbreaker">
+        <div class="hero-portrait" aria-hidden="true"></div>
+        <div class="hero-body">
+          <div class="hero-head">
+            <span class="hero-name">VANGUARD</span>
+            <span class="hero-state" id="hero-state">HOLDING</span>
+          </div>
+          <div class="hero-hp" role="img" aria-label="Hero health">
+            <i id="hero-hp-fill"></i>
+            <span id="hero-hp-text">500 / 500</span>
+          </div>
+          <div class="hero-actions">
+            <button id="hero-move" class="hero-btn" type="button" aria-pressed="false"
+                    title="Arm a move order, then tap the ground">MOVE</button>
+            <button id="hero-strike" class="hero-btn hero-btn--strike" type="button"
+                    title="Shieldbreaker Strike — 100 damage, 75 radius, 12 s">
+              <img src="/assets/ui-kit/glyph_swords.png" alt="" draggable="false" width="16" height="16" />
+              <span id="hero-strike-label">STRIKE</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div id="dock-scrim" class="dock-scrim hidden" aria-hidden="true"></div>
 
@@ -1080,6 +1169,12 @@ export class HUD {
     });
 
     // Camera controls
+    document.getElementById('hero-move')?.addEventListener('click', () => {
+      this.callbacks.onHeroMove?.();
+    });
+    document.getElementById('hero-strike')?.addEventListener('click', () => {
+      this.callbacks.onHeroStrike?.();
+    });
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onZoomIn?.();

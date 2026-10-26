@@ -10837,3 +10837,203 @@ html.draft-open body {
     transition: none;
   }
 }
+
+/* ==========================================================================
+   HERO PANEL — the Bastion Vanguard
+   A status readout with two actions, top-right under the bars. It borrows the
+   camera pill's chrome (dark glass + iron hairline) so the HUD keeps one voice,
+   and it never grows into a second dock: 208 px on desktop, 176 px on phones.
+   ========================================================================== */
+.hero-panel {
+  top: calc(clamp(6px, 1.2vh, 12px) + var(--safe-top) + 60px);
+  right: calc(clamp(8px, 1.2vw, 16px) + var(--safe-right));
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 208px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(14, 19, 26, 0.92) 0%, rgba(8, 11, 16, 0.94) 100%);
+  border: 1px solid var(--border-iron);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.hero-portrait {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 47px;
+  border-radius: 3px;
+  background-image: url('/assets/hero/vanguard.png');
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
+  background-position: 0 50%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.hero-panel.is-down .hero-portrait {
+  filter: grayscale(1) brightness(0.6);
+  opacity: 0.7;
+}
+
+.hero-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.hero-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #ffdf9f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-state {
+  flex: 0 0 auto;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(203, 189, 166, 0.8);
+}
+
+.hero-panel.is-down .hero-state {
+  color: #ff8f86;
+}
+
+.hero-hp {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 236, 190, 0.14);
+  overflow: hidden;
+}
+
+.hero-hp i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(180deg, #8fe0a0 0%, #4ea464 100%);
+  transition: width 0.18s linear;
+}
+
+.hero-panel.is-down .hero-hp i {
+  background: #6b2f2c;
+}
+
+.hero-hp span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #08120c;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.hero-btn {
+  flex: 1 1 0;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 4px;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #e8d9b8;
+  background: linear-gradient(180deg, rgba(46, 38, 26, 0.9) 0%, rgba(24, 20, 14, 0.95) 100%);
+  border: 1px solid rgba(214, 170, 84, 0.45);
+  border-radius: 3px;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  touch-action: manipulation;
+}
+
+.hero-btn:hover:not(:disabled) {
+  filter: brightness(1.18);
+}
+
+.hero-btn[aria-pressed='true'] {
+  color: #1b1409;
+  background: linear-gradient(180deg, #f3d089 0%, #c99a3f 100%);
+  border-color: #ffe3ab;
+}
+
+.hero-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hero-btn--strike {
+  position: relative;
+  flex: 0 0 auto;
+  padding-right: 7px;
+}
+
+.hero-btn--strike img {
+  width: 16px;
+  height: 16px;
+  image-rendering: auto;
+}
+
+.hero-btn--strike.is-ready {
+  border-color: rgba(255, 227, 171, 0.85);
+  box-shadow: 0 0 10px rgba(245, 196, 81, 0.28);
+}
+
+.hero-btn:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+  .hero-panel {
+    width: 176px;
+    padding: 5px 6px 5px 5px;
+    gap: 6px;
+  }
+
+  .hero-portrait {
+    width: 32px;
+    height: 38px;
+  }
+
+  /* Thumb-sized rows: same 44 px floor as the dock and the map actions. */
+  .hero-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-height: 430px) {
+  .hero-panel {
+    top: calc(clamp(4px, 1vh, 8px) + var(--safe-top) + 48px);
+    width: 168px;
+  }
+}
