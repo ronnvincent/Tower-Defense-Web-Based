@@ -1,5 +1,5 @@
 /**
- * SettingsUI — the four faders, and the mute switch.
+ * SettingsUI — the four faders, the mute switch and the graphics profile.
  *
  * Mounted on `document.body` rather than in `#modal-container`, because several
  * screens replace that container's markup wholesale; a settings panel that can
@@ -11,6 +11,7 @@
  */
 
 import { AUDIO_BUSES, audio as defaultAudio } from '../rendering/AudioSynth.js';
+import { QUALITY_CHOICES } from '../systems/QualityManager.js';
 
 /** Fader rows, in signal order. */
 const ROWS = [
@@ -22,12 +23,20 @@ const ROWS = [
 
 const pct = (value) => `${Math.round(value * 100)}%`;
 
+const QUALITY_COPY = {
+  auto: 'Picks a profile from this device, and gives up atmosphere first if a battle drops frames.',
+  high: 'Full atmosphere: every particle, both ambience beds, drifting clouds.',
+  balanced: 'Fifty-five percent of the particles, one ambience bed, cheaper filters.',
+  performance: 'No ambience beds, quarter particles, no blurred backdrop or parallax.',
+};
+
 export class SettingsUI {
   /**
    * @param {{ audio?: object, onChange?: (state: {muted:boolean, volumes:object}) => void }} [options]
    */
-  constructor({ audio = defaultAudio, onChange = null } = {}) {
+  constructor({ audio = defaultAudio, quality = null, onChange = null } = {}) {
     this.audio = audio;
+    this.quality = quality;
     this.onChange = onChange;
     this.el = null;
     this.returnFocus = null;
@@ -42,7 +51,7 @@ export class SettingsUI {
     root.id = 'audio-settings';
     root.innerHTML = `
       <div class="set-card" role="dialog" aria-modal="true" aria-labelledby="set-title">
-        <p class="set-eyebrow">THE AUDIO DESK</p>
+        <p class="set-eyebrow">THE CONTROL DESK</p>
         <h2 class="set-title" id="set-title">Settings</h2>
         <p class="set-note">Music and ambience are synthesised live in the browser — nothing is streamed or downloaded.</p>
 
@@ -59,6 +68,17 @@ export class SettingsUI {
               <output class="set-row-value" id="set-${row.bus}-value" for="set-${row.bus}">80%</output>
             </label>`
           ).join('')}
+        </div>
+
+        <div class="set-quality">
+          <p class="set-quality-title">GRAPHICS <span class="set-quality-effective" id="set-quality-effective"></span></p>
+          <div class="set-quality-options" role="radiogroup" aria-label="Graphics quality">
+            ${QUALITY_CHOICES.map(
+              (choice) => `<button class="set-quality-opt" type="button" role="radio" aria-checked="false"
+                data-quality="${choice}">${choice.toUpperCase()}</button>`
+            ).join('')}
+          </div>
+          <p class="set-quality-note" id="set-quality-note"></p>
         </div>
 
         <div class="set-actions">
@@ -81,6 +101,20 @@ export class SettingsUI {
       const value = Number.isFinite(volumes[bus]) ? volumes[bus] : 0;
       if (input) input.value = String(Math.round(value * 100));
       if (out) out.textContent = pct(value);
+    }
+    const quality = this.quality?.state;
+    if (quality) {
+      for (const button of this.el.querySelectorAll('.set-quality-opt')) {
+        const on = button.dataset.quality === quality.setting;
+        button.classList.toggle('is-on', on);
+        button.setAttribute('aria-checked', String(on));
+      }
+      const effective = this.el.querySelector('#set-quality-effective');
+      if (effective) {
+        effective.textContent = quality.auto ? `· ${quality.level.toUpperCase()} ON THIS DEVICE` : '';
+      }
+      const note = this.el.querySelector('#set-quality-note');
+      if (note) note.textContent = QUALITY_COPY[quality.setting] || '';
     }
     const mute = this.el.querySelector('#set-mute');
     if (mute) {
@@ -107,6 +141,13 @@ export class SettingsUI {
       this.refresh();
       this.#emit();
     });
+    for (const button of el.querySelectorAll('.set-quality-opt')) {
+      button.addEventListener('click', () => {
+        this.quality?.set(button.dataset.quality);
+        this.refresh();
+        this.#emit();
+      });
+    }
     for (const input of el.querySelectorAll('.set-slider')) {
       input.addEventListener('input', () => {
         const bus = input.dataset.bus;

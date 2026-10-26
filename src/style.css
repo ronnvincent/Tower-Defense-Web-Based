@@ -189,7 +189,13 @@
   --ui-plaque-dark: url('/assets/ui-kit/plaque_dark.png');
   --ui-tile: url('/assets/ui-kit/plate_tile.png');
   --ui-chip: url('/assets/ui-kit/chip_metal.png');
-  --ui-menu-bg: url('/assets/ui-kit/menu-keep.jpg');
+  /* WebP, not JPEG: the same 1672×941 keep at −25 % (206 KB → 155 KB) and the
+     ashlar wall at −48 % (80 KB → 42 KB), both measured at q86 with no visible
+     banding in the dark gradients. Everything that can run this bundle (it
+     ships ES2021 optional chaining and `??=`) also decodes WebP, so no
+     image-set juggling is needed; the JPGs stay on disk as the fallback copy
+     until the WebP pair has had a release of browser time. */
+  --ui-menu-bg: url('/assets/ui-kit/menu-keep.webp');
 }
 
 /* ==========================================================================
@@ -2676,7 +2682,7 @@ kbd {
   position: absolute;
   inset: 0 auto 0 0;
   width: 64%;
-  background-image: url('/assets/ui-kit/menu-stone.jpg');
+  background-image: url('/assets/ui-kit/menu-stone.webp');
   /* One stretched copy, never a tile: the grain is soft enough that the
      non-uniform scale is invisible, and a repeated 512 px tile showed its seam
      as a vertical line down the middle of the title. */
@@ -8694,9 +8700,11 @@ html.draft-open body {
     radial-gradient(38% 22% at 22% 18%, rgba(226, 233, 240, 0.16), transparent 70%),
     radial-gradient(44% 20% at 62% 9%, rgba(214, 224, 236, 0.12), transparent 72%),
     radial-gradient(30% 16% at 84% 26%, rgba(226, 233, 240, 0.1), transparent 74%);
-  filter: blur(16px);
+  /* No CSS blur: these are already soft radial gradients, and a 16 px filter
+     over a whole plate-sized layer was 65% of the map's frame time (measured:
+     102 ms → 36 ms with the air layer removed). Same look, no filter pass. */
   transform: translate3d(var(--wm-cloud-x, 0px), var(--wm-cloud-y, 0px), 0);
-  will-change: transform, opacity;
+  will-change: transform;
 }
 
 .wm-clouds--a {
@@ -8719,7 +8727,7 @@ html.draft-open body {
   position: absolute;
   inset: 0;
   opacity: 0.55;
-  filter: blur(26px);
+  /* Opacity-only: scaling a full-plate layer forces a re-raster every frame. */
   animation: wmMistBreathe 18s ease-in-out infinite alternate;
 }
 
@@ -8733,8 +8741,8 @@ html.draft-open body {
 }
 
 @keyframes wmMistBreathe {
-  from { opacity: 0.4; transform: scale(1); }
-  to { opacity: 0.72; transform: scale(1.06); }
+  from { opacity: 0.42; }
+  to { opacity: 0.7; }
 }
 
 /* Water: a slow highlight running down the river corridor (west → north). */
@@ -8850,16 +8858,21 @@ html.draft-open body {
   color: var(--wm-tint, #f3c96b);
   opacity: 0;
   pointer-events: none;
-  text-shadow: 0 1px 2px #000, 0 2px 8px rgba(0, 0, 0, 0.95), 0 0 22px rgba(0, 0, 0, 0.75);
+  text-shadow:
+    0 1px 0 #000,
+    0 0 2px rgba(0, 0, 0, 0.9),
+    0 2px 10px rgba(0, 0, 0, 0.95),
+    0 0 26px rgba(0, 0, 0, 0.85);
   transition: opacity 0.4s ease;
 }
 
 /* The five region names are painted into the world, not pinned to a zoom
    level: they are what tells a first-time player that this is a continent and
-   not a pile of buildings. 0.72 is the floor that still reads over the sunlit
-   desert and the crystal glow without drawing a second set of labels. */
+   not a pile of buildings. 0.72 was the first guess; on the 1440x900 grab the
+   two names over the desert and the snowfield disappeared into the painting, so
+   the floor is now 0.86 and the glyphs carry their own dark edge. */
 .wm-region-label {
-  opacity: 0.72;
+  opacity: 0.86;
 }
 
 /* ---- landmarks --------------------------------------------------------- */
@@ -10535,5 +10548,208 @@ html.draft-open body {
   .set-mute,
   .set-btn {
     min-height: 34px;
+  }
+}
+
+/* ==========================================================================
+   BATTLE ASSET GATE
+   Enemy strips are queued per battle (see src/systems/EnemyAssets.js). Until
+   they are decoded the canvas is the emptied previous scene, so the wait needs
+   a face: a plate, the battlefield's name, and the loader's real percentage.
+   ========================================================================== */
+
+.battle-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2vh, 20px);
+  background: radial-gradient(90% 70% at 50% 45%, rgba(20, 26, 38, 0.96), rgba(6, 8, 13, 0.99));
+  color: var(--ink-strong);
+}
+
+.battle-loading.hidden {
+  display: none !important;
+}
+
+.battle-loading-label {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(12px, 1.6vh, 16px);
+  font-weight: 900;
+  letter-spacing: clamp(2px, 0.4vw, 4px);
+  color: var(--ink-gold);
+  text-transform: uppercase;
+}
+
+.battle-loading-track {
+  width: min(360px, 62vw);
+  height: 12px;
+  padding: 2px;
+  border: 1px solid rgba(245, 196, 81, 0.55);
+  background: rgba(9, 12, 18, 0.9);
+  box-shadow: 0 0 24px rgba(245, 196, 81, 0.16);
+}
+
+.battle-loading-track i {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(180deg, #ffe6a3, #f5c451 55%, #c99834);
+  transition: width 0.14s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-loading-track i {
+    transition: none;
+  }
+}
+
+/* The hint is the only instructions the map gives; it was at 0.55 over a dark
+   vignette and effectively invisible. */
+.wm-hint {
+  color: rgba(247, 238, 220, 0.86);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 0, 0, 0.8);
+}
+
+/* ==========================================================================
+   GRAPHICS PROFILES
+   `data-quality` is written on <html> before the first frame by
+   systems/QualityManager.js. Everything here removes *cost*, never content:
+   the same art, the same layout, the same controls.
+   ========================================================================== */
+
+/* ---- settings: the graphics switch ------------------------------------- */
+
+.set-quality {
+  margin: 0 0 14px;
+  padding: 10px 0 2px;
+  border-top: 1px solid rgba(245, 196, 81, 0.14);
+}
+
+.set-quality-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 2.2px;
+  color: var(--ink-strong);
+}
+
+.set-quality-effective {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--ink-gold);
+}
+
+.set-quality-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.set-quality-opt {
+  min-height: 30px;
+  padding: 0 4px;
+  border: 1px solid rgba(245, 196, 81, 0.28);
+  background: rgba(9, 12, 18, 0.72);
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.set-quality-opt:hover {
+  color: var(--ink-strong);
+  border-color: rgba(245, 196, 81, 0.6);
+}
+
+.set-quality-opt.is-on {
+  border-color: rgba(245, 196, 81, 0.9);
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.24), rgba(120, 88, 26, 0.28));
+  color: #fff3d0;
+}
+
+.set-quality-opt:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+}
+
+.set-quality-note {
+  margin: 7px 0 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
+/* ---- balanced: cheaper full-screen effects ------------------------------ */
+
+:root[data-quality='balanced'] body::before {
+  filter: blur(10px) saturate(0.8) brightness(0.34);
+}
+
+:root[data-quality='balanced'] .wm-panel {
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.66));
+}
+
+/* Balanced keeps the sky but halves the layer count: the second cloud bank and
+   the ravine mist are the two that cost the most fill-rate for the least read. */
+:root[data-quality='balanced'] .wm-clouds--b,
+:root[data-quality='balanced'] .wm-mist--ravine {
+  display: none;
+}
+
+/* ---- performance: no ambience, no blurred backdrop ---------------------- */
+
+/* The blurred tiling behind the stage is a 16 px filter over the whole screen.
+   Dropping it to a flat plate keeps the framing and costs nothing. */
+:root[data-quality='performance'] body::before {
+  display: none;
+}
+
+:root[data-quality='performance'] body {
+  background: radial-gradient(120% 100% at 50% 0%, #10151f 0%, #070a10 60%, #04060a 100%);
+}
+
+:root[data-quality='performance'] .wm-air,
+:root[data-quality='performance'] .menu-sky,
+:root[data-quality='performance'] .menu-wisp {
+  display: none;
+}
+
+:root[data-quality='performance'] .wm-landmark--banner .wm-landmark-art,
+:root[data-quality='performance'] .wm-clouds,
+:root[data-quality='performance'] .wm-mist {
+  animation: none;
+}
+
+:root[data-quality='performance'] .wm-panel,
+:root[data-quality='performance'] .set-card {
+  filter: none;
+}
+
+:root[data-quality='performance'] .set-overlay {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Two fades that cost a full-screen composite each. */
+:root[data-quality='performance'] #main-menu-overlay,
+:root[data-quality='performance'] .screen-overlay {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-quality-opt {
+    transition: none;
   }
 }

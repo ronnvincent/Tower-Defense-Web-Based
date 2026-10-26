@@ -99,11 +99,18 @@ export class Vfx {
     const cached = this.emitters.get(id);
     if (cached && cached.scene) return cached;
     if (!this.scene.textures?.exists?.(texture)) return null;
+    // One number from the graphics profile scales every burst in the game.
+    // Fewer particles, same silhouette — never a blank explosion.
+    const budget = globalThis.window?.gameQuality?.particleScale ?? 1;
+    const tuned =
+      budget < 1 && Number.isFinite(config.quantity)
+        ? { ...config, quantity: Math.max(1, Math.round(config.quantity * budget)) }
+        : config;
     const emitter = this.scene.add.particles(0, 0, texture, {
       emitting: false,
-      ...config,
+      ...tuned,
     });
-    emitter.setDepth(config.depth ?? 46);
+    emitter.setDepth(tuned.depth ?? 46);
     this.emitters.set(id, emitter);
     return emitter;
   }

@@ -113,7 +113,10 @@ export class AmbienceDirector {
   /* ------------------------------------------------------------------ internals */
 
   #retune(location) {
-    const wanted = new Set(ambienceFor(location));
+    // The graphics profile decides how many beds may run at once; a phone in
+    // `performance` gets none (the music still carries the place).
+    const budget = globalThis.window?.gameQuality?.profile?.ambience ?? 2;
+    const wanted = new Set(ambienceFor(location).slice(0, Math.max(0, budget)));
     for (const [name, layer] of [...this.layers]) {
       if (!wanted.has(name)) this.#stop(name, layer, FADE_SECONDS);
     }

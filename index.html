@@ -35,6 +35,15 @@
       <!-- HUD Mount (hidden while the main menu is open) -->
       <div id="hud-container" class="hidden"></div>
 
+      <!-- Per-battle asset gate.
+           Enemy strips load when a level starts, not at boot (systems/
+           EnemyAssets.js). This is the real load progress for those files, not
+           a decorative bar: it is hidden again the moment the loader finishes. -->
+      <div id="battle-loading" class="battle-loading hidden" role="status" aria-live="polite">
+        <p class="battle-loading-label" id="battle-loading-label">MUSTERING THE HORDE</p>
+        <div class="battle-loading-track"><i id="battle-loading-fill"></i></div>
+      </div>
+
       <!-- Main Menu — "the keep at dusk".
            Full-bleed key art, a gold campaign plaque and the hub folded into a
            3x2 iron grid. Every id src/main.js binds is still here exactly once,

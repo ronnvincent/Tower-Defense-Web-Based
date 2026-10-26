@@ -1,7 +1,5 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js';
-import { ENEMY_SHEETS, ENEMY_SKINS, ENEMY_DIRECTIONS, IMPACT_SHEETS } from '../data/spireManifest.js';
-import { FX_SHEETS, FX_PARTICLES } from '../data/fxManifest.js';
 import { DECOR_ART } from '../data/towerDecor.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
@@ -97,22 +95,9 @@ export class BootScene extends Phaser.Scene {
       this.load.image(key, `assets/towers/deco/${file}`);
     }
 
-    // 4. Enemies — animated 9-row strips: 3 clips x 3 direction rows.
-    // Every biome x wave-tier re-grade is a separate sheet: the base strip, the
-    // elite strip and the champion strip, per battlefield. Texture keys come
-    // straight from the manifest (`ENEMY_SKINS`), so no naming is guessed here.
-    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
-      const textures = new Set([`enemy-${key}`]);
-      for (const tiers of Object.values(ENEMY_SKINS[key] || {})) {
-        for (const textureKey of tiers) textures.add(textureKey);
-      }
-      for (const textureKey of textures) {
-        this.load.spritesheet(textureKey, `assets/enemies/${textureKey}.png`, {
-          frameWidth: sheet.frameWidth,
-          frameHeight: sheet.frameHeight,
-        });
-      }
-    }
+    // 4. Enemies are *not* loaded here. A battle queues only the creatures its
+    // waves field, in the battlefield's biome — 24 to 80 strips instead of 210.
+    // See systems/EnemyAssets.js and `GameScene.preload`.
 
     // 5. Projectiles
     for (const key of [
@@ -149,30 +134,8 @@ export class BootScene extends Phaser.Scene {
     }
     this.load.image('coin-sprite', 'assets/projectiles/coin.png');
 
-    // 6. Impact animations
-    for (const [key, sheet] of Object.entries(IMPACT_SHEETS)) {
-      this.load.spritesheet(key, `assets/effects/${sheet.file}`, {
-        frameWidth: sheet.frameWidth,
-        frameHeight: sheet.frameHeight,
-      });
-    }
-
-    // 6b. Kenney effect library (CC0): elemental impact strips, shockwave,
-    // nova, ground blast, level-up burst and the particle singles the emitters
-    // draw with. Missing art is tolerated — Vfx checks before it plays.
-    for (const [key, sheet] of Object.entries(FX_SHEETS)) {
-      if (sheet.frames > 1) {
-        this.load.spritesheet(key, `assets/fx/${sheet.file}`, {
-          frameWidth: sheet.frameWidth,
-          frameHeight: sheet.frameHeight,
-        });
-      } else {
-        this.load.image(key, `assets/fx/${sheet.file}`);
-      }
-    }
-    for (const [key, file] of Object.entries(FX_PARTICLES)) {
-      this.load.image(key, `assets/fx/${file}`);
-    }
+    // 6. Battle effect art (impacts, fx strips, particles) is queued by
+    //    GameScene.preload through systems/BattleArt — see that file for why.
 
     // 7. Audio foley
     this.load.audio('sfx-click', 'assets/audio/click.ogg');
@@ -193,9 +156,6 @@ export class BootScene extends Phaser.Scene {
     // Procedural fallbacks only fill keys the packs do not provide.
     generateAllTextures(this);
     this.createTowerAnimations();
-    this.createEnemyAnimations();
-    this.createImpactAnimations();
-    this.createFxAnimations();
     this.scene.start('MenuScene');
   }
 
@@ -221,111 +181,6 @@ export class BootScene extends Phaser.Scene {
           repeat: -1,
         });
       }
-    }
-  }
-
-  /**
-   * Idle / walk / death clips for every enemy archetype, battlefield and wave
-   * tier, for each of the strip's three direction rows.
-   *
-   * A Spire strip is 9 rows laid out as **three clips x three directions**:
-   *
-   *     rows 0-2   idle : south (towards camera) / north (away) / profile
-   *     rows 3-5   walk : the same three
-   *     rows 6-8   death: the same three
-   *
-   * The rows were once read as three *colour variants*, which is why a wave-3
-   * creep walked backwards and a wave-5 creep appeared to lie on its side: the
-   * game picked the north or profile row and then rotated it again. Rows are
-   * now addressed by direction, so the art's own pose does the work and the
-   * sprite is never rotated (see Enemy.faceTravel).
-   *
-   * Wave-to-wave variety comes from the biome and tier *textures* (13 per
-   * creature) plus tier scale and brood glow, which are real art changes.
-   *
-   * The bare `enemy-<key>-<clip>` keys alias the south row, so call sites that
-   * predate the direction split (and the headless harnesses) keep resolving.
-   * There is no `-v*` alias any more: `v` used to mean "colour variant", and
-   * leaving that name around invited the row to be picked by wave number again.
-   */
-  createEnemyAnimations() {
-    for (const [key, sheet] of Object.entries(ENEMY_SHEETS)) {
-      const biomeTextures = new Set([`enemy-${key}`]);
-      for (const tiers of Object.values(ENEMY_SKINS[key] || {})) {
-        for (const textureKey of tiers) biomeTextures.add(textureKey);
-      }
-
-      for (const textureKey of biomeTextures) {
-        if (!this.textures.exists(textureKey)) continue;
-        const cols = this.textures.get(textureKey).source[0].width / sheet.frameWidth;
-
-        for (let direction = 0; direction < ENEMY_DIRECTIONS; direction += 1) {
-          this.createEnemyClips(textureKey, sheet, cols, direction);
-        }
-        // Bare aliases -> the south-facing row.
-        this.createEnemyClips(textureKey, sheet, cols, 0, '');
-      }
-    }
-  }
-
-  /**
-   * One idle/move/death trio for a direction row: rows `dir`, `3 + dir`, `6 + dir`.
-   *
-   * Frame counts come from the manifest, never assumed. The clip key is
-   * `<texture>-d<dir>-<clip>`; `Enemy` swaps between the three when the heading
-   * changes lane direction.
-   */
-  createEnemyClips(textureKey, sheet, cols, direction, suffixOverride = null) {
-    const suffix = suffixOverride === null ? `-d${direction}` : suffixOverride;
-    const row = (index) => (index + direction) * cols;
-    const clips = [
-      ['idle', sheet.idle, row(0), 8, -1],
-      ['move', sheet.move, row(3), 10, -1],
-      ['death', sheet.death, row(6), 12, 0],
-    ];
-    for (const [clip, frames, start, frameRate, repeat] of clips) {
-      if (frames <= 1) continue;
-      const key = `${textureKey}${suffix}-${clip}`;
-      if (this.anims.exists(key)) continue;
-      this.anims.create({
-        key,
-        frames: this.anims.generateFrameNumbers(textureKey, { start, end: start + frames - 1 }),
-        frameRate,
-        repeat,
-      });
-    }
-  }
-
-  /**
-   * Register one `<key>-play` clip per effect strip.
-   *
-   * The frame rate comes from the manifest rather than a constant: a 9-frame
-   * explosion that runs at 28 fps reads as a blast, while the same strip at
-   * 18 fps reads as a smokescreen. The generated atlas keeps each element's
-   * authored speed.
-   */
-  createFxAnimations() {
-    for (const [key, sheet] of Object.entries(FX_SHEETS)) {
-      if (!this.textures.exists(key) || sheet.frames <= 1) continue;
-      if (this.anims.exists(`${key}-play`)) continue;
-      this.anims.create({
-        key: `${key}-play`,
-        frames: this.anims.generateFrameNumbers(key, { start: 0, end: sheet.frames - 1 }),
-        frameRate: sheet.frameRate || 26,
-        repeat: 0,
-      });
-    }
-  }
-
-  createImpactAnimations() {
-    for (const [key, sheet] of Object.entries(IMPACT_SHEETS)) {
-      if (!this.textures.exists(key)) continue;
-      this.anims.create({
-        key: `${key}-burst`,
-        frames: this.anims.generateFrameNumbers(key, { start: 0, end: sheet.frames - 1 }),
-        frameRate: 18,
-        repeat: 0,
-      });
     }
   }
 }

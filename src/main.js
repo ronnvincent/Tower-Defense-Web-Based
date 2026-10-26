@@ -25,6 +25,7 @@ import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { audioDirector } from './rendering/audioDirector.js';
 import { SettingsUI } from './ui/SettingsUI.js';
+import { QualityManager } from './systems/QualityManager.js';
 import { soundIcon } from './ui/soundIcon.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
@@ -34,6 +35,16 @@ import { lockViewport } from './system/viewportLock.js';
 
 // 1. Instantiate shared systems for UI
 const globalLeaderboard = new Leaderboard();
+
+// Before the first frame: the graphics profile owns a `data-quality` attribute
+// on <html>, and CSS reads it (blur, parallax, ambience). Applying it after the
+// menu paints would flash the expensive version on the devices that cannot
+// afford it.
+window.gameQuality = new QualityManager({
+  // A cheaper profile also means fewer ambience beds, so the audio layer has
+  // to re-read the budget the moment the choice changes.
+  onChange: () => audioDirector.sync?.(),
+});
 
 // 2. Initialize Phaser Game
 const phaserConfig = {
@@ -903,7 +914,11 @@ window.addEventListener('keydown', () => audio.unlock(), { once: true });
 
 // Music and ambience start on the first real gesture (browser policy) and then
 // follow the screens. `arm()` owns those listeners; nothing autoplays.
-window.gameSettings = new SettingsUI({ audio, onChange: () => syncSoundButtons() });
+window.gameSettings = new SettingsUI({
+  audio,
+  quality: window.gameQuality,
+  onChange: () => syncSoundButtons(),
+});
 audioDirector.arm();
 // Debug handles: the editor console and the browser checks read the live mixer
 // and the scene the director thinks it is playing.

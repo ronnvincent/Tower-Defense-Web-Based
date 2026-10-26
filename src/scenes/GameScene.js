@@ -49,6 +49,8 @@ import { BossTracker } from '../systems/BossTracker.js';
 import { enemyAt, focusReadout, isFocusable } from '../systems/FocusTarget.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { audioDirector } from '../rendering/audioDirector.js';
+import { createBattleFxAnims, hasBattleFxArt, queueBattleFxArt } from '../systems/BattleArt.js';
+import { createEnemyAnims, enemyTexturesForLevel, queueEnemySheets } from '../systems/EnemyAssets.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { relicBonuses } from '../systems/Relics.js';
@@ -171,8 +173,58 @@ export class GameScene extends Phaser.Scene {
     return result.unlocked;
   }
 
+  /**
+   * Enemy sheets for *this* battle only.
+   *
+   * BootScene used to load all 210 strips for every player, which is 184 MP of
+   * decoded texture before a single wave spawns. The level knows exactly which
+   * creatures it fields, so the download and the GPU upload happen here, behind
+   * a real progress bar, and never twice for the same texture.
+   */
+  preload() {
+    const keys = enemyTexturesForLevel(this.level);
+    const needsEnemies = keys.some((key) => !this.textures.exists(key));
+    const needsFx = !hasBattleFxArt(this.textures);
+    if (!needsEnemies && !needsFx) return;
+
+    const overlay = document.getElementById('battle-loading');
+    const fill = document.getElementById('battle-loading-fill');
+    const label = document.getElementById('battle-loading-label');
+    if (overlay) overlay.classList.remove('hidden');
+    if (label) {
+      label.textContent = (
+        needsEnemies ? `MUSTERING ${this.level?.name || 'THE HORDE'}` : 'PREPARING THE FIELD'
+      ).toUpperCase();
+    }
+    if (fill) fill.style.width = '0%';
+    this.load.on('progress', (value) => {
+      if (fill) fill.style.width = `${Math.round(value * 100)}%`;
+    });
+    const done = () => overlay?.classList.add('hidden');
+    this.load.once('complete', done);
+    this.events.once('shutdown', done);
+
+    if (needsEnemies) queueEnemySheets(this.load, this.textures, this.level);
+    if (needsFx) queueBattleFxArt(this.load);
+  }
+
   create() {
     const { width, height } = this.scale;
+
+    // Auto graphics profile, measured rather than assumed: if the battle cannot
+    // hold ~45 fps after four seconds, give up atmosphere once (never back).
+    this.time.delayedCall(4000, () => {
+      const quality = window.gameQuality;
+      if (!quality || quality.setting !== 'auto') return;
+      const fps = this.game?.loop?.actualFps;
+      if (!Number.isFinite(fps) || fps >= 45) return;
+      if (quality.degrade()) audioDirector.sync?.();
+    });
+
+    // Clips for the strips this battle loaded. Idempotent: a texture that was
+    // already on the TextureManager from an earlier battle keeps its clips.
+    createEnemyAnims(this, enemyTexturesForLevel(this.level));
+    createBattleFxAnims(this);
 
     // 1. Initialize Systems & Managers — all scoped to the selected level.
     this.map = parseMap(this.level.mapLayout || getMapLayout(this.level.map));

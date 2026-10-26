@@ -65,6 +65,10 @@ export const STORAGE_KEYS = {
   leaderboard: 'td-dsalgo:leaderboard:v1',
   settings: 'td-dsalgo:settings:v1',
   lastName: 'td-dsalgo:last-name:v1',
+  // Graphics profile (auto / high / balanced / performance). Deliberately its
+  // own record: the audio mixer rewrites its save on every fader move and must
+  // not have to know about rendering.
+  graphics: 'td-dsalgo:graphics:v1',
 };
 
 /** Maximum leaderboard rows displayed / stored. */
