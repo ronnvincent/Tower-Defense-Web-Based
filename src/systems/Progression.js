@@ -87,6 +87,11 @@ export function createProfile() {
     achievements: [], // ids already paid out
     stats: { ...DEFAULT_STATS },
     relics: {}, // forge purchases: { relicId: level }
+    // Companions bought from the menu shop. Meta gold is spent here, never the
+    // battle's own coins, and `pet` is the one that fights beside the Vanguard.
+    pets: [], // owned pet ids
+    pet: null, // equipped pet id
+    heroRank: 1, // 1 vanguard · 2 captain · 3 warlord
   };
 }
 
@@ -133,6 +138,16 @@ export class ProgressStore {
         profile.relics = {};
       }
       profile.stats = { ...DEFAULT_STATS, ...(parsed.stats || {}) };
+      // Companions: unknown ids (a renamed or removed pet) are dropped rather
+      // than carried around, and an equipped pet that is not owned is cleared.
+      profile.pets = Array.isArray(parsed.pets)
+        ? Array.from(new Set(parsed.pets.filter((id) => typeof id === 'string' && id)))
+        : [];
+      profile.pet = profile.pets.includes(parsed.pet) ? parsed.pet : profile.pets[0] || null;
+      // Rank is a 1..3 ladder; an old or hand-edited save cannot invent a rank
+      // the game has no sprite for.
+      const rank = Math.round(Number(parsed.heroRank));
+      profile.heroRank = Number.isFinite(rank) ? Math.min(3, Math.max(1, rank)) : 1;
       return profile;
     } catch {
       return createProfile();
@@ -187,6 +202,85 @@ export class ProgressStore {
 
   get gems() {
     return this.profile.gems;
+  }
+
+  /* --------------------------------------------------------- companions */
+
+  /** Ids of every companion the player owns. */
+  get pets() {
+    return [...this.profile.pets];
+  }
+
+  /** The companion that fights, or null when none is equipped. */
+  get equippedPet() {
+    return this.profile.pet || null;
+  }
+
+  ownsPet(id) {
+    return this.profile.pets.includes(id);
+  }
+
+  /**
+   * Buy a companion with meta gold.
+   *
+   * Returns a result object instead of throwing: the shop needs to say *why*
+   * nothing happened ("you need 90 more gold") without a try/catch in a click
+   * handler.
+   *
+   * @returns {{ ok:boolean, reason?:string, gold:number }}
+   */
+  buyPet(id, price) {
+    if (!id) return { ok: false, reason: 'unknown-pet', gold: this.profile.gold };
+    if (this.ownsPet(id)) return { ok: false, reason: 'owned', gold: this.profile.gold };
+    const cost = Math.max(0, Math.round(Number(price) || 0));
+    if (this.profile.gold < cost) return { ok: false, reason: 'gold', gold: this.profile.gold };
+    this.profile.gold -= cost;
+    this.profile.pets.push(id);
+    // The first companion bought is equipped straight away — buying something
+    // and then having to find a second button to use it is a papercut.
+    if (!this.profile.pet) this.profile.pet = id;
+    this.save();
+    return { ok: true, gold: this.profile.gold };
+  }
+
+  /* ------------------------------------------------------------- hero */
+
+  /** The Vanguard's rank: 1 vanguard, 2 captain, 3 warlord. */
+  get heroRank() {
+    return this.profile.heroRank || 1;
+  }
+
+  /**
+   * Promote the Vanguard to the next rank.
+   *
+   * The cost is the *next* rank's price, so `promoteHero(2)` asks for the
+   * captain's 160. Returns the same result shape as `buyPet` so the shop has a
+   * single error vocabulary.
+   *
+   * @returns {{ ok:boolean, reason?:string, rank:number }}
+   */
+  promoteHero(cost, maxRank = 3) {
+    const next = Math.min(maxRank, this.heroRank + 1);
+    if (next === this.heroRank) return { ok: false, reason: 'maxed', rank: this.heroRank };
+    const price = Math.max(0, Math.round(Number(cost) || 0));
+    if (this.profile.gold < price) return { ok: false, reason: 'gold', rank: this.heroRank };
+    this.profile.gold -= price;
+    this.profile.heroRank = next;
+    this.save();
+    return { ok: true, rank: next };
+  }
+
+  /** Equip an owned companion, or `null` to send it home. */
+  equipPet(id) {
+    if (id === null) {
+      this.profile.pet = null;
+      this.save();
+      return null;
+    }
+    if (!this.ownsPet(id)) return this.profile.pet;
+    this.profile.pet = id;
+    this.save();
+    return this.profile.pet;
   }
 
   /* ------------------------------------------------------------- stats */

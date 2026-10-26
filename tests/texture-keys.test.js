@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { UNIT_SHEETS } from '../src/data/unitArt.js';
 
 /**
  * Every texture the scenes ask for must exist.
@@ -55,6 +56,16 @@ function loadedKeys() {
   return keys;
 }
 
+/**
+ * Keys loaded on demand from `data/unitArt.js` — the Vanguard and the bought
+ * companions. They reach the loader through `queueUnitSheets`, so the literal
+ * scan below cannot see them; the manifest is the source of truth instead, and
+ * the last test in this file checks the files it names really ship.
+ */
+function unitSheetKeys() {
+  return new Set(Object.keys(UNIT_SHEETS));
+}
+
 /** Literal keys handed to a `scene.add.*` factory. */
 function referencedKeys() {
   const found = new Map();
@@ -75,7 +86,7 @@ function referencedKeys() {
 
 describe('texture key contract', () => {
   it('never references a texture nothing draws or loads', () => {
-    const available = new Set([...bakedKeys(), ...loadedKeys()]);
+    const available = new Set([...bakedKeys(), ...loadedKeys(), ...unitSheetKeys()]);
     const missing = [...referencedKeys()].filter(([key]) => !available.has(key));
     expect(
       missing.map(([key, file]) => `${key} (${file})`),
@@ -97,5 +108,13 @@ describe('texture key contract', () => {
     // A pre-coloured bubble would fight `setTint(0x4ee1ff)`; the art stays white
     // and every colour decision stays with the enemy.
     expect(body).toMatch(/rgba\(255,\s*255,\s*255/);
+  });
+
+  it('ships every unit sheet the manifest promises', () => {
+    const publicDir = new URL('../public/', import.meta.url).pathname;
+    const missing = Object.entries(UNIT_SHEETS)
+      .filter(([, sheet]) => !existsSync(join(publicDir, sheet.path)))
+      .map(([key, sheet]) => `${key} -> public/${sheet.path}`);
+    expect(missing, 'unitArt.js names a sheet that is not in public/').toEqual([]);
   });
 });

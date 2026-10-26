@@ -301,11 +301,13 @@ describe('the Vanguard health bar', () => {
     hero.drawHealthBar();
     expect(calls.rects).toBe(3); // frame, track, fill
 
-    // A downed Vanguard keeps its (empty) bar on screen.
+    // A downed Vanguard draws no bar at all: an empty dark rectangle floating
+    // over a toppled body reads as a bug, and the HUD panel already says DOWN.
     hero.takeDamage(999);
+    expect(hero.isDown).toBe(true);
     calls.rects = 0;
     hero.drawHealthBar();
-    expect(calls.rects).toBeGreaterThan(0);
+    expect(calls.rects).toBe(0);
   });
 });
 

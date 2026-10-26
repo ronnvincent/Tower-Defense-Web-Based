@@ -119,3 +119,46 @@ becomes a terrain theme — adding its palette to `scripts/terrain.py` so the fu
 The honest summary: the reachable library is **two origins, both CC0**, and the
 strongest tileset in it (`tower-defense-top-down`) is stylistically incompatible
 with the shipped art. It is a second visual language, not a replacement.
+
+## 5. The unit sheets — Tiny Swords (CC0 1.0)
+
+The Vanguard and the companions are the first *characters* the project draws
+with third-party art, so the licence had to be unambiguous. The bundle used is
+**Tiny Swords (Update 010) by Pixel Frog — CC0 1.0**, mirrored with its licence
+text inside a public repository:
+
+| What | Where |
+|---|---|
+| Pack root | `github.com/FulAppiOS/Agent-Quest` → `client/public/assets/themes/tiny-swords-cc0/` |
+| Licence text | same folder, `LICENSE.txt` (CC0 1.0 Universal) |
+| Local copy | `art-source/units/` + `LICENSE-TinySwords-CC0.txt` |
+
+CC0 means no attribution is required and the art may be modified and
+redistributed — which is exactly what the build does (the source rows are
+re-sliced and repacked).
+
+### What is used
+
+| Sheet | Source unit | Rows kept | Notes |
+|---|---|---|---|
+| `hero-vanguard.png` | `Knights/Troops/Warrior/Blue` | idle / walk / attack | rank 1 |
+| `hero-captain.png` | `Knights/Troops/Warrior/Yellow` | idle / walk / attack | rank 2 |
+| `hero-warlord.png` | `Knights/Troops/Warrior/Red` | idle / walk / attack | rank 3 |
+| `pet-squire.png` | `Knights/Troops/Pawn/Blue` | idle / walk / attack | Bramble |
+| `pet-fletch.png` | `Knights/Troops/Archer/Blue` | idle / walk / attack | Fletch |
+| `pet-ember.png` | `Goblins/Troops/Torch/Blue` | idle / walk / attack | Ember |
+| `pet-boomer.png` | `Goblins/Troops/TNT/Blue` | idle / walk / attack | Boomer |
+| `pet-wool.png` | `Resources/Sheep/HappySheep_All` | idle / walk / attack | Wool (128 px cells) |
+| `fx-skull.png` | `Knights/Troops/Dead/Dead` | one 14-frame row | the death puff |
+
+`Goblins/Troops/Barrel` was inspected and **dropped**: its sheet has no walk row,
+so a follower built from it would slide.
+
+### How they are packed
+
+`scripts/build_unit_sheets.sh` (ImageMagick 6) trims each source row to its real
+alpha extent, pads every cell to a constant width, and writes one PNG per unit at
+192 px cells (128 for the sheep, 64 for the skull). `src/data/unitArt.js` records
+what the script printed: `cols`, the per-clip frame count, and the measured
+**body box** inside the cell (the warrior is 78×91 at `+63+45`), which is what
+`unitMetrics()` turns into a draw scale and a feet-on-the-ground origin.

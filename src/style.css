@@ -5684,6 +5684,186 @@ body.is-fullscreen #app::after {
   color: var(--gold-primary);
 }
 
+/* --------------------------------------------------------------------------
+   COMPANION LODGE
+   Same shop grammar as the Forge, but the card leads with the creature: the
+   portrait is a cropped frame from the very sheet the entity animates, not a
+   separate icon, so what you buy is what walks beside you.
+   -------------------------------------------------------------------------- */
+
+.pets-shell {
+  width: min(1100px, 100%);
+}
+
+.pets-note {
+  margin: 0;
+  max-width: 68ch;
+  text-align: center;
+  font-size: var(--fs-micro);
+  color: var(--ink-muted);
+  letter-spacing: 0.3px;
+}
+
+.pets-flash {
+  margin: 0;
+  padding: 5px 14px;
+  align-self: center;
+  border-radius: 3px;
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  background: rgba(6, 10, 16, 0.72);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  text-align: center;
+}
+
+.pets-flash.good {
+  color: #b6f2b0;
+  border-color: rgba(150, 226, 132, 0.45);
+}
+
+.pets-flash.bad {
+  color: #ffb3a7;
+  border-color: rgba(226, 110, 92, 0.5);
+}
+
+.pet-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: clamp(8px, 1.4vw, 14px);
+  overflow: auto;
+  align-content: start;
+}
+
+.pet-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'portrait body'
+    'action action';
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 158, 88, 0.26);
+  background: rgba(5, 8, 13, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.pet-card.owned {
+  border-color: rgba(159, 231, 255, 0.42);
+  box-shadow: inset 0 0 22px rgba(159, 231, 255, 0.06);
+}
+
+.pet-card.equipped {
+  border-color: rgba(245, 196, 81, 0.6);
+  box-shadow:
+    inset 0 0 26px rgba(245, 196, 81, 0.1),
+    0 0 0 1px rgba(245, 196, 81, 0.18);
+}
+
+.pet-portrait {
+  grid-area: portrait;
+  display: block;
+  /* The sprite is a crop of a pixel-art sheet: keep the pixels square. */
+  image-rendering: pixelated;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 158, 88, 0.28);
+  background-color: rgba(12, 18, 26, 0.9);
+  background-repeat: no-repeat;
+}
+
+.pet-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.pet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pet-name {
+  color: var(--ink-strong);
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.pet-role {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: #9fe7ff;
+}
+
+.pet-kind {
+  margin: 1px 0 0;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.pet-blurb {
+  margin: 3px 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  color: var(--ink-muted);
+}
+
+.pet-stats {
+  margin: 5px 0 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--gold-primary);
+}
+
+.pet-action {
+  grid-area: action;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pet-buy,
+.pet-equip {
+  padding: 3px 12px;
+  font-size: var(--fs-micro);
+}
+
+.pet-coin {
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+  vertical-align: -1px;
+}
+
+.pet-equip-tag {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--ink-muted);
+}
+
+.pet-equip-tag.is-live {
+  color: var(--gold-primary);
+}
+
+@media (max-width: 720px) {
+  .pet-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+
+  .pet-blurb {
+    display: none;
+  }
+}
+
 .blessings-card {
   width: min(620px, 94vw);
 }
@@ -11072,6 +11252,9 @@ html.draft-open body {
 
 .hero-actions {
   display: flex;
+  /* With all three skills unlocked the row is four buttons wide, so it wraps
+     inside the 208 px card instead of squeezing the labels to nothing. */
+  flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
 }

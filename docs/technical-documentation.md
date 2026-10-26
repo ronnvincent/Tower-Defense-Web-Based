@@ -1252,3 +1252,84 @@ geometry, single-line toasts). `tests/haptics.test.js` (8) pins the preference,
 the pattern lengths and the unsupported-platform path. Existing HUD suites
 (dom, hit area, responsive) were not modified and still pass, which is the
 evidence that the desktop shell is unchanged.
+
+## 13. The Vanguard, its ranks and the companions
+
+The Vanguard used to be one painted pose, one button and a leash nobody pulled:
+it walked only where it was told, so a player who did not want to micromanage
+never used it. The redesign answers that with three ideas, all data-driven.
+
+### 13.1 Ranks (`src/data/heroData.js`)
+
+| Rank | Sheet | Health | Damage | Swing | Strike | Skills |
+|---|--:|--:|--:|--:|--:|---|
+| 1 Vanguard | `hero-vanguard` | 500 | 30 | 1000 ms | 100 / r75 / 12 s | Shieldbreaker |
+| 2 Captain | `hero-captain` | 640 | 38 | 900 ms | 130 / r88 / 10.5 s | + War Cry |
+| 3 Warlord | `hero-warlord` | 820 | 48 | 820 ms | 170 / r104 / 9.5 s | + Bulwark |
+
+Every rank is a **different sheet** (Tiny Swords blue → yellow → red warrior) drawn
+at its own height (86 / 92 / 98 world px measured from the body box), so a
+promotion changes the silhouette on the board as well as the numbers. Rank 1 is
+the old stat line unchanged, which keeps the balance pass meaningful.
+
+Ranks are bought **between battles**, in the Muster Hall, with banked gold
+(160, then 300). `ProgressStore.heroRank` stores the ladder and clamps a
+hand-edited save into 1–3.
+
+### 13.2 Autopilot and skills
+
+`HERO_AUTO` is the leash: `aggro 300`, `leash 360`, `retargetMs 220`,
+`standoff 0.62`, `manualHoldMs 6000`. Each frame the hero re-decides: the
+nearest ground creep inside its post's aggro ring → walk to a standoff point →
+swing on its own cadence; no target → walk home to `post`. A manual move order
+suspends the autopilot for six seconds and then hands it back, so the MOVE button
+is an override, never a requirement.
+
+Skills cast themselves when their `auto` trigger is satisfied:
+
+| Skill | Trigger | Effect | Cooldown |
+|---|---|---|--:|
+| Shieldbreaker | ≥2 creeps in `strike.radius` | rank-dependent area damage | 9.5–12 s |
+| War Cry | ≥2 creeps in 190 px | 35 % slow for 4 s | 15 s |
+| Bulwark | health ≤ 35 % | heal 35 %, 50 % damage reduction for 4.5 s | 20 s |
+
+`Hero.update()` returns `{ moved, attacked, casts }`; the scene turns `casts`
+into one VFX per cast (a burst + a frost nova for War Cry, a nova for Bulwark).
+The HUD gets the same skills as buttons, so a player who wants to hold a cooldown
+in reserve still can.
+
+### 13.3 The death read
+
+The pack ships no death row for the knights, so dying is communicated the way the
+rest of the game already does it: the sprite drops to 45 % alpha and greys, the
+`fx-skull` sheet plays a single 14-frame puff above the body, and the HUD flags
+`DOWN`. It returns at full health when the next wave starts.
+
+### 13.4 Companions (`src/data/petData.js`, `src/entities/Pet.js`)
+
+Five bought companions, each one ability, none of them able to touch the lane:
+
+| Id | Name | Sheet | Price | Ability |
+|---|---|---|--:|---|
+| `bramble` | Bramble | Pawn | 150 | taunt: 40 damage + 35 % slow |
+| `wool` | Wool | Sheep | 240 | mend: heals 16 % of the Vanguard |
+| `fletch` | Fletch | Archer | 340 | shot: 45 damage at 240 px |
+| `ember` | Ember | Torch Goblin | 460 | burn: DOT through `Enemy.applyDot` |
+| `boomer` | Boomer | TNT Goblin | 620 | bomb: 90 damage in 80 px |
+
+A companion follows the hero at `+62 / +34` px, snaps when left 360 px behind, and
+is **not targetable and not a collision body** — it can be added or removed
+without moving a single enemy. Its clips are the same idle / walk / attack rows
+as the hero's, driven by `data/unitArt.js`.
+
+### 13.5 Where it is bought
+
+`ProgressStore` grew three fields next to `relics`: `pets` (owned ids), `pet`
+(the equipped one) and `heroRank`. Both are validated on load — unknown ids are
+dropped, an unowned equipped pet is cleared, the rank is clamped — so an old or
+tampered save cannot invent a companion.
+
+The shop is `src/ui/PetShopUI.js`, opened from **MUSTER HALL** in the world map's
+top bar (`#wm-pets`). It is deliberately *not* in the battle HUD: gold spent in a
+run buys towers, gold banked between runs buys the roster, and the two wallets
+can never be confused for one another.

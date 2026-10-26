@@ -52,7 +52,11 @@ import { PowerupState, POWERUPS, METEOR, FROST, frostTargets } from '../systems/
 import { difficultyFor } from '../systems/Difficulty.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
-import { Hero, HERO, HERO_TEXTURE, HERO_SHEET, HERO_FRAME } from '../entities/Hero.js';
+import { Hero, HERO, HERO_TEXTURE } from '../entities/Hero.js';
+import { Pet } from '../entities/Pet.js';
+import { getPet, PET_FOLLOW } from '../data/petData.js';
+import { queueUnitSheets, registerUnitAnims, UNIT_SHEETS } from '../data/unitArt.js';
+import { heroTier, HERO_SKILLS } from '../data/heroData.js';
 import { MAX_LEVEL } from '../data/towerAscension.js';
 import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
@@ -222,11 +226,12 @@ export class GameScene extends Phaser.Scene {
     const keys = enemyTexturesForLevel(this.level);
     const needsEnemies = keys.some((key) => !this.textures.exists(key));
     const needsFx = !hasBattleFxArt(this.textures);
-    // The Vanguard is one small strip, loaded with the first battle and reused
-    // for every later one — it never belongs to boot, because the realm screens
-    // do not draw it.
-    const needsHero = !this.textures.exists(HERO_TEXTURE);
-    if (!needsEnemies && !needsFx && !needsHero) return;
+    // The Vanguard and the equipped companion are small sheets, loaded with the
+    // first battle that needs them and reused afterwards — they never belong to
+    // boot, because the realm screens do not draw either of them.
+    const unitKeys = this.unitSheetKeys();
+    const needsUnits = unitKeys.some((key) => !this.textures.exists(key));
+    if (!needsEnemies && !needsFx && !needsUnits) return;
 
     const overlay = document.getElementById('battle-loading');
     const fill = document.getElementById('battle-loading-fill');
@@ -247,12 +252,25 @@ export class GameScene extends Phaser.Scene {
 
     if (needsEnemies) queueEnemySheets(this.load, this.textures, this.level);
     if (needsFx) queueBattleFxArt(this.load);
-    if (needsHero) {
-      this.load.spritesheet(HERO_TEXTURE, HERO_SHEET, {
-        frameWidth: HERO_FRAME.width,
-        frameHeight: HERO_FRAME.height,
-      });
-    }
+    if (needsUnits) queueUnitSheets(this.load, this.textures, unitKeys);
+  }
+
+  /**
+   * Which unit sheets this battle needs: the Vanguard at the rank the player
+   * bought, plus the equipped companion if there is one. Nothing else — nine
+   * sheets would be 6 MB of decode for one sprite.
+   */
+  unitSheetKeys() {
+    const keys = [];
+    const rank = heroTier(this.progress?.heroRank || 1);
+    if (UNIT_SHEETS[rank.texture]) keys.push(rank.texture);
+    const pet = getPet(this.progress?.equippedPet);
+    if (pet && UNIT_SHEETS[pet.texture]) keys.push(pet.texture);
+    if (!keys.includes(HERO_TEXTURE)) keys.push(HERO_TEXTURE);
+    // The death puff is a unit sheet too, and the only thing that draws it is
+    // the Vanguard going down — load it with the hero, not on demand.
+    if (UNIT_SHEETS['fx-skull']) keys.push('fx-skull');
+    return Array.from(new Set(keys));
   }
 
   create() {
@@ -310,8 +328,12 @@ export class GameScene extends Phaser.Scene {
     // the fight instead of behind it. Created here — after the lane graph, before
     // the HUD — so both the panel and the first wave already know it exists.
     this.hero = null;
+    this.pet = null;
     this.pendingHeroMove = false;
     this.heroHudTimer = 0;
+    // Clips are registered once per sheet, here — after the loader has the
+    // textures and before the entities try to play them.
+    registerUnitAnims(this, this.unitSheetKeys());
     this.spawnHero();
     // Run-long rules (draft cards, anomalies, ascension). Neutral here, so the
     // campaign and the duel behave exactly as they did before modes existed.
@@ -514,6 +536,7 @@ export class GameScene extends Phaser.Scene {
         onPowerup: (key) => this.handlePowerup(key),
         onHeroMove: () => this.armHeroMove(),
         onHeroStrike: () => this.castHeroStrike(),
+        onHeroSkill: (id) => this.castHeroSkill(id),
         onClearFocus: () => this.setFocusFire(null),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
@@ -571,6 +594,10 @@ export class GameScene extends Phaser.Scene {
       this.cameraRig?.destroy();
       this.badges?.clear();
       this.vfx?.destroy();
+      this.pet?.destroy?.();
+      this.pet = null;
+      this.hero?.destroy?.();
+      this.hero = null;
     });
   }
 
@@ -2485,6 +2512,13 @@ export class GameScene extends Phaser.Scene {
       this.hero = new Hero(this, {
         x,
         y,
+        tier: this.progress?.heroRank || 1,
+        // Autopilot on from the first frame: the brief is a Vanguard that is
+        // useful to a player who does not want to give it orders, and a manual
+        // move order simply suspends it for six seconds.
+        auto: true,
+        autoSkills: true,
+        post: { x, y },
         bounds: {
           x0: TILE_SIZE / 2,
           y0: TILE_SIZE / 2,
@@ -2492,9 +2526,27 @@ export class GameScene extends Phaser.Scene {
           y1: this.map.rows * TILE_SIZE - TILE_SIZE / 2,
         },
       });
+      this.spawnPet();
       this.syncHeroHud();
     }
     return this.hero;
+  }
+
+  /**
+   * Put the bought companion on the field, just behind the Vanguard.
+   *
+   * A companion is cosmetic to the lane: it never blocks a path and cannot be
+   * targeted, so a pet can be added or removed without touching balance.
+   */
+  spawnPet() {
+    if (this.pet || !this.hero) return this.pet;
+    const definition = getPet(this.progress?.equippedPet);
+    if (!definition || !this.textures.exists(definition.texture)) return null;
+    this.pet = new Pet(this, definition, {
+      x: this.hero.x - PET_FOLLOW.offsetX,
+      y: this.hero.y + PET_FOLLOW.offsetY,
+    });
+    return this.pet;
   }
 
   /**
@@ -2530,13 +2582,24 @@ export class GameScene extends Phaser.Scene {
     const hero = this.hero;
     if (!hero) return null;
     return {
+      name: hero.config.name,
       health: hero.health,
       maxHealth: hero.maxHealth,
       down: hero.isDown,
       strikeReady: hero.strikeReady,
       strikeCooldownMs: hero.strikeCooldownMs,
-      strikeCooldownMax: HERO.strike.cooldownMs,
+      strikeCooldownMax: hero.config.strike.cooldownMs,
       moving: Boolean(hero.destination),
+      // Only the skills this rank owns, in the order the HUD draws them.
+      skills: hero.config.skills
+        .filter((id) => id !== 'strike')
+        .map((id) => ({
+          id,
+          label: HERO_SKILLS[id]?.label || id.toUpperCase(),
+          ready: hero.skillCooldown(id) <= 0,
+          cooldownMs: hero.skillCooldown(id),
+          cooldownMax: hero.skillCooldownMax(id),
+        })),
     };
   }
 
@@ -2591,6 +2654,107 @@ export class GameScene extends Phaser.Scene {
     );
     this.syncHeroHud();
     return result;
+  }
+
+  /**
+   * Cast War Cry or Bulwark by hand. Auto-cast uses the same VFX; this is the
+   * path the HUD button takes, so a player who wants to hold a skill back can.
+   */
+  castHeroSkill(id) {
+    const hero = this.hero;
+    if (!hero || hero.isDown) return { ok: false, reason: 'down' };
+    const skill = HERO_SKILLS[id];
+    if (!skill || id === 'strike') return { ok: false, reason: 'unknown' };
+    if (!hero.config.skills.includes(id)) {
+      audio.playError();
+      this.hud?.showToast(`${skill.name.toUpperCase()} — PROMOTE THE VANGUARD TO UNLOCK`, 'warning');
+      return { ok: false, reason: 'locked' };
+    }
+    if (hero.skillCooldown(id) > 0) {
+      audio.playError();
+      this.hud?.showToast(`${skill.name.toUpperCase()} RECHARGING`, 'warning');
+      return { ok: false, reason: 'cooldown' };
+    }
+    const result = id === 'warcry' ? hero.warcry(this.activeEnemies) : hero.bulwark();
+    this.playHeroCast(id);
+    const hits = result?.hits ?? 0;
+    this.hud?.showToast(
+      id === 'warcry'
+        ? `WAR CRY — ${hits} ${hits === 1 ? 'creep' : 'creeps'} slowed`
+        : 'BULWARK — the Vanguard braces',
+      hits > 0 || id === 'bulwark' ? 'success' : 'info'
+    );
+    this.syncHeroHud();
+    return { ok: true, ...result };
+  }
+
+  /** The shared cast flourish. Auto-casts and manual casts look identical. */
+  playHeroCast(id) {
+    const hero = this.hero;
+    if (!hero) return;
+    // One ring per cast. Two overlapping shockwaves (one at the true radius and
+    // one from `impact`) covered the whole bastion at 0.56 zoom — a debuff is
+    // not worth three tiles of white flash.
+    if (id === 'strike') {
+      audio.playEnemyHit?.();
+      this.cameras.main.shake(140, 0.004);
+      this.vfx?.impact?.(hero.x, hero.y, 'explosive', {
+        scale: 1.05,
+        splash: Math.min(hero.config.strike.radius, 120),
+        shake: false,
+      });
+      return;
+    }
+    if (id === 'warcry') {
+      this.vfx?.nova?.(hero.x, hero.y, 1.0);
+      this.vfx?.shockwave?.(hero.x, hero.y, 1.5, 'frost');
+      return;
+    }
+    if (id === 'bulwark') {
+      this.vfx?.nova?.(hero.x, hero.y, 0.85);
+    }
+  }
+
+  /** A skull puff over a Vanguard that just fell. */
+  playHeroDownFx() {
+    const hero = this.hero;
+    if (!hero || !this.textures.exists('fx-skull')) return;
+    const anim = 'fx-skull-die';
+    if (!this.anims.exists(anim)) {
+      registerUnitAnims(this, ['fx-skull']);
+    }
+    if (!this.anims.exists(anim)) {
+      this.vfx?.impact?.(hero.x, hero.y, 'physical', { scale: 1.2, shake: false });
+      return;
+    }
+    const skull = this.add.sprite(hero.x, hero.y - (hero.metrics?.height || 70) * 0.55, 'fx-skull', 0);
+    skull.setDepth(48);
+    skull.setScale(0.7);
+    skull.play(anim);
+    skull.once('animationcomplete', () => skull.destroy());
+    this.cameras.main.shake(120, 0.003);
+  }
+
+  /** The companion's one flourish, matched to what its ability actually did. */
+  playPetCast(cast) {
+    if (!cast) return;
+    const at = cast.at || this.pet;
+    if (!at) return;
+    if (cast.id === 'bomb') {
+      this.vfx?.impact?.(cast.at.x, cast.at.y, 'explosive', { scale: 1.1, splash: 80, shake: false });
+      return;
+    }
+    if (cast.id === 'burn') {
+      this.vfx?.impact?.(at.x, at.y, 'fire', { scale: 0.8, shake: false });
+      return;
+    }
+    if (cast.id === 'mend') {
+      this.vfx?.nova?.(this.hero?.x ?? at.x, this.hero?.y ?? at.y, 0.7);
+      return;
+    }
+    // shot and taunt: a small hit puff on the target.
+    const target = cast.targets?.[0];
+    if (target) this.vfx?.impact?.(target.x, target.y, 'physical', { scale: 0.7, shake: false });
   }
 
   /**
@@ -3946,12 +4110,27 @@ export class GameScene extends Phaser.Scene {
 
     // 4b. The Vanguard walks, swings and takes contact damage on the same clock.
     if (this.hero) {
-      this.hero.update(clampedDelta, this.activeEnemies);
+      const step = this.hero.update(clampedDelta, this.activeEnemies);
+      for (const cast of step.casts) this.playHeroCast(cast);
+      // One skull, at the moment it actually goes down — the downed pose alone
+      // is easy to miss in a busy lane.
+      if (this.hero.isDown && !this.heroDownFx) {
+        this.heroDownFx = true;
+        this.playHeroDownFx();
+      } else if (!this.hero.isDown) {
+        this.heroDownFx = false;
+      }
       this.heroHudTimer += clampedDelta;
       if (this.heroHudTimer >= 120) {
         this.heroHudTimer = 0;
         this.syncHeroHud();
       }
+    }
+
+    // 4c. The bought companion follows the Vanguard and fires on its own timer.
+    if (this.pet) {
+      const petStep = this.pet.update(clampedDelta, this.activeEnemies, this.hero);
+      if (petStep.cast) this.playPetCast(petStep.cast);
     }
 
     // 5. Boss Status HUD Update

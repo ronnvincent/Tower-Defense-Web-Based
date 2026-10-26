@@ -1006,3 +1006,68 @@ Before the fix the same probe read 0.5625 open → **0.7604** folded (the board
 "zoomed in" and jumped 152 px taller). Both shells now hold the frame; the phone
 shell folds the forge by default and covers the bottom of the board with its
 sheet when opened, but never resizes it. 0 console errors in both runs.
+
+## 18. The Vanguard and the companions (prepared turn)
+
+Everything below was driven in a real Chromium against the production build
+(`npm run build`, `python3 -m http.server … -d dist`, 1366×768, 0 console-level
+errors in every run).
+
+### 18.1 The Muster Hall is a menu shop, not a battle screen
+
+- world map → `#wm-pets` opens `#pets-screen` with **5 companion cards** and the
+  rank ladder; every portrait is a CSS crop of the unit sheet that animates in
+  battle (`hero-vanguard.png`, `pet-squire.png`, … all eight request 200).
+- buy Bramble (150) + promote to Captain (160) with a seeded 2000 gold:
+  `localStorage` ends at `gold 1690, pets ["bramble"], pet "bramble", heroRank 2`,
+  the card flips to `equipped`, and the flash reads
+  `THE VANGUARD RISES — CAPTAIN`.
+
+### 18.2 Rank 2 is what walks into the battle
+
+Same session, `gameFlow.startLevel('level-1')`:
+
+| reading | value |
+|---|---|
+| `hero.tier` | 2 |
+| sprite texture | `hero-captain` |
+| clip | `hero-captain-idle` |
+| draw scale / body height | 1.011 / 92 px (origin on the feet) |
+| `hero.auto` | `true` |
+| `hero.config.skills` | `["strike", "warcry"]` |
+| HUD | title `CAPTAIN`, WAR CRY visible, BULWARK hidden |
+| companion | `pet-squire-idle`, 44 px tall |
+
+### 18.3 The clips actually play in a fight
+
+Level 1, START WAVE clicked, sampled every 800 ms for 96 s:
+
+| observed | value |
+|---|---|
+| hero clips | `hero-warlord-idle`, `-walk`, `-attack` |
+| companion clips | `pet-squire-idle`, `-walk`, `-attack` |
+| frames with a swing | 13 |
+| frames with creeps on screen | 101 (max 18 alive) |
+| companion casts | 3 |
+| Vanguard health | 820 → 360 (contact damage, never down) |
+| waves reached | 1 and 2 |
+
+### 18.4 Skills, death and revival
+
+- clicking `#hero-warcry` with the skill ready: cooldown `0 → 15000 ms`, the
+  label becomes `15s`, the button disables.
+- `takeDamage(∞)`: `isDown true`, sprite `alpha 0.45`, tinted, HUD
+  `is-down` + state `DOWN`; the `fx-skull` sprite is created by the next
+  simulation frame and destroyed when its clip completes (2.4 s later the scene
+  holds 0).
+- `revive()`: health 820 / 820, alpha 1, state `AUTO`.
+
+### 18.5 What moved in the test suite
+
+`tests/pets.test.js` (19) covers the catalogue, the wallet (buy → equip → reload
+→ clamp), the pet entity's five abilities, the cooldown, and the "no flying
+targets / does nothing while the hero is down" rules.
+`tests/texture-keys.test.js` now treats `UNIT_SHEETS` as a loadable source (the
+sheets reach Phaser through `queueUnitSheets`, not a literal `load.*` call) and
+adds a new assertion that every sheet the manifest names exists in `public/`.
+Full suite: **106 files / 1270 tests**, build clean.

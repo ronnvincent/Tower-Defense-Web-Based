@@ -17,6 +17,7 @@ import { DraftPanel } from './ui/DraftPanel.js';
 import { ProgressStore } from './systems/Progression.js';
 import { AchievementsUI } from './ui/AchievementsUI.js';
 import { ForgeUI } from './ui/ForgeUI.js';
+import { PetShopUI } from './ui/PetShopUI.js';
 import { BlessingsUI } from './ui/BlessingsUI.js';
 import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
 import { getNextLevel, getLevel } from './data/levelData.js';
@@ -447,6 +448,15 @@ window.gameAchievements = new AchievementsUI(screenContainer, window.gameProgres
   onClose: () => restoreAfterPanel(),
 });
 
+// The Muster Hall: the Vanguard's rank ladder and the five companions, bought
+// with banked gold. It lives on the world map, never in a battle, so a purchase
+// is always a decision made between fights.
+window.gamePets = new PetShopUI(screenContainer, window.gameProgress, {
+  onClose: () => restoreAfterPanel(),
+  onPurchase: () => refreshRealmLedger(),
+  onPromote: () => refreshRealmLedger(),
+});
+
 /**
  * The world map: the hub every inner screen hangs off.
  *
@@ -479,6 +489,7 @@ window.gameWorldMap = new WorldMapUI(
       // One table, so a landmark can only ever open a screen that exists.
       const open = {
         forge: () => window.gameForge?.show(),
+        pets: () => window.gamePets?.show(),
         achievements: () => window.gameAchievements?.show(),
         leaderboard: () => window.gameLeaderboardUI?.show(),
         codex: () => window.gameCodex?.show(),

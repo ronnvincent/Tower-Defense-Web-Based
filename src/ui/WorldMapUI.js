@@ -202,6 +202,7 @@ export class WorldMapUI {
               <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
             </svg>
           </button>
+          <button id="wm-pets" class="wm-btn wm-btn--primary" type="button">MUSTER HALL</button>
           <button id="wm-menu" class="wm-btn wm-btn--ghost" type="button">MAIN MENU</button>
         </div>
       </header>
@@ -309,6 +310,10 @@ export class WorldMapUI {
     });
 
     // Top bar.
+    el.querySelector('#wm-pets')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onNavigate?.('pets');
+    });
     el.querySelector('#wm-menu')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onMenu?.();
