@@ -58,14 +58,18 @@ build_row() {
 }
 
 # name|source|frame|idleRow|walkRow|attackRow|clips
+#
+# The five heroes are five different units, not five tints of one: sword,
+# spear, bow, gold plate and violet plate. `hero-ranger` is the only sheet
+# whose attack row is a shot rather than a swing.
 # `clips` is how many sheet rows to emit: 3 (idle/walk/attack, the default) or 1
 # for a one-shot effect like the fallen-knight skull.
 SPECS=(
   "hero-vanguard|warrior_blue.png|192|0|1|2"
-  "hero-captain|warrior_yellow.png|192|0|1|3"
-  "hero-warlord|warrior_red.png|192|0|1|4"
-  "hero-sentinel|warrior_purple.png|192|0|1|4"
   "hero-halberd|pawn_blue.png|192|0|1|3"
+  "hero-ranger|archer_blue.png|192|0|1|2"
+  "hero-warden|warrior_yellow.png|192|0|1|3"
+  "hero-cinder|warrior_purple.png|192|0|1|4"
   "pet-squire|pawn_blue.png|192|0|1|3"
   "pet-fletch|archer_blue.png|192|0|1|2"
   "pet-ember|torch_blue.png|192|0|1|2"

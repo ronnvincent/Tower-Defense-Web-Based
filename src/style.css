@@ -6592,6 +6592,18 @@ body.is-fullscreen #app::after {
   color: var(--text-dim);
 }
 
+.pet-stat-unit {
+  font-size: 0.7em;
+  color: var(--text-dim);
+}
+
+.pet-stat-attack {
+  display: block;
+  font-size: 0.62em;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+
 .pet-stat-value {
   font-family: var(--font-heading);
   font-size: clamp(12px, 1.6vh, 15px);
@@ -6746,6 +6758,18 @@ body.is-fullscreen #app::after {
   padding-top: 2px;
 }
 
+/* The panel scrolls on a phone, and the one button that spends gold sat at the
+   very bottom of that scroll — a shop where the buy button is below the fold is
+   a shop nobody buys from. It is sticky, with a scrim so the text underneath
+   does not read through it. */
+.pets-detail-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 10px 0 4px;
+  background: linear-gradient(180deg, rgba(9, 11, 15, 0) 0%, rgba(9, 11, 15, 0.96) 30%);
+}
+
 .pets-detail-foot .game-btn {
   min-width: min(280px, 100%);
 }
@@ -6858,6 +6882,52 @@ body.is-fullscreen #app::after {
     gap: 3px;
   }
 
+  .pets-wallets {
+    gap: 4px;
+  }
+
+  .pets-wallets .wallet {
+    min-height: 20px;
+    padding: 0 6px;
+    border-width: 6px 8px;
+    font-size: 9px;
+    letter-spacing: 0.4px;
+  }
+
+  .pets-wallets .wallet img {
+    width: 12px;
+    height: 12px;
+  }
+
+  .pets-wallets .wallet-heroes {
+    display: none;
+  }
+
+  .pets-detail .pet-stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .pets-detail .pet-stat {
+    padding: 2px 4px;
+  }
+
+  .pets-detail .pet-stat-label {
+    font-size: 7px;
+    letter-spacing: 0.6px;
+  }
+
+  .pets-detail .pet-stat-value {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* "201 PX · RANGED" wraps into a second line inside a 55 px box; the role
+     chip at the top of the panel already says RANGED. */
+  .pets-detail .pet-stat-attack {
+    display: none;
+  }
+
   .pet-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6909,6 +6979,136 @@ body.is-fullscreen #app::after {
   .pet-skill {
     padding: 4px 6px;
   }
+
+  /* Three skills with a sentence each is more than a 227 px panel holds. On a
+     short landscape phone each skill becomes one row — icon, name, numbers —
+     so the whole card fits with no scrollbar and the action plate never has to
+     cover a skill. The prose is still there on desktop. */
+  .pet-skill-text {
+    display: none;
+  }
+
+  .pet-skill-body {
+    flex: 1 1 auto;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .pet-skill-numbers {
+    margin-left: auto;
+    font-size: 8px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pets-detail .pet-skill {
+    gap: 6px;
+    align-items: center;
+    padding: 2px 6px;
+  }
+
+  .pets-detail .pet-skill-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .pets-detail .pet-skill-name {
+    letter-spacing: 1px;
+  }
+
+  .pets-detail-head {
+    gap: 8px;
+  }
+
+  /* Four stacked lines (kind, name, role, rank) is a poster, not a header, on
+     a 390 px screen. Kind and role share a row, name and rank share the next. */
+  .pets-detail-title {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1px 8px;
+  }
+
+  .pets-detail .pet-kind {
+    grid-area: 1 / 1;
+  }
+
+  .pets-detail-title .pet-role-chip {
+    grid-area: 1 / 2;
+    align-self: center;
+    padding: 0 5px;
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .pets-detail-name {
+    grid-area: 2 / 1;
+  }
+
+  .pets-detail-title .pet-level-ladder {
+    grid-area: 2 / 2;
+    justify-self: end;
+    margin: 0;
+  }
+
+  /* The action plate is the one thing that must always be reachable, so it
+     stops being a 55 px slab on a phone. */
+  .pets-detail-foot .game-btn {
+    min-height: 38px;
+    padding: 0 16px;
+  }
+
+  /* The flavour sentence is the first thing to go: the name, the role, the
+     stats and the skills all still read. */
+  .pets-detail .pet-blurb {
+    display: none;
+  }
+
+  .pets-detail {
+    gap: 2px;
+    padding: 5px 8px;
+  }
+
+  /* A skill that is still locked does not need its numbers — the rank it
+     needs is already written next to its name. */
+  .pet-skill.is-locked .pet-skill-numbers {
+    display: none;
+  }
+
+  .pets-detail-foot .game-btn {
+    min-height: 36px;
+  }
+}
+
+/* The per-skill numbers line, below the description in the Muster Hall. */
+.pet-skill-numbers {
+  margin: 0;
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-skill-lock {
+  font-style: normal;
+  font-family: var(--font-heading);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.pet-skill.is-locked {
+  opacity: 0.62;
+}
+
+.pet-skill.is-locked .pet-skill-icon {
+  filter: grayscale(0.85);
 }
 
 /* Portrait phones: the shop is a stack, not three columns. */

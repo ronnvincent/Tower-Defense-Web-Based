@@ -20,7 +20,15 @@
  *     the sound and the toast without the entity knowing about any of them.
  */
 
-import { HERO_AUTO, HERO_SKILLS, HERO_TIERS, heroTier, nextHeroTier } from '../data/heroData.js';
+import {
+  DEFAULT_HERO,
+  HERO_AUTO,
+  HERO_SKILLS,
+  HERO_TIERS,
+  heroRank,
+  nextHeroRank,
+  skillStats,
+} from '../data/heroData.js';
 import { UNIT_SHEETS, unitMetrics } from '../data/unitArt.js';
 
 /** The strip the HUD portrait and the rank-1 sprite read. */
@@ -96,8 +104,10 @@ export class Hero {
     this.scene = scene;
     this.x = options.x || 0;
     this.y = options.y || 0;
+    this.classId = options.classId || options.heroClass || DEFAULT_HERO;
     this.tier = Math.max(1, Math.min(HERO_TIERS.length, Math.round(options.tier || 1)));
-    this.config = heroTier(this.tier);
+    this.config = heroRank(this.classId, this.tier);
+    this.classId = this.config.classId;
     this.maxHealth = this.config.maxHealth;
     this.health = this.maxHealth;
     this.speed = this.config.speed;
@@ -123,7 +133,7 @@ export class Hero {
     this.manualHoldMs = 0;
 
     /** Ready times for every skill the rank knows. */
-    this.skillCooldowns = { strike: 0, warcry: 0, bulwark: 0 };
+    this.skillCooldowns = Object.fromEntries(this.config.skills.map((id) => [id, 0]));
     /** Damage-reduction window from Bulwark. */
     this.guardMs = 0;
     /** While > 0 the attack clip wins over walk/idle. */
@@ -185,7 +195,12 @@ export class Hero {
 
   skillCooldownMax(id) {
     if (id === 'strike') return this.config.strike.cooldownMs;
-    return HERO_SKILLS[id]?.cooldownMs || 0;
+    return skillStats(id, this.tier)?.cooldownMs || 0;
+  }
+
+  /** True when this hero's class is the ranged one. */
+  get isRanged() {
+    return this.config.attack === 'ranged';
   }
 
   /** Play a clip if the sheet carries one; harmless when the scene has no anims. */
@@ -280,9 +295,12 @@ export class Hero {
     }
 
     const attacked = this.swing(dt, enemies);
+    this.lastCast = null;
     const casts = this.autoSkills ? this.autoCast(enemies) : [];
     this.animate(moved);
-    return { moved, attacked, casts };
+    // `castInfo` is what the last cast actually touched, so the scene can draw a
+    // streak per arrow instead of one generic ring at the hero's feet.
+    return { moved, attacked, casts, castInfo: this.lastCast };
   }
 
   /** Walk toward the current order. Returns true while actually moving. */
@@ -342,7 +360,10 @@ export class Hero {
         target.applyDamage(this.config.damage, this.config.strike.type);
         this.attackTimer = this.config.intervalMs;
         this.attackPulse = 180;
-        this.attackAnimMs = 320;
+        // The Ranger's sheet has eight frames of draw-and-release; melee sheets
+        // settle back to idle in six. Both read at their own length.
+        this.attackAnimMs = this.isRanged ? 420 : 320;
+        if (this.isRanged) this.facing = target.x < this.x ? -1 : 1;
         attacked = target;
       } else {
         this.attackTimer = 0; // ready again the instant something walks in
@@ -351,35 +372,93 @@ export class Hero {
     return attacked;
   }
 
-  /** Cast any skill whose trigger is satisfied. Returns the ids that fired. */
+  /**
+   * Cast any skill whose trigger is satisfied. Returns the ids that fired.
+   *
+   * One loop over the rank's own skill list — the class decides which skills it
+   * has, the table decides what they do, and the rank decides how hard.
+   */
   autoCast(enemies) {
     const casts = [];
-    const skills = this.config.skills;
-    if (skills.includes('strike')) {
-      const auto = HERO_SKILLS.strike.auto;
-      if (
-        this.strikeReady &&
-        countGroundEnemies(this, enemies, this.config.strike.radius) >= auto.minTargets
-      ) {
-        const result = this.strike(enemies);
-        if (result.hits > 0) casts.push('strike');
+    for (const id of this.config.skills) {
+      const skill = HERO_SKILLS[id];
+      if (!skill) continue;
+      if (this.skillCooldown(id) > 0) continue;
+      if (skill.auto?.healthRatio) {
+        if (this.health / this.maxHealth > skill.auto.healthRatio) continue;
+        const result = this.castSkill(id, enemies);
+        if (result?.fired) casts.push(id);
+        continue;
       }
-    }
-    if (skills.includes('warcry') && this.skillCooldown('warcry') <= 0) {
-      const auto = HERO_SKILLS.warcry.auto;
-      if (countGroundEnemies(this, enemies, HERO_SKILLS.warcry.radius) >= auto.minTargets) {
-        const result = this.warcry(enemies);
-        if (result.hits > 0) casts.push('warcry');
-      }
-    }
-    if (skills.includes('bulwark') && this.skillCooldown('bulwark') <= 0) {
-      const auto = HERO_SKILLS.bulwark.auto;
-      if (this.health / this.maxHealth <= auto.healthRatio) {
-        const result = this.bulwark();
-        if (result.ready) casts.push('bulwark');
-      }
+      const minTargets = skill.auto?.minTargets ?? 1;
+      const radius = skillStats(id, this.tier)?.radius || 0;
+      if (countGroundEnemies(this, enemies, radius) < minTargets) continue;
+      const result = this.castSkill(id, enemies);
+      if (result?.fired) casts.push(id);
     }
     return casts;
+  }
+
+  /**
+   * Cast one skill by id.
+   *
+   * Every skill is one of five shapes (see `kind` in heroData): a burst around
+   * the hero, a volley at range, a slow, a burn, or a self-buff. They all share
+   * the same once-per-target rule and the same "no damage while down" guard, so
+   * a new class is a data entry rather than a new code path.
+   *
+   * @returns {{ fired:boolean, hits?:number, healed?:number, targets?:object[], kind?:string }}
+   */
+  castSkill(id, enemies) {
+    if (this.isDown) return { fired: false };
+    const skill = skillStats(id, this.tier);
+    if (!skill) return { fired: false };
+    if (this.skillCooldown(id) > 0) return { fired: false };
+
+    if (skill.kind === 'self') {
+      const healed = Math.min(this.maxHealth - this.health, this.maxHealth * skill.healRatio);
+      if (healed <= 0 && this.guardMs > 0) return { fired: false };
+      this.health = Math.min(this.maxHealth, this.health + healed);
+      this.guardMs = skill.durationMs;
+      this.skillCooldowns[id] = skill.cooldownMs;
+      this.attackAnimMs = 320;
+      this.drawHealthBar();
+      return { fired: true, healed, kind: 'self', targets: [] };
+    }
+
+    const inRing = [];
+    const seen = new Set();
+    for (const enemy of enemies || []) {
+      if (!isGroundEnemy(enemy) || !isAliveEnemy(enemy)) continue;
+      if (seen.has(enemy.id)) continue;
+      if (Math.hypot(enemy.x - this.x, enemy.y - this.y) > skill.radius) continue;
+      seen.add(enemy.id);
+      inRing.push(enemy);
+    }
+    if (!inRing.length) return { fired: false, hits: 0 };
+
+    const hit = skill.kind === 'volley' ? this.rankByDistance(inRing).slice(0, skill.targets || 4) : inRing;
+    let hits = 0;
+    for (const enemy of hit) {
+      if (skill.damage) enemy.applyDamage(skill.damage, skill.type);
+      if (skill.slow) enemy.applySlow?.(skill.slow, skill.slowMs);
+      if (skill.dot && enemy.applyDot) enemy.applyDot({ ...skill.dot, kind: 'fire' });
+      hits += 1;
+    }
+    this.skillCooldowns[id] = skill.cooldownMs;
+    if (id === 'strike') this.strikeCooldownMs = this.config.strike.cooldownMs;
+    this.attackPulse = 240;
+    this.attackAnimMs = id === 'volley' ? 520 : 380;
+    // The scene draws the effect from this, not from the skill id alone.
+    this.lastCast = { id, kind: skill.kind, radius: skill.radius, targets: hit, at: { x: this.x, y: this.y } };
+    return { fired: true, hits, kind: skill.kind, targets: hit };
+  }
+
+  /** Closest-first ordering, so a volley spends its arrows where it matters. */
+  rankByDistance(list) {
+    return [...list].sort(
+      (a, b) => Math.hypot(a.x - this.x, a.y - this.y) - Math.hypot(b.x - this.x, b.y - this.y)
+    );
   }
 
   /** Idle / walk / attack clip for this frame. */
@@ -392,36 +471,23 @@ export class Hero {
   }
 
   /**
-   * Shieldbreaker Strike.
+   * Shieldbreaker Strike — the Vanguard's signature burst.
    *
-   * Every ground creep within `radius` takes the hit exactly once: the id set is
-   * per cast, and both liveness and distance are re-checked here rather than
-   * trusting a list captured before the tap.
+   * Every ground creep within the ring takes the hit exactly once: the id set
+   * is per cast, and both liveness and distance are re-checked at cast time
+   * rather than trusting a list captured before the tap.
    *
    * @returns {{ hits:number, ready:boolean }}
    */
   strike(enemies) {
-    if (this.isDown || this.strikeCooldownMs > 0) return { hits: 0, ready: false };
-    const strike = this.config.strike;
-    const seen = new Set();
-    let hits = 0;
-    for (const enemy of enemies || []) {
-      if (!isGroundEnemy(enemy) || !isAliveEnemy(enemy)) continue;
-      if (seen.has(enemy.id)) continue;
-      if (Math.hypot(enemy.x - this.x, enemy.y - this.y) > strike.radius) continue;
-      seen.add(enemy.id);
-      enemy.applyDamage(strike.damage, strike.type);
-      hits += 1;
-    }
-    this.strikeCooldownMs = strike.cooldownMs;
-    this.skillCooldowns.strike = strike.cooldownMs;
-    this.attackPulse = 240;
-    this.attackAnimMs = 380;
-    return { hits, ready: true };
+    if (this.isDown) return { hits: 0, ready: false };
+    if (this.strikeCooldownMs > 0) return { hits: 0, ready: false };
+    const result = this.castSkill('strike', enemies);
+    return { hits: result.fired ? result.hits : 0, ready: true };
   }
 
   /**
-   * War Cry: a shout that staggers everything around the Vanguard.
+   * War Cry: a shout that staggers everything around the hero.
    *
    * Implemented on the enemies' own slow channel (the same one the frost lines
    * use) so it stacks and expires with the rest of the crowd-control rules
@@ -431,29 +497,15 @@ export class Hero {
    */
   warcry(enemies) {
     if (this.isDown || this.skillCooldown('warcry') > 0) return { hits: 0, ready: false };
-    const skill = HERO_SKILLS.warcry;
-    let hits = 0;
-    for (const enemy of enemies || []) {
-      if (!isGroundEnemy(enemy) || !isAliveEnemy(enemy)) continue;
-      if (Math.hypot(enemy.x - this.x, enemy.y - this.y) > skill.radius) continue;
-      enemy.applySlow?.(skill.slow, skill.slowMs);
-      hits += 1;
-    }
-    this.skillCooldowns.warcry = skill.cooldownMs;
-    this.attackPulse = 240;
-    return { hits, ready: true };
+    const result = this.castSkill('warcry', enemies);
+    return { hits: result.fired ? result.hits : 0, ready: true };
   }
 
   /** Bulwark: a self-heal plus a window of damage reduction. */
   bulwark() {
     if (this.isDown || this.skillCooldown('bulwark') > 0) return { healed: 0, ready: false };
-    const skill = HERO_SKILLS.bulwark;
-    const healed = Math.min(this.maxHealth - this.health, this.maxHealth * skill.healRatio);
-    this.health = Math.min(this.maxHealth, this.health + healed);
-    this.guardMs = skill.durationMs;
-    this.skillCooldowns.bulwark = skill.cooldownMs;
-    this.drawHealthBar();
-    return { healed, ready: true };
+    const result = this.castSkill('bulwark');
+    return { healed: result.healed || 0, ready: result.fired };
   }
 
   /** @param {number} amount */
@@ -487,7 +539,7 @@ export class Hero {
   revive() {
     this.health = this.maxHealth;
     this.strikeCooldownMs = 0;
-    this.skillCooldowns = { strike: 0, warcry: 0, bulwark: 0 };
+    this.skillCooldowns = Object.fromEntries(this.config.skills.map((id) => [id, 0]));
     this.guardMs = 0;
     this.attackAnimMs = 0;
     this.attackTimer = 0;
@@ -510,11 +562,15 @@ export class Hero {
    * @returns {{ tier:number, name:string, texture:string }|null} null at the top rank
    */
   promote() {
-    const next = nextHeroTier(this.tier);
+    const next = nextHeroRank(this.classId, this.tier);
     if (!next || this.isDown) return null;
     const ratio = this.maxHealth ? this.health / this.maxHealth : 1;
     this.tier += 1;
     this.config = next;
+    this.skillCooldowns = {
+      ...Object.fromEntries(next.skills.map((id) => [id, 0])),
+      ...this.skillCooldowns,
+    };
     this.maxHealth = next.maxHealth;
     this.health = Math.max(1, Math.round(next.maxHealth * ratio));
     this.speed = next.speed;

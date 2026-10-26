@@ -1413,3 +1413,164 @@ The CC0 pack ships idle, run and attack rows only. The hero's death is the
 so they never die. A full idle/walk/attack/death set needs a pack that actually
 carries a death row; that is a download-and-repack job, not a code change, and
 it is the next art task rather than something this pass pretended to ship.
+
+## 23. Five Vanguards, one dispatcher (Request 32)
+
+### 23.1 The roster
+
+The Vanguard stopped being a single unit with five ranks and became five
+*classes*, three ranks each. "More heroes" was the request; five tints of one
+knight would not have answered it, so each class is a different unit on the
+board and a different set of numbers in the data.
+
+| id | name | role | sheet | health | reach | damage | swing | recruit | promote (2 / 3) | skills |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `vanguard` | Vanguard | SWORD & BOARD | `hero-vanguard` (blue knight, sword) | 500 | 30 | 30 | 1000 ms | free | 160 / 300 | Shieldbreaker, War Cry, Bulwark |
+| `halberdier` | Halberdier | REACH | `hero-halberd` (blue pawn, spear) | 460 | 48 | 26 | 850 ms | 220 | 190 / 360 | Wide Cleave, Snare, Shieldbreaker |
+| `ranger` | Ranger | RANGED | `hero-ranger` (blue archer, bow) | 360 | 190 | 22 | 900 ms | 320 | 220 / 400 | Volley, Snare, Emberbrand |
+| `warden` | Warden | WALL | `hero-warden` (gold knight) | 720 | 34 | 36 | 1080 ms | 420 | 240 / 430 | Bulwark, War Cry, Wide Cleave |
+| `cinder` | Cinder | FIRE | `hero-cinder` (violet knight) | 560 | 36 | 32 | 940 ms | 560 | 260 / 470 | Emberbrand, Shieldbreaker, Bulwark |
+
+Rank arithmetic is one function (`makeRanks` in `src/data/heroData.js`), quoted
+here so the shop, the battle and the tests cannot drift: health
+`×(1 + 0.35·(rank−1))`, speed `×(1 + 0.03·i)`, reach `×(1 + 0.06·i)`, damage
+`×[1, 1.25, 1.55]`, swing interval `×[1, 0.93, 0.86]`, contact damage `+2` per
+rank, body height `+2` per rank. Skills unlock one per rank, in the order
+listed. The Ranger is the only class with `attack: 'ranged'`.
+
+### 23.2 Five sheets, re-packed from the same CC0 source
+
+`scripts/build_unit_sheets.sh` grew five rows, each pointing at a different
+Tiny Swords unit (Pixel Frog, CC0 1.0 — `art-source/units/LICENSE-TinySwords-CC0.txt`):
+
+| sheet | source row file | size | idle / walk / attack |
+| --- | --- | --- | --- |
+| `hero-vanguard` | `warrior_blue.png` | 1152×576 | 6 / 6 / 6 |
+| `hero-halberd` | `pawn_blue.png` | 1152×576 | 6 / 6 / 6 |
+| `hero-ranger` | `archer_blue.png` | 1536×576 | 6 / 6 / 8 |
+| `hero-warden` | `warrior_yellow.png` | 1152×576 | 6 / 6 / 6 |
+| `hero-cinder` | `warrior_purple.png` | 1152×576 | 6 / 6 / 6 |
+
+The three old tier sheets (`hero-captain`, `hero-warlord`, `hero-sentinel`) are
+gone; nothing referenced them any more. The body box for each new sheet was
+measured with `convert -trim` and written into `UNIT_SHEETS`, so the feet still
+land on the unit's `x, y` and the aura and shadow follow the real silhouette:
+the archer's cell is `{x:68, y:59, w:62, h:75}` at 8 columns, the spear and the
+two knights are `{x:67, y:69, w:58, h:59}` and `{x:63, y:45, w:78, h:91}`.
+
+### 23.3 Skills are a table, not five code paths
+
+`HERO_SKILLS` holds seven skills, each with one of five shapes — `burst`,
+`volley`, `slow`, `burn`, `self` — and `Hero.castSkill(id, enemies)` is the only
+dispatcher. A class entry is a list of ids and a rank slice; the entity never
+learns a class name.
+
+| skill | kind | numbers (rank 1) | rank 3 |
+| --- | --- | --- | --- |
+| Shieldbreaker | burst | 100 dmg, 75 r, 12 s, needs 2 targets | 155 dmg, 10.3 s |
+| Wide Cleave | burst | 74 dmg, 108 r, 9 s, needs 3 | 115 dmg, 7.7 s |
+| Volley | volley | 52 dmg × 4 targets, 240 r, 8.5 s, needs 2 | 81 dmg, 7.3 s |
+| Snare | slow | 24 dmg, 170 r, slow .55 for 3.2 s, 14 s | 37 dmg, 12 s |
+| Emberbrand | burn | 26 dmg + 14 per 600 ms for 4.2 s, 120 r, 12 s | 40 dmg, 10.3 s |
+| War Cry | slow | 190 r, slow .35 for 4 s, 15 s | 12.9 s |
+| Bulwark | self | heal 35 % of wounds, guard .5 for 4.5 s, 20 s | heal 54 %, 17.2 s |
+
+Every cast still obeys the rules from request 17: ground enemies only, one hit
+per enemy per cast, liveness re-checked at cast time, no damage while down, a
+cooldown that survives a refused cast. `autoCast()` walks the class's own list in
+order and consults each skill's `auto` trigger (`minTargets`, or a health ratio
+for Bulwark), and `update()` reports what fired.
+
+### 23.4 The effects are per skill, not one puff
+
+`GameScene.playHeroCast(id, info)` reads the cast's `kind` and draws the shape
+that belongs to it: the cleave/strike ring of steel rays, arrow streaks for the
+volley (one per target, aimed at that target's position), a frost ring and a
+pale tint for the two slows, and a fire bloom with embers for the burn. The
+Bulwark cast flashes the guard shield on the hero itself. The Ranger's ordinary
+attack got its own tell (`playHeroShot`), so a shot looks different from a melee
+swing even when no skill is on cooldown.
+
+### 23.5 The Muster Hall grows a roster
+
+The VANGUARD tab is now a roster plus a detail panel: five cards on the left
+(portrait, name, role, and `IN THE FIELD` / `RANK n` / `LOCKED`), and on the
+right the selected hero's title, name, role, rank pips, stats, the three skills
+with their per-rank numbers, and one action plate — `RECRUIT · price`,
+`TAKE THE GATE`, or `PROMOTE · cost`. The wallet line reads `n / 5 recruited`
+next to `n / 5 vanguards`. Buying selects the new hero; promoting spends the
+next rank's price and cannot pass rank 3.
+
+### 23.6 The phone had 356 px of detail in a 189 px panel
+
+First measurement on a 844×390 landscape phone: `.pets-detail` reported
+`scrollHeight 356` against `clientHeight 189`, with `pets-detail-grid`, the
+locked skill row and the fifth roster card all spilling past the shell. The
+design was not "too much content" so much as four separate stack-ups:
+
+1. the header stacked kind, name, role chip and rank ladder — four lines in a
+   158 px column, 69 px tall;
+2. each of the three skills stacked name, a two-line description and a numbers
+   line — 35 px of prose each;
+3. `201 PX · RANGED` wrapped inside a 55 px stat box, making the whole stat row
+   taller than the text;
+4. the action plate sat at the bottom of that overflow, where the touch target
+   could be scrolled away.
+
+Fixed in the compact rule (`@media (max-width: 900px), (max-height: 560px)`)
+without touching the desktop layout:
+
+- the title becomes a 2×2 grid — kind + role on one row, name + rank pips on the
+  next — and the portrait drops from 104 px to 52 px: header 69 → 52;
+- stats go from 2×2 to one row of four, the attack kind moves to its own small
+  line under the number (and is hidden here, where the role chip already says
+  it): stat block 48 → 34;
+- each skill becomes a single row — icon, name, then `65 dmg · 240 r · 7.9s` in
+  dim text with an ellipsis guard — and a still-locked skill drops its numbers:
+  three skills 117 → 60;
+- the flavour sentence is hidden on a short phone (the name, role, stats and
+  skills all still read), the panel gap goes 3 → 2 px, and the action plate is
+  sticky with a scrim so the one button that spends gold is always reachable.
+
+Measured after the fix, with the same probe on three landscape sizes:
+
+| viewport | `.pets-detail` | `.overlay-shell` | nodes outside viewport | cards |
+| --- | --- | --- | --- | --- |
+| 844×390 | 210 / 210 | 328 / 328 | 0 | 5 |
+| 667×375 | 203 / 203 | — | 0 | 5 |
+| 896×414 | 210 / 210 | — | 0 | 5 |
+
+All three tabs were measured separately at 844×390 (RECRUIT, UPGRADE,
+VANGUARD): `210 / 210` each, `328 / 328` shell, five cards, no element past the
+edge, and 0 console errors (`tabsMobile.mjs`).
+
+### 23.7 Verification
+
+- **Desktop 1366×768** (`roster.mjs`): five cards with five different
+  portraits, `IN THE FIELD` / `LOCKED` states, the Vanguard panel at
+  `RANK 1 / 3` with Shieldbreaker live and War Cry / Bulwark `· RANK 2` /
+  `· RANK 3`, `PROMOTE · 160`; 0 nodes outside the shell. Recruiting the Ranger
+  moved gold `4000 → 3680`, set `heroClass: 'ranger'`, flashed
+  `RANGER JOINS THE VANGUARD`, and swapped the plate to `PROMOTE · 220`.
+- **In battle**: a rank-2 Ranger spawned with `classId ranger`,
+  `texture hero-ranger`, `ranged true`, 486 HP, 28 damage, reach 201 and an
+  8-frame attack clip, then fired a real volley. A rank-3 Cinder spawned with
+  952 HP, 50 damage, skills `ember/strike/bulwark`, and its Ember cast hit six
+  creeps, left `fire:14` on every one of them and started a 10 320 ms cooldown.
+- **Assets**: every glyph the shop prints resolves to a file — the skill icons
+  used to be bare names and were 404s until they were changed to full paths
+  (`/assets/ui-kit/glyph_*.png`, `/assets/projectiles/proj-arrow.png`); a
+  failed-response scan now reports none.
+- **Tests**: `tests/hero-roster.test.js` adds 23 cases (unique classes and
+  sheets, three scaling ranks, skill table coverage of all five kinds, the cast
+  dispatcher per kind, cooldown refusal, down-state refusal, auto triggers),
+  taking the suite from 1285 to **1308 passing**. `npm run build` is clean.
+
+### 23.8 Still missing: a death row and a cast row
+
+Same gap as 22.4, one step worse: the CC0 pack has idle, walk and attack rows
+for these units, so the five heroes now walk, swing and shoot — and still go
+down with the `fx-skull` puff instead of a death animation. Casts are drawn by
+the scene's effect layer rather than by a dedicated cast row. A pack that
+carries those rows is a download-and-repack job, not something this pass
+pretended to ship.

@@ -56,7 +56,7 @@ import { Hero, HERO, HERO_TEXTURE } from '../entities/Hero.js';
 import { Pet } from '../entities/Pet.js';
 import { getPet, PET_FOLLOW } from '../data/petData.js';
 import { queueUnitSheets, registerUnitAnims, UNIT_SHEETS } from '../data/unitArt.js';
-import { heroTier } from '../data/heroData.js';
+import { HERO_SKILLS, heroRank, skillStats } from '../data/heroData.js';
 import { MAX_LEVEL } from '../data/towerAscension.js';
 import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
@@ -262,7 +262,7 @@ export class GameScene extends Phaser.Scene {
    */
   unitSheetKeys() {
     const keys = [];
-    const rank = heroTier(this.progress?.heroRank || 1);
+    const rank = heroRank(this.progress?.heroClass, this.progress?.selectedRank || 1);
     if (UNIT_SHEETS[rank.texture]) keys.push(rank.texture);
     const pet = getPet(this.progress?.equippedPet);
     if (pet && UNIT_SHEETS[pet.texture]) keys.push(pet.texture);
@@ -2475,7 +2475,10 @@ export class GameScene extends Phaser.Scene {
       this.hero = new Hero(this, {
         x,
         y,
-        tier: this.progress?.heroRank || 1,
+        // The roster decides *which* hero, the roster decides its rank: both
+        // come from the same save the Muster Hall writes.
+        classId: this.progress?.heroClass || undefined,
+        tier: this.progress?.selectedRank || 1,
         // Autopilot on from the first frame: the brief is a Vanguard that is
         // useful to a player who does not want to give it orders, and a manual
         // move order simply suspends it for six seconds.
@@ -2549,12 +2552,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** The shared cast flourish. Auto-casts and manual casts look identical. */
-  playHeroCast(id) {
+  playHeroCast(id, info = null) {
     const hero = this.hero;
     if (!hero) return;
-    // One ring per cast. Two overlapping shockwaves (one at the true radius and
-    // one from `impact`) covered the whole bastion at 0.56 zoom — a debuff is
-    // not worth three tiles of white flash.
+    const skill = HERO_SKILLS[id];
+    const stats = skillStats(id, hero.tier) || {};
+    const targets = info?.targets || [];
+    const at = info?.at || null;
+
     if (id === 'strike') {
       audio.playEnemyHit?.();
       this.cameras.main.shake(140, 0.004);
@@ -2565,14 +2570,84 @@ export class GameScene extends Phaser.Scene {
       });
       return;
     }
+
+    if (id === 'cleave') {
+      // Wide and flat: a ground ring at the true radius, no camera shake — this
+      // is a swing, not a bomb.
+      audio.playShoot?.('forge');
+      this.vfx?.shockwave?.(hero.x, hero.y, Math.max(0.8, (stats.radius || 100) / 90), 'physical');
+      this.vfx?.impact?.(hero.x, hero.y, 'physical', {
+        scale: 0.9,
+        splash: Math.min(stats.radius || 100, 120),
+        shake: false,
+      });
+      return;
+    }
+
+    if (id === 'volley') {
+      // One arrow streak per target actually hit, so the volley is legible even
+      // when the creeps are off to the side of the hero.
+      audio.playShoot?.('archer');
+      for (const target of targets.slice(0, 6)) {
+        this.vfx?.muzzle?.(
+          hero.x,
+          hero.y - (hero.metrics?.height || 70) * 0.5,
+          Math.atan2(target.y - hero.y, target.x - hero.x),
+          'physical',
+          'archer'
+        );
+        this.vfx?.impact?.(target.x, target.y, 'physical', { scale: 0.6, shake: false, line: 'archer' });
+      }
+      return;
+    }
+
+    if (id === 'snare') {
+      this.vfx?.nova?.(hero.x, hero.y, 1.1);
+      this.vfx?.shockwave?.(hero.x, hero.y, Math.max(1, (stats.radius || 160) / 120), 'frost');
+      for (const target of targets.slice(0, 6)) {
+        this.vfx?.impact?.(target.x, target.y, 'frost', { scale: 0.5, shake: false, line: 'frost' });
+      }
+      return;
+    }
+
+    if (id === 'ember') {
+      this.vfx?.impact?.(hero.x, hero.y, 'fire', { scale: 1.0, splash: stats.radius || 110, shake: false });
+      for (const target of targets.slice(0, 6)) {
+        this.vfx?.impact?.(target.x, target.y, 'fire', { scale: 0.55, shake: false });
+      }
+      return;
+    }
+
     if (id === 'warcry') {
       this.vfx?.nova?.(hero.x, hero.y, 1.0);
       this.vfx?.shockwave?.(hero.x, hero.y, 1.5, 'frost');
+      audio.playWarning?.();
       return;
     }
+
     if (id === 'bulwark') {
       this.vfx?.nova?.(hero.x, hero.y, 0.85);
+      return;
     }
+
+    // Unknown skill: at least the position is right.
+    if (skill && at) this.vfx?.nova?.(at.x, at.y, 0.6);
+  }
+
+  /** The Ranger's basic attack: an arrow from the bow to the target. */
+  playHeroShot(target) {
+    const hero = this.hero;
+    if (!hero || !target) return;
+    const from = { x: hero.x, y: hero.y - (hero.metrics?.height || 70) * 0.5 };
+    audio.playShoot?.('archer');
+    this.vfx?.muzzle?.(
+      from.x,
+      from.y,
+      Math.atan2(target.y - from.y, target.x - from.x),
+      'physical',
+      'archer'
+    );
+    this.vfx?.impact?.(target.x, target.y, 'physical', { scale: 0.55, shake: false, line: 'archer' });
   }
 
   /** A skull puff over a Vanguard that just fell. */
@@ -3982,7 +4057,10 @@ export class GameScene extends Phaser.Scene {
     // 4b. The Vanguard walks, swings and takes contact damage on the same clock.
     if (this.hero) {
       const step = this.hero.update(clampedDelta, this.activeEnemies);
-      for (const cast of step.casts) this.playHeroCast(cast);
+      for (const cast of step.casts) this.playHeroCast(cast, step.castInfo);
+      // A ranged hero's ordinary attack is a shot: the arrow has to leave the
+      // bow, or the Ranger reads as a melee unit that happens to hit far away.
+      if (step.attacked && this.hero.isRanged) this.playHeroShot(step.attacked);
       // One skull, at the moment it actually goes down — the downed pose alone
       // is easy to miss in a busy lane.
       if (this.hero.isDown && !this.heroDownFx) {

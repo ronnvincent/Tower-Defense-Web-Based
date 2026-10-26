@@ -12,7 +12,13 @@
  */
 
 import { LEVELS, getNextLevel } from '../data/levelData.js';
-import { HERO_TIER_COUNT } from '../data/heroData.js';
+import {
+  DEFAULT_HERO,
+  HERO_CLASSES,
+  HERO_RANK_COUNT,
+  heroClass,
+  nextHeroRank,
+} from '../data/heroData.js';
 import { PET_MAX_LEVEL, getPet, petUpgradeCost } from '../data/petData.js';
 import { DEFAULT_STATS, evaluateAchievements } from './Achievements.js';
 
@@ -96,7 +102,12 @@ export function createProfile() {
     // Companion levels, `{ petId: 1..5 }`. A bought companion starts at 1 and
     // every level is a real change to the numbers it fights with.
     petLevels: {},
-    heroRank: 1, // 1 vanguard → 5 halberd; the ladder lives in heroData
+    // The hero roster. `heroes` is every Vanguard recruited; each one carries
+    // its own rank (1..3), and `heroClass` is the one that walks out of the
+    // gate. The Vanguard is unlocked from the first battle.
+    heroes: [DEFAULT_HERO],
+    heroClass: DEFAULT_HERO,
+    heroRanks: { [DEFAULT_HERO]: 1 },
   };
 }
 
@@ -158,12 +169,28 @@ export class ProgressStore {
         levels[id] = Number.isFinite(value) ? Math.min(PET_MAX_LEVEL, Math.max(1, value)) : 1;
       }
       profile.petLevels = levels;
-      // Rank is a 1..3 ladder; an old or hand-edited save cannot invent a rank
-      // the game has no sprite for.
-      const rank = Math.round(Number(parsed.heroRank));
-      profile.heroRank = Number.isFinite(rank)
-        ? Math.min(HERO_TIER_COUNT, Math.max(1, rank))
-        : 1;
+      // --- hero roster -------------------------------------------------
+      // A save from the one-hero era has a bare `heroRank` 1..5. That ladder
+      // became five *classes*, so the old number is read as "which hero you had
+      // reached" only as far as it maps cleanly: it becomes the Vanguard's rank
+      // (clamped to 1..3) and every other hero starts locked at rank 1.
+      const known = new Set(HERO_CLASSES.map((entry) => entry.id));
+      const savedHeroes = Array.isArray(parsed.heroes)
+        ? parsed.heroes.filter((id) => known.has(id))
+        : [];
+      const heroes = savedHeroes.length ? savedHeroes : [DEFAULT_HERO];
+      if (!heroes.includes(DEFAULT_HERO)) heroes.unshift(DEFAULT_HERO);
+      profile.heroes = heroes;
+
+      const savedRanks = parsed.heroRanks && typeof parsed.heroRanks === 'object' ? parsed.heroRanks : {};
+      const legacy = Math.round(Number(parsed.heroRank));
+      const ranks = {};
+      for (const id of heroes) {
+        const value = Math.round(Number(savedRanks[id] ?? (id === DEFAULT_HERO ? legacy : 1)));
+        ranks[id] = Number.isFinite(value) ? Math.min(HERO_RANK_COUNT, Math.max(1, value)) : 1;
+      }
+      profile.heroRanks = ranks;
+      profile.heroClass = heroes.includes(parsed.heroClass) ? parsed.heroClass : DEFAULT_HERO;
       return profile;
     } catch {
       return createProfile();
@@ -264,29 +291,89 @@ export class ProgressStore {
 
   /* ------------------------------------------------------------- hero */
 
-  /** The Vanguard's rank: 1 vanguard, 2 captain, 3 warlord. */
-  get heroRank() {
-    return this.profile.heroRank || 1;
+  /** Ids of every Vanguard the player has recruited. */
+  get heroes() {
+    const list = Array.isArray(this.profile.heroes) ? this.profile.heroes : [DEFAULT_HERO];
+    return list.includes(DEFAULT_HERO) ? list : [DEFAULT_HERO, ...list];
+  }
+
+  /** The hero that walks out of the gate. */
+  get heroClass() {
+    const id = this.profile.heroClass;
+    return this.heroes.includes(id) ? id : DEFAULT_HERO;
+  }
+
+  /** Rank (1..3) of one hero; locked heroes still answer with their stored 1. */
+  heroRank(id = this.heroClass) {
+    const value = Math.round(Number(this.profile.heroRanks?.[id]));
+    return Number.isFinite(value) ? Math.min(HERO_RANK_COUNT, Math.max(1, value)) : 1;
+  }
+
+  /** Rank of the selected hero — what the HUD and the battle read. */
+  get selectedRank() {
+    return this.heroRank(this.heroClass);
+  }
+
+  /** `{ heroId: rank }` for every recruited hero. */
+  get heroRanks() {
+    return Object.fromEntries(this.heroes.map((id) => [id, this.heroRank(id)]));
+  }
+
+  ownsHero(id) {
+    return this.heroes.includes(id);
   }
 
   /**
-   * Promote the Vanguard to the next rank.
+   * Recruit a hero with banked gold.
    *
-   * The cost is the *next* rank's price, so `promoteHero(2)` asks for the
-   * captain's 160. Returns the same result shape as `buyPet` so the shop has a
-   * single error vocabulary.
+   * Same result vocabulary as `buyPet` / `promoteHero`, so the shop's one click
+   * handler can speak about all three without a translation table.
    *
-   * @returns {{ ok:boolean, reason?:string, rank:number }}
+   * @returns {{ ok:boolean, reason?:string, id:string, gold:number }}
    */
-  promoteHero(cost, maxRank = HERO_TIER_COUNT) {
-    const next = Math.min(maxRank, this.heroRank + 1);
-    if (next === this.heroRank) return { ok: false, reason: 'maxed', rank: this.heroRank };
-    const price = Math.max(0, Math.round(Number(cost) || 0));
-    if (this.profile.gold < price) return { ok: false, reason: 'gold', rank: this.heroRank };
-    this.profile.gold -= price;
-    this.profile.heroRank = next;
+  buyHero(id) {
+    const klass = heroClass(id);
+    const gold = this.profile.gold;
+    if (this.ownsHero(klass.id)) return { ok: false, reason: 'owned', id: klass.id, gold };
+    const price = Math.max(0, Math.round(Number(klass.price) || 0));
+    if (gold < price) return { ok: false, reason: 'gold', id: klass.id, gold };
+    this.profile.gold = gold - price;
+    this.profile.heroes = [...this.heroes, klass.id];
+    this.profile.heroRanks = { ...this.heroRanks, [klass.id]: 1 };
+    // A hero you just bought is the hero you meant to use.
+    this.profile.heroClass = klass.id;
     this.save();
-    return { ok: true, rank: next };
+    return { ok: true, id: klass.id, gold: this.profile.gold };
+  }
+
+  /** Choose which recruited hero fights the next battle. */
+  selectHero(id) {
+    const klass = heroClass(id);
+    if (!this.ownsHero(klass.id)) return this.heroClass;
+    this.profile.heroClass = klass.id;
+    this.save();
+    return this.heroClass;
+  }
+
+  /**
+   * Promote the selected hero to its next rank.
+   *
+   * The cost is the *next* rank's price, so `promoteHero(2)` asks for rank 2's
+   * coin. Returns the same result shape as `buyPet`.
+   *
+   * @returns {{ ok:boolean, reason?:string, rank:number, id:string }}
+   */
+  promoteHero(cost, maxRank = HERO_RANK_COUNT) {
+    const id = this.heroClass;
+    const current = this.heroRank(id);
+    const next = Math.min(maxRank, current + 1);
+    if (next === current) return { ok: false, reason: 'maxed', rank: current, id };
+    const price = Math.max(0, Math.round(Number(cost) || 0));
+    if (this.profile.gold < price) return { ok: false, reason: 'gold', rank: current, id };
+    this.profile.gold -= price;
+    this.profile.heroRanks = { ...this.heroRanks, [id]: next };
+    this.save();
+    return { ok: true, rank: next, id };
   }
 
   /** Level of an owned companion (1 for anything unknown). */

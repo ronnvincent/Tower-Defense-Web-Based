@@ -21,7 +21,15 @@
  */
 
 import { PETS, PET_MAX_LEVEL, petSkill, petStatRows, petUpgradeCost } from '../data/petData.js';
-import { HERO_TIERS, heroTier, nextHeroTier } from '../data/heroData.js';
+import {
+  HERO_CLASSES,
+  HERO_RANK_COUNT,
+  HERO_SKILLS,
+  heroClass,
+  heroRank,
+  nextHeroRank,
+  skillStats,
+} from '../data/heroData.js';
 import { UNIT_SHEETS } from '../data/unitArt.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { mountScreen, unmountScreen } from './screenHost.js';
@@ -57,7 +65,7 @@ function isCompactViewport() {
 const TAB_LABELS = Object.freeze([
   { id: 'buy', label: 'RECRUIT', hint: 'Spend gold on a companion' },
   { id: 'upgrade', label: 'UPGRADE', hint: 'Level up the one you own' },
-  { id: 'vanguard', label: 'VANGUARD', hint: 'Ranks, skills and strike' },
+  { id: 'vanguard', label: 'VANGUARD', hint: 'Five heroes, ranks and skills' },
 ]);
 
 /** Gold price tag with the coin sprite, shared by every action button. */
@@ -79,10 +87,13 @@ export class PetShopUI {
     this.flash = null;
     this.tab = 'buy';
     this.selected = null;
+    /** Which hero the VANGUARD tab is showing (not necessarily the one in use). */
+    this.selectedHero = null;
   }
 
   show() {
     this.selected = this.selected || this.progress.equippedPet || PETS[0].id;
+    this.selectedHero = this.selectedHero || this.progress.heroClass;
     this.flash = null;
     this.render();
     this.visible = true;
@@ -95,6 +106,15 @@ export class PetShopUI {
   }
 
   /* ------------------------------------------------------------- pieces */
+
+  /** Every hero the player owns, for the roster count above. */
+  get heroRoster() {
+    return HERO_CLASSES.map((klass) => ({
+      ...klass,
+      owned: this.progress.ownsHero(klass.id),
+      rank: this.progress.heroRank(klass.id),
+    }));
+  }
 
   /** One row of the roster: portrait, name, and what state it is in. */
   cardMarkup(pet) {
@@ -206,7 +226,7 @@ export class PetShopUI {
 
     return `
       <div class="pets-detail-head">
-        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, isCompactViewport() ? 66 : 104)}">
+        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, isCompactViewport() ? 52 : 104)}">
           <span class="pet-level-badge">${owned ? `LV ${level}` : 'NOT RECRUITED'}</span>
         </span>
         <div class="pets-detail-title">
@@ -276,7 +296,7 @@ export class PetShopUI {
 
     return `
       <div class="pets-detail-head">
-        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, isCompactViewport() ? 66 : 104)}">
+        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, isCompactViewport() ? 52 : 104)}">
           <span class="pet-level-badge">${level} / ${PET_MAX_LEVEL}</span>
         </span>
         <div class="pets-detail-title">
@@ -303,55 +323,140 @@ export class PetShopUI {
     `;
   }
 
-  /** The Vanguard's rank ladder: what it is now, what the next coin buys. */
-  vanguardDetail() {
-    const rank = this.progress.heroRank;
-    const current = heroTier(rank);
-    const next = nextHeroTier(rank);
-    const affordable = next ? this.progress.gold >= next.promoteCost : false;
-    const stats = (tier) =>
-      `${tier.maxHealth} HP · ${tier.damage} dmg · ${tier.speed} spd · ${tier.strike.damage} strike`;
+  /** One row of the hero roster: portrait, name, and what state it is in. */
+  heroCardMarkup(klass) {
+    const owned = this.progress.ownsHero(klass.id);
+    const rank = owned ? this.progress.heroRank(klass.id) : 0;
+    const active = this.progress.heroClass === klass.id;
+    const selected = this.selectedHero === klass.id;
+    const tone = active ? 'IN THE FIELD' : owned ? `RANK ${rank}` : 'LOCKED';
+    return `
+      <li class="pet-card ${owned ? 'owned' : 'locked'} ${active ? 'equipped' : ''} ${selected ? 'selected' : ''}"
+          data-hero-id="${klass.id}" data-owned="${owned ? '1' : '0'}">
+        <button class="pet-card-btn" type="button" data-hero="${klass.id}"
+                aria-pressed="${selected ? 'true' : 'false'}"
+                aria-label="${klass.name}, ${klass.role}${owned ? `, rank ${rank}` : ', not recruited'}">
+          <span class="pet-portrait lv-${rank || 1}" style="${portraitStyle(klass.texture, isCompactViewport() ? 30 : 46)}"
+                role="img" aria-label="${klass.name}"></span>
+          <span class="pet-card-text">
+            <span class="pet-name">${klass.name}</span>
+            <span class="pet-role">${klass.role}</span>
+          </span>
+          <span class="pet-card-state ${active ? 'is-live' : ''}">${tone}</span>
+        </button>
+      </li>
+    `;
+  }
 
-    const action = next
-      ? `<button class="game-btn hero-promote ${affordable ? 'game-btn-primary' : ''}"
-                 type="button" data-rank="${rank + 1}"
-                 ${affordable ? '' : 'disabled aria-disabled="true"'}>
-           PROMOTE · ${priceTag(next.promoteCost)}
-         </button>`
-      : '<span class="pet-equip-tag is-live">FULLY MUSTERED</span>';
+  /** The three skills this hero knows, and the ones still behind a rank. */
+  heroSkillsMarkup(klass, rank) {
+    return klass.skills
+      .map((id, index) => {
+        const skill = HERO_SKILLS[id];
+        const stats = skillStats(id, Math.max(1, rank));
+        const unlocked = index < rank;
+        const rankNeeded = index + 1;
+        return `
+          <div class="pet-skill ${unlocked ? '' : 'is-locked'}">
+            <img class="pet-skill-icon" src="${skill.glyph}" alt="" />
+            <div class="pet-skill-body">
+              <p class="pet-skill-name">${skill.name}${
+                unlocked ? '' : ` <i class="hero-skill-lock">· RANK ${rankNeeded}</i>`
+              }</p>
+              <p class="pet-skill-text">${skill.text}</p>
+              ${
+                stats?.damage
+                  ? `<p class="pet-skill-numbers">${stats.damage} dmg${
+                      stats.radius ? ` · ${stats.radius} r` : ''
+                    } · ${Math.round((stats.cooldownMs || 0) / 100) / 10}s</p>`
+                  : stats?.cooldownMs
+                    ? `<p class="pet-skill-numbers">${Math.round(stats.cooldownMs / 100) / 10}s cooldown</p>`
+                    : ''
+              }
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  /** VANGUARD tab: the five heroes on the left, the selected one on the right. */
+  vanguardDetail() {
+    const selectedId = this.selectedHero;
+    const klass = heroClass(selectedId);
+    const owned = this.progress.ownsHero(klass.id);
+    const rank = owned ? this.progress.heroRank(klass.id) : 1;
+    const current = heroRank(klass.id, rank);
+    const next = owned ? nextHeroRank(klass.id, rank) : null;
+    const active = this.progress.heroClass === klass.id;
+    const canAffordPromote = next ? this.progress.gold >= next.promoteCost : false;
+    const canAffordBuy = this.progress.gold >= klass.price;
+
+    const pips = Array.from({ length: HERO_RANK_COUNT }, (_, i) => {
+      const step = i + 1;
+      const cls = owned && step <= rank ? 'is-owned' : owned && step === rank + 1 ? 'is-next' : '';
+      return `<li class="pet-level-pip ${cls}" aria-label="rank ${step}"><span>${step}</span></li>`;
+    }).join('');
+
+    let action;
+    if (!owned) {
+      action = `<button class="game-btn hero-buy ${canAffordBuy ? 'game-btn-primary' : ''}"
+                  type="button" data-hero="${klass.id}"
+                  ${canAffordBuy ? '' : 'disabled aria-disabled="true"'}
+                  aria-label="Recruit ${klass.name} for ${klass.price} gold">
+                  RECRUIT · ${priceTag(klass.price)}
+                </button>`;
+    } else if (!active) {
+      action = `<button class="game-btn game-btn-primary hero-select" type="button" data-hero="${klass.id}">
+                  TAKE THE GATE
+                </button>`;
+    } else if (next) {
+      action = `<button class="game-btn hero-promote ${canAffordPromote ? 'game-btn-primary' : ''}"
+                  type="button" data-rank="${rank + 1}"
+                  ${canAffordPromote ? '' : 'disabled aria-disabled="true"'}>
+                  PROMOTE · ${priceTag(next.promoteCost)}
+                </button>`;
+    } else {
+      action = '<span class="pet-equip-tag is-live">FULLY MUSTERED — RANK 3</span>';
+    }
+
+    // "30 px · melee" wraps into a ragged two-line mess inside a 72 px box, so
+    // the attack kind is its own line under the number instead.
+    const reach = `${current.range}<span class="pet-stat-unit"> PX</span><span class="pet-stat-attack">${
+      current.attack === 'ranged' ? 'RANGED' : 'MELEE'
+    }</span>`;
 
     return `
       <div class="pets-detail-head">
-        <span class="pet-hero-portrait lv-${Math.min(5, rank + 2)}" style="${portraitStyle(current.texture, isCompactViewport() ? 66 : 104)}">
-          <span class="pet-level-badge">RANK ${rank} / ${HERO_TIERS.length}</span>
+        <span class="pet-hero-portrait lv-${Math.min(5, rank + 2)}" style="${portraitStyle(klass.texture, isCompactViewport() ? 52 : 104)}">
+          <span class="pet-level-badge">${owned ? `RANK ${rank} / ${HERO_RANK_COUNT}` : 'NOT RECRUITED'}</span>
         </span>
         <div class="pets-detail-title">
-          <p class="pet-kind">${current.title}</p>
-          <h2 class="pets-detail-name">${current.name}</h2>
-          <p class="pet-role-chip">VANGUARD</p>
+          <p class="pet-kind">${klass.title}</p>
+          <h2 class="pets-detail-name">${klass.name}</h2>
+          <p class="pet-role-chip">${klass.role}${active ? ' · IN THE FIELD' : ''}</p>
+          <ol class="pet-level-ladder" aria-label="Rank ${rank} of ${HERO_RANK_COUNT}">${pips}</ol>
         </div>
       </div>
+      <p class="pet-blurb">${klass.blurb}</p>
       <div class="pets-detail-grid">
         <div>
-          <p class="pets-mini-head">NOW</p>
+          <p class="pets-mini-head">STATS</p>
           <div class="pet-stat-grid">
             <div class="pet-stat"><span class="pet-stat-label">HEALTH</span><span class="pet-stat-value">${current.maxHealth}</span></div>
             <div class="pet-stat"><span class="pet-stat-label">DAMAGE</span><span class="pet-stat-value">${current.damage}</span></div>
             <div class="pet-stat"><span class="pet-stat-label">SPEED</span><span class="pet-stat-value">${current.speed}</span></div>
-            <div class="pet-stat"><span class="pet-stat-label">STRIKE</span><span class="pet-stat-value">${current.strike.damage}</span></div>
+            <div class="pet-stat"><span class="pet-stat-label">REACH</span><span class="pet-stat-value">${reach}</span></div>
           </div>
-          <p class="pets-next-note">Skills: ${current.skills.join(' · ')}</p>
+          ${
+            next
+              ? `<p class="pets-next-note">Rank ${next.rank} buys ${next.maxHealth} HP · ${next.damage} damage · ${next.speed} speed.</p>`
+              : '<p class="pets-next-note">The top of this hero\'s ladder.</p>'
+          }
         </div>
         <div>
-          <p class="pets-mini-head">${next ? `NEXT · ${next.name.toUpperCase()}` : 'FINAL RANK'}</p>
-          <div class="pet-skill">
-            <img class="pet-skill-icon" src="/assets/ui-kit/glyph_crown.png" alt="" />
-            <div class="pet-skill-body">
-              <p class="pet-skill-name">${next ? next.title : current.title}</p>
-              <p class="pet-skill-text">${next ? stats(next) : stats(current)}</p>
-              <p class="pet-skill-text">${next ? `skills: ${next.skills.join(' · ')}` : `skills: ${current.skills.join(' · ')}`}</p>
-            </div>
-          </div>
+          <p class="pets-mini-head">SKILLS</p>
+          ${this.heroSkillsMarkup(klass, owned ? rank : 0)}
         </div>
       </div>
       <div class="pets-detail-foot">${action}</div>
@@ -369,6 +474,7 @@ export class PetShopUI {
     this.flash = null;
     const tab = this.tab;
     const selected = PETS.find((pet) => pet.id === this.selected) || PETS[0];
+    if (!this.selectedHero) this.selectedHero = this.progress.heroClass;
 
     let detail;
     if (tab === 'vanguard') detail = this.vanguardDetail();
@@ -397,6 +503,7 @@ export class PetShopUI {
             <p class="pets-wallets">
               <span class="wallet"><img src="/assets/ui/icon_coin.png" alt="" /> <b>${gold}</b> gold</span>
               <span class="wallet">${owned.length} / ${PETS.length} recruited</span>
+              <span class="wallet wallet-heroes">${this.progress.heroes.length} / ${HERO_CLASSES.length} vanguards</span>
               <span class="wallet ${active ? 'is-live' : ''}">${active ? `${active.name} is at your side` : 'one companion awaits'}</span>
             </p>
           </header>
@@ -408,19 +515,21 @@ export class PetShopUI {
 
             ${
               tab === 'vanguard'
-                ? '<div class="pets-roster is-empty" aria-hidden="true"></div>'
+                ? `<ul class="pet-grid" aria-label="Vanguards">
+                     ${HERO_CLASSES.map((klass) => this.heroCardMarkup(klass)).join('')}
+                   </ul>`
                 : `<ul class="pet-grid" aria-label="Companions">
                      ${PETS.map((pet) => this.cardMarkup(pet)).join('')}
                    </ul>`
             }
 
-            <aside class="pets-detail ${tab === 'vanguard' ? 'is-wide' : ''}">
+            <aside class="pets-detail">
               ${detail}
             </aside>
           </div>
 
           <footer class="pets-foot">
-            ${flash ? `<p class="pets-flash ${flash.tone}" role="status">${flash.text}</p>` : '<span class="pets-foot-note">Gold is banked from cleared levels. One companion walks with you at a time.</span>'}
+            ${flash ? `<p class="pets-flash ${flash.tone}" role="status">${flash.text}</p>` : '<span class="pets-foot-note">Gold is banked from cleared levels. One vanguard and one companion walk with you at a time.</span>'}
             <div class="overlay-actions">
               ${equipped ? '<button id="btn-pets-unequip" class="game-btn" type="button">SEND HOME</button>' : ''}
               <button id="btn-pets-back" class="game-btn">BACK</button>
@@ -451,27 +560,71 @@ export class PetShopUI {
       });
     });
 
-    this.container.querySelectorAll('.hero-promote').forEach((btn) => {
+    this.container.querySelectorAll('[data-hero]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const rank = Number(btn.dataset.rank);
-        const target = heroTier(rank);
-        if (!target) return;
-        const result = this.progress.promoteHero(target.promoteCost, HERO_TIERS.length);
+        this.selectedHero = btn.dataset.hero;
+        audio.playClick();
+        this.render();
+      });
+    });
+
+    this.container.querySelectorAll('.hero-select').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = this.progress.selectHero(btn.dataset.hero);
+        audio.playVictory();
+        this.selectedHero = id;
+        this.flash = { tone: 'good', text: `${heroClass(id).name.toUpperCase()} TAKES THE GATE` };
+        this.render();
+      });
+    });
+
+    this.container.querySelectorAll('.hero-buy').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.hero;
+        const klass = heroClass(id);
+        const result = this.progress.buyHero(id);
         if (!result.ok) {
           audio.playError();
           this.flash = {
             tone: 'bad',
             text:
               result.reason === 'gold'
-                ? `NOT ENOUGH GOLD — the ${target.name} costs ${target.promoteCost}`
-                : 'THE VANGUARD IS ALREADY AT ITS FINAL RANK',
+                ? `NOT ENOUGH GOLD — the ${klass.name} costs ${klass.price}`
+                : `${klass.name.toUpperCase()} IS ALREADY IN YOUR ROSTER`,
           };
           this.render();
           return;
         }
         audio.playVictory();
-        this.callbacks.onPromote?.({ rank: result.rank });
-        this.flash = { tone: 'good', text: `THE VANGUARD RISES — ${target.name.toUpperCase()}` };
+        this.callbacks.onRecruitHero?.({ id });
+        this.selectedHero = id;
+        this.flash = { tone: 'good', text: `${klass.name.toUpperCase()} JOINS THE VANGUARD` };
+        this.render();
+      });
+    });
+
+    this.container.querySelectorAll('.hero-promote').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const klass = heroClass(this.selectedHero);
+        const rank = Number(btn.dataset.rank);
+        const target = heroRank(klass.id, rank);
+        if (!target) return;
+        const result = this.progress.promoteHero(target.promoteCost, HERO_RANK_COUNT);
+        if (!result.ok) {
+          audio.playError();
+          this.flash = {
+            tone: 'bad',
+            text:
+              result.reason === 'gold'
+                ? `NOT ENOUGH GOLD — rank ${rank} costs ${target.promoteCost}`
+                : `${klass.name.toUpperCase()} IS ALREADY AT ITS FINAL RANK`,
+          };
+          this.render();
+          return;
+        }
+        audio.playVictory();
+        this.callbacks.onPromote?.({ rank: result.rank, id: klass.id });
+        this.flash = { tone: 'good', text: `${klass.name.toUpperCase()} RISES TO RANK ${result.rank}` };
         this.render();
       });
     });

@@ -33,33 +33,35 @@ export const UNIT_SHEETS = Object.freeze({
     clips: { idle: 6, walk: 6, attack: 6 },
     body: { x: 63, y: 45, w: 78, h: 91 },
   },
-  'hero-captain': {
-    path: 'assets/units/hero-captain.png',
-    frame: 192,
-    cols: 6,
-    clips: { idle: 6, walk: 6, attack: 6 },
-    body: { x: 63, y: 45, w: 78, h: 91 },
-  },
-  'hero-warlord': {
-    path: 'assets/units/hero-warlord.png',
-    frame: 192,
-    cols: 6,
-    clips: { idle: 6, walk: 6, attack: 6 },
-    body: { x: 63, y: 45, w: 78, h: 91 },
-  },
-  'hero-sentinel': {
-    path: 'assets/units/hero-sentinel.png',
-    frame: 192,
-    cols: 6,
-    clips: { idle: 6, walk: 6, attack: 6 },
-    body: { x: 63, y: 45, w: 78, h: 91 },
-  },
   'hero-halberd': {
     path: 'assets/units/hero-halberd.png',
     frame: 192,
     cols: 6,
     clips: { idle: 6, walk: 6, attack: 6 },
     body: { x: 67, y: 69, w: 58, h: 59 },
+  },
+  // The Ranger is the only hero whose attack row is a shot: eight frames of
+  // draw-and-release instead of six of a swing.
+  'hero-ranger': {
+    path: 'assets/units/hero-ranger.png',
+    frame: 192,
+    cols: 8,
+    clips: { idle: 6, walk: 6, attack: 8 },
+    body: { x: 68, y: 59, w: 62, h: 75 },
+  },
+  'hero-warden': {
+    path: 'assets/units/hero-warden.png',
+    frame: 192,
+    cols: 6,
+    clips: { idle: 6, walk: 6, attack: 6 },
+    body: { x: 63, y: 45, w: 78, h: 91 },
+  },
+  'hero-cinder': {
+    path: 'assets/units/hero-cinder.png',
+    frame: 192,
+    cols: 6,
+    clips: { idle: 6, walk: 6, attack: 6 },
+    body: { x: 63, y: 45, w: 78, h: 91 },
   },
   'pet-squire': {
     path: 'assets/units/pet-squire.png',
