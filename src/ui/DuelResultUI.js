@@ -13,6 +13,8 @@
  * but it never writes progression: duels are scored, not banked.
  */
 
+import { ensureMounted } from './screenHost.js';
+
 const REASON_COPY = {
   knockout: 'won by knockout',
   points: 'won on points',
@@ -59,8 +61,11 @@ export class DuelResultUI {
 
         <div class="duel-contracts hidden" id="duel-contracts"></div>
 
+        <p class="duel-rematch-note hidden" id="duel-rematch-note"></p>
+
         <div class="duel-actions">
           <button id="duel-rematch" class="game-btn game-btn-primary" type="button">REMATCH</button>
+          <button id="duel-rematch-ask" class="game-btn game-btn-primary hidden" type="button">ASK FOR REMATCH</button>
           <button id="duel-lobby" class="game-btn" type="button">BACK TO LOBBY</button>
           <button id="duel-menu" class="game-btn game-btn-subtle" type="button">MAIN MENU</button>
         </div>
@@ -73,6 +78,14 @@ export class DuelResultUI {
     this.$('duel-rematch').addEventListener('click', () => {
       this.hide();
       this.onRematch();
+    });
+    // The guest cannot restart the room, but a winner who wants another round
+    // should be able to say so instead of staring at a dead end.
+    this.$('duel-rematch-ask').addEventListener('click', () => {
+      const button = this.$('duel-rematch-ask');
+      window.gamePvp?.requestRematch?.();
+      button.disabled = true;
+      button.textContent = 'REQUEST SENT';
     });
     this.$('duel-lobby').addEventListener('click', () => {
       this.hide();
@@ -101,6 +114,9 @@ export class DuelResultUI {
     this.report = report;
     const ko = report?.outcome === 'ko';
     const coop = Boolean(report?.coop);
+    // Same rule as the lobby: the card lives for the session, so put the node
+    // back if something cleared the shared layer.
+    ensureMounted(this.container, this.el);
     this.el.classList.toggle('is-coop', coop);
     this.el.classList.remove('hidden');
     this.$('duel-result-eyebrow').textContent = coop ? 'ALLIED REALMS' : 'MIRROR ARENA';
@@ -176,6 +192,7 @@ export class DuelResultUI {
     if (!view) return;
     this.stopWatchdog();
     this.final = { resolved, view, selfSeat };
+    ensureMounted(this.container, this.el);
     this.el.classList.remove('hidden');
     this.$('duel-waiting').classList.add('hidden');
     this.renderContracts(this.report?.contracts);
@@ -220,6 +237,27 @@ export class DuelResultUI {
     rematch.disabled = false;
     rematch.title = '';
     rematch.classList.toggle('hidden', !view.isHost);
+
+    // Symmetry: whoever owns the room gets REMATCH, the other seat gets ASK.
+    const ask = this.$('duel-rematch-ask');
+    ask.disabled = false;
+    ask.classList.toggle('hidden', Boolean(view.isHost));
+    ask.textContent = 'ASK FOR REMATCH';
+    this.$('duel-rematch-note').classList.add('hidden');
+    this.$('duel-rematch-note').textContent = '';
+  }
+
+  /** Host side of a guest's request: say who asked, keep REMATCH in reach. */
+  showRematchRequest({ name = null } = {}) {
+    if (!this.isVisible || !this.final?.view?.isHost) return;
+    const note = this.$('duel-rematch-note');
+    note.textContent = `${name || 'Your rival'} wants another round.`;
+    note.classList.remove('hidden');
+    const rematch = this.$('duel-rematch');
+    rematch.classList.remove('pulse');
+    // Restart the one-shot pulse so a second request is still visible.
+    void rematch.offsetWidth;
+    rematch.classList.add('pulse');
   }
 
   /** The side bets this seat was playing for, and which of them paid. */

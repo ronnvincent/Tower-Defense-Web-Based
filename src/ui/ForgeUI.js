@@ -1,5 +1,6 @@
 import { buyRelic, relicBoard, relicSummary } from '../systems/Relics.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { mountScreen, unmountScreen } from './screenHost.js';
 
 /**
  * ForgeUI — the gem sink.
@@ -31,7 +32,7 @@ export class ForgeUI {
   hide() {
     document.getElementById('forge-screen')?.classList.add('hidden');
     this.visible = false;
-    if (this.container) this.container.innerHTML = '';
+    unmountScreen(this.container, 'forge-screen');
   }
 
   cardMarkup(relic) {
@@ -72,7 +73,7 @@ export class ForgeUI {
     const board = relicBoard(relics, this.progress.gems);
     const summary = relicSummary(relics);
 
-    this.container.innerHTML = `
+    mountScreen(this.container, 'forge-screen', `
       <div id="forge-screen" class="overlay-screen" role="dialog" aria-label="Forge">
         <div class="overlay-shell forge-shell">
           <header class="overlay-header">
@@ -94,7 +95,7 @@ export class ForgeUI {
           </footer>
         </div>
       </div>
-    `;
+    `);
 
     this.container.querySelectorAll('.forge-buy').forEach((btn) => {
       btn.addEventListener('click', () => {

@@ -1,5 +1,6 @@
 import { achievementBoard, achievementSummary } from '../systems/Achievements.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { mountScreen, unmountScreen } from './screenHost.js';
 
 /**
  * AchievementsUI — the checklist, grouped by category.
@@ -31,7 +32,7 @@ export class AchievementsUI {
   hide() {
     document.getElementById('achievements-screen')?.classList.add('hidden');
     this.visible = false;
-    if (this.container) this.container.innerHTML = '';
+    unmountScreen(this.container, 'achievements-screen');
   }
 
   itemMarkup(item) {
@@ -58,7 +59,7 @@ export class AchievementsUI {
     const board = achievementBoard(this.progress.stats, this.progress.achievements);
     const summary = achievementSummary(this.progress.stats, this.progress.achievements);
 
-    this.container.innerHTML = `
+    mountScreen(this.container, 'achievements-screen', `
       <div id="achievements-screen" class="overlay-screen" role="dialog" aria-label="Achievements">
         <div class="overlay-shell achievements-shell">
           <header class="overlay-header">
@@ -84,7 +85,7 @@ export class AchievementsUI {
           </footer>
         </div>
       </div>
-    `;
+    `);
 
     this.container.querySelector('#btn-achievements-back')?.addEventListener('click', () => {
       audio.playClick();

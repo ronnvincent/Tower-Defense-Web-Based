@@ -1,5 +1,6 @@
 import { blessingBoard } from '../systems/Blessings.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { mountScreen, unmountScreen } from './screenHost.js';
 
 /**
  * BlessingsUI — the in-battle gold sink.
@@ -33,7 +34,7 @@ export class BlessingsUI {
   hide() {
     document.getElementById('blessings-screen')?.classList.add('hidden');
     this.visible = false;
-    if (this.container) this.container.innerHTML = '';
+    unmountScreen(this.container, 'blessings-screen');
   }
 
   cardMarkup(blessing) {
@@ -61,7 +62,7 @@ export class BlessingsUI {
     if (!state) return;
     const board = blessingBoard({ gold: state.gold, purchased: state.purchased });
 
-    this.container.innerHTML = `
+    mountScreen(this.container, 'blessings-screen', `
       <div id="blessings-screen" class="modal-overlay" role="dialog" aria-label="Blessings">
         <div class="modal-card blessings-card">
           <header class="modal-header">
@@ -78,7 +79,7 @@ export class BlessingsUI {
           <p class="blessings-note">Blessings last for this battle only. Relics are the permanent upgrades — see the Forge in the main menu.</p>
         </div>
       </div>
-    `;
+    `);
 
     this.container.querySelectorAll('.blessing-buy').forEach((btn) => {
       btn.addEventListener('click', () => {

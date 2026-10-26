@@ -58,6 +58,8 @@ export const OP = Object.freeze({
   PROGRESS: 'progress',
   RESULT: 'result',
   REMATCH: 'rematch',
+  /** A challenger asking the host to deal another round. */
+  REMATCH_REQUEST: 'rematch-request',
 });
 
 export function sanitiseName(name, fallback = 'Challenger') {

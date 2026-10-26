@@ -130,7 +130,7 @@ export class BroadcastTransport {
 /** What to tell a player when a dial never reaches a relay. */
 export function unreachableMessage(url, verb = 'did not answer') {
   if (isLocalRelay(url)) {
-    return `The duel relay at ${url} ${verb}. Start it with \`npm run pvp:relay\`.`;
+    return `The duel relay at ${url} ${verb}. Start it with "npm run pvp:relay".`;
   }
   return `No duel relay answered at ${url}. A static host has no relay process — point the room at one you run (see docs/pvp.md).`;
 }

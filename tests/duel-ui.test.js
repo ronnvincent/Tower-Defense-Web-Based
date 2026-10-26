@@ -184,7 +184,30 @@ describe('duel result card', () => {
     expect(document.querySelector('#duel-result-title').textContent).toBe('Defeat');
     expect(document.querySelector('#duel-result-line').textContent).toBe('Kai won by knockout.');
     expect(document.querySelector('#duel-rematch').classList.contains('hidden')).toBe(true);
+    // The guest cannot restart the room, but a winner can still ask for one.
+    expect(document.querySelector('#duel-rematch-ask').classList.contains('hidden')).toBe(false);
     expect(document.querySelector('.duel-row').textContent).toContain('CORE DOWN');
+  });
+
+  it('relays a guest rematch request to the host card', () => {
+    const final = roomState({
+      ready: true,
+      live: true,
+      results: [{ clientId: 'host', outcome: 'ko', score: 400, coreHp: 0, waves: 3, timeMs: 90000 }],
+    });
+    const ui = new DuelResultUI(container, {});
+    ui.showFinal({
+      resolved: { winner: 'p2', loser: 'p1', reason: 'knockout', draw: false },
+      view: { ...lobbyView(final), isHost: true, selfSeat: 'p1' },
+      selfSeat: 'p1',
+    });
+    const note = document.querySelector('#duel-rematch-note');
+    expect(note.classList.contains('hidden')).toBe(true);
+    ui.showRematchRequest({ name: 'Kai' });
+    expect(note.classList.contains('hidden')).toBe(false);
+    expect(note.textContent).toContain('Kai');
+    expect(document.querySelector('#duel-rematch').classList.contains('pulse')).toBe(true);
+    expect(document.querySelector('#duel-rematch-ask').classList.contains('hidden')).toBe(true);
   });
 
   it('escapes a hostile player name', () => {

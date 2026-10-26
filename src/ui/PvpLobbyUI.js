@@ -17,6 +17,7 @@ import { COUNTDOWN_MS, MAX_CLIENTS } from '../net/LobbyState.js';
 import { PvpRoom, ROOM_EVENTS } from '../net/PvpRoom.js';
 import { contractsFor } from '../systems/DuelContracts.js';
 import { normaliseRoomCode } from '../net/lobbyProtocol.js';
+import { ensureMounted } from './screenHost.js';
 import { TRANSPORT, preferredMode } from '../net/transports.js';
 import {
   normaliseRelayUrl,
@@ -109,6 +110,14 @@ export class PvpLobbyUI {
         </header>
 
         <p id="pvp-error" class="pvp-error hidden" role="alert"></p>
+
+        <div id="pvp-fallback" class="pvp-fallback hidden">
+          <p class="pvp-fallback-text">
+            No relay answered. Two tabs of this browser can still duel each other right now
+            — or point the relay field at a running <code>server/pvp-relay.mjs</code>.
+          </p>
+          <button id="pvp-fallback-local" class="game-btn" type="button">PLAY IN THIS BROWSER</button>
+        </div>
 
         <section id="pvp-entry" class="pvp-entry">
           <div class="pvp-link-row">
@@ -225,6 +234,7 @@ export class PvpLobbyUI {
       chip.addEventListener('click', () => this.setLinkMode(chip.dataset.link));
     }
     this.$('pvp-host').addEventListener('click', () => this.hostRoom());
+    this.$('pvp-fallback-local').addEventListener('click', () => this.useLocalFallback());
     this.$('pvp-join').addEventListener('click', () => this.joinRoom());
     this.$('pvp-code-value').addEventListener('click', () => this.copyCode());
     this.$('pvp-leave').addEventListener('click', () => this.leaveRoom());
@@ -269,6 +279,10 @@ export class PvpLobbyUI {
   show({ coop = false } = {}) {
     this.coopMode = Boolean(coop);
     this.lastFocus = document.activeElement;
+    // The lobby is built once at boot. If anything ever cleared the shared
+    // overlay layer, the same element goes back in — never a detached copy that
+    // `isOpen()` is happy to report as open.
+    ensureMounted(this.container, this.el);
     this.el.classList.remove('hidden');
     this.paintCoopMode();
     this.setScreen('entry');
@@ -320,6 +334,9 @@ export class PvpLobbyUI {
       this.room.on(ROOM_EVENTS.STATE, (view) => this.render(view)),
       this.room.on(ROOM_EVENTS.LAUNCH, (payload) => this.launch(payload)),
       this.room.on(ROOM_EVENTS.OVER, ({ resolved, view }) => this.finish(resolved, view)),
+      this.room.on(ROOM_EVENTS.REMATCH_REQUEST, (request) =>
+        window.gameDuelResult?.showRematchRequest?.(request)
+      ),
       this.room.on(ROOM_EVENTS.ERROR, (message) => this.showError(message)),
       this.room.on(ROOM_EVENTS.STATUS, (status) => {
         this.paintLink(this.room?.view || null);
@@ -359,6 +376,10 @@ export class PvpLobbyUI {
       this.startCountdownLoop();
     } catch (error) {
       this.showError(error?.message || 'Could not open a room');
+      // A static host (Vercel, Pages) has no `/pvp` process, so the online
+      // default fails on the first click. Offer the room that *can* open
+      // instead of parking the player on an error they cannot act on.
+      if (this.linkMode === TRANSPORT.RELAY) this.showFallback(() => this.hostRoom());
     } finally {
       button.disabled = false;
       button.textContent = 'CREATE ROOM';
@@ -385,6 +406,7 @@ export class PvpLobbyUI {
       this.startCountdownLoop();
     } catch (error) {
       this.showError(error?.message || 'Could not join that room');
+      if (this.linkMode === TRANSPORT.RELAY) this.showFallback(() => this.joinRoom());
     } finally {
       delete button.dataset.busy;
       button.disabled = false;
@@ -398,6 +420,7 @@ export class PvpLobbyUI {
     room?.leave();
     this.setScreen('entry');
     this.hideError();
+    this.hideFallback();
     this.toggleRelaySetup(false);
     this.paintLink(null);
   }
@@ -745,6 +768,28 @@ export class PvpLobbyUI {
 
   hideError() {
     this.$('pvp-error')?.classList.add('hidden');
+    this.hideFallback();
+  }
+
+  /** The relay is not there: offer the same-browser room, retrying what failed. */
+  showFallback(retry) {
+    this.retryAfterFallback = retry || null;
+    // The fallback *is* the fix: leave the relay fields collapsed behind
+    // CHANGE RELAY instead of stacking two answers to the same failure.
+    this.toggleRelaySetup(false);
+    this.$('pvp-fallback')?.classList.remove('hidden');
+  }
+
+  hideFallback() {
+    this.retryAfterFallback = null;
+    this.$('pvp-fallback')?.classList.add('hidden');
+  }
+
+  useLocalFallback() {
+    const retry = this.retryAfterFallback;
+    this.setLinkMode(TRANSPORT.LOCAL);
+    this.toggleRelaySetup(false);
+    if (retry) setTimeout(retry, 0);
   }
 
   async copyCode() {

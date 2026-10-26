@@ -24,6 +24,7 @@ import { PETS, PET_MAX_LEVEL, petSkill, petStatRows, petUpgradeCost } from '../d
 import { HERO_TIERS, heroTier, nextHeroTier } from '../data/heroData.js';
 import { UNIT_SHEETS } from '../data/unitArt.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { mountScreen, unmountScreen } from './screenHost.js';
 
 /**
  * A portrait cropped from the very sheet the unit animates, not a separate
@@ -89,9 +90,8 @@ export class PetShopUI {
   }
 
   hide() {
-    document.getElementById('pets-screen')?.classList.add('hidden');
+    unmountScreen(this.container, 'pets-screen');
     this.visible = false;
-    if (this.container) this.container.innerHTML = '';
   }
 
   /* ------------------------------------------------------------- pieces */
@@ -385,7 +385,7 @@ export class PetShopUI {
         </button>`
     ).join('');
 
-    this.container.innerHTML = `
+    mountScreen(this.container, 'pets-screen', `
       <div id="pets-screen" class="overlay-screen pets-screen" role="dialog" aria-label="Muster Hall">
         <div class="pets-backdrop" aria-hidden="true"></div>
         <div class="overlay-shell pets-shell">
@@ -428,7 +428,7 @@ export class PetShopUI {
           </footer>
         </div>
       </div>
-    `;
+    `);
 
     this.bind();
   }

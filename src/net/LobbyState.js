@@ -59,6 +59,8 @@ export function createLobbyState({
     coop: Boolean(coop),
     status: MATCH_STATUS.LOBBY,
     countdownEndsAt: 0,
+    /** Set while a challenger is asking the host for another round. */
+    rematchAskedBy: null,
     match,
     clients: isHost ? [{ id: selfId, seat: 'p1', name: sanitiseName(name, 'Host') }] : [],
     lastChange: now,
@@ -255,7 +257,24 @@ export function applyIntent(state, intent, now = 0) {
       state.seed += 1;
       state.status = MATCH_STATUS.LOBBY;
       state.countdownEndsAt = 0;
+      state.rematchAskedBy = null;
       effects.push({ type: 'rematch' });
+      return { state: touch(state, now), effects, changed: true };
+    }
+
+
+    /**
+     * A guest cannot restart the room — only the host owns the board — but a
+     * winner should still be able to *ask*. The request lands on the host's
+     * result card; ignoring it costs nothing.
+     */
+    case OP.REMATCH_REQUEST: {
+      if (!clientId || clientId === state.hostId) return { state, effects, changed: false };
+      if (state.status !== MATCH_STATUS.OVER) return { state, effects, changed: false };
+      if (state.rematchAskedBy === clientId) return { state, effects, changed: false };
+      const seat = seatForClient(state, clientId);
+      state.rematchAskedBy = clientId;
+      effects.push({ type: 'rematch-request', seatId: seat?.id || null, name: seat?.name || null });
       return { state: touch(state, now), effects, changed: true };
     }
 

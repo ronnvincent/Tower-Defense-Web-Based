@@ -217,6 +217,31 @@ describe('duel lobby', () => {
     expect(state.clients).toHaveLength(2);
   });
 
+  it('lets a challenger ask for a rematch without owning the room', () => {
+    const state = room();
+    join(state);
+    applyIntent(state, intent('guest', OP.READY, { ready: true }), 10);
+    applyIntent(state, intent('host', OP.START), 100);
+    tickLobby(state, 100 + COUNTDOWN_MS);
+    applyIntent(state, intent('host', OP.RESULT, { outcome: 'ko', score: 10, coreHp: 0, waves: 3, timeMs: 1 }), 200);
+    expect(state.status).toBe('over');
+
+    const asked = applyIntent(state, intent('guest', OP.REMATCH_REQUEST), 300);
+    expect(asked.changed).toBe(true);
+    expect(asked.effects).toContainEqual({ type: 'rematch-request', seatId: 'p2', name: 'Kai' });
+    // Asking never restarts the room: the host still owns that button.
+    expect(state.status).toBe('over');
+    expect(state.seed).toBe(4);
+
+    // One request per round, and the host has nothing to ask itself.
+    expect(applyIntent(state, intent('guest', OP.REMATCH_REQUEST), 310).changed).toBe(false);
+    expect(applyIntent(state, intent('host', OP.REMATCH_REQUEST), 320).changed).toBe(false);
+
+    const reset = applyIntent(state, intent('host', OP.REMATCH), 400);
+    expect(reset.effects).toContainEqual({ type: 'rematch' });
+    expect(state.rematchAskedBy).toBeNull();
+  });
+
   it('round-trips through a host snapshot', () => {
     const host = room();
     join(host);

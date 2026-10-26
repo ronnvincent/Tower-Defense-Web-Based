@@ -44,6 +44,8 @@ export const ROOM_EVENTS = Object.freeze({
   OVER: 'over',
   STATUS: 'status',
   ERROR: 'error',
+  /** A challenger asked the host for another round (hosts only). */
+  REMATCH_REQUEST: 'rematch-request',
 });
 
 function randomId() {
@@ -243,6 +245,15 @@ export class PvpRoom {
     this.#sendIntent(OP.REMATCH, {});
   }
 
+  /**
+   * Ask the host for another round. Only the host can actually restart the
+   * room, so a guest's request is a message, not a state change — which is
+   * exactly why it has to be its own intent rather than a silent no-op.
+   */
+  requestRematch() {
+    this.#sendIntent(OP.REMATCH_REQUEST, {});
+  }
+
   leave() {
     if (this.closed) return;
     if (this.transport) this.transport.send(envelope(this.selfId, MSG.BYE, { op: OP.LEAVE }, this.state?.roomCode));
@@ -363,6 +374,11 @@ export class PvpRoom {
   }
 
   #handleEffect(effect) {
+    if (effect.type === 'rematch-request') {
+      // Only the host's card can act on this; the guest already knows it asked.
+      if (this.state?.isHost) this.emit(ROOM_EVENTS.REMATCH_REQUEST, effect);
+      return;
+    }
     if (effect.type === 'match-over') {
       this.overEmitted = true;
       this.emit(ROOM_EVENTS.OVER, { resolved: effect.resolved, view: this.view });

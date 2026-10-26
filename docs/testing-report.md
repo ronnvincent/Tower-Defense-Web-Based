@@ -1233,3 +1233,101 @@ spawns `pet.level 5`, `stats.damage 82`, `stats.cooldownMs 6000`, texture
 
 Full suite: **106 files / 1282 tests** (12 new in `tests/pets.test.js`), build
 clean.
+
+## 21. The arena button, and everything behind it (Request 30)
+
+### 21.1 The bug was not a dead handler
+
+`ENTER THE ARENA` ran `window.gamePvpLobby?.show()` and the handler was fine.
+The lobby element itself was **gone**: `PvpLobbyUI` builds `#pvp-lobby` once at
+boot and appends it to `#screen-container`, while every other overlay in that
+same layer (`ResultScreenUI`, `PetShopUI`, `AchievementsUI`, `ForgeUI`,
+`BlessingsUI`) mounted itself with `container.innerHTML = …` and cleared itself
+with `container.innerHTML = ''`.
+
+A MutationObserver on `#screen-container` caught it: pressing PLAY runs
+`showLevelSelect()` → `gameResultScreen.hide()` → `innerHTML = ''` → the removal
+log listed `duel-result` **and** `pvp-lobby` at the same millisecond. The lobby
+object still held its node, so `isOpen()` kept returning `true` and the optional
+chain never tripped: a silent, un-dismissable no-op. The same wipe had already
+taken the duel result card, which is why a decided match could look like a
+frozen battlefield.
+
+### 21.2 One mounting authority
+
+New `src/ui/screenHost.js`:
+
+| export | behaviour |
+| --- | --- |
+| `mountScreen(container, id, markup)` | unmounts that id, parses the markup in a `<template>`, appends the single root, returns it |
+| `unmountScreen(container, id)` | removes only that id |
+| `ensureMounted(container, el)` | re-appends a long-lived element if it left the DOM; returns `true` when it had to |
+
+All five wiping screens now mount and unmount through it, so no screen can
+delete a sibling. `PvpLobbyUI.show()`, `DuelResultUI.show()` and `showFinal()`
+also call `ensureMounted` first: even if some future code clears the layer, the
+same element goes back in instead of a detached copy that reports itself open.
+
+### 21.3 What was wrong *inside* the arena
+
+* **A static host had no way to play.** The lobby defaults to the relay on any
+  `http(s)` origin, and Vercel has no `/pvp` process, so `CREATE ROOM` failed
+  after ~3.3 s with only an error line. `#pvp-fallback` now answers that exact
+  failure with `PLAY IN THIS BROWSER`: it switches the link chip to the local
+  transport and retries the action that failed. The relay fields collapse while
+  the fallback is up (the fallback *is* the fix); `CHANGE RELAY` still opens
+  them.
+* **Only the host could rematch.** A guest who won had no way to ask for
+  another round. New intent `OP.REMATCH_REQUEST`: a guest's request is a
+  message, not a state change (`rematchAskedBy` guards one request per round,
+  and the host's button still owns the restart). On the host's card
+  `#duel-rematch-note` names the rival and `#duel-rematch` pulses twice
+  (disabled under `prefers-reduced-motion`, where it gets an outline instead).
+  The guest's button reads `ASK FOR REMATCH` → `REQUEST SENT`.
+* **The phone had to scroll to find START.** At 844×390 the lobby measured
+  439 px of content in a 390 px overlay, with `JOIN ROOM` below the fold. The
+  compact block (`@media (max-height: 560px)`) is density only — same type and
+  art, smaller steps — and both screens now measure exactly 390/390 with
+  nothing outside the frame.
+* Copy: the unreachable-relay message quoted a shell command with backticks in
+  a red banner; it now uses quotes. `#pvp-title` gets `line-height: 1.05` so the
+  display face's descender stops landing on the subtitle.
+
+### 21.4 Verified, two real pages at once
+
+Headless Chromium, 1366×768, `?probe=1&pvp=local`, two pages in one browser,
+room code `XPXTA`:
+
+| step | A (host) | B (guest) |
+| --- | --- | --- |
+| ENTER THE ARENA | lobby open, 1366×768, `screen: entry` | same |
+| CREATE ROOM / JOIN | `room`, `lobby`, connected 1 | `room`, `lobby`, connected 2 |
+| seats | `SEAT I ALPHA NOT READY` · `SEAT II BETA NOT READY` | same |
+| arenas offered | `cinder-crown`, `frostspine`, `dust-meridian` | same |
+| READY both → START | enabled, `readyA true`, `readyB true` | — |
+| countdown | `GATES OPEN IN 3 · Cinder Crown · CALDERA · 10 waves · identical horde` | — |
+| battle | lobby hidden, `pvp live`, board + HUD + rival strip | same |
+
+Knockout (`gameState.damageBase(9999)` + `handleGameOver()`, the same path a
+breach takes), 25 → 0 HP:
+
+* A: `Defeat`, `Beta won by knockout.`, rows `ALPHA YOU · 0 PTS · CORE DOWN K.O.` / `BETA · WINNER`.
+* B: `Victory`, same sentence, `BETA YOU · WINNER`.
+* Both cards keep their buttons alive and both pages answer afterwards.
+
+Rematch loop, same run: B (guest, winner) had no `REMATCH` and a live
+`ASK FOR REMATCH`; the click put `Beta wants another round.` on A's card and
+pulsed the button; the host's `REMATCH` returned **both** pages to
+`screen: room`, `status: lobby`, same room code, result card hidden.
+
+Relay fallback (`?pvp=relay` against a static server): the fallback appeared
+3257 ms after `CREATE ROOM` with
+`The duel relay at ws://127.0.0.1:4300/pvp did not answer. Start it with "npm run pvp:relay".`;
+`PLAY IN THIS BROWSER` produced a live local room (`connected 1`, error and
+fallback both hidden).
+
+Phone 844×390: entry `scroll 390/390`, room `390/390`, `outside: []`, room code
+and `READY` / `START DUEL` / `LEAVE` all on screen.
+
+Full suite: **106 files / 1284 tests** (2 new: the rematch-request reducer case
+and the host-side request card); `npm run build` clean.

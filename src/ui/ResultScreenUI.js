@@ -1,6 +1,7 @@
 import { ALL_LEVELS, getNextLevel } from '../data/levelData.js';
 import { STAR_MAX } from '../systems/Progression.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { mountScreen, unmountScreen } from './screenHost.js';
 
 /**
  * ResultScreenUI — the victory / defeat / endless summary.
@@ -51,9 +52,9 @@ export class ResultScreenUI {
   }
 
   hide() {
-    const screen = document.getElementById('result-screen');
-    if (screen) screen.classList.add('hidden');
-    this.container.innerHTML = '';
+    // Only this screen's node: the layer also holds the duel lobby and the duel
+    // result, which must survive a trip through the world map.
+    unmountScreen(this.container, 'result-screen');
     this.result = null;
   }
 
@@ -174,7 +175,7 @@ export class ResultScreenUI {
     actions.push('<button id="result-board" class="game-btn">LEADERBOARD</button>');
     actions.push('<button id="result-menu" class="game-btn">MAIN MENU</button>');
 
-    this.container.innerHTML = `
+    mountScreen(this.container, 'result-screen', `
       <div id="result-screen" class="overlay-screen" role="dialog" aria-label="${victory ? 'Victory' : 'Defeat'}">
         <div class="overlay-shell result-shell ${victory ? 'is-victory' : 'is-defeat'}">
           <span class="result-shine" aria-hidden="true"></span>
@@ -199,7 +200,7 @@ export class ResultScreenUI {
           <div class="overlay-actions result-actions">${actions.join('')}</div>
         </div>
       </div>
-    `;
+    `);
 
     this.bind();
     this.animateCounters();
