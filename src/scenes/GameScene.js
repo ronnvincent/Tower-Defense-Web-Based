@@ -703,6 +703,12 @@ export class GameScene extends Phaser.Scene {
     const isBridge = (r, c) =>
       isLane(r, c) &&
       ((isWater(r, c - 1) && isWater(r, c + 1)) || (isWater(r - 1, c) && isWater(r + 1, c)));
+    // Shorelines are drawn from this predicate, not from `isWater` alone. A
+    // bridge is a lane laid *over* water, not a gap in it, so a water square
+    // facing a bridge must keep its open edge instead of painting a beach where
+    // the deck is. Without this the river visibly caps off at every crossing and
+    // the deck reads as a hole in the water rather than as construction.
+    const isWaterBed = (r, c) => isWater(r, c) || isBridge(r, c);
     const maskAt = (predicate, r, c) =>
       (predicate(r - 1, c) ? 1 : 0) |
       (predicate(r, c + 1) ? 2 : 0) |
@@ -748,31 +754,54 @@ export class GameScene extends Phaser.Scene {
             // A bridge: the river keeps flowing underneath, and the road is
             // drawn as a narrower deck with timber rails so the crossing reads
             // as construction instead of a suspiciously dry patch of water.
-            const underMask = maskAt(isWater, r, c);
+            const underMask = maskAt(isWaterBed, r, c);
             const under =
               themed(`tile-water-${underMask}`, RIVER_THEME) || themed('tile-water', RIVER_THEME);
             if (under) {
               this.add.image(cx, cy, under).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
             }
-            const horizontal = isWater(r, c - 1) && isWater(r, c + 1);
+            // The deck follows the *lane*, so it has to be read off where the
+            // water sits: a river lying east-west (water left and right) is
+            // crossed by a lane running north-south and needs a tall, narrow
+            // deck. Testing it the other way round made every crossing a short,
+            // wide slab that read as a gap in the river rather than a bridge.
+            const waterRunsEastWest = isWater(r, c - 1) && isWater(r, c + 1);
+            const deckHalf = TILE_SIZE * 0.31;
             const deck = this.add.image(cx, cy, key).setDepth(1);
-            if (horizontal) deck.setDisplaySize(TILE_SIZE, TILE_SIZE * 0.6);
-            else deck.setDisplaySize(TILE_SIZE * 0.6, TILE_SIZE).setAngle(90);
-            tilesGraphics.lineStyle(2, 0x2a170c, 0.85);
-            if (horizontal) {
-              tilesGraphics.lineBetween(x, cy - TILE_SIZE * 0.3, x + TILE_SIZE, cy - TILE_SIZE * 0.3);
-              tilesGraphics.lineBetween(x, cy + TILE_SIZE * 0.3, x + TILE_SIZE, cy + TILE_SIZE * 0.3);
-            } else {
-              tilesGraphics.lineBetween(cx - TILE_SIZE * 0.3, y, cx - TILE_SIZE * 0.3, y + TILE_SIZE);
-              tilesGraphics.lineBetween(cx + TILE_SIZE * 0.3, y, cx + TILE_SIZE * 0.3, y + TILE_SIZE);
-            }
-            tilesGraphics.lineStyle(1, 0x0a0c12, 0.5);
-            tilesGraphics.strokeRect(x + 1, cy - TILE_SIZE * 0.34, TILE_SIZE - 2, TILE_SIZE * 0.68);
+            if (waterRunsEastWest) deck.setDisplaySize(TILE_SIZE * 0.62, TILE_SIZE);
+            else deck.setDisplaySize(TILE_SIZE, TILE_SIZE * 0.62);
+            // Parapets down both sides of the deck, with a lit inner edge, so
+            // the width of the crossing is legible even at the campaign zoom.
+            tilesGraphics.lineStyle(3, 0x3b2413, 0.95);
+            const rails = waterRunsEastWest
+              ? [
+                  [cx - deckHalf, y, cx - deckHalf, y + TILE_SIZE],
+                  [cx + deckHalf, y, cx + deckHalf, y + TILE_SIZE],
+                ]
+              : [
+                  [x, cy - deckHalf, x + TILE_SIZE, cy - deckHalf],
+                  [x, cy + deckHalf, x + TILE_SIZE, cy + deckHalf],
+                ];
+            for (const [x1, y1, x2, y2] of rails) tilesGraphics.lineBetween(x1, y1, x2, y2);
+            // A lighter line just inside each parapet marks the walkable width
+            // of the crossing without shouting.
+            tilesGraphics.lineStyle(1, 0xb08a52, 0.45);
+            const inner = 2.5;
+            const lit = waterRunsEastWest
+              ? [
+                  [cx - deckHalf + inner, y + 2, cx - deckHalf + inner, y + TILE_SIZE - 2],
+                  [cx + deckHalf - inner, y + 2, cx + deckHalf - inner, y + TILE_SIZE - 2],
+                ]
+              : [
+                  [x + 2, cy - deckHalf + inner, x + TILE_SIZE - 2, cy - deckHalf + inner],
+                  [x + 2, cy + deckHalf - inner, x + TILE_SIZE - 2, cy + deckHalf - inner],
+                ];
+            for (const [x1, y1, x2, y2] of lit) tilesGraphics.lineBetween(x1, y1, x2, y2);
           } else {
             this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           }
         } else if (type === TILE.WATER) {
-          const mask = maskAt(isWater, r, c);
+          const mask = maskAt(isWaterBed, r, c);
           // The river row is the board's divider, and the brief is explicit: it
           // is water on every map. Themed water still paints the ponds (a
           // caldera pool is magma, a glacier hole is navy meltwater), but the

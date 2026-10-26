@@ -832,3 +832,24 @@ writer (`build_theme('ice')`, 42 files, deterministic).
 
 Suite after all three changes: **1250 / 1250**; `npm run build` clean;
 `docs/pvp.md` updated with the new arena table.
+
+### 14.4 Crossings are bridges, not gaps
+
+Two rendering faults made the river look cut rather than built over:
+
+1. **The deck was rotated onto the wrong axis.** `horizontal` was tested as
+   "water left and right", which describes the *river's* run, not the deck's —
+   so a north-south crossing was drawn as a short, wide slab in the middle of
+   the water. The deck now follows the lane: water east-west gives a tall,
+   narrow deck; water north-south gives a wide, short one.
+2. **The water painted a beach where the deck is.** Shorelines were masked from
+   `isWater` alone, so every water square facing a crossing capped itself off
+   and the river visibly ended twice per bridge. Masking now uses
+   `isWaterBed` (water *or* bridge), so the divider runs unbroken underneath
+   and the deck — with a dark parapet and a lit inner edge down each side —
+   sits on top of it.
+
+Checked on level 1 (two crossings, dirt causeway) and on Cinder Crown (three
+crossings, ash causeway): the river is continuous, each deck is one tile wide
+along the lane, and the caldera's divider is water rather than lava.
+
