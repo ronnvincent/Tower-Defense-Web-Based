@@ -484,6 +484,37 @@ def glyphs() -> dict:
     px(d, 19, 13, 2, 2, (54, 132, 94, 255))
     out["glyph_fortify"] = img
 
+    # frost — a six-armed snowflake, cold ink on the same grid
+    img, d = canvas()
+    spokes = [
+        (15, 4, 2, 24),          # vertical
+    ]
+    for x, y, w, h in spokes:
+        px(d, x - 1, y - 1, w + 2, h + 2, INK)
+    for x, y, w, h in spokes:
+        px(d, x, y, w, h, (150, 226, 255, 255))
+    # two diagonals drawn as one-unit staircases, ink first then ice
+    for i in range(0, 20):
+        px(d, 6 + i, 8 + i, 2, 2, INK)
+        px(d, 24 - i, 8 + i, 2, 2, INK)
+    for i in range(0, 20):
+        px(d, 7 + i, 9 + i, 1, 1, (150, 226, 255, 255))
+        px(d, 24 - i, 9 + i, 1, 1, (150, 226, 255, 255))
+    # barbs: two ticks on each spoke tip, so it reads as frost not a cross
+    for (bx, by, dx, dy) in (
+        (10, 12, -1, 0), (10, 12, 0, 1),
+        (21, 12, 1, 0), (21, 12, 0, 1),
+        (10, 21, -1, 0), (10, 21, 0, -1),
+        (21, 21, 1, 0), (21, 21, 0, -1),
+    ):
+        px(d, bx, by, 1, 1, (206, 244, 255, 255))
+        px(d, bx + dx, by + dy, 1, 1, (206, 244, 255, 255))
+    # cold core
+    px(d, 14, 13, 4, 6, (196, 240, 255, 255))
+    px(d, 13, 14, 6, 4, (196, 240, 255, 255))
+    px(d, 15, 14, 2, 4, (240, 252, 255, 255))
+    out["glyph_frost"] = img
+
     return out
 
 

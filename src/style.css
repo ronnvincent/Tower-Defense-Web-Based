@@ -9668,6 +9668,57 @@ html.draft-open body {
   border-left: 2px solid rgba(180, 180, 180, 0.5);
 }
 
+/* Difficulty presets: one plaque per preset, gold for the one in force. The
+   summary line above the row carries the multipliers, so the plaques only need
+   to fit a single word on a 360 px panel. */
+.wm-card-subhead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #d6c8b1;
+}
+
+.wm-difficulty-kicker {
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: rgba(194, 178, 153, 0.85);
+}
+
+.wm-difficulty-current {
+  font-weight: 700;
+  color: #ffdf9f;
+}
+
+.wm-difficulty-mult {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.6px;
+  color: rgba(203, 189, 166, 0.78);
+  white-space: nowrap;
+}
+
+.wm-difficulty-row {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 4px;
+}
+
+.wm-difficulty {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+  padding: 1px 2px;
+  border-width: 7px 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.9px;
+}
+
 .wm-card-actions {
   position: sticky;
   bottom: -16px;

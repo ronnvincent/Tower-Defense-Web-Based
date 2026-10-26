@@ -5,15 +5,17 @@ import {
   POWERUPS,
   PowerupState,
   METEOR,
+  FROST,
+  frostTargets,
   OVERCHARGE,
   WAVE_CLEAR_REFUND_MS,
 } from '../src/systems/Powerups.js';
 
 describe('Powerup catalogue', () => {
-  it('offers three distinct, hot-keyed tricks', () => {
-    expect(POWERUPS).toHaveLength(3);
-    expect(new Set(POWERUPS.map((p) => p.key)).size).toBe(3);
-    expect(new Set(POWERUPS.map((p) => p.hotkey)).size).toBe(3);
+  it('offers four distinct, hot-keyed tricks', () => {
+    expect(POWERUPS).toHaveLength(4);
+    expect(new Set(POWERUPS.map((p) => p.key)).size).toBe(4);
+    expect(new Set(POWERUPS.map((p) => p.hotkey)).size).toBe(4);
     for (const powerup of POWERUPS) {
       expect(powerup.name).toBeTruthy();
       expect(powerup.cooldownMs).toBeGreaterThan(1000);
@@ -33,9 +35,30 @@ describe('Powerup catalogue', () => {
     }
   });
 
-  it('only the meteor needs a target', () => {
+  it('only the aimed spells need a target', () => {
     const targeting = POWERUPS.filter((p) => p.targeting).map((p) => p.key);
-    expect(targeting).toEqual(['meteor']);
+    expect(targeting).toEqual(['meteor', 'frost']);
+  });
+
+  it('Frost Surge buys time instead of damage', () => {
+    const frost = POWERUPS.find((p) => p.key === 'frost');
+    expect(frost.cooldownMs).toBe(20000);
+    expect(FROST).toMatchObject({ radius: 100, slow: 0.4, durationMs: 3000 });
+    // A slow that also nuked would make the meteor pointless.
+    expect(FROST.damage).toBeUndefined();
+  });
+
+  it('frost targets only living ground enemies inside the circle', () => {
+    const mk = (x, y, extra = {}) => ({ x, y, isDead: false, reachedBase: false, ...extra });
+    const inside = mk(110, 100);
+    const outside = mk(260, 100);
+    const dead = mk(100, 100, { isDead: true });
+    const escaped = mk(100, 100, { reachedBase: true });
+    const flier = mk(100, 100, { flying: true });
+    const flierByDef = mk(100, 100, { def: { flying: true } });
+    const hits = frostTargets([inside, outside, dead, escaped, flier, flierByDef], 100, 100);
+    expect(hits).toEqual([inside]);
+    expect(frostTargets(undefined, 0, 0)).toEqual([]);
   });
 });
 

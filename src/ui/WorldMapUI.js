@@ -80,6 +80,8 @@ export class WorldMapUI {
    * @param {import('../systems/Progression.js').ProgressStore} progress
    * @param {{
    *   daily?: import('../systems/DailyChallenge.js').DailyStore|null,
+   *   difficulty?: import('../systems/Difficulty.js').DifficultyStore|null,
+   *   onDifficulty?: (id:string) => void,
    *   onDeploy?: (levelId:string) => void,
    *   onDaily?: () => void,
    *   onDuel?: () => void,
@@ -100,6 +102,9 @@ export class WorldMapUI {
     this.progress = progress;
     this.callbacks = callbacks;
     this.daily = callbacks.daily || null;
+    // The briefing's preset picker reads and writes this store; when the caller
+    // forgets to pass one the card still renders, locked to Normal.
+    this.difficulty = callbacks.difficulty || null;
 
     this.visible = false;
     this.hasShown = false;
@@ -742,6 +747,7 @@ export class WorldMapUI {
         return missionBriefingMarkup(getLevel(landmark.levelId), this.progress, {
           state: stageState(this.progress, landmark.levelId),
           region: regionForLevel(landmark.levelId),
+          difficulty: this.difficulty?.id,
         });
       case 'overview':
         return this.overviewMarkup();
@@ -1014,6 +1020,19 @@ export class WorldMapUI {
       audio.playClick();
       this.callbacks.onDuel?.();
     });
+    for (const node of this.panel.querySelectorAll('[data-wm-difficulty]')) {
+      node.addEventListener('click', () => {
+        audio.playClick();
+        this.callbacks.onDifficulty?.(node.dataset.wmDifficulty);
+        if (this.panelOpen && this.activeId === landmark.id) {
+          this.panel.innerHTML = this.panelMarkup(landmark);
+          this.bindPanel(landmark);
+          this.panel
+            .querySelector(`[data-wm-difficulty="${node.dataset.wmDifficulty}"]`)
+            ?.focus?.({ preventScroll: true });
+        }
+      });
+    }
     for (const node of this.panel.querySelectorAll('[data-wm-mode]')) {
       node.addEventListener('click', () => {
         audio.playClick();

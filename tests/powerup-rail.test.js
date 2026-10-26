@@ -48,7 +48,7 @@ describe('powerup rail markup', () => {
     hud.setPowerups(snapshot());
 
     const buttons = [...document.querySelectorAll('.powerup-btn')];
-    expect(buttons).toHaveLength(3);
+    expect(buttons).toHaveLength(4);
 
     for (const button of buttons) {
       // A real image from the interface kit — never a text glyph.
@@ -61,7 +61,7 @@ describe('powerup rail markup', () => {
       // No leftover emoji anywhere in the button's own text.
       expect(button.textContent).not.toMatch(/[☄⚡✚]/);
       // Hotkey stays for the keyboard, on its own keycap.
-      expect(button.querySelector('.powerup-key').textContent).toMatch(/^[QER]$/);
+      expect(button.querySelector('.powerup-key').textContent).toMatch(/^[QERT]$/);
     }
   });
 

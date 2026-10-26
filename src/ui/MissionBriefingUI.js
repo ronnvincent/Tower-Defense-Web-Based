@@ -14,6 +14,12 @@
 import { ENEMY_TYPES } from '../data/enemyData.js';
 import { THEMES } from '../data/levelData.js';
 import { STAR_MAX } from '../systems/Progression.js';
+import {
+  DIFFICULTIES,
+  DEFAULT_DIFFICULTY,
+  difficultyFor,
+  difficultyShortLabel,
+} from '../systems/Difficulty.js';
 
 /**
  * Threat is *derived*, never invented: the campaign raises enemy health from
@@ -70,7 +76,27 @@ function starMarkup(stars, max = STAR_MAX) {
  * @param {{ state:string, region?:object }} context
  * @returns {string} panel HTML
  */
-export function missionBriefingMarkup(level, progress, { state = 'open', region = null } = {}) {
+/**
+ * The three-way preset picker. It is a radio group in all but name — one id per
+ * attempt, read again by the battle scene at boot, so the card and the fight can
+ * never disagree about what is in force.
+ */
+function difficultyMarkup(selectedId) {
+  const buttons = DIFFICULTIES.map((preset) => {
+    const active = preset.id === selectedId;
+    return `<button class="wm-btn wm-difficulty ${
+      active ? 'wm-btn--primary is-active' : 'wm-btn--ghost'
+    }" type="button" data-wm-difficulty="${preset.id}" aria-pressed="${active}"
+        title="${preset.blurb}">${preset.name}</button>`;
+  }).join('');
+  return `<div class="wm-difficulty-row" role="group" aria-label="Difficulty">${buttons}</div>`;
+}
+
+export function missionBriefingMarkup(
+  level,
+  progress,
+  { state = 'open', region = null, difficulty = DEFAULT_DIFFICULTY } = {}
+) {
   const theme = THEMES[level?.theme] || THEMES.grassland;
   const endless = Boolean(level?.endless);
   const threat = threatFor(level);
@@ -98,6 +124,13 @@ export function missionBriefingMarkup(level, progress, { state = 'open', region 
     </header>
 
     <p class="wm-card-blurb">${level?.blurb || theme.blurb}</p>
+
+    <p class="wm-card-subhead" id="wm-difficulty-label">
+      <span class="wm-difficulty-kicker">DIFFICULTY</span>
+      <span class="wm-difficulty-current">${difficultyFor(difficulty).name}</span>
+      <span class="wm-difficulty-mult">${difficultyShortLabel(difficulty)}</span>
+    </p>
+    ${locked ? '' : difficultyMarkup(difficulty)}
 
     <dl class="wm-facts">
       <div class="wm-fact"><dt>WAVES</dt><dd>${waves}</dd></div>

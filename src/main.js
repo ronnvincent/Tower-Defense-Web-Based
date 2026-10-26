@@ -26,6 +26,7 @@ import { audio } from './rendering/AudioSynth.js';
 import { audioDirector } from './rendering/audioDirector.js';
 import { SettingsUI } from './ui/SettingsUI.js';
 import { QualityManager } from './systems/QualityManager.js';
+import { DifficultyStore, DEFAULT_DIFFICULTY } from './systems/Difficulty.js';
 import { soundIcon } from './ui/soundIcon.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
@@ -77,6 +78,9 @@ if (import.meta.env?.DEV) window.game = game;
 // Campaign progress outlives any single battle: GameScene.init() reads it for
 // the level definition, the unlock graph and the saved star ratings.
 window.gameProgress = new ProgressStore();
+// One choice, one store: the briefing writes it, the battle scene reads it, and
+// the next launch remembers it.
+window.gameDifficulty = new DifficultyStore();
 // The daily is a second save file: it owns the calendar, the streak and which
 // days are already paid, so it stays independent of campaign progress.
 window.gameDaily = new DailyStore();
@@ -226,6 +230,9 @@ function startLevel(levelId = 'level-1', options = {}) {
     dailyKey,
     dailyModifier,
     pvp,
+    // The preset travels with the launch so a restart cannot read a newer
+    // choice than the one the player made when they pressed DEPLOY.
+    difficulty: window.gameDifficulty?.id || DEFAULT_DIFFICULTY,
     ...modeOptions,
   };
   // Replay / Retry must land back in the *same* mode, not the bare level.
@@ -440,6 +447,8 @@ window.gameWorldMap = new WorldMapUI(
   window.gameProgress,
   {
     daily: window.gameDaily,
+    difficulty: window.gameDifficulty,
+    onDifficulty: (id) => window.gameDifficulty?.set(id),
     // Champions' Hall reads the same board the LeaderboardUI shows. A getter,
     // so a run finished after the map was built is on the wall when you look.
     records: () => globalLeaderboard.getTop(3),

@@ -20,6 +20,7 @@ import { LEVELS, ENDLESS_LEVEL, getLevel, THEMES } from '../src/data/levelData.j
 import { MODES } from '../src/data/modeData.js';
 import { ProgressStore } from '../src/systems/Progression.js';
 import { DailyStore } from '../src/systems/DailyChallenge.js';
+import { DifficultyStore } from '../src/systems/Difficulty.js';
 
 function fakeStorage() {
   const map = new Map();
@@ -308,6 +309,25 @@ describe('WorldMapUI', () => {
 
     document.getElementById('wm-panel-close').click();
     expect(ui.panelOpen).toBe(false);
+    ui.hide();
+  });
+
+  it('writes the difficulty preset the briefing shows', () => {
+    const difficulty = new DifficultyStore({ storage: fakeStorage() });
+    const onDifficulty = vi.fn((id) => difficulty.set(id));
+    const { ui } = mount({ callbacks: { difficulty, onDifficulty } });
+    ui.show();
+    document.querySelector('[data-wm-id="banner-verdant"]').click();
+
+    document.querySelector('[data-wm-difficulty="nightmare"]').click();
+
+    expect(onDifficulty).toHaveBeenCalledWith('nightmare');
+    expect(difficulty.id).toBe('nightmare');
+    // The card repaints from the store, so the summary cannot lag the plaque.
+    expect(document.querySelector('[data-wm-difficulty="nightmare"]').getAttribute('aria-pressed')).toBe(
+      'true'
+    );
+    expect(document.getElementById('wm-difficulty-label').textContent).toContain('×1.5 HP');
     ui.hide();
   });
 

@@ -33,6 +33,16 @@ export const POWERUPS = [
     description: 'Every tower fires 70% faster for 7s.',
   },
   {
+    key: 'frost',
+    name: 'Frost Surge',
+    icon: '/assets/ui-kit/glyph_frost.png',
+    hotkey: 'T',
+    cooldownMs: 20000,
+    targeting: true,
+    accent: '#8fd8ff',
+    description: 'Freeze a stretch of road: ground enemies inside move 40% slower for 3s.',
+  },
+  {
     key: 'fortify',
     name: 'Fortify',
     icon: '/assets/ui-kit/glyph_fortify.png',
@@ -52,6 +62,30 @@ export const OVERCHARGE = Object.freeze({ durationMs: 7000, cooldownScale: 0.59 
 
 /** Meteor blast shape. */
 export const METEOR = Object.freeze({ radius: 120, damage: 520 });
+
+/**
+ * Frost Surge shape. No damage: the spell buys time, it does not kill, so a
+ * slow that also nuked would make the meteor pointless.
+ */
+export const FROST = Object.freeze({ radius: 100, slow: 0.4, durationMs: 3000 });
+
+/**
+ * Ground enemies inside a frost circle.
+ *
+ * Pure so the rule can be tested without a scene: dead and escaped creeps are
+ * already out of the fight, and anything airborne never touches the road.
+ * Only real ground units are returned.
+ */
+export function frostTargets(enemies, x, y, radius = FROST.radius) {
+  const hits = [];
+  for (const enemy of enemies || []) {
+    if (!enemy || enemy.isDead || enemy.reachedBase) continue;
+    if (enemy.flying || enemy.def?.flying) continue;
+    if (Math.hypot(enemy.x - x, enemy.y - y) > radius) continue;
+    hits.push(enemy);
+  }
+  return hits;
+}
 
 export class PowerupState {
   /**

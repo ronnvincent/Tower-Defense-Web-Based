@@ -38,7 +38,8 @@ import {
 } from '../systems/ComboMeter.js';
 import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js';
 import { Vfx } from '../systems/Vfx.js';
-import { PowerupState, POWERUPS, METEOR } from '../systems/Powerups.js';
+import { PowerupState, POWERUPS, METEOR, FROST, frostTargets } from '../systems/Powerups.js';
+import { difficultyFor } from '../systems/Difficulty.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Tower } from '../entities/Tower.js';
@@ -107,6 +108,9 @@ export class GameScene extends Phaser.Scene {
       this.blessingsBought = {};
       this.blessingBonuses = blessingBonuses({});
       this.contracts = contractsFor(this.pvp.seed ?? 1);
+      // A duel is symmetric by contract: no preset may tilt one seat, so the
+      // arena always resolves to Normal regardless of the stored campaign pick.
+      this.difficulty = difficultyFor('normal');
       // A co-op room runs the same arena twice; every solo mode is off.
       this.mode = { coop: Boolean(this.pvp.coop) };
       this.runSeed = Number(this.pvp.seed) || 1;
@@ -129,6 +133,12 @@ export class GameScene extends Phaser.Scene {
     // getLevel() falls back to level 1 for an unknown id; adopt the resolved id
     // so a later restart / replay cannot carry the stale one forward.
     this.theme = THEMES[this.level.theme] || THEMES.grassland;
+    // Difficulty is frozen for the attempt. The briefing writes the choice to
+    // the store before DEPLOY, and a restart re-reads the same id, so a run can
+    // never re-apply a multiplier it already paid for.
+    this.difficulty = difficultyFor(
+      data?.difficulty ?? window.gameDifficulty?.id ?? 'normal'
+    );
     this.progress = window.gameProgress || new ProgressStore();
     this.lastMilestoneWave = 0;
     // Permanent relics + this run's blessings fold into one bonus set, read by
@@ -336,6 +346,7 @@ export class GameScene extends Phaser.Scene {
     this.powerups =
       this.level.rules?.powerups === false ? null : new PowerupState(this.time?.now || 0);
     this.pendingMeteor = false;
+    this.pendingFrost = false;
     this.createPortalAndBase();
 
     // Visual overlay graphics
@@ -705,7 +716,9 @@ export class GameScene extends Phaser.Scene {
    */
   spawnScaling(waveNumber, typeKey = null) {
     const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
-    const base = this.level.enemyHealthScale || 1;
+    // The level's own ramp and the preset fold into one multiplier, so every
+    // spawn path (wave, boss, summon, escort) takes the preset with it.
+    const base = (this.level.enemyHealthScale || 1) * (this.difficulty?.healthScale ?? 1);
     // Cards and anomalies raise the horde as well as the towers — that trade is
     // the whole point of Rogue Siege, so it is applied to both ramps.
     const horde = hordeScaling(this.runMods);
@@ -969,7 +982,8 @@ export class GameScene extends Phaser.Scene {
       resetCombo(this.combo);
       this.hud?.hideCombo();
     }
-    const destroyed = this.gameState.damageBase(enemy.baseDamage);
+    const leak = Math.max(1, Math.round(enemy.baseDamage * (this.difficulty?.damageScale ?? 1)));
+    const destroyed = this.gameState.damageBase(leak);
     this.gameState.counters.enemiesEscaped++;
     this.leaksThisWave = (this.leaksThisWave || 0) + 1;
 
@@ -1690,6 +1704,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 0b. Frost Surge aims the same way: tap the stretch of road to freeze.
+    if (this.pendingFrost) {
+      this.pendingFrost = false;
+      this.castFrost(worldX, worldY);
+      return;
+    }
+
     // 0. Upgrade badge above a defence?
     const badgeTower = this.badges?.hitTest(worldX, worldY);
     if (badgeTower) {
@@ -1908,7 +1929,9 @@ export class GameScene extends Phaser.Scene {
    */
   damageBarricade(wall, amount) {
     if (!wall || wall.isDestroyed) return;
-    const swing = resolveSiegeSwing(wall, amount);
+    // Harder presets swing harder at the palisades too; the falloff tables for
+    // a swing itself stay in BarricadeCombat.
+    const swing = resolveSiegeSwing(wall, amount * (this.difficulty?.damageScale ?? 1));
     if (swing.dealt <= 0) return;
     wall.takeDamage(swing.dealt);
 
@@ -2610,6 +2633,13 @@ export class GameScene extends Phaser.Scene {
       return true;
     }
 
+    if (key === 'frost') {
+      this.pendingFrost = true;
+      this.hud?.showToast('FROST SURGE — tap a stretch of road to freeze it', 'info');
+      audio.playWarning();
+      return true;
+    }
+
     if (key === 'overcharge') {
       this.hud?.showToast('OVERCHARGE — every tower fires 70% faster for 7s', 'info');
       audio.playCombo(3);
@@ -2670,6 +2700,25 @@ export class GameScene extends Phaser.Scene {
     }
     audio.playExplosion();
     this.hud?.showToast(hits > 0 ? `METEOR — ${hits} hit` : 'METEOR — empty ground', 'info');
+  }
+
+  /**
+   * Frost Surge: no damage, only time. Every ground enemy in the circle gets
+   * the same slow, and `Enemy.applySlow` already keeps the strongest active
+   * slow instead of multiplying them.
+   */
+  castFrost(x, y) {
+    const { radius, slow, durationMs } = FROST;
+    this.vfx?.impact?.(x, y, 'frost', { scale: 1.5, splash: radius, shake: false });
+    this.vfx?.shockwave?.(x, y, radius / 60, 'frost');
+    const hits = frostTargets(this.activeEnemies, x, y, radius);
+    for (const enemy of hits) enemy.applySlow?.(slow, durationMs);
+    audio.playPlace?.();
+    this.hud?.showToast(
+      hits.length > 0 ? `FROST SURGE — ${hits.length} slowed` : 'FROST SURGE — no ground in range',
+      'info'
+    );
+    return hits.length;
   }
 
   /** Push the current cooldowns into the HUD rail (cheap: 3 class writes). */
