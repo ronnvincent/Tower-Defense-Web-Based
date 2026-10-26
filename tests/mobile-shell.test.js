@@ -267,7 +267,10 @@ describe('the phone layout is a different layout, not a smaller one', () => {
     expect(sheet).toMatch(/position:\s*fixed/);
     expect(sheet).toMatch(/top:\s*auto/);
     expect(sheet).toMatch(/left:\s*calc\(6px \+ var\(--safe-left\)\)/);
-    expect(sheet).toMatch(/max-height:\s*min\(52vh,\s*250px\)/);
+    // 58vh, not 52: the two path cards are 126 px of content, and at 667x375 a
+    // 52vh sheet left them exactly on the body's edge, so the price row of the
+    // choice was dimmed by the "scroll me" fade. Measured, then raised.
+    expect(sheet).toMatch(/max-height:\s*min\(58vh,\s*250px\)/);
     // The panel body scrolls instead of growing over the lane.
     expect(ruleBody('[data-shell="mobile"] .inspector-body')).toMatch(/overflow-y:\s*auto/);
     // And the drag grip is gone: a CSS-placed sheet cannot be dragged.

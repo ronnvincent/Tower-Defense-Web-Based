@@ -1914,3 +1914,87 @@ reads only from that first page — a player ranked 200th sees their real standi
 but not their neighbours. The generated art is committed as WebP at build-time
 quality; the sources stay in `art-source/` so it can be re-cut without
 re-generating.
+
+## 26. The phone inspector stops hiding its own button
+
+### 26.1 What was wrong
+
+Tapping a defence on a phone opened a sheet whose body is the only scrolling
+region. The upgrade card was the *last* thing in that body, under the targeting
+row and seven stat cells, so on every landscape phone the one button the panel
+exists for started below the screen. Measured at 844×390 with a fresh tower:
+
+| | before |
+| --- | --- |
+| sheet | 832 × 203 px, top at y=125 |
+| body | 151 px tall, **224 px of content below the fold** |
+| upgrade button | top **y=409** on a 390 px screen |
+| SELL | y=522 |
+
+At 667×375 the two path cards (level 2) were 11 px taller than the body, so even
+after scrolling to the bottom their price row was clipped. A new player saw four
+targeting chips and six stat cells — nothing to press.
+
+### 26.2 What changed
+
+All of it is the phone shell; the desktop panel is untouched (`[data-shell="mobile"]`
+selectors only, verified by screenshot at 1366×768 and 1024×600).
+
+- `.inspector-actions { display: contents }` on the phone, so the upgrade card and
+  SELL join the body's flex flow and can be ordered independently.
+- `order: -1` puts the upgrade / the path choice / the FULLY UPGRADED badge
+  **first**, directly under the title; `order: 10` sends SELL to the end.
+- The single upgrade became a one-line bar (art · what it becomes · four
+  before → after chips · price · UPGRADE) at 44 px, and it is `position: sticky;
+  top: 0` with an opaque plate, so reading SPECIAL PERK or SIGNATURE cannot
+  scroll the buy button away.
+- Both path cards now sit in a two-column grid instead of a horizontal scroller:
+  a swipe nobody knows about is not a way to compare two options.
+- The sheet cap moved from `52vh` to `58vh` (still `max-height: min(58vh, 250px)`,
+  still above the dock) because at 667×375 the cards ended exactly on the body's
+  edge and their price row was dimmed by the scroll fade.
+- A 14 px fade on the frame's bottom edge, gated by `HUD#syncInspectorScroll()`
+  (`is-scrollable` while the body overflows, `is-scroll-end` once it is spent),
+  replaces the hard cut through a stat row. A freshly inspected tower also starts
+  at `scrollTop: 0` instead of inheriting the last tower's offset.
+
+Two real defects fell out while measuring:
+
+- the wall's upgrade card printed **`RATE NaN → NaN`** (`cooldown` is undefined on
+  a palisade). Chips now refuse non-finite numbers, and a non-attacking defence
+  gets `HP 420 → 900` and `THORNS 0 → 20` — the numbers it actually has;
+- the header printed the tower name twice (`SIEGE BALLISTA ★5 Siege Ballista`).
+  The chip is now `★5 · MAX` / `★3` / `★2 · REINFORCED`.
+
+### 26.3 Verification
+
+Probe `inspSweep.mjs` builds a tower through `attemptBuild()`, opens the
+inspector, then upgrades once so the path choice is on screen. "up" means the
+upgrade bar is entirely inside the body's visible area (not merely in the DOM);
+"cards/cta" means both path cards and their price rows are.
+
+| viewport | L1 upgrade visible | body | scroll left | L2 cards + price visible | console errors |
+| --- | --- | --- | --- | --- | --- |
+| 568×320 | yes | 134 px | 198 px | yes | 0 |
+| 667×375 | yes | 166 px | 166 px | yes | 0 |
+| 736×414 | yes | 188 px | 143 px | yes | 0 |
+| 844×390 | yes | 174 px | 157 px | yes | 0 |
+| 932×430 | yes | 197 px | 134 px | yes | 0 |
+| 1024×600 | yes | 198 px | 133 px | yes | 0 |
+| 1280×720 (`?hud=mobile`) | yes | 198 px | 134 px | yes | 0 |
+
+- **Production build** (`vite preview`, 4320): same two states pass at 844×390 and
+  667×375 with 0 console errors and 0 failed requests (`prodInsp.mjs`).
+- **End to end** (`inspClick.mjs`, 844×390, real taps): upgrade bar → level 2
+  (−50 gold); PATH II card → level 3, `sniper` (−100); two more taps → level 5,
+  the bar is replaced by `★★★★★ FULLY UPGRADED`; scrolled to the end the panel
+  reads `is-scrollable is-scroll-end`; SELL removes the tower and refunds 390.
+- **Desktop untouched**: 1366×768 and 1024×600 still render the floating panel
+  with the tall two-row card inside the scrolling body.
+- **Tests**: `tests/inspector-sheet.test.js` adds 13 cases (action-first CSS
+  contract, no horizontal scroller, 44 px target, the fade's two classes, the
+  scroll reset, the chip maths including the wall, the de-duplicated header).
+  `tests/mobile-shell.test.js` now pins the 58vh cap with the measurement that
+  forced it. Suite: **1408 passing / 115 files**. Contrast: **68/68**. Build
+  clean: `index-CIkrR0pq.css` 202.05 kB (39.76 gzip), `index-BMbpo9C1.js`
+  617.89 kB (177.86 gzip).

@@ -60,7 +60,7 @@ can actually do something — while a wave is running it is `display: none`.
 | Score · map name · fullscreen · reset view | on screen | inside the pause card (`#pause-status`, `RESET VIEW`) |
 | Forge | open card dock, ≈ 150 px | `⚒ BUILD` button (46 px) → full-width sheet on demand |
 | Wave preview | hover popover over the lane | second line on the `▶ NEXT` button (`12 CREEPS · BOSS`) |
-| Inspector | floating, draggable, anchored beside the tower | bottom sheet, `max-height: min(52vh, 250px)`, scrolls |
+| Inspector | floating, draggable, anchored beside the tower | bottom sheet, `max-height: min(58vh, 250px)`, upgrade pinned on top, stats scroll under it |
 | Camera | zoom pill (+, −, fit) | pinch to zoom, drag to pan, `RESET VIEW` in pause |
 | Toasts | parchment card, up to 620 px, top centre | one line, top left, ellipsis, 11 px |
 | Boss | 460 px engraved card | 300 px slim strip, top right |
@@ -133,7 +133,7 @@ not get re-proposed every sprint.
 | Tap a valid plot | tower built, pill dismisses |
 | Tap the dimmed map (sheet open) | sheet folds, nothing built |
 | Tap a creep | focus fire: every tower in range prioritises it; tap again to release |
-| Tap a tower | inspector sheet up, above the `BUILD` row |
+| Tap a tower | inspector sheet up, above the `BUILD` row — the upgrade (or the two paths) is the first line under the title |
 | Tap `▶ NEXT` | start the next wave, or `CALL EARLY · +Ng` for the gold bonus |
 | Drag / pinch | pan / zoom the battlefield |
 | Tap a powerup | meteor arms a target, overcharge and fortify fire immediately |

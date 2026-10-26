@@ -1,6 +1,6 @@
 import { BUILD_OPTIONS, BUILD_GROUPS, getBuildDefinition, groupForBuild } from '../data/towerData.js';
 import { TOWER_VISUALS } from '../data/towerVisuals.js';
-import { dps } from '../data/towerAscension.js';
+import { MAX_LEVEL, dps } from '../data/towerAscension.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { soundIcon } from './soundIcon.js';
@@ -1198,9 +1198,36 @@ export class HUD {
     this._onResize = () => {
       this.syncShell();
       this.repositionInspector();
+      this.syncInspectorScroll();
     };
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
+
+    // The phone sheet scrolls; the fade at its bottom edge says so. Listening to
+    // the one element keeps the affordance honest — a panel that fits needs no
+    // "there is more" shading, and the shading lifts at the end of the list.
+    document
+      .getElementById('inspector-body')
+      ?.addEventListener('scroll', () => this.syncInspectorScroll(), { passive: true });
+  }
+
+  /**
+   * Mark the inspector when its body has more content than it can show.
+   *
+   * The phone sheet is 226 px tall on a 390 px landscape screen, and the stat
+   * grid is taller than that. Without this the last visible row is sliced by the
+   * panel edge, which reads as a rendering bug rather than as "scroll me" (the
+   * same complaint the leaderboard roll got). `is-scrollable` paints a fade on
+   * the frame edge; `is-scroll-end` lifts it once the list is spent.
+   */
+  syncInspectorScroll() {
+    const body = document.getElementById('inspector-body');
+    const panel = document.getElementById('tower-inspector');
+    if (!body || !panel) return;
+    const max = body.scrollHeight - body.clientHeight;
+    const room = max > 4;
+    panel.classList.toggle('is-scrollable', room);
+    panel.classList.toggle('is-scroll-end', !room || body.scrollTop >= max - 4);
   }
 
   /* ============================================================== INSPECTOR */
@@ -1316,11 +1343,17 @@ export class HUD {
     panel.classList.remove('hidden');
 
     // The badge shows the real tier: since levels 4 and 5 exist, a hard-coded
-    // ★3 would have labelled a maxed tower as a fresh specialisation.
+    // ★3 would have labelled a maxed tower as a fresh specialisation. It says
+    // the level only — the title next to it already carries the ascension name,
+    // and "SIEGE BALLISTA ★5 Siege Ballista" was the same words twice.
     const titleStr = tower.specialization
-      ? `★${tower.level} ${tower.stats?.title || ''}`.trim()
+      ? tower.level >= MAX_LEVEL
+        ? `★${tower.level} · MAX`
+        : `★${tower.level}`
       : tower.isBarricade
-        ? tower.stats?.title || (tower.level === 2 ? 'Reinforced Palisade' : 'Wooden Palisade')
+        ? tower.level > 1
+          ? `★${tower.level} · REINFORCED`
+          : `★${tower.level}`
         : `★ Level ${tower.level}`;
 
     document.getElementById('inspect-name').textContent = tower.stats?.title || tower.def.name;
@@ -1369,6 +1402,11 @@ export class HUD {
     actionsContainer.innerHTML = this.renderUpgradeActions(tower);
     this.bindUpgradeActions(tower);
     this.updateActionAffordability(tower);
+    // A fresh tower means a fresh (shorter) body: start at the top, where the
+    // action lives, and re-measure the fade from there.
+    const body = document.getElementById('inspector-body');
+    if (body) body.scrollTop = 0;
+    this.syncInspectorScroll();
 
     if (anchorRatio) this.inspectorAnchorRatio = anchorRatio;
     this.repositionInspector();
@@ -1503,6 +1541,9 @@ export class HUD {
     if (!next) return '';
     const chips = [];
     const chip = (label, before, after, format = (v) => v) => {
+      // Never print a number that is not one: the palisade has no cooldown, and
+      // its upgrade card used to promise "RATE NaN → NaN".
+      if (!Number.isFinite(before) || !Number.isFinite(after)) return;
       if (before === after) return;
       const dir = after > before ? 'up' : 'down';
       chips.push(
@@ -1510,12 +1551,22 @@ export class HUD {
           `<i>→</i><b>${format(after)}</b></span>`
       );
     };
-    const rate = (s) => Math.round((1000 / Math.max(1, s.cooldown)) * 10) / 10;
+    const rate = (s) =>
+      Number.isFinite(s?.cooldown) && s.cooldown > 0
+        ? Math.round((1000 / s.cooldown) * 10) / 10
+        : NaN;
+    const attacks = (s) => Number.isFinite(s?.cooldown) && s.cooldown > 0;
     if (now) {
-      chip('DPS', Math.round(dps(now)), Math.round(dps(next)));
-      chip('RATE', rate(now), rate(next), (v) => v.toFixed(1));
-      chip('RANGE', now.range ?? 0, next.range ?? 0);
-    } else {
+      if (attacks(now) && attacks(next)) {
+        chip('DPS', Math.round(dps(now)), Math.round(dps(next)));
+        chip('RATE', rate(now), rate(next), (v) => v.toFixed(1));
+        chip('RANGE', now.range ?? 0, next.range ?? 0);
+      } else {
+        // A wall upgrades on the two numbers it actually has.
+        chip('HP', now.health ?? 0, next.health ?? 0);
+        chip('THORNS', now.thornsDamage ?? 0, next.thornsDamage ?? 0);
+      }
+    } else if (attacks(next)) {
       chips.push(`<span class="spec-chip spec-chip-flat">DPS <b>${Math.round(dps(next))}</b></span>`);
       chips.push(`<span class="spec-chip spec-chip-flat">RATE <b>${rate(next).toFixed(1)}</b>/s</span>`);
     }

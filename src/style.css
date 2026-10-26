@@ -10615,7 +10615,12 @@ body.is-fullscreen #app::after {
   bottom: calc(6px + var(--hud-build-h) + 10px + var(--safe-bottom));
   width: auto;
   max-width: none;
-  max-height: min(52vh, 250px);
+  /* 58vh, not 52: the two path cards are 126 px of content and the choice has
+     to fit above the fade on a 375 px-tall phone. Measured at 667x375 the cards
+     ended exactly on the body's edge, so their price row was dimmed by the
+     "scroll me" shading — a choice you cannot read is worse than 22 px less
+     battlefield. Anything taller than 250 px is a tablet; the cap stays. */
+  max-height: min(58vh, 250px);
   padding: 6px;
   border-image-width: 11px;
   animation: inspectorSheetUp 0.18s ease-out;
@@ -10633,7 +10638,33 @@ body.is-fullscreen #app::after {
 }
 
 [data-shell="mobile"] .inspector-shell {
+  position: relative;
   padding: 7px 9px 8px;
+}
+
+/* "There is more under the fold."
+ *
+ * The sheet cannot grow: the dock owns the bottom 60 px and the status rail the
+ * top 44. So the body scrolls, and this fade on the frame edge is what says so —
+ * a hard cut through a stat row looked like a broken panel. It only paints while
+ * the body really overflows and lifts at the end of the list (HUD#syncInspectorScroll
+ * owns the two classes), so it never promises content that is not there. */
+[data-shell="mobile"] .inspector-shell::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* The body's own bottom edge: 6 px of frame padding sit below it. */
+  bottom: 6px;
+  height: 14px;
+  background: linear-gradient(180deg, rgba(9, 14, 18, 0) 0%, rgba(9, 14, 18, 0.82) 55%, rgba(9, 14, 18, 0.97) 100%);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+  pointer-events: none;
+}
+
+[data-shell="mobile"] .hud-inspector.is-scrollable:not(.is-scroll-end) .inspector-shell::after {
+  opacity: 1;
 }
 
 /* No drag grip: on the phone the sheet is CSS-placed and cannot be moved. */
@@ -10647,12 +10678,51 @@ body.is-fullscreen #app::after {
   padding-bottom: 5px;
 }
 
+/* The upgrade is why the sheet is open, so it is the first thing under the
+   title — not the last thing under two screens of numbers.
+ *
+ * Measured before the change (844x390): the sheet is 203 px tall, its body is
+ * 151 px, and the upgrade button sat at y=409 on a 390 px screen. A player who
+ * tapped a defence saw four targeting chips and six stat cells, and the one
+ * button the panel exists for was 224 px of scrolling away. `display: contents`
+ * dissolves the actions wrapper so its two children join the body's own flow:
+ * the upgrade (or the path choice) is item 1, and SELL moves to the end where a
+ * destructive button belongs. Nothing is hidden — it is the same DOM, reordered
+ * by the stylesheet, so every handler and every test still points at the same
+ * element.
+ */
 [data-shell="mobile"] .inspector-body {
-  max-height: calc(min(52vh, 250px) - 52px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(min(58vh, 250px) - 52px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+  /* Room at the end so the last row can be scrolled clear of the fade above. */
+  padding-bottom: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 196, 81, 0.45) transparent;
+}
+
+[data-shell="mobile"] .inspector-actions {
+  display: contents;
+}
+
+[data-shell="mobile"] #btn-upgrade-tower,
+[data-shell="mobile"] .spec-selection-block,
+[data-shell="mobile"] .max-spec-badge {
+  /* A maxed tower has no action left, so its badge takes the same slot: the
+     first line under the title says why there is nothing to press. */
+  order: -1;
+}
+
+[data-shell="mobile"] #btn-sell-tower {
+  order: 10;
+  min-height: 30px;
+  padding: 2px 8px;
+  font-size: 11px;
 }
 
 /* One row of targeting buttons across the sheet instead of a 2×2 block. */
@@ -10690,20 +10760,118 @@ body.is-fullscreen #app::after {
   font-size: 11px;
 }
 
+/* Both paths, side by side and both on screen: a horizontal scroller hid the
+   second path behind a swipe nobody knew to make. */
 [data-shell="mobile"] .spec-cards-row {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-  touch-action: pan-x;
-}
-
-[data-shell="mobile"] .spec-cards-row::-webkit-scrollbar {
-  display: none;
 }
 
 [data-shell="mobile"] .spec-card {
-  min-width: 210px;
+  min-width: 0;
+  gap: 4px;
+  padding: 6px 7px 5px;
+}
+
+[data-shell="mobile"] .spec-card-art {
+  width: 30px;
+  height: 34px;
+}
+
+[data-shell="mobile"] .spec-card-pitch {
+  -webkit-line-clamp: 2;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+[data-shell="mobile"] .spec-card-cta {
+  padding-top: 4px;
+}
+
+/* One option, one line: the art, what it becomes, what the numbers do, the
+   price. 46 px instead of the 107 px card the column layout forced. */
+[data-shell="mobile"] #btn-upgrade-tower {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  /* 46 px is the tap target; the whole row is the button. */
+  min-height: 44px;
+  /* Pinned: reading SPECIAL PERK or SIGNATURE must not scroll the buy button
+     away. Opaque, because the stat cells pass underneath it. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, var(--lane-soft), rgba(12, 17, 23, 0.98) 62%),
+    #0c1117;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 14px rgba(0, 0, 0, 0.6);
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-top {
+  flex: 0 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-ident {
+  gap: 0;
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-title {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-chips {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-chip {
+  flex: 0 0 auto;
+}
+
+/* 320-400 px tall phones (a 4" handset in landscape): the two path cards have
+   to fit a 134 px body, so the pitch drops to one line. The full sentence is
+   still in the card's tooltip on desktop; here the title, the role and the four
+   before → after chips are what the choice is made on. */
+@media (max-height: 420px) {
+  [data-shell="mobile"] .spec-card {
+    gap: 3px;
+    padding: 5px 7px 4px;
+  }
+
+  [data-shell="mobile"] .spec-card-art {
+    width: 26px;
+    height: 30px;
+  }
+
+  [data-shell="mobile"] .spec-card-pitch {
+    -webkit-line-clamp: 1;
+  }
+
+  [data-shell="mobile"] .spec-card-cta {
+    padding-top: 3px;
+  }
+}
+
+[data-shell="mobile"] #btn-upgrade-tower .spec-card-cta {
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
+  padding: 0 0 0 9px;
+  border-top: none;
+  border-left: 1px solid rgba(245, 196, 81, 0.3);
+  align-self: stretch;
+  align-items: center;
 }
 
 /* ---------------------------------------------------- 4. BOTTOM THUMBS */
