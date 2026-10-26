@@ -271,6 +271,11 @@ Manual checklist for a human browser session:
   `glyph_expand`) from one path table, `src/ui/soundIcon.js`, so the menu key,
   the map key and the muted state cannot drift apart. The muted state is a slash
   through the horn, not a dimmed colour.
+- A third key — the kit's `glyph_gear` — opens the audio desk on both bars:
+  master / music / effects / ambience faders and a mute switch. Mute stays on
+  the speaker (it has to be one tap); everything else is a decision you open.
+  The mixer, the music scenes and the per-location beds are documented in
+  [audio.md](audio.md).
 - PLAY sets `is-leaving` (a 240 ms fade), then reveals the map underneath, so
   the hand-off is a crossfade rather than a cut. `Esc`/`F` still work.
 - Type is self-hosted: eight OFL woff2 subsets in `public/fonts` replace the old

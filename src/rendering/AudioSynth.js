@@ -1,20 +1,81 @@
 /**
- * AudioSynth — Procedural Web Audio sound generator.
+ * AudioSynth — procedural Web Audio sound effects and the mix bus.
  *
- * Provides responsive sound effects synthesized at runtime using Web Audio oscillators
- * and noise buffers. Requires ZERO external audio files or downloads, ensuring the game
- * will never suffer broken 404 audio assets or licensing issues.
+ * Every effect is synthesised at runtime from oscillators and noise buffers, so
+ * the game needs no audio downloads: nothing to 404, nothing to license.
+ *
+ * The mix
+ * -------
+ * One AudioContext, four buses, created once in `init()`:
+ *
+ *     music ─┐
+ *     sfx ───┼─▶ master ─▶ destination
+ *     ambient┘
+ *
+ * `master` is the mute switch; every effect in this file routes into `sfx`;
+ * `music` and `ambient` are driven by `MusicDirector` and `AmbienceDirector`.
+ * A voice therefore carries only its own envelope — the mix levels are applied
+ * once, on a bus, instead of being multiplied into every oscillator (which also
+ * meant the old single `volume` could never be split into music vs effects).
+ *
+ * Settings live in one record (`td-dsalgo:settings:v1`):
+ *
+ *     { muted: false, volumes: { master, music, sfx, ambient } }
+ *
+ * A save from before the mixer stored a single `volume`; it is read as the
+ * master level, so an old profile keeps the loudness it had.
  */
 import { STORAGE_KEYS } from '../config/gameConfig.js';
 import { readJSON, writeJSON, getDefaultStorage } from '../utils/storage.js';
 
+/** The four faders the settings panel shows, in signal order. */
+export const AUDIO_BUSES = Object.freeze(['master', 'music', 'sfx', 'ambient']);
+
+/**
+ * Defaults, chosen so a first boot is audible but never startling: music sits
+ * under the effects, and ambience sits under the music.
+ */
+export const DEFAULT_LEVELS = Object.freeze({
+  master: 0.8,
+  music: 0.5,
+  sfx: 0.85,
+  ambient: 0.45,
+});
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+/**
+ * Coerce a saved (or hand-edited) volume record into four usable faders.
+ * Missing and non-numeric entries fall back to the default; a deliberate 0 is a
+ * real value and is kept.
+ */
+export function normalizeLevels(raw = {}) {
+  const out = { ...DEFAULT_LEVELS };
+  for (const bus of AUDIO_BUSES) {
+    const value = raw?.[bus];
+    if (value === null || value === undefined || value === '') continue;
+    const num = Number(value);
+    if (Number.isFinite(num)) out[bus] = clamp01(num);
+  }
+  return out;
+}
+
 export class AudioSynth {
-  constructor() {
+  /**
+   * @param {{ storage?: Storage }} [options] injectable for tests and for a
+   *   future in-memory profile; the browser singleton passes nothing.
+   */
+  constructor({ storage = getDefaultStorage() } = {}) {
     this.ctx = null;
-    this.storage = getDefaultStorage();
-    const stored = readJSON(this.storage, STORAGE_KEYS.settings);
-    this.muted = stored?.value?.muted ?? false;
-    this.volume = stored?.value?.volume ?? 0.6;
+    this.storage = storage;
+    const stored = readJSON(this.storage, STORAGE_KEYS.settings)?.value ?? {};
+    this.muted = Boolean(stored.muted);
+    // `stored.volume` is the pre-mixer save shape.
+    this.levels = normalizeLevels(stored.volumes ?? { master: stored.volume });
+    this.master = null;
+    this.music = null;
+    this.sfx = null;
+    this.ambient = null;
     this.unlocked = false;
     this.buffers = new Map();
     this.loadingBuffers = false;
@@ -22,16 +83,79 @@ export class AudioSynth {
 
   init() {
     if (this.ctx) return;
+    if (typeof window === 'undefined') return; // unit tests, SSR
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
+        this.#createBuses();
         this.unlocked = this.ctx.state === 'running';
         this.loadAudioBuffers();
       }
     } catch (e) {
       console.warn('AudioContext unavailable:', e);
     }
+  }
+
+  /** Build the four-bus graph. Called exactly once, from `init()`. */
+  #createBuses() {
+    const ctx = this.ctx;
+    const bus = (level) => {
+      const node = ctx.createGain();
+      node.gain.value = level;
+      return node;
+    };
+    this.master = bus(this.muted ? 0 : this.levels.master);
+    this.music = bus(this.levels.music);
+    this.sfx = bus(this.levels.sfx);
+    this.ambient = bus(this.levels.ambient);
+    this.music.connect(this.master);
+    this.sfx.connect(this.master);
+    this.ambient.connect(this.master);
+    this.master.connect(ctx.destination);
+  }
+
+  /** The context, initialising on demand. For the music/ambience directors. */
+  get context() {
+    this.init();
+    return this.ctx;
+  }
+
+  get musicBus() {
+    this.init();
+    return this.music;
+  }
+
+  get ambientBus() {
+    this.init();
+    return this.ambient;
+  }
+
+  get volumes() {
+    return { ...this.levels };
+  }
+
+  /** Legacy scalar reader — the master fader. */
+  get volume() {
+    return this.levels.master;
+  }
+
+  /** Push the four fader values into the graph, with a short anti-click ramp. */
+  applyGains() {
+    if (!this.ctx || !this.master) return;
+    const now = this.ctx.currentTime;
+    const ramp = (param, value) => {
+      try {
+        param.cancelScheduledValues(now);
+        param.setTargetAtTime(clamp01(value), now, 0.05);
+      } catch {
+        param.value = clamp01(value);
+      }
+    };
+    ramp(this.master.gain, this.muted ? 0 : this.levels.master);
+    ramp(this.sfx.gain, this.levels.sfx);
+    ramp(this.music.gain, this.levels.music);
+    ramp(this.ambient.gain, this.levels.ambient);
   }
 
   async loadAudioBuffers() {
@@ -69,9 +193,9 @@ export class AudioSynth {
       src.buffer = buf;
       src.playbackRate.value = playbackRate;
       const g = this.ctx.createGain();
-      g.gain.value = Math.max(0, vol * this.volume);
+      g.gain.value = Math.max(0, vol);
       src.connect(g);
-      g.connect(this.ctx.destination);
+      g.connect(this.sfx);
       src.start();
       return true;
     } catch {
@@ -84,12 +208,16 @@ export class AudioSynth {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().then(() => {
         this.unlocked = true;
+        // The faders may have moved while the context was suspended (a slider
+        // drag on a phone before the first tap); re-apply them on resume.
+        this.applyGains();
       });
     }
   }
 
   setMuted(muted) {
     this.muted = !!muted;
+    this.applyGains();
     this.#persist();
   }
 
@@ -98,23 +226,39 @@ export class AudioSynth {
     return this.muted;
   }
 
-  setVolume(vol) {
-    this.volume = Math.max(0, Math.min(1, vol));
+  /**
+   * Set one fader. Unknown bus names and non-numeric values are ignored so a
+   * typo in a caller can never silence the game.
+   * @param {'master'|'music'|'sfx'|'ambient'} bus
+   * @param {number} value 0..1
+   */
+  setBusVolume(bus, value) {
+    if (!AUDIO_BUSES.includes(bus)) return this.levels;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return this.levels;
+    this.levels[bus] = clamp01(num);
+    this.applyGains();
     this.#persist();
+    return this.levels;
+  }
+
+  /** Legacy alias: `setVolume(v)` is the master fader. */
+  setVolume(vol) {
+    return this.setBusVolume('master', vol);
   }
 
   #persist() {
     writeJSON(this.storage, STORAGE_KEYS.settings, {
       muted: this.muted,
-      volume: this.volume,
+      volumes: { ...this.levels },
     });
   }
 
   #gain(v = 1) {
     if (!this.ctx || this.muted) return null;
     const g = this.ctx.createGain();
-    g.gain.value = Math.max(0, v * this.volume);
-    g.connect(this.ctx.destination);
+    g.gain.value = Math.max(0, v);
+    g.connect(this.sfx);
     return g;
   }
 
@@ -128,7 +272,7 @@ export class AudioSynth {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(600, now);
     osc.frequency.exponentialRampToValueAtTime(300, now + 0.04);
-    g.gain.setValueAtTime(0.2 * this.volume, now);
+    g.gain.setValueAtTime(0.2, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
     osc.connect(g);
     osc.start(now);
@@ -144,7 +288,7 @@ export class AudioSynth {
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(140, now);
     osc.frequency.setValueAtTime(110, now + 0.06);
-    g.gain.setValueAtTime(0.25 * this.volume, now);
+    g.gain.setValueAtTime(0.25, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
     osc.connect(g);
     osc.start(now);
@@ -162,7 +306,7 @@ export class AudioSynth {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(220, now);
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-    g.gain.setValueAtTime(0.4 * this.volume, now);
+    g.gain.setValueAtTime(0.4, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
     osc.connect(g);
     osc.start(now);
@@ -199,7 +343,7 @@ export class AudioSynth {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(450, now);
       osc.frequency.exponentialRampToValueAtTime(120, now + 0.09);
-      g.gain.setValueAtTime(0.25 * this.volume, now);
+      g.gain.setValueAtTime(0.25, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
       osc.connect(g);
       osc.start(now);
@@ -211,7 +355,7 @@ export class AudioSynth {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(160, now);
       osc.frequency.exponentialRampToValueAtTime(30, now + 0.22);
-      g.gain.setValueAtTime(0.5 * this.volume, now);
+      g.gain.setValueAtTime(0.5, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
       osc.connect(g);
       osc.start(now);
@@ -223,7 +367,7 @@ export class AudioSynth {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.exponentialRampToValueAtTime(1400, now + 0.15);
-      g.gain.setValueAtTime(0.25 * this.volume, now);
+      g.gain.setValueAtTime(0.25, now);
       g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc.connect(g);
       osc.start(now);
@@ -251,7 +395,7 @@ export class AudioSynth {
     filter.frequency.setValueAtTime(400, now);
     filter.frequency.linearRampToValueAtTime(80, now + 0.25);
 
-    g.gain.setValueAtTime(0.45 * this.volume, now);
+    g.gain.setValueAtTime(0.45, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
 
     whiteNoise.connect(filter);
@@ -272,7 +416,7 @@ export class AudioSynth {
     osc2.type = 'sine';
     osc1.frequency.setValueAtTime(987.77, now); // B5
     osc2.frequency.setValueAtTime(1318.51, now + 0.06); // E6
-    g.gain.setValueAtTime(0.25 * this.volume, now);
+    g.gain.setValueAtTime(0.25, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
     osc1.connect(g);
     osc2.connect(g);
@@ -292,7 +436,7 @@ export class AudioSynth {
     osc.type = 'square';
     osc.frequency.setValueAtTime(190, now);
     osc.frequency.exponentialRampToValueAtTime(70, now + 0.05);
-    g.gain.setValueAtTime(0.18 * this.volume, now);
+    g.gain.setValueAtTime(0.18, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
     osc.connect(g);
     osc.start(now);
@@ -317,7 +461,7 @@ export class AudioSynth {
       osc.start(now + index * 0.02);
       osc.stop(now + 0.12);
     });
-    g.gain.setValueAtTime(0.2 * this.volume, now);
+    g.gain.setValueAtTime(0.2, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
   }
 
@@ -335,7 +479,7 @@ export class AudioSynth {
       osc.start(now + index * 0.08);
       osc.stop(now + 0.16 + index * 0.08);
     });
-    g.gain.setValueAtTime(0.22 * this.volume, now);
+    g.gain.setValueAtTime(0.22, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   }
 
@@ -354,7 +498,7 @@ export class AudioSynth {
       osc.start(now);
       osc.stop(now + 0.45);
     });
-    g.gain.setValueAtTime(0.35 * this.volume, now);
+    g.gain.setValueAtTime(0.35, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
   }
 
@@ -373,7 +517,7 @@ export class AudioSynth {
       osc.start(start);
       osc.stop(start + 0.28);
     });
-    g.gain.setValueAtTime(0.4 * this.volume, now);
+    g.gain.setValueAtTime(0.4, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
   }
 
@@ -392,7 +536,7 @@ export class AudioSynth {
       osc.start(start);
       osc.stop(start + 0.35);
     });
-    g.gain.setValueAtTime(0.4 * this.volume, now);
+    g.gain.setValueAtTime(0.4, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
   }
 
@@ -410,7 +554,7 @@ export class AudioSynth {
       osc.start(now);
       osc.stop(now + 0.45);
     });
-    g.gain.setValueAtTime(0.4 * this.volume, now);
+    g.gain.setValueAtTime(0.4, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
   }
 }

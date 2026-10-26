@@ -48,6 +48,7 @@ import { compactInPlace } from '../utils/arrayUtils.js';
 import { BossTracker } from '../systems/BossTracker.js';
 import { enemyAt, focusReadout, isFocusable } from '../systems/FocusTarget.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { audioDirector } from '../rendering/audioDirector.js';
 import { applyDailyModifiers } from '../systems/DailyChallenge.js';
 import { milestonesBetween, milestoneLabel } from '../systems/EndlessMilestones.js';
 import { relicBonuses } from '../systems/Relics.js';
@@ -2291,6 +2292,12 @@ export class GameScene extends Phaser.Scene {
 
   showResult(payload) {
     this.lastResult = payload;
+    // The run is over: the battle bed stops and the sting takes the scene. The
+    // result screens want no ambience at all (`AMBIENCE_FOR` maps both to an
+    // empty bed), so the wind does not play under the defeat card.
+    const mood = payload.outcome === 'victory' ? 'victory' : 'defeat';
+    audioDirector.setScene(mood);
+    audioDirector.setLocation(mood);
     if (window.gameResultScreen?.show) {
       window.gameResultScreen.show(payload);
       return payload;

@@ -1,0 +1,166 @@
+/**
+ * SettingsUI — the four faders, and the mute switch.
+ *
+ * Mounted on `document.body` rather than in `#modal-container`, because several
+ * screens replace that container's markup wholesale; a settings panel that can
+ * be deleted by a result screen is worse than no settings panel.
+ *
+ * The values are the audio graph's own (`AudioSynth.setBusVolume`), which write
+ * the save on every change — closing the panel is not what persists them, so a
+ * player who closes the tab mid-drag still keeps the level they set.
+ */
+
+import { AUDIO_BUSES, audio as defaultAudio } from '../rendering/AudioSynth.js';
+
+/** Fader rows, in signal order. */
+const ROWS = [
+  { bus: 'master', label: 'MASTER', hint: 'Everything the game plays' },
+  { bus: 'music', label: 'MUSIC', hint: 'Menu, realm, forge, battle' },
+  { bus: 'sfx', label: 'EFFECTS', hint: 'Towers, impacts, interface' },
+  { bus: 'ambient', label: 'AMBIENCE', hint: 'Wind, water, fire, birds' },
+];
+
+const pct = (value) => `${Math.round(value * 100)}%`;
+
+export class SettingsUI {
+  /**
+   * @param {{ audio?: object, onChange?: (state: {muted:boolean, volumes:object}) => void }} [options]
+   */
+  constructor({ audio = defaultAudio, onChange = null } = {}) {
+    this.audio = audio;
+    this.onChange = onChange;
+    this.el = null;
+    this.returnFocus = null;
+    this.onKeyDown = this.#handleKey.bind(this);
+  }
+
+  /* ------------------------------------------------------------------ markup */
+
+  #build() {
+    const root = document.createElement('div');
+    root.className = 'set-overlay hidden';
+    root.id = 'audio-settings';
+    root.innerHTML = `
+      <div class="set-card" role="dialog" aria-modal="true" aria-labelledby="set-title">
+        <p class="set-eyebrow">THE AUDIO DESK</p>
+        <h2 class="set-title" id="set-title">Settings</h2>
+        <p class="set-note">Music and ambience are synthesised live in the browser — nothing is streamed or downloaded.</p>
+
+        <div class="set-rows">
+          ${ROWS.map(
+            (row) => `
+            <label class="set-row" for="set-${row.bus}">
+              <span class="set-row-copy">
+                <b>${row.label}</b>
+                <i>${row.hint}</i>
+              </span>
+              <input id="set-${row.bus}" class="set-slider" type="range" min="0" max="100" step="1"
+                     value="80" data-bus="${row.bus}" aria-describedby="set-${row.bus}-value" />
+              <output class="set-row-value" id="set-${row.bus}-value" for="set-${row.bus}">80%</output>
+            </label>`
+          ).join('')}
+        </div>
+
+        <div class="set-actions">
+          <button id="set-mute" class="wm-btn set-mute" type="button" aria-pressed="false">SOUND ON</button>
+          <button id="set-close" class="wm-btn wm-btn--primary set-btn" type="button">CLOSE</button>
+        </div>
+      </div>`;
+    return root;
+  }
+
+  /* ------------------------------------------------------------------- state */
+
+  /** Repaint the controls from the audio graph. */
+  refresh() {
+    if (!this.el) return;
+    const volumes = this.audio.volumes || {};
+    for (const { bus } of ROWS) {
+      const input = this.el.querySelector(`#set-${bus}`);
+      const out = this.el.querySelector(`#set-${bus}-value`);
+      const value = Number.isFinite(volumes[bus]) ? volumes[bus] : 0;
+      if (input) input.value = String(Math.round(value * 100));
+      if (out) out.textContent = pct(value);
+    }
+    const mute = this.el.querySelector('#set-mute');
+    if (mute) {
+      mute.textContent = this.audio.muted ? 'SOUND OFF' : 'SOUND ON';
+      mute.setAttribute('aria-pressed', String(Boolean(this.audio.muted)));
+      mute.classList.toggle('is-off', Boolean(this.audio.muted));
+    }
+  }
+
+  #emit() {
+    this.onChange?.({ muted: Boolean(this.audio.muted), volumes: this.audio.volumes });
+  }
+
+  /* ------------------------------------------------------------------ events */
+
+  #bind() {
+    const el = this.el;
+    el.addEventListener('click', (event) => {
+      if (event.target === el) this.hide(); // click on the dimmed field
+    });
+    el.querySelector('#set-close')?.addEventListener('click', () => this.hide());
+    el.querySelector('#set-mute')?.addEventListener('click', () => {
+      this.audio.toggleMute();
+      this.refresh();
+      this.#emit();
+    });
+    for (const input of el.querySelectorAll('.set-slider')) {
+      input.addEventListener('input', () => {
+        const bus = input.dataset.bus;
+        if (!AUDIO_BUSES.includes(bus)) return;
+        this.audio.setBusVolume(bus, Number(input.value) / 100);
+        const out = el.querySelector(`#set-${bus}-value`);
+        if (out) out.textContent = pct(Number(input.value) / 100);
+        this.#emit();
+      });
+    }
+  }
+
+  #handleKey(event) {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      this.hide();
+    }
+  }
+
+  /* ------------------------------------------------------------------- mount */
+
+  show() {
+    if (!this.el) {
+      this.el = this.#build();
+      document.body.appendChild(this.el);
+      this.#bind();
+    }
+    this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.refresh();
+    this.el.classList.remove('hidden');
+    document.addEventListener('keydown', this.onKeyDown, true);
+    // Focus the master fader: the panel is usable with the keyboard immediately,
+    // and a screen reader announces the group when it lands there.
+    requestAnimationFrame(() => {
+      this.el?.querySelector('#set-master')?.focus?.();
+    });
+  }
+
+  hide() {
+    if (!this.el || this.el.classList.contains('hidden')) return;
+    this.el.classList.add('hidden');
+    document.removeEventListener('keydown', this.onKeyDown, true);
+    // Hand focus back to whatever opened the panel, so Escape does not drop the
+    // keyboard onto `<body>`.
+    if (this.returnFocus?.isConnected) this.returnFocus.focus?.();
+    this.returnFocus = null;
+  }
+
+  toggle() {
+    if (this.el && !this.el.classList.contains('hidden')) this.hide();
+    else this.show();
+  }
+
+  get open() {
+    return Boolean(this.el && !this.el.classList.contains('hidden'));
+  }
+}

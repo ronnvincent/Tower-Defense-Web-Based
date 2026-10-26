@@ -10301,3 +10301,239 @@ html.draft-open body {
 .wm-inline-icon {
   margin-bottom: -1px;
 }
+
+/* ======================================================================
+   AUDIO SETTINGS
+   One panel, four faders. Mounted on <body> (not #modal-container) so a screen
+   that replaces its container's markup cannot delete it. Above every overlay.
+   ====================================================================== */
+
+.set-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: radial-gradient(125% 95% at 50% 24%, rgba(7, 9, 14, 0.8), rgba(2, 3, 6, 0.94));
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: setFade 0.18s ease both;
+}
+
+.set-card {
+  width: min(440px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 2px 18px 16px;
+  border-style: solid;
+  border-width: 22px;
+  border-image-source: var(--ui-panel);
+  border-image-slice: 50 fill;
+  border-image-repeat: stretch;
+  color: var(--ink);
+}
+
+.set-eyebrow {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  color: var(--ink-gold);
+}
+
+.set-title {
+  margin: 2px 0 6px;
+  font-family: var(--font-heading);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--ink-strong);
+}
+
+.set-note {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.set-rows {
+  display: grid;
+  gap: 0;
+  margin: 10px 0 14px;
+}
+
+.set-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'copy value'
+    'slider slider';
+  gap: 2px 10px;
+  padding: 9px 0 7px;
+  border-top: 1px solid rgba(245, 196, 81, 0.14);
+  cursor: pointer;
+}
+
+.set-row:first-child {
+  border-top: 0;
+}
+
+.set-row-copy {
+  grid-area: copy;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.set-row-copy b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.2px;
+  color: var(--ink-strong);
+}
+
+.set-row-copy i {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.set-row-value {
+  grid-area: value;
+  align-self: start;
+  min-width: 42px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-gold);
+}
+
+.set-slider {
+  grid-area: slider;
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  accent-color: var(--gold-primary);
+  cursor: pointer;
+}
+
+.set-slider:focus-visible {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 3px;
+}
+
+.set-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.set-mute {
+  flex: 1 1 auto;
+  min-height: 38px;
+}
+
+.set-mute.is-off {
+  border-image-source: var(--ui-btn-crimson);
+  color: var(--ink-strong);
+}
+
+.set-btn {
+  flex: 0 0 auto;
+  min-width: 108px;
+  min-height: 38px;
+}
+
+@keyframes setFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .set-overlay {
+    animation: none;
+  }
+}
+
+/* Phone portrait: the card owns the screen, the faders keep their 44 px rows. */
+@media (max-width: 480px) {
+  .set-card {
+    width: 100%;
+    border-width: 16px;
+    padding: 0 10px 12px;
+  }
+
+  .set-actions {
+    flex-direction: column-reverse;
+  }
+}
+
+/* Short landscape (phones, split screens, a 360 px window). Four stacked rows do
+   not fit above the fold, and a scroll bar inside a framed card is not an
+   affordance anyone finds — so the faders go two-up and the prose is dropped.
+   The card keeps `overflow-y: auto` as the last resort for absurd heights. */
+@media (max-height: 560px) {
+  .set-overlay {
+    align-items: start;
+    padding: 8px;
+  }
+
+  .set-card {
+    width: min(600px, 100%);
+    max-height: calc(100dvh - 16px);
+    border-width: 16px;
+    padding: 0 14px 10px;
+  }
+
+  .set-eyebrow {
+    font-size: 9.5px;
+    letter-spacing: 2px;
+  }
+
+  .set-title {
+    margin-bottom: 2px;
+    font-size: 19px;
+  }
+
+  .set-note {
+    display: none;
+  }
+
+  .set-rows {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 20px;
+    margin: 8px 0 10px;
+  }
+
+  .set-row {
+    padding: 5px 0 4px;
+  }
+
+  .set-row:nth-child(2) {
+    border-top: 0;
+  }
+
+  .set-slider {
+    height: 22px;
+  }
+
+  .set-actions {
+    flex-direction: row;
+  }
+
+  .set-mute,
+  .set-btn {
+    min-height: 34px;
+  }
+}

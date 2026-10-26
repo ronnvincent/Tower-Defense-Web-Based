@@ -53,6 +53,7 @@ import {
 import { starSummary } from '../systems/Progression.js';
 import { dailyRun } from '../systems/DailyChallenge.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { audioDirector } from '../rendering/audioDirector.js';
 import { SOUND_ON, soundIcon } from './soundIcon.js';
 
 /** How far past `minScale` the camera may go (clamped again in `measure`). */
@@ -89,6 +90,7 @@ export class WorldMapUI {
    *   onMenu?: () => void,
    *   onCredits?: () => void,
    *   onSound?: () => boolean|void,
+   *   onSettings?: () => void,
    *   onFullscreen?: () => void,
    * }} [callbacks]
    */
@@ -185,6 +187,9 @@ export class WorldMapUI {
         <div class="wm-tools">
           <button id="wm-sound" class="wm-icon" type="button" aria-label="Toggle sound" aria-pressed="false">
             <img id="wm-sound-img" src="${SOUND_ON}" alt="" />
+          </button>
+          <button id="wm-settings" class="wm-icon" type="button" aria-label="Audio settings">
+            <img src="/assets/ui-kit/glyph_gear.png" alt="" />
           </button>
           <button id="wm-fullscreen" class="wm-icon" type="button" aria-label="Toggle fullscreen" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -298,6 +303,10 @@ export class WorldMapUI {
     el.querySelector('#wm-sound')?.addEventListener('click', () => {
       const muted = this.callbacks.onSound?.();
       this.setSoundState(muted);
+    });
+    el.querySelector('#wm-settings')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onSettings?.();
     });
     el.querySelector('#wm-fullscreen')?.addEventListener('click', () => {
       audio.playClick();
@@ -876,6 +885,9 @@ export class WorldMapUI {
     this.el.querySelector(`[data-wm-id="${id}"]`)?.classList.add('is-active');
     this.hideTip();
     this.bindPanel(landmark);
+    // Walking up to a building changes what you hear: fire and hammering at the
+    // forge, water and the portal at the shrine, wind everywhere else.
+    audioDirector.setLocation(landmark.panel);
     this.panel.focus?.({ preventScroll: true });
     if (focus) this.focusLandmark(landmark);
   }
@@ -917,6 +929,7 @@ export class WorldMapUI {
       this.tweenTo(this.fromMemory(this.memory));
     }
     this.memory = null;
+    audioDirector.setLocation(null);
     if (this.visible) this.stage.focus?.({ preventScroll: true });
   }
 

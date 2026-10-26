@@ -136,6 +136,7 @@ describe('Main menu — one plate, two keys', () => {
     expect(uniqueWired.sort()).toEqual([
       'menu-btn-fullscreen',
       'menu-btn-play',
+      'menu-btn-settings',
       'menu-btn-sound',
       // the screen-reader label inside the fullscreen key, not a destination
       'menu-fullscreen-label',
@@ -189,6 +190,23 @@ describe('Main menu — one plate, two keys', () => {
       expect(map, `${hook} is not wired`).toContain(hook);
     }
     expect(html).toContain('id="world-map-root"');
+  });
+
+  it('opens the mixer from one small key, on the menu and on the map', () => {
+    // Settings is a utility, not a destination: one gear key, wired to the same
+    // panel from both bars. The faders themselves live in SettingsUI.
+    expect(html).toContain('id="menu-btn-settings"');
+    expect(existsSync('public/assets/ui-kit/glyph_gear.png')).toBe(true);
+    expect(read('src/ui/WorldMapUI.js')).toContain('id="wm-settings"');
+    expect(main).toContain('window.gameSettings?.show()');
+    const settings = read('src/ui/SettingsUI.js');
+    // The ids are built from the bus names, so assert the table and the binding
+    // rather than a string that only exists at runtime.
+    for (const bus of ['master', 'music', 'sfx', 'ambient']) {
+      expect(settings).toContain(`bus: '${bus}'`);
+    }
+    expect(settings).toContain('data-bus="${row.bus}"');
+    expect(settings).toContain('setBusVolume');
   });
 
   it('keeps the sound key pointing at a real icon pair from the same kit', () => {

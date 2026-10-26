@@ -23,6 +23,8 @@ import { getNextLevel, getLevel } from './data/levelData.js';
 import { MODES, MODE_KINDS } from './data/modeData.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
+import { audioDirector } from './rendering/audioDirector.js';
+import { SettingsUI } from './ui/SettingsUI.js';
 import { soundIcon } from './ui/soundIcon.js';
 import { FullscreenController } from './system/FullscreenController.js';
 import { OrientationGate } from './system/OrientationGate.js';
@@ -155,6 +157,8 @@ let lastLaunch = null;
  */
 function showLevelSelect({ arrival = null } = {}) {
   navReturn = 'menu';
+  audioDirector.setScene('realm');
+  audioDirector.setLocation(null);
   window.gameResultScreen?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.add('hidden');
@@ -187,6 +191,8 @@ function quitToMap() {
  */
 function startLevel(levelId = 'level-1', options = {}) {
   navReturn = 'menu';
+  audioDirector.setScene('battle');
+  audioDirector.setLocation('battle');
   window.gameResultScreen?.hide?.();
   window.gameWorldMap?.hide?.();
   window.gameAchievements?.hide?.();
@@ -340,6 +346,8 @@ function leaveDuelRoom() {
 }
 
 function openMainMenu() {
+  audioDirector.setScene('menu');
+  audioDirector.setLocation(null);
   navReturn = 'menu';
   refreshRealmLedger();
   syncSoundButtons();
@@ -457,6 +465,7 @@ window.gameWorldMap = new WorldMapUI(
       return muted;
     },
     onFullscreen: () => void fullscreen.toggle(),
+    onSettings: () => window.gameSettings?.show(),
   }
 );
 
@@ -831,6 +840,13 @@ document.getElementById('menu-btn-sound')?.addEventListener('click', () => {
   syncSoundButtons();
 });
 
+// The faders live behind this key. Mute stays on the speaker, because muting
+// has to be one tap; everything else is a decision you open.
+document.getElementById('menu-btn-settings')?.addEventListener('click', () => {
+  audio.playClick();
+  window.gameSettings?.show();
+});
+
 document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => {
   audio.playClick();
   void fullscreen.toggle();
@@ -884,3 +900,12 @@ window.addEventListener('keydown', (event) => {
 // Global user interaction listener to unlock Web Audio on first gesture
 window.addEventListener('pointerdown', () => audio.unlock(), { once: true });
 window.addEventListener('keydown', () => audio.unlock(), { once: true });
+
+// Music and ambience start on the first real gesture (browser policy) and then
+// follow the screens. `arm()` owns those listeners; nothing autoplays.
+window.gameSettings = new SettingsUI({ audio, onChange: () => syncSoundButtons() });
+audioDirector.arm();
+// Debug handles: the editor console and the browser checks read the live mixer
+// and the scene the director thinks it is playing.
+window.gameAudio = audio;
+window.gameAudioDirector = audioDirector;

@@ -3,6 +3,7 @@ import { TOWER_VISUALS } from '../data/towerVisuals.js';
 import { dps } from '../data/towerAscension.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH } from '../config/gameConfig.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { soundIcon } from './soundIcon.js';
 import { clampPanel, placeInspector } from './panelPlacement.js';
 import { HudLayout } from './hudLayout.js';
 import { ENEMY_TYPES } from '../data/enemyData.js';
@@ -1064,10 +1065,10 @@ export class HUD {
 
     const muteBtn = document.getElementById('btn-mute');
     const muteImg = document.getElementById('img-mute');
-    if (muteImg) muteImg.src = audio.muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
+    if (muteImg) muteImg.src = soundIcon(audio.muted);
     muteBtn?.addEventListener('click', () => {
       const muted = audio.toggleMute();
-      if (muteImg) muteImg.src = muted ? '/assets/ui/icon_audio_off.png' : '/assets/ui/icon_audio_on.png';
+      if (muteImg) muteImg.src = soundIcon(muted);
       muteBtn.setAttribute('aria-pressed', String(muted));
     });
 
