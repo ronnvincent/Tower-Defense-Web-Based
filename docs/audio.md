@@ -90,6 +90,11 @@ nothing, so a backgrounded game does not dump a burst of notes on return.
 | `victory` | C3 130.8 | major | 84 | resolved, bright bells |
 | `defeat` | Ab2 103.8 | aeolian | 46 | the flattened tonic of the set |
 
+Two places own their theme: walking into the Forge or the War Room changes the
+score, not just the bed, and leaving it returns to the screen's scene
+(`MUSIC_FOR_LOCATION` in `audioDirector.js`). The screen's scene is kept, so the
+map still knows what to come back to.
+
 Each scene is a four-note pad (two detuned oscillators per note through a
 lowpass, plus a 0.06 Hz drift so it breathes), a bass every bar on the tonic an
 octave down, and a pluck on the even beats walking the mode. The phrase is
@@ -185,4 +190,7 @@ work.
   pulled to 0, and ≈ 0.012 again when restored. The battle scene reports
   `scene: "battle"` with a wind bed; a real result screen reports
   `scene: "victory"` with zero ambience layers; returning to the map reports
-  `scene: "realm"`.
+  `scene: "realm"`. Opening the Forge reports `forge` with fire + hammer and
+  five voices; the War Room reports `warroom` with fire; closing either returns
+  to `realm`. The voice count never rises above five, so switching scenes does
+  not stack layers.

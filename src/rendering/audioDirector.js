@@ -19,6 +19,16 @@ import { audio } from './AudioSynth.js';
 import { MusicDirector } from './MusicDirector.js';
 import { AmbienceDirector } from './AmbienceDirector.js';
 
+/**
+ * Places that own their own music. The screen still decides the base scene —
+ * the realm keeps its theme on the map — but inside the Forge or the War Room
+ * the score changes to match the room, and changes back on the way out.
+ */
+export const MUSIC_FOR_LOCATION = Object.freeze({
+  forge: 'forge',
+  warroom: 'warroom',
+});
+
 export class AudioDirector {
   /** @param {import('./AudioSynth.js').AudioSynth} synth */
   constructor(synth) {
@@ -53,7 +63,7 @@ export class AudioDirector {
     if (ctx && typeof ctx.addEventListener === 'function') {
       ctx.addEventListener('statechange', () => this.#onStateChange());
     }
-    this.music.play(this.scene);
+    this.music.play(this.theme);
     this.ambience.play(this.location);
     // `resume()` is asynchronous on most browsers; if the context was still
     // suspended above, this picks the requests up again once it is running.
@@ -70,7 +80,7 @@ export class AudioDirector {
   /** @param {string} id one of `MUSIC_SCENES` */
   setScene(id) {
     this.scene = id;
-    if (this.started) this.music.play(id);
+    this.sync();
     return this.scene;
   }
 
@@ -79,8 +89,24 @@ export class AudioDirector {
    */
   setLocation(location) {
     this.location = location ?? null;
-    if (this.started) this.ambience.play(this.location);
+    this.sync();
     return this.location;
+  }
+
+  /** What should be sounding right now, given both the screen and the place. */
+  get theme() {
+    return MUSIC_FOR_LOCATION[this.location] ?? this.scene;
+  }
+
+  /**
+   * One place that decides both beds. Idempotent: both directors ignore a
+   * request for what they are already playing, so this is safe to call on
+   * every render.
+   */
+  sync() {
+    if (!this.started) return;
+    this.music.play(this.theme);
+    this.ambience.play(this.location);
   }
 
   /** Read-only snapshot for the settings panel, the HUD and the tests. */

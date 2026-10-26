@@ -60,6 +60,30 @@ describe('AudioDirector — the gesture rule', () => {
     expect(director.state.location).toBeNull();
   });
 
+  it('lets a place own its theme without losing the screen scene', () => {
+    const director = new AudioDirector(fakeSynth());
+    director.setScene('realm');
+    expect(director.theme).toBe('realm');
+    director.setLocation('forge');
+    // The Forge has its own theme, so the score follows the room…
+    expect(director.theme).toBe('forge');
+    expect(director.state.scene).toBe('realm');
+    // …and the realm's theme comes back when the panel closes.
+    director.setLocation(null);
+    expect(director.theme).toBe('realm');
+    // A room without a theme (the arena) keeps the screen's music.
+    director.setLocation('arena');
+    expect(director.theme).toBe('realm');
+  });
+
+  it('plays the place theme on the first gesture too', () => {
+    const director = new AudioDirector(fakeSynth());
+    director.setScene('realm');
+    director.setLocation('warroom');
+    director.start();
+    expect(director.music.wanted).toBe('warroom');
+  });
+
   it('reports the mix without exposing it', () => {
     const synth = fakeSynth();
     const director = new AudioDirector(synth);
