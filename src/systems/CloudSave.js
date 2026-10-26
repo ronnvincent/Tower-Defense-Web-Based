@@ -557,6 +557,10 @@ export class CloudSave {
       power: Number(result.data.power) || 0,
       level: Number(result.data.level) || 1,
       stars: Number(result.data.stars) || 0,
+      // The ledger keeps these two as tie-breakers; the hall shows them because
+      // a player's own best run is worth seeing even when it is not the rank.
+      bestScore: Number(result.data.bestScore) || 0,
+      waves: Number(result.data.waves) || 0,
       achievements: Number(result.data.achievements) || 0,
     };
   }

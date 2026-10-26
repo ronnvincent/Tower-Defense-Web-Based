@@ -270,3 +270,26 @@ focus and pressed states stay.
 
 `scripts/check-contrast.mjs` gained six measured fills (`plaqueGold`, `plaqueSteel`,
 `plaqueCrimson`, `plaqueDark`, `tile`, `chip`) and ten pairs: **57/57 pass at ≥ 4.5:1**.
+
+### The hall plates (Request 34)
+
+The Champions' Hall needed art the kit did not have, so two plates were made and
+committed with the source they were cut from:
+
+| sprite | size | source | what it is |
+| --- | --- | --- | --- |
+| `hall_ledger.webp` | 1600×560 | `art-source/ui-kit/leaderboard-hall-raw.png` | torch-lit masonry with one gold sun banner and empty dark space on the left for the title — the wall behind the hall |
+| `banner_rank_gold/silver/bronze.webp` | 420×420 | `art-source/ui-kit/leaderboard-banner-raw.png` | the same banner's sun medallion in three metals, one per podium place |
+
+The banner photograph cannot be re-lit per rank, so the three metals are
+**duotones of its luminance**: grey, normalise, back to sRGB, then
+`+level-colors <shadow>,<highlight>`. Folds, embroidery and firelight survive;
+only the hue changes. `scripts/build_hall_art.sh` rebuilds all four from the
+tracked sources with ImageMagick 6 (no network, no Python), and prints the byte
+size of each output.
+
+Both sources are AI-generated for this project from the same gold-banner
+reference as the menu key art, so they carry no third-party licence obligation
+and no attribution requirement. They are the only images in the repository in
+that category, and they live beside the generated kit sprites rather than in
+`public/assets/` art directories that hold licensed packs.

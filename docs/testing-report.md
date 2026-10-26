@@ -1778,3 +1778,139 @@ branch is now authored as the account owner — two earlier commits in its histo
 are not, and whether Vercel evaluates only the deployed commit or the whole push
 could not be tested from here. `supabase/README.md` §7 records the check, the
 fix, and the fallback (squash-merge to `main`, or re-authoring the branch).
+
+## 25. The Champions' Hall becomes a hall (Request 34)
+
+The brief: put the ranking behind the banner art — move it there — tidy the UI
+including on mobile, make sure nothing is cut off, highlight the player names,
+generate the art, and stop cramming everything into one frame.
+
+### 25.1 What was actually wrong
+
+Measured on the previous build (`lb-before-*.png`), with 24 commanders in the
+ledger:
+
+| viewport | dialog card | table frame | result |
+| --- | --- | --- | --- |
+| 1366×768 | 860×588 | 814×**300** | 24 rows in a 300 px window |
+| 844×390 | 787×337 | 741×**51** | the frame collapsed to a header bar |
+| 667×375 | 617×323 | 583×**43** | same, worse |
+
+A tab strip, a "you are #24 of 24" line, a source note and a 24-row table all
+lived in one `.modal-card`; on a landscape phone the flexible table got whatever
+was left, which was 51 px. That is the "sobrang siksikan sa isang frame" in the
+brief, and it was measurable, not a matter of taste.
+
+### 25.2 The new shape
+
+The screen is now its own overlay (`#leaderboard-modal.overlay-screen.lb-screen`)
+with the generated hall wall behind it, and **four separate frames** instead of
+one:
+
+- **THE PODIUM** — three cards, gold / silver / bronze, each with that metal's
+  banner medallion bleeding off its right edge, the commander name in the
+  display face, and power + level/stars/medals underneath. Missing places keep
+  their frame and say `AWAITING A CHAMPION`.
+- **THE ROLL** — every commander from rank 4 down, in its own carved frame with
+  its own scrollbar.
+- **YOUR STANDING** — rank, name and six numbers (power, level, stars, medals,
+  best score, waves) in a side card. `my_rank` already returned `bestScore` and
+  `waves`; the client now keeps them (`CloudSave.myRank`) and the card shows
+  them.
+- **RECORDS ON THIS DEVICE** — the local merge-sorted run history, unchanged in
+  substance, now in the same frame language.
+
+The shell lost its own 22 px carved plate; header, each block and the footer are
+panels of their own (`--ui-panel-soft`), so the hall art shows between them.
+
+### 25.3 Names
+
+Every commander name is now gold in `--font-display` with a soft shadow:
+`.lb-name` in the roll and `.lb-champ-name` on the podium. The player's own row
+gets `#ffe6a4` plus a glow, a left gold rule and an outlined `YOU` tag. Measured
+contrast of `#f3c96b`-family gold on the block fill (`rgba(8,10,14,0.74)` over
+dark art) stays above 7:1; `check:contrast` still passes 57/57.
+
+### 25.4 Mobile and cut-offs
+
+Three layouts, measured rather than eyeballed:
+
+| viewport | layout | roll rows visible (of 22) | text clipped | footer inside |
+| --- | --- | --- | --- | --- |
+| 1920×1080 | podium strip / roll + standing | 19 | none | yes |
+| 1440×900 | same | 14 | none | yes |
+| 1366×768 | same | 11 | none | yes |
+| 1280×720 | same | 10 | none | yes |
+| 1024×600 | short-landscape stack (compact) | 13 | none | yes |
+| 932×430 | landscape phone: podium strip, roll + standing | 6 | none | yes |
+| 844×390 | same | 4 | none | yes |
+| 736×414 | same | 5 | none | yes |
+| 667×375 | same | 4 | none | yes |
+| 768×1024 | tablet: podium strip, roll + standing | 22 | none | yes |
+| 390×844 | portrait: podium → standing → roll, body scrolls | 8 | none | yes |
+| 414×896 | same | 9 | none | yes |
+| 360×640 | same | 6 | none | yes |
+
+Every row is measured by `finalSweep.mjs`, which also reports console errors and
+failed requests: **0 and 0 at all thirteen sizes**, gold name colour
+`rgb(243,201,107)` everywhere, and `standOverflow: 0` (the standing card never
+scrolls its own text).
+
+The clip detector is stricter than a bounding-box test: it walks every readable
+node (names, powers, stats, headings, th keys) up to the nearest ancestor that
+hides its overflow and reports it only when the text itself would be cut. It
+also ignores decorative bleed — the podium emblem is *meant* to run past its
+card. `outside: 0` everywhere; at 360×640 the roll's 22 rows simply extend past
+the fold and the body scrolls to them (verified: `scrollTop 213`, roll fully
+visible above the footer).
+
+Two real bugs came out of that sweep:
+
+- The podium medal (22 px) overran the two text rows of its `minmax` grid and
+  was clipped by the card's own `overflow: hidden` at every short viewport.
+  Fixed by giving the rows explicit minimums.
+- On the device tab, a finished run's summary was appended *under* the table and
+  pushed `RECORD THIS RUN` below the footer on a landscape phone. The device body
+  is now a column with the summary pinned first, and the table keeps a 72 px
+  floor so it can never collapse into an empty bar again.
+- "BEST SCORE" is 10 characters in a 7 px face; in a three-column standing card
+  it wrapped onto two lines and printed over "WAVES". The short-landscape card
+  now uses **two** columns, and the two tie-breaker numbers only appear above
+  388 px of height — below that the card would overflow by 22 px, which was
+  measured, not guessed.
+
+### 25.5 Fixing a double-close found in passing
+
+`render()` and `_paint()` both called `bindEvents()`, and `bindEvents()` attached
+the backdrop click. Every realm load painted twice, so a single click on the dim
+ran `hide()` twice — and `onClose` with it (which restores the world map). The
+chrome binding moved to `_bindChrome()`, called once per render;
+`tests/leaderboard-hall.test.js` now asserts `onClose` fires exactly once after a
+repaint.
+
+### 25.6 Verification
+
+- **Tests**: `tests/leaderboard-hall.test.js` adds 16 cases (own-screen mount,
+  three separate frames, one commander per podium place, vacant places, the whole
+  standing, tab round-trip, single close, HTML escaping, no-ledger and
+  failed-read states, no emoji rank, the CSS contract for the three-frame layout
+  and the generated art). Suite: **1395 passing / 114 files** (was 1379 / 113).
+- **Build**: clean — `index-Cub73_aR.css` 198.83 kB (39.17 gzip),
+  `index-C8CaTq0Q.js` 617.16 kB (177.68 gzip), phaser unchanged.
+- **In the real app**: opened from the world map's Champions' Hall landmark
+  (`[data-wm-id="champions"]` → `#wm-enter`), the hall mounts with the podium,
+  22 roll rows and the standing card; closing it returns to the map with the map
+  still visible. 0 console errors, 0 failed requests at every size above.
+- **Recording a run**: from a victory, `RECORD THIS RUN` closes the summary,
+  the table shows `1 Nyx… 4210 6 73.4s VICTORY` highlighted, at 844×390, 667×375,
+  390×844 and 1366×768, with no console errors.
+
+### 25.7 What this is not
+
+The roll is capped at the 25 rows `leaderboard_page` returns; the standing card
+carries your true rank even when it is outside that page (it read `#224 of 240`
+in one probe). Pagination beyond one page is still not built, and the podium
+reads only from that first page — a player ranked 200th sees their real standing
+but not their neighbours. The generated art is committed as WebP at build-time
+quality; the sources stay in `art-source/` so it can be re-cut without
+re-generating.

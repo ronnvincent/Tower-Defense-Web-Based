@@ -3829,18 +3829,104 @@ kbd {
   box-shadow: 0 0 0 2px var(--cyan-primary);
 }
 
-/* ---- the shared ranking (request 33) -----------------------------------
-   Two tables, one hall: the ledger's commander ranking and this device's run
-   history. The tabs are plain buttons so the screen needs no extra state
-   machinery, and the "you" row is marked by text as well as colour. */
+/* ---- THE CHAMPIONS' HALL (requests 33 and 34) ---------------------------
+   The ranking is a place, not a dialog: a torch-lit wall behind it, and three
+   separate frames inside — the podium, the roll of every other commander, and
+   the player's own standing. One 860 px dialog held all of that before, and on
+   a landscape phone the table frame collapsed to a 51 px sliver.
+
+   The hall art is generated (`scripts/build_hall_art.sh`) from the same banner
+   reference the menu uses, so the first screen after the gate and the ranking
+   screen are lit by the same torch. */
+
+/* An id, so it outranks the generic `.overlay-screen` keep art further down
+   the sheet — the hall has its own wall behind it. */
+#leaderboard-modal.lb-screen {
+  background: #05070b;
+  padding: clamp(6px, 1.6vh, 20px) clamp(8px, 1.6vw, 26px);
+}
+
+.lb-hall-art {
+  position: absolute;
+  inset: 0;
+  /* The banner sits on the right of the plate, so anchor right: a centred
+     `cover` crop on a wide screen throws the whole banner away. */
+  background: url('/assets/ui-kit/hall_ledger.webp') right 60% / cover no-repeat;
+  pointer-events: none;
+}
+
+.lb-hall-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Light enough that the torch still reads, heavy enough for 11 px gold type
+     in the corners. */
+  background:
+    radial-gradient(90% 74% at 50% 40%, rgba(5, 7, 11, 0.28), rgba(4, 6, 10, 0.66) 84%),
+    linear-gradient(180deg, rgba(4, 6, 10, 0.26), rgba(4, 6, 10, 0.56));
+}
+
+/* Two classes: `.overlay-shell` further down the sheet still sets the 22 px
+   carved plate, and this screen deliberately does not have one. */
+.lb-screen .lb-shell {
+  width: min(1120px, 100%);
+  gap: clamp(6px, 1vh, 11px);
+  /* No outer plate: the brief was that everything was crammed into one frame.
+     The header, each block and the footer are separate panels, so the hall art
+     shows between them instead of being sealed behind one big sheet. */
+  border: none;
+  border-image: none;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.55));
+  max-height: 100%;
+  min-height: 0;
+}
+
+/* A shared plate for the three chrome rows (header, footer, notices). */
+.lb-head,
+.lb-foot,
+.lb-full-frame {
+  border-style: solid;
+  border-width: 14px;
+  border-image-source: var(--ui-panel-soft);
+  border-image-slice: 30 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  border-radius: 0;
+  padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.1vw, 14px);
+}
+
+/* ---- header ------------------------------------------------------------ */
 
 .lb-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: clamp(8px, 1.4vw, 16px);
   flex-wrap: wrap;
-  margin-bottom: 10px;
+}
+
+.lb-head-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.lb-eyebrow {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 3.2px;
+  color: var(--ink-gold);
+}
+
+.lb-head .overlay-title {
+  margin: 0;
+  font-size: clamp(15px, 1.7vw, 22px);
+  letter-spacing: 1.6px;
 }
 
 .lb-tabs {
@@ -3850,7 +3936,7 @@ kbd {
 
 .lb-tab {
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 1.4px;
   padding: 7px 12px;
@@ -3900,8 +3986,337 @@ kbd {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
+.lb-head .btn-close {
+  flex: 0 0 auto;
+}
+
+/* ---- body: three frames ------------------------------------------------ */
+
+.lb-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(180px, 19vw, 250px);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'podium podium'
+    'roll   stand';
+  gap: clamp(6px, 1vw, 12px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* A finished run is a summary plus the device table. As a column with the table
+   as the only flexible child, the RECORD button stays inside the hall at every
+   size — it used to be pushed under the footer on a landscape phone. */
+.lb-body[data-tab='device'] {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1vw, 12px);
+  min-height: 0;
+  /* If the summary plus the table do not fit, the column scrolls — the summary
+     (and its RECORD key) is at the top, so it is never what scrolls away. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lb-body[data-tab='device'] > .result-summary-box {
+  flex: 0 0 auto;
+}
+
+.lb-body[data-tab='device'] > .lb-block--device {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+
+.lb-body[data-tab='device'] > .dsa-notice {
+  flex: 0 0 auto;
+}
+
+.lb-block {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 0.7vh, 8px);
+  padding: clamp(6px, 1vh, 10px) clamp(8px, 1.1vw, 14px) clamp(7px, 1.1vh, 12px);
+  border: 1px solid rgba(198, 158, 88, 0.26);
+  border-radius: 3px;
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(60, 46, 20, 0.2), transparent 64%),
+    rgba(8, 10, 14, 0.74);
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.05);
+}
+
+.lb-block-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2.6px;
+  color: var(--ink-gold);
+  opacity: 0.9;
+}
+
+.lb-block--podium {
+  grid-area: podium;
+}
+
+.lb-block--roll {
+  grid-area: roll;
+  padding-bottom: 0;
+}
+
+.lb-block--stand {
+  grid-area: stand;
+  /* Centred: on a tall window the standing card has more room than its five
+     lines, and a column of text pinned to the top of a 400 px plate reads as a
+     mistake. */
+  justify-content: center;
+  gap: 3px;
+}
+
+.lb-block--device {
+  grid-area: device;
+  min-height: 0;
+}
+
+.lb-full-frame {
+  grid-area: roll / roll / stand / stand;
+}
+
+/* ---- the podium -------------------------------------------------------- */
+
+.lb-podium {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(6px, 1vw, 12px);
+}
+
+/* Each card is one plate with its metal's banner emblem behind the name. The
+   emblem is the generated banner crop, not an icon: same art as the hall. */
+.lb-champ {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'medal name'
+    'medal power'
+    'sub   sub';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid rgba(198, 158, 88, 0.32);
+  border-radius: 3px;
+  background:
+    radial-gradient(120% 130% at 10% -10%, rgba(245, 196, 81, 0.16), transparent 62%),
+    rgba(10, 12, 17, 0.82);
+  overflow: hidden;
+}
+
+.lb-champ-emblem {
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  width: 84px;
+  height: 84px;
+  transform: translateY(-50%);
+  background-position: center;
+  background-size: cover;
+  border-radius: 50%;
+  opacity: 0.5;
+  filter: saturate(0.9);
+  pointer-events: none;
+  mask-image: radial-gradient(circle at 50% 50%, #000 46%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 46%, transparent 72%);
+}
+
+.lb-champ--gold .lb-champ-emblem {
+  background-image: url('/assets/ui-kit/banner_rank_gold.webp');
+}
+
+.lb-champ--silver .lb-champ-emblem {
+  background-image: url('/assets/ui-kit/banner_rank_silver.webp');
+}
+
+.lb-champ--bronze .lb-champ-emblem {
+  background-image: url('/assets/ui-kit/banner_rank_bronze.webp');
+}
+
+.lb-champ-medal {
+  grid-area: medal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(26px, 3vw, 34px);
+  height: clamp(26px, 3vw, 34px);
+  font-family: var(--font-display);
+  font-size: clamp(14px, 1.5vw, 18px);
+  font-weight: 700;
+  border: 1px solid rgba(245, 196, 81, 0.42);
+  border-radius: 3px;
+  background: rgba(6, 8, 12, 0.72);
+}
+
+.lb-champ--gold .lb-champ-medal {
+  border-color: #f5c451;
+  color: #ffe6a4;
+  box-shadow: 0 0 14px rgba(245, 196, 81, 0.32);
+}
+
+.lb-champ--silver .lb-champ-medal {
+  border-color: #cfd8e2;
+  color: #eef3f9;
+}
+
+.lb-champ--bronze .lb-champ-medal {
+  border-color: #d08b52;
+  color: #f6c9a4;
+}
+
+/* The name is the thing the eye should land on: display face, gold, spaced. */
+.lb-champ-name {
+  grid-area: name;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(12px, 1.25vw, 16px);
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #ffe6a4;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-champ-power {
+  grid-area: power;
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink-gold);
+  line-height: 1.1;
+}
+
+.lb-champ-power small {
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  color: var(--ink-muted);
+}
+
+.lb-champ-sub {
+  grid-area: sub;
+  margin: 3px 0 0;
+  font-family: var(--font-heading);
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  color: var(--ink-muted);
+}
+
+.lb-champ.is-me {
+  border-color: var(--gold-primary);
+  box-shadow: inset 0 0 0 1px rgba(245, 196, 81, 0.3), 0 0 18px rgba(245, 196, 81, 0.16);
+}
+
+.lb-champ.is-vacant {
+  opacity: 0.62;
+  border-style: dashed;
+}
+
+.lb-champ.is-vacant .lb-champ-name {
+  font-size: clamp(10px, 1vw, 12px);
+  letter-spacing: 1.6px;
+  color: var(--ink-muted);
+}
+
+.lb-champ.is-vacant .lb-champ-sub {
+  font-size: 8px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* ---- the roll ---------------------------------------------------------- */
+
+.lb-roll-frame {
+  flex: 1 1 auto;
+  /* Never thinner than the frame art: a 1 px bar of carved wood with nothing in
+     it is what an empty table looked like before this floor. */
+  min-height: 72px;
+  max-height: none;
+  margin-bottom: 6px;
+}
+
+/* A row sliced in half by the frame edge reads as a rendering bug. This fade
+   lands on the frame's own bottom edge (measured: frame bottom = block bottom
+   - 7 px) and runs tall enough to swallow the visible half of the next row, so
+   the list looks like it continues rather than like it is broken. Sits over the
+   frame and never takes a pointer. */
+.lb-block--roll,
+.lb-block--device {
+  position: relative;
+}
+
+.lb-block--roll::after,
+.lb-block--device::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 7px;
+  height: 40px;
+  background: linear-gradient(180deg, rgba(8, 10, 14, 0) 0%, rgba(8, 10, 14, 0.86) 46%, rgba(8, 10, 14, 0.98) 100%);
+  pointer-events: none;
+  border-radius: 0 0 3px 3px;
+}
+
+.lb-table {
+  font-size: var(--fs-small);
+}
+
+.lb-table th {
+  font-size: 8px;
+  letter-spacing: 1.4px;
+}
+
+.lb-table td {
+  padding: 5px 10px;
+}
+
+.lb-table .col-name {
+  width: 42%;
+}
+
+.lb-table .col-power {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--ink-gold);
+  white-space: nowrap;
+}
+
+/* The commander name, highlighted: gold, spaced, and set in the display face
+   so a column of them scans as names rather than as table cells. */
+.lb-name {
+  font-family: var(--font-display);
+  font-size: clamp(12px, 1.05vw, 15px);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--ink-gold);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+}
+
+.rank-row.is-me .lb-name,
+.lb-name.is-me {
+  color: #ffe6a4;
+  text-shadow: 0 0 12px rgba(245, 196, 81, 0.4);
+}
+
 .rank-row.is-me td {
-  background: rgba(245, 196, 81, 0.14) !important;
+  background: rgba(245, 196, 81, 0.13) !important;
   box-shadow: inset 3px 0 0 var(--gold-primary);
 }
 
@@ -3910,69 +4325,36 @@ kbd {
   font-size: 8px;
   letter-spacing: 1px;
   padding: 1px 5px;
-  margin-left: 6px;
+  margin-left: 5px;
   border: 1px solid var(--gold-primary);
   border-radius: 2px;
   color: var(--ink-gold);
+  vertical-align: middle;
 }
 
-/* A drawn rank plate. Metal for the podium, stone for the rest. */
-.rank-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  font-family: var(--font-heading);
-  font-size: 11px;
-  line-height: 1;
-  border: 1px solid rgba(198, 158, 88, 0.34);
-  border-radius: 2px;
-  background: rgba(9, 12, 18, 0.6);
-  color: var(--ink-dim);
-}
-
-.rank-chip--gold {
-  border-color: #f5c451;
-  background: linear-gradient(180deg, rgba(245, 196, 81, 0.34), rgba(245, 196, 81, 0.12));
-  color: #ffe6a4;
-  box-shadow: 0 0 10px rgba(245, 196, 81, 0.28);
-}
-
-.rank-chip--silver {
-  border-color: #cfd8e2;
-  background: linear-gradient(180deg, rgba(207, 216, 226, 0.3), rgba(207, 216, 226, 0.1));
-  color: #eef3f9;
-}
-
-.rank-chip--bronze {
-  border-color: #d08b52;
-  background: linear-gradient(180deg, rgba(208, 139, 82, 0.3), rgba(208, 139, 82, 0.1));
-  color: #f6c9a4;
-}
-
-.lb-empty {
+.lb-roll-empty {
   display: flex;
   flex-direction: column;
+  gap: 4px;
   align-items: center;
-  gap: 8px;
-  padding: 22px 16px;
+  justify-content: center;
+  flex: 1 1 auto;
+  padding: 14px 12px;
   text-align: center;
-  border: 1px dashed rgba(198, 158, 88, 0.26);
+  border: 1px dashed rgba(198, 158, 88, 0.24);
   border-radius: 3px;
 }
 
-.lb-empty-title {
+.lb-roll-empty-title {
   margin: 0;
   font-family: var(--font-heading);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 2px;
   color: var(--ink-gold);
 }
 
-.lb-empty-note {
+.lb-roll-empty-note {
   margin: 0;
   max-width: 52ch;
   font-size: var(--fs-small);
@@ -3980,23 +4362,127 @@ kbd {
   color: var(--ink-muted);
 }
 
-.lb-empty code {
+.lb-roll-empty-note code,
+.lb-notice code {
   font-family: ui-monospace, monospace;
   font-size: 0.9em;
   color: var(--ink-cyan);
 }
 
-.lb-mine {
-  margin: 8px 0 0;
+.lb-notice {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 22px 16px;
+}
+
+.lb-notice .game-btn {
+  align-self: center;
+}
+
+/* ---- your standing ----------------------------------------------------- */
+
+.lb-stand-eyebrow {
+  margin: 0;
   font-family: var(--font-heading);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 700;
+  letter-spacing: 2.4px;
+  color: var(--ink-gold);
+  opacity: 0.9;
+}
+
+.lb-stand-rank {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 38px);
+  font-weight: 700;
+  line-height: 1;
+  color: #ffe6a4;
+  text-shadow: 0 0 18px rgba(245, 196, 81, 0.3);
+}
+
+.lb-stand-rank span {
+  font-size: 0.5em;
+  color: var(--ink-muted);
+}
+
+.lb-stand-rank small {
+  margin-left: 6px;
+  font-family: var(--font-heading);
+  font-size: 9px;
   letter-spacing: 1.2px;
+  color: var(--ink-muted);
+}
+
+.lb-stand-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(13px, 1.3vw, 17px);
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--ink-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-stand-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin: 4px 0 0;
+}
+
+.lb-stand-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.lb-stand-grid dt {
+  font-family: var(--font-heading);
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  color: var(--ink-muted);
+}
+
+.lb-stand-grid dd {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(12px, 1.15vw, 15px);
+  font-weight: 700;
   color: var(--ink-gold);
 }
 
-.lb-source {
+.lb-stand-note {
   margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+
+/* ---- footer ------------------------------------------------------------ */
+
+.lb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lb-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lb-source {
+  margin: 0;
   font-size: 9px;
   letter-spacing: 0.6px;
   color: var(--text-dim);
@@ -4009,6 +4495,449 @@ kbd {
   font-size: 11px;
   letter-spacing: 1.2px;
   color: var(--ink-muted);
+}
+
+/* ---- short landscape: the hall has to fit in 390 px ---------------------
+   Everything keeps its meaning and only the chrome shrinks: the podium cards
+   become one row per champion, the roll keeps four visible rows, and the
+   standing card moves beside it instead of under it. */
+
+@media (max-height: 620px) {
+  .lb-shell {
+    gap: 5px;
+    padding: 5px 8px;
+    border-width: 16px;
+  }
+
+  .lb-head {
+    padding-bottom: 4px;
+  }
+
+  .lb-eyebrow {
+    font-size: 8px;
+    letter-spacing: 2px;
+  }
+
+  .lb-head .overlay-title {
+    font-size: 14px;
+  }
+
+  .lb-tab {
+    padding: 5px 9px;
+    font-size: 9px;
+  }
+
+  .lb-block {
+    padding: 4px 7px 6px;
+    gap: 3px;
+  }
+
+  /* Short landscape: the podium stays a strip across the top (three cards side
+     by side), the roll takes the tall left column and the standing card the
+     right one. Stacking the podium into the right column squeezed the roll to
+     two rows; three columns squeezed the standing card out of the frame. */
+  .lb-body {
+    grid-template-columns: minmax(0, 1fr) clamp(150px, 20vw, 200px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'podium podium'
+      'roll   stand';
+  }
+
+  .lb-podium {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .lb-champ {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'medal name power'
+      'medal sub  sub';
+    /* The medal spans both text rows, so the rows have to be tall enough to
+       hold it: with bare `auto` the 22 px plate overflowed a 26 px grid and was
+       clipped by the card's own `overflow: hidden`. */
+    grid-template-rows: minmax(18px, auto) minmax(12px, auto);
+    align-content: center;
+    column-gap: 6px;
+    row-gap: 1px;
+    padding: 3px 6px;
+  }
+
+  .lb-champ-medal {
+    align-self: center;
+  }
+
+  .lb-champ-power small {
+    display: none;
+  }
+
+  .lb-champ-sub {
+    margin-top: 0;
+  }
+
+  .lb-chip-mode,
+  .lb-chips {
+    display: none;
+  }
+
+  .lb-head {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  /* Thinner plates on a 390 px-tall window: the frames keep their carving but
+     give 34 px back to the three content blocks. */
+  .lb-head,
+  .lb-foot,
+  .lb-full-frame {
+    border-width: 10px;
+    border-image-width: 10px;
+    padding: 2px 8px;
+  }
+
+  /* Each 11 px of button chrome is a row of the roll: at this height the keys
+     shrink to their label and the roll gets the line back. */
+  .lb-foot .game-btn {
+    min-height: 26px;
+    border-width: 8px 16px;
+    border-image-width: 8px 16px;
+    font-size: 11px;
+  }
+
+  .lb-foot {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .lb-head-title {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .lb-head .overlay-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lb-tabs {
+    margin-left: auto;
+  }
+
+  /* The standing card gets one row of room, so the numbers go inline — and the
+     two tie-breaker numbers (best score, waves) are dropped here: at this height
+     they wrapped "BEST SCORE" onto two lines and pushed the card out of frame. */
+  .lb-block--stand {
+    overflow: hidden;
+    gap: 0;
+    justify-content: center;
+  }
+
+  .lb-stand-eyebrow {
+    font-size: 7px;
+    letter-spacing: 1.6px;
+  }
+
+  .lb-stand-rank {
+    font-size: 18px;
+  }
+
+  .lb-stand-name {
+    font-size: 11px;
+    letter-spacing: 0.6px;
+  }
+
+  .lb-stand-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0 4px;
+    margin-top: 1px;
+  }
+
+  /* Best score and waves come back once the card is tall enough to hold them;
+     below that they wrapped and pushed the card out of frame. */
+  .lb-stand-grid div:nth-child(n + 5) {
+    display: none;
+  }
+
+  .lb-stand-grid dt {
+    font-size: 7px;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+  }
+
+  .lb-stand-grid dd {
+    font-size: 10px;
+  }
+
+  .lb-stand-note {
+    display: none;
+  }
+
+  .lb-block--podium,
+  .lb-block--stand {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .lb-block-title {
+    font-size: 8px;
+    letter-spacing: 1.8px;
+  }
+
+  .lb-champ {
+    padding: 5px 7px;
+    column-gap: 6px;
+  }
+
+  .lb-champ-emblem {
+    width: 56px;
+    height: 56px;
+    right: -12px;
+    opacity: 0.42;
+  }
+
+  .lb-champ-medal {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
+
+  .lb-champ-name {
+    font-size: 11px;
+    letter-spacing: 0.8px;
+  }
+
+  .lb-champ-power {
+    font-size: 12px;
+  }
+
+  .lb-champ-power small {
+    display: none;
+  }
+
+  .lb-champ-sub {
+    font-size: 8px;
+    letter-spacing: 0.7px;
+  }
+
+  .lb-table td {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .lb-name {
+    font-size: 11px;
+  }
+
+  .lb-stand-rank {
+    font-size: 22px;
+  }
+
+  .lb-source {
+    font-size: 8px;
+  }
+
+  /* A finished run on a 390 px-tall window: the same summary, tighter, so the
+     RECORD key and the table both stay on screen. */
+  .lb-body .result-summary-box {
+    padding: 6px 10px;
+  }
+
+  .lb-body .result-title {
+    font-size: 13px;
+  }
+
+  .lb-body .result-stats {
+    margin: 2px 0 4px;
+    gap: 2px 18px;
+  }
+
+  .lb-body .result-stats .lbl {
+    font-size: 8px;
+  }
+
+  .lb-body .result-stats .val {
+    font-size: 13px;
+  }
+
+  .lb-body .submit-form {
+    gap: 6px;
+  }
+
+  .lb-body .lb-record-as {
+    font-size: 9px;
+  }
+}
+
+/* A slightly taller short window can hold all six numbers, but only in two rows
+   of three: four columns on a 160 px card wrapped "BEST SCORE" onto two lines
+   and printed it over "WAVES". Measured by what fits, not by guesswork —
+   844x390 (152 px card) fits six in 3x2; 667x375 (145 px) does not. */
+@media (min-height: 388px) and (max-height: 620px) {
+  /* Two columns of three, not three of two: at 160 px wide a three-column card
+     gives each label 49 px, and "BEST SCORE" does not fit in 49 px — it printed
+     over "WAVES" until this went to two columns. */
+  .lb-stand-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 1px;
+  }
+
+  .lb-stand-grid div:nth-child(n + 5) {
+    display: flex;
+  }
+}
+
+@media (max-width: 680px) {
+  .lb-body {
+    grid-template-columns: minmax(0, 1fr) clamp(132px, 24vw, 180px);
+  }
+
+  .lb-table th:nth-child(6),
+  .lb-table td:nth-child(6) {
+    display: none; /* medals: the podium cards still carry them */
+  }
+
+  .lb-champ-sub {
+    font-size: 8px;
+  }
+
+  .lb-stand-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Portrait phones: the three frames stack and the hall itself scrolls. A
+     fixed grid row for the roll squeezed it to two rows and made the podium
+     cards spill into the next block; a stack with its own scroll is honest
+     about the screen being small. */
+  .lb-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    /* Your own standing comes before the roll on a phone: it is the reason you
+       opened the hall, and putting it under a 20-row table buried it. */
+    grid-template-areas:
+      'podium'
+      'stand'
+      'roll';
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .lb-roll-frame {
+    max-height: 30vh;
+  }
+
+  /* The name chip repeats the standing card; on a 360 px header it forced the
+     close key onto a line of its own. */
+  .lb-chips {
+    display: none;
+  }
+
+  /* A phone's header is two rows of chrome before the ranking starts. Drop the
+     ledger chip and tighten the title so nothing is pushed below the fold. */
+  .lb-head {
+    gap: 6px;
+  }
+
+  .lb-eyebrow {
+    font-size: 8px;
+    letter-spacing: 2px;
+  }
+
+  .lb-head .overlay-title {
+    font-size: 15px;
+    letter-spacing: 1px;
+  }
+
+  .lb-chip-mode {
+    display: none;
+  }
+
+  .lb-block-title {
+    font-size: 8px;
+    letter-spacing: 2px;
+  }
+
+  /* The podium goes compact: one line per champion instead of a card that has
+     to show four fields stacked. */
+  .lb-podium {
+    gap: 4px;
+  }
+
+  .lb-champ {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'medal name power'
+      'medal sub  sub';
+    column-gap: 7px;
+    padding: 4px 8px;
+  }
+
+  .lb-champ-medal {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+  }
+
+  .lb-champ-name {
+    font-size: 13px;
+  }
+
+  .lb-champ-power {
+    font-size: 13px;
+  }
+
+  .lb-champ-power small {
+    display: none;
+  }
+
+  .lb-champ-sub {
+    margin-top: 0;
+  }
+
+  .lb-champ-emblem {
+    width: 62px;
+    height: 62px;
+    right: -14px;
+  }
+
+  .lb-stand-rank {
+    font-size: 26px;
+  }
+
+  .lb-stand-note {
+    margin-top: 4px;
+  }
+
+  /* Auto rows in a height-constrained grid shrink to the item's min-height, and
+     every block sets `min-height: 0` for the desktop layout. In the stack that
+     let the podium row be shorter than its three cards, which then painted over
+     the roll. Here the blocks size to their content and the body scrolls. */
+  .lb-body .lb-block {
+    min-height: auto;
+    overflow: visible;
+  }
+
+
+  .lb-podium {
+    grid-template-columns: 1fr;
+  }
+
+  .lb-head-title {
+    width: 100%;
+  }
+
+  /* Rank, name, power, level: the columns a phone can actually read. */
+  .lb-table th:nth-child(5),
+  .lb-table td:nth-child(5) {
+    display: none;
+  }
+
+  .lb-stand-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .dsa-notice {
