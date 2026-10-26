@@ -447,6 +447,9 @@ export class GameScene extends Phaser.Scene {
       },
     });
     this.cameraRig.install();
+    // The fit zoom is set by install(); publish the letterbox it leaves so the
+    // Vanguard card can move into it before the first frame is drawn.
+    this.publishBoardGutter();
     this.onResizeFrame = () => this.reframeBattlefield();
     window.addEventListener('resize', this.onResizeFrame);
     window.addEventListener('orientationchange', this.onResizeFrame);
@@ -633,6 +636,48 @@ export class GameScene extends Phaser.Scene {
     return battleFrame({ canvasHeight: gameHeight, topBarBottom, dockTop });
   }
 
+  /**
+   * Publish how much empty canvas sits either side of the board.
+   *
+   * A 26×12 board fitted to the band is narrower than a 16:9 window, so the
+   * game is letterboxed at fit zoom. That strip used to stay empty while the
+   * Vanguard card sat on top of the battlefield's top-right corner. The scene
+   * measures the board's screen rect and hands the right-hand gap to the HUD as
+   * `--board-gutter-right`, which the stylesheet uses to shrink that card into
+   * the gap. Only re-published on a re-frame, never per frame.
+   */
+  publishBoardGutter() {
+    const cam = this.cameras?.main;
+    const scale = this.scale;
+    if (!cam || !scale || !this.map) return;
+    const displayW = scale.displaySize?.width || window.innerWidth || 1280;
+    const factor = displayW / (scale.width || 1280);
+    const canvasLeft = scale.canvasBounds?.left || 0;
+    const boardW = this.map.cols * TILE_SIZE;
+    // `camera.worldView` and `getWorldPoint` are only refreshed during
+    // preRender, so reading either right after `reset()` (boot, resize) measured
+    // the *previous* view and the card never shrank. Scroll + zoom are the live
+    // values: the camera's centre is `scrollX + width / 2` and the visible width
+    // is `width / zoom`, so the left edge follows in one step.
+    const viewLeft = cam.scrollX + cam.width / 2 - cam.width / (2 * cam.zoom);
+    const left = (0 - viewLeft) * cam.zoom * factor + canvasLeft;
+    const right = displayW - ((boardW - viewLeft) * cam.zoom * factor + canvasLeft);
+    const root = document.documentElement;
+    if (!root?.style) return;
+    root.style.setProperty('--board-gutter-right', `${Math.max(0, Math.round(right))}px`);
+    // The card is 208 px wide plus its margin. It only shrinks when the gutter
+    // can actually hold it — on a phone (no gutter) it keeps its full width and
+    // stays where it has always been.
+    const fits = right >= 150;
+    const panelWidth = fits ? Math.round(Math.min(208, right - 18)) : 208;
+    root.style.setProperty('--hero-panel-w', `${panelWidth}px`);
+    // Below ~200 px the card cannot hold a portrait, a name and two buttons in
+    // one row without ellipsising all three, so it stacks instead.
+    document
+      .getElementById('hero-panel')
+      ?.classList.toggle('is-compact', fits && panelWidth < 200);
+  }
+
   /** Re-measure and re-fit after a rotation, resize or dock fold. */
   reframeBattlefield() {
     if (!this.cameraRig) return;
@@ -650,6 +695,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.cameraRig.setFrame(frame);
+    this.publishBoardGutter();
   }
 
   /**
@@ -804,6 +850,20 @@ export class GameScene extends Phaser.Scene {
             }
           } else {
             this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
+            // Two lanes often share neighbouring rows in the enemy half, and
+            // without a joint the two roads merge into one wide band — the fork
+            // the player is meant to read (one wave per lane) disappears. The
+            // seam is drawn only where BOTH rows continue sideways, so corners,
+            // junctions and single roads stay clean; the rows are painted top to
+            // bottom, so the seam lands on the lower row's top edge and covers
+            // nothing that comes after it.
+            const sideways = (rr, cc) => isLane(rr, cc - 1) || isLane(rr, cc + 1);
+            if (isLane(r - 1, c) && sideways(r, c) && sideways(r - 1, c)) {
+              tilesGraphics.fillStyle(0x000000, 0.34);
+              tilesGraphics.fillRect(x, y, TILE_SIZE, 3);
+              tilesGraphics.fillStyle(0xffffff, 0.07);
+              tilesGraphics.fillRect(x, y + 3, TILE_SIZE, 1);
+            }
           }
         } else if (type === TILE.WATER) {
           const mask = maskAt(isWaterBed, r, c);

@@ -910,3 +910,40 @@ be out of flow *and* anchored above the panel).
 
 Suite after all of it: **1250 / 1250**, `npm run build` clean.
 
+## 16. Lane seams, and the letterbox put to work (Request 24, follow-up)
+
+### 16.1 Two lanes no longer render as one slab
+
+Lanes in the enemy half can share neighbouring rows (`corridorRow` 3 and 4). The
+autotiler joins them into a single wide band, and the fork the player is meant to
+read — one wave per lane — disappeared. Each road square now draws a shaded
+joint on its top edge **only where both rows continue sideways**, so corners,
+junctions and lone roads stay clean. The rows are painted top to bottom, so the
+joint lands on the lower row and covers nothing drawn after it.
+
+Checked on level 1 (two lanes, 2-row band) and level 3 (three lanes): the roads
+read as separate routes, and no seam appears at a turn.
+
+### 16.2 The Vanguard card moved into the letterbox
+
+A 26×12 board fitted to the band is narrower than a 16:9 window, so the game is
+letterboxed at fit zoom — about 184 px of empty canvas either side at 1366×768.
+The card used to sit on the battlefield's top-right corner. `GameScene.
+publishBoardGutter()` now publishes that gap as `--board-gutter-right` (re-read
+only on a re-frame), and the stylesheet narrows the card into it:
+
+| measurement (1366×768, level 1) | value |
+| --- | --- |
+| board right edge (CSS px) | 1182 |
+| gutter right / `--board-gutter-right` | 184 px |
+| `--hero-panel-w` | 166 px |
+| `#hero-panel` rect | 1184 → 1350 (fully outside the board) |
+| panel overflow | none (`scrollWidth` 164 = `clientWidth` 164) |
+
+Below ~200 px the card stacks (`is-compact`: name + state, health, two
+full-width actions) instead of ellipsising a portrait and two buttons into the
+strip. On a phone there is no gutter, so the card keeps its 208 px and its old
+place — verified at 844×390 (zoom 0.622, 0 errors).
+
+Suite after both: **1250 / 1250**; build clean.
+

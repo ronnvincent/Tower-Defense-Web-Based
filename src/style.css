@@ -10935,7 +10935,12 @@ html.draft-open body {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  width: 208px;
+  /* Narrowed by the scene when the board is letterboxed, so the card can sit in
+     the empty strip beside the battlefield instead of on top of its corner.
+     `--hero-panel-w` is published by GameScene.publishBoardGutter(); without it
+     (a phone, where there is no gutter) the card keeps its full 208 px. */
+  width: var(--hero-panel-w, 208px);
+  min-width: 150px;
   padding: 6px 8px 6px 6px;
   border-radius: 6px;
   background: linear-gradient(180deg, rgba(14, 19, 26, 0.92) 0%, rgba(8, 11, 16, 0.94) 100%);
@@ -10955,6 +10960,35 @@ html.draft-open body {
   background-position: 0 50%;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
   transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+/* Compact: the card has been narrowed into the letterbox beside the board, so
+   it stacks (name, health, two full-width actions) instead of trying to fit a
+   portrait, a name and two buttons into 166 px. The hero itself is still on the
+   battlefield — the card only has to report its state. */
+.hero-panel.is-compact {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px 6px;
+}
+
+.hero-panel.is-compact .hero-portrait {
+  display: none;
+}
+
+.hero-panel.is-compact .hero-head {
+  justify-content: space-between;
+}
+
+.hero-panel.is-compact .hero-actions {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero-panel.is-compact .hero-btn {
+  width: 100%;
+  min-height: 24px;
 }
 
 .hero-panel.is-down .hero-portrait {
@@ -11039,10 +11073,18 @@ html.draft-open body {
 .hero-actions {
   display: flex;
   gap: 5px;
+  min-width: 0;
 }
 
 .hero-btn {
   flex: 1 1 0;
+  /* The card can be narrowed into the letterbox beside the board
+     (`--hero-panel-w`), so nothing inside is allowed to force it wider than the
+     strip it now lives in — hence `min-width: 0` and an ellipsis fallback. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-height: 26px;
   display: inline-flex;
   align-items: center;
@@ -11078,7 +11120,7 @@ html.draft-open body {
 
 .hero-btn--strike {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   padding-right: 7px;
 }
 

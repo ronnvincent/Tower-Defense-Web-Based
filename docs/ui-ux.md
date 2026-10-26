@@ -125,6 +125,7 @@ re-fit: the board visibly shrank every time a defence was selected.
 | ≤ 680 px | Score chip hidden, dock becomes a full-width strip whose title shrinks to the fold handle, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
 | ≤ 620 px height | Desktop labels hidden, 30 px dock icons, 40 vh inspector, camera hint suppressed |
 | ≤ 460 px height | Dock name labels hidden (icon + price only), top bar collapses to one row (wave badge inline, icon-only controls), pause card shrinks to two rows |
+| Letterbox (wide screens) | A 26×12 board fitted to the band leaves empty canvas either side; the Vanguard card shrinks and stacks into that strip (`--hero-panel-w` / `.is-compact`) instead of covering the battlefield's corner |
 | `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows, zoom pill reduced to its "reset view" button (pinch already zooms the battlefield) |
 | ≤ 900 px or ≤ 560 px height | Boss card drops to a slim strip: `min(360px, 62vw)` wide, 12/10 px frame, 8 px health bar, ellipsised name — it no longer covers a third of the lane |
 | ≤ 430 px height | Boss strip narrows to `min(300px, 54vw)`; the skull and the trait line are dropped (the phase badge still names the phase) |
