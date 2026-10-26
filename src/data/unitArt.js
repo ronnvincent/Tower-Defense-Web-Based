@@ -47,6 +47,20 @@ export const UNIT_SHEETS = Object.freeze({
     clips: { idle: 6, walk: 6, attack: 6 },
     body: { x: 63, y: 45, w: 78, h: 91 },
   },
+  'hero-sentinel': {
+    path: 'assets/units/hero-sentinel.png',
+    frame: 192,
+    cols: 6,
+    clips: { idle: 6, walk: 6, attack: 6 },
+    body: { x: 63, y: 45, w: 78, h: 91 },
+  },
+  'hero-halberd': {
+    path: 'assets/units/hero-halberd.png',
+    frame: 192,
+    cols: 6,
+    clips: { idle: 6, walk: 6, attack: 6 },
+    body: { x: 67, y: 69, w: 58, h: 59 },
+  },
   'pet-squire': {
     path: 'assets/units/pet-squire.png',
     frame: 192,

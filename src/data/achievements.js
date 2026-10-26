@@ -22,6 +22,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 1,
     icon: '🩸',
+    art: '/assets/ui-kit/glyph_skull.png',
     category: 'combat',
   },
   {
@@ -32,6 +33,7 @@ export const ACHIEVEMENTS = [
     target: 100,
     gems: 2,
     icon: '⚔️',
+    art: '/assets/ui-kit/glyph_swords.png',
     category: 'combat',
   },
   {
@@ -42,6 +44,7 @@ export const ACHIEVEMENTS = [
     target: 1000,
     gems: 5,
     icon: '🗡️',
+    art: '/assets/ui-kit/glyph_swords.png',
     category: 'combat',
   },
   {
@@ -52,6 +55,7 @@ export const ACHIEVEMENTS = [
     target: 3,
     gems: 1,
     icon: '🔗',
+    art: '/assets/ui-kit/glyph_scroll.png',
     category: 'combat',
   },
   {
@@ -62,6 +66,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 3,
     icon: '🎯',
+    art: '/assets/ui-kit/glyph_star.png',
     category: 'combat',
   },
   {
@@ -72,6 +77,7 @@ export const ACHIEVEMENTS = [
     target: 20,
     gems: 6,
     icon: '🌀',
+    art: '/assets/ui-kit/glyph_medal.png',
     category: 'combat',
   },
   {
@@ -82,6 +88,7 @@ export const ACHIEVEMENTS = [
     target: 5,
     gems: 2,
     icon: '⏩',
+    art: '/assets/ui-kit/glyph_overcharge.png',
     category: 'combat',
   },
   {
@@ -92,6 +99,7 @@ export const ACHIEVEMENTS = [
     target: 25,
     gems: 5,
     icon: '⚡',
+    art: '/assets/ui-kit/glyph_flame.png',
     category: 'combat',
   },
 
@@ -104,6 +112,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 1,
     icon: '🧱',
+    art: '/assets/ui-kit/glyph_keep.png',
     category: 'defense',
   },
   {
@@ -114,6 +123,7 @@ export const ACHIEVEMENTS = [
     target: 100,
     gems: 3,
     icon: '🏗️',
+    art: '/assets/ui-kit/glyph_anvil.png',
     category: 'defense',
   },
   {
@@ -124,6 +134,7 @@ export const ACHIEVEMENTS = [
     target: 6,
     gems: 3,
     icon: '🏰',
+    art: '/assets/ui-kit/glyph_keep.png',
     category: 'defense',
   },
   {
@@ -134,6 +145,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 3,
     icon: '🚧',
+    art: '/assets/ui-kit/glyph_fortify.png',
     category: 'defense',
   },
   {
@@ -144,6 +156,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 2,
     icon: '⬆️',
+    art: '/assets/ui-kit/glyph_overcharge.png',
     category: 'defense',
   },
   {
@@ -156,6 +169,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 5,
     icon: '🛡️',
+    art: '/assets/ui-kit/glyph_fortify.png',
     category: 'defense',
   },
   {
@@ -168,6 +182,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 6,
     icon: '⚒️',
+    art: '/assets/ui-kit/glyph_anvil.png',
     category: 'defense',
   },
   {
@@ -179,6 +194,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 6,
     icon: '✨',
+    art: '/assets/ui-kit/glyph_star.png',
     category: 'combat',
   },
 
@@ -191,6 +207,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 3,
     icon: '🏆',
+    art: '/assets/ui-kit/glyph_medal.png',
     category: 'campaign',
   },
   {
@@ -201,6 +218,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 4,
     icon: '⭐',
+    art: '/assets/ui-kit/glyph_star.png',
     category: 'campaign',
   },
   {
@@ -211,6 +229,7 @@ export const ACHIEVEMENTS = [
     target: 12,
     gems: 8,
     icon: '🌟',
+    art: '/assets/ui-kit/glyph_star.png',
     category: 'campaign',
   },
   {
@@ -221,6 +240,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 2,
     icon: '🐉',
+    art: '/assets/ui-kit/glyph_skull.png',
     category: 'campaign',
   },
   {
@@ -231,6 +251,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 6,
     icon: '🔥',
+    art: '/assets/ui-kit/glyph_flame.png',
     category: 'campaign',
   },
 
@@ -243,6 +264,7 @@ export const ACHIEVEMENTS = [
     target: 10,
     gems: 3,
     icon: '∞',
+    art: '/assets/ui-kit/glyph_overcharge.png',
     category: 'endurance',
   },
   {
@@ -253,6 +275,7 @@ export const ACHIEVEMENTS = [
     target: 25,
     gems: 7,
     icon: '🌌',
+    art: '/assets/ui-kit/glyph_meteor.png',
     category: 'endurance',
   },
   {
@@ -263,6 +286,7 @@ export const ACHIEVEMENTS = [
     target: 50,
     gems: 10,
     icon: '🏔️',
+    art: '/assets/ui-kit/glyph_warroom.png',
     category: 'endurance',
   },
 
@@ -275,6 +299,7 @@ export const ACHIEVEMENTS = [
     target: 1,
     gems: 3,
     icon: '📅',
+    art: '/assets/ui-kit/glyph_calendar.png',
     category: 'daily',
   },
   {
@@ -285,6 +310,7 @@ export const ACHIEVEMENTS = [
     target: 7,
     gems: 8,
     icon: '🗓️',
+    art: '/assets/ui-kit/glyph_calendar.png',
     category: 'daily',
   },
 ];

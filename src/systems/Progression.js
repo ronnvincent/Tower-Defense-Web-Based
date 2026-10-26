@@ -12,6 +12,7 @@
  */
 
 import { LEVELS, getNextLevel } from '../data/levelData.js';
+import { HERO_TIER_COUNT } from '../data/heroData.js';
 import { PET_MAX_LEVEL, getPet, petUpgradeCost } from '../data/petData.js';
 import { DEFAULT_STATS, evaluateAchievements } from './Achievements.js';
 
@@ -95,7 +96,7 @@ export function createProfile() {
     // Companion levels, `{ petId: 1..5 }`. A bought companion starts at 1 and
     // every level is a real change to the numbers it fights with.
     petLevels: {},
-    heroRank: 1, // 1 vanguard · 2 captain · 3 warlord
+    heroRank: 1, // 1 vanguard → 5 halberd; the ladder lives in heroData
   };
 }
 
@@ -160,7 +161,9 @@ export class ProgressStore {
       // Rank is a 1..3 ladder; an old or hand-edited save cannot invent a rank
       // the game has no sprite for.
       const rank = Math.round(Number(parsed.heroRank));
-      profile.heroRank = Number.isFinite(rank) ? Math.min(3, Math.max(1, rank)) : 1;
+      profile.heroRank = Number.isFinite(rank)
+        ? Math.min(HERO_TIER_COUNT, Math.max(1, rank))
+        : 1;
       return profile;
     } catch {
       return createProfile();
@@ -275,7 +278,7 @@ export class ProgressStore {
    *
    * @returns {{ ok:boolean, reason?:string, rank:number }}
    */
-  promoteHero(cost, maxRank = 3) {
+  promoteHero(cost, maxRank = HERO_TIER_COUNT) {
     const next = Math.min(maxRank, this.heroRank + 1);
     if (next === this.heroRank) return { ok: false, reason: 'maxed', rank: this.heroRank };
     const price = Math.max(0, Math.round(Number(cost) || 0));

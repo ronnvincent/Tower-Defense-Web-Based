@@ -51,7 +51,7 @@ export class ForgeUI {
     return `
       <li class="relic-card ${relic.level > 0 ? 'owned' : ''} ${relic.maxed ? 'maxed' : ''}"
           data-id="${relic.id}" style="--relic-accent:${relic.maxed ? '#ffd166' : '#9fe7ff'}">
-        <span class="relic-icon" aria-hidden="true">${relic.icon}</span>
+        <span class="relic-icon" aria-hidden="true">${relic.art ? `<img class="relic-art" src="${relic.art}" alt="" loading="lazy" />` : relic.icon}</span>
         <div class="relic-body">
           <div class="relic-head">
             <span class="relic-name">${relic.name}</span>

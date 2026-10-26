@@ -56,7 +56,7 @@ import { Hero, HERO, HERO_TEXTURE } from '../entities/Hero.js';
 import { Pet } from '../entities/Pet.js';
 import { getPet, PET_FOLLOW } from '../data/petData.js';
 import { queueUnitSheets, registerUnitAnims, UNIT_SHEETS } from '../data/unitArt.js';
-import { heroTier, HERO_SKILLS } from '../data/heroData.js';
+import { heroTier } from '../data/heroData.js';
 import { MAX_LEVEL } from '../data/towerAscension.js';
 import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
@@ -329,7 +329,6 @@ export class GameScene extends Phaser.Scene {
     // the HUD — so both the panel and the first wave already know it exists.
     this.hero = null;
     this.pet = null;
-    this.pendingHeroMove = false;
     this.heroHudTimer = 0;
     // Clips are registered once per sheet, here — after the loader has the
     // textures and before the entities try to play them.
@@ -534,9 +533,6 @@ export class GameScene extends Phaser.Scene {
         onZoomOut: () => this.cameraRig.zoomBy(1 / 1.25),
         onZoomReset: () => this.cameraRig.reset(),
         onPowerup: (key) => this.handlePowerup(key),
-        onHeroMove: () => this.armHeroMove(),
-        onHeroStrike: () => this.castHeroStrike(),
-        onHeroSkill: (id) => this.castHeroSkill(id),
         onClearFocus: () => this.setFocusFire(null),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
@@ -723,24 +719,6 @@ export class GameScene extends Phaser.Scene {
     if (!root?.style) return;
     const gutter = Math.max(0, Math.round(right));
     root.style.setProperty('--board-gutter-right', `${gutter}px`);
-    // The card is 208 px wide plus its margin. It only shrinks when the gutter
-    // can actually hold it — on a phone (no gutter) it keeps its full width and
-    // stays where it has always been.
-    // 146 px is the narrowest gutter the stacked card can still hold (128 px of
-    // panel: name + state, health, two full-width actions). Below that the card
-    // keeps its full width and floats over the board's corner, as it always did
-    // on small windows — a 70 px column of controls would be unusable.
-    // Compare the *rounded* gutter: 145.6 px rounds to 146 in the custom
-    // property, and mixing the two made the card keep its full width at 1440×900
-    // (gutter 146) while the stylesheet had already been told there was room.
-    const fits = gutter >= 146;
-    const panelWidth = fits ? Math.min(208, gutter - 18) : 208;
-    root.style.setProperty('--hero-panel-w', `${panelWidth}px`);
-    // Below ~200 px the card cannot hold a portrait, a name and two buttons in
-    // one row without ellipsising all three, so it stacks instead.
-    document
-      .getElementById('hero-panel')
-      ?.classList.toggle('is-compact', fits && panelWidth < 200);
   }
 
   /** Re-measure and re-fit after a rotation or a real window resize. */
@@ -1812,7 +1790,6 @@ export class GameScene extends Phaser.Scene {
       );
       if (this.hero?.isDown) {
         this.hero.revive();
-        this.syncHeroHud();
         this.hud?.showToast('VANGUARD BACK ON ITS FEET', 'success');
       }
       const bounty = Boolean(this.waveManager.currentWave.bounty);
@@ -2436,20 +2413,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 0c. A move order waiting for a target: the next tap on the field walks the
-    // Vanguard there. It sits above building and inspecting for the same reason
-    // the spells do — an armed order must never be swallowed by a tower tap.
-    if (this.pendingHeroMove) {
-      this.pendingHeroMove = false;
-      this.hud?.setHeroArmed?.(false);
-      if (this.hero?.moveTo(worldX, worldY)) {
-        audio.playClick();
-        this.hud?.showToast('VANGUARD MOVING', 'info');
-      }
-      this.syncHeroHud();
-      return;
-    }
-
     // 0. Upgrade badge above a defence?
     const badgeTower = this.badges?.hitTest(worldX, worldY);
     if (badgeTower) {
@@ -2527,7 +2490,6 @@ export class GameScene extends Phaser.Scene {
         },
       });
       this.spawnPet();
-      this.syncHeroHud();
     }
     return this.hero;
   }
@@ -2548,6 +2510,13 @@ export class GameScene extends Phaser.Scene {
       // Bought levels are the numbers the companion fights with.
       level: this.progress?.petLevel?.(definition.id) ?? 1,
     });
+    // Two figures stand at the gate now, and neither takes orders. Say which is
+    // which once, at the start of the battle, so a companion is never mistaken
+    // for a second hero.
+    this.hud?.showToast?.(
+      `${definition.name.toUpperCase()} JOINS THE VANGUARD — it fights on its own`,
+      'info'
+    );
     return this.pet;
   }
 
@@ -2577,117 +2546,6 @@ export class GameScene extends Phaser.Scene {
       return { row, col };
     }
     return { row: base.row, col: base.col };
-  }
-
-  /** What the HUD panel needs, one small object. */
-  heroSnapshot() {
-    const hero = this.hero;
-    if (!hero) return null;
-    return {
-      name: hero.config.name,
-      health: hero.health,
-      maxHealth: hero.maxHealth,
-      down: hero.isDown,
-      strikeReady: hero.strikeReady,
-      strikeCooldownMs: hero.strikeCooldownMs,
-      strikeCooldownMax: hero.config.strike.cooldownMs,
-      moving: Boolean(hero.destination),
-      // Only the skills this rank owns, in the order the HUD draws them.
-      skills: hero.config.skills
-        .filter((id) => id !== 'strike')
-        .map((id) => ({
-          id,
-          label: HERO_SKILLS[id]?.label || id.toUpperCase(),
-          ready: hero.skillCooldown(id) <= 0,
-          cooldownMs: hero.skillCooldown(id),
-          cooldownMax: hero.skillCooldownMax(id),
-        })),
-    };
-  }
-
-  syncHeroHud() {
-    this.hud?.setHero?.(this.heroSnapshot(), { armed: this.pendingHeroMove });
-  }
-
-  /** Arm the next tap as a move order. A second press disarms it. */
-  armHeroMove() {
-    if (!this.hero || this.hero.isDown) {
-      this.hud?.showToast('THE VANGUARD IS DOWN — it returns next wave', 'warning');
-      return false;
-    }
-    this.pendingHeroMove = !this.pendingHeroMove;
-    this.hud?.setHeroArmed?.(this.pendingHeroMove);
-    if (this.pendingHeroMove) {
-      this.hud?.showToast('MOVE ORDER — tap the ground', 'info');
-    }
-    return this.pendingHeroMove;
-  }
-
-  /**
-   * Shieldbreaker Strike.
-   *
-   * The shockwave is a *ground* sweep: `Hero.strike` re-checks range and
-   * liveness per enemy and visits each one once, so a clump cannot be hit twice
-   * by the same cast. Flying creeps are untouched by design.
-   */
-  castHeroStrike() {
-    if (!this.hero) return { hits: 0, ready: false };
-    if (!this.hero.strikeReady) {
-      audio.playError();
-      this.hud?.showToast('SHIELDBREAKER RECHARGING', 'warning');
-      return { hits: 0, ready: false };
-    }
-    const result = this.hero.strike(this.activeEnemies);
-    // Same audio/visual grammar as the spells: a metal crunch and a gold ring
-    // which is scaled to the ability's real radius (Vfx takes a scale, not px).
-    audio.playEnemyHit?.();
-    this.cameras.main.shake(140, 0.004);
-    this.vfx?.shockwave?.(this.hero.x, this.hero.y, HERO.strike.radius / 60, 'explosive');
-    this.vfx?.impact?.(this.hero.x, this.hero.y, 'explosive', {
-      scale: 1.2,
-      splash: HERO.strike.radius,
-      shake: false,
-    });
-    this.hud?.showToast(
-      result.hits > 0
-        ? `SHIELDBREAKER — ${result.hits} ${result.hits === 1 ? 'creep' : 'creeps'} struck`
-        : 'SHIELDBREAKER — nothing in reach',
-      result.hits > 0 ? 'success' : 'info'
-    );
-    this.syncHeroHud();
-    return result;
-  }
-
-  /**
-   * Cast War Cry or Bulwark by hand. Auto-cast uses the same VFX; this is the
-   * path the HUD button takes, so a player who wants to hold a skill back can.
-   */
-  castHeroSkill(id) {
-    const hero = this.hero;
-    if (!hero || hero.isDown) return { ok: false, reason: 'down' };
-    const skill = HERO_SKILLS[id];
-    if (!skill || id === 'strike') return { ok: false, reason: 'unknown' };
-    if (!hero.config.skills.includes(id)) {
-      audio.playError();
-      this.hud?.showToast(`${skill.name.toUpperCase()} — PROMOTE THE VANGUARD TO UNLOCK`, 'warning');
-      return { ok: false, reason: 'locked' };
-    }
-    if (hero.skillCooldown(id) > 0) {
-      audio.playError();
-      this.hud?.showToast(`${skill.name.toUpperCase()} RECHARGING`, 'warning');
-      return { ok: false, reason: 'cooldown' };
-    }
-    const result = id === 'warcry' ? hero.warcry(this.activeEnemies) : hero.bulwark();
-    this.playHeroCast(id);
-    const hits = result?.hits ?? 0;
-    this.hud?.showToast(
-      id === 'warcry'
-        ? `WAR CRY — ${hits} ${hits === 1 ? 'creep' : 'creeps'} slowed`
-        : 'BULWARK — the Vanguard braces',
-      hits > 0 || id === 'bulwark' ? 'success' : 'info'
-    );
-    this.syncHeroHud();
-    return { ok: true, ...result };
   }
 
   /** The shared cast flourish. Auto-casts and manual casts look identical. */
@@ -2742,6 +2600,10 @@ export class GameScene extends Phaser.Scene {
     if (!cast) return;
     const at = cast.at || this.pet;
     if (!at) return;
+    // Every cast starts with a small ring on the companion itself: with the
+    // unit standing still behind the hero, "who did that?" needs an answer on
+    // the spot, not only at the target.
+    if (this.pet) this.vfx?.nova?.(this.pet.x, this.pet.y, 0.6);
     if (cast.id === 'bomb') {
       this.vfx?.impact?.(cast.at.x, cast.at.y, 'explosive', { scale: 1.1, splash: 80, shake: false });
       return;
@@ -2754,9 +2616,16 @@ export class GameScene extends Phaser.Scene {
       this.vfx?.nova?.(this.hero?.x ?? at.x, this.hero?.y ?? at.y, 0.7);
       return;
     }
-    // shot and taunt: a small hit puff on the target.
+    // shot and taunt: a small hit puff on the target (the archer gets the
+    // arrow strip so the two read differently at a glance).
     const target = cast.targets?.[0];
-    if (target) this.vfx?.impact?.(target.x, target.y, 'physical', { scale: 0.7, shake: false });
+    if (target) {
+      this.vfx?.impact?.(target.x, target.y, 'physical', {
+        scale: 0.75,
+        shake: false,
+        line: cast.id === 'shot' ? 'arrow' : null,
+      });
+    }
   }
 
   /**
@@ -4125,7 +3994,6 @@ export class GameScene extends Phaser.Scene {
       this.heroHudTimer += clampedDelta;
       if (this.heroHudTimer >= 120) {
         this.heroHudTimer = 0;
-        this.syncHeroHud();
       }
     }
 

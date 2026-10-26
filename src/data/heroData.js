@@ -47,10 +47,32 @@ export const HERO_TIERS = Object.freeze([
     skills: Object.freeze(['strike']),
     promoteCost: 0,
   }),
+  /**
+   * The Halberd is the reach step: a spear keeps the mouth of the lane without
+   * standing in it, so it is the first rank that survives a wave on its own.
+   */
+  Object.freeze({
+    id: 'halberd',
+    name: 'Halberd',
+    title: 'TIER 2 · HALBERD',
+    texture: 'hero-halberd',
+    height: 88,
+    maxHealth: 580,
+    speed: 114,
+    range: 46,
+    damage: 34,
+    intervalMs: 950,
+    contactDps: 18,
+    contactRange: 40,
+    aura: 0x9dffd0,
+    strike: Object.freeze({ damage: 112, radius: 82, cooldownMs: 11500, type: 'physical' }),
+    skills: Object.freeze(['strike']),
+    promoteCost: 160,
+  }),
   Object.freeze({
     id: 'captain',
     name: 'Captain',
-    title: 'TIER 2 · CAPTAIN',
+    title: 'TIER 3 · CAPTAIN',
     texture: 'hero-captain',
     height: 92,
     maxHealth: 640,
@@ -63,12 +85,12 @@ export const HERO_TIERS = Object.freeze([
     aura: 0xffd76a,
     strike: Object.freeze({ damage: 130, radius: 88, cooldownMs: 10500, type: 'physical' }),
     skills: Object.freeze(['strike', 'warcry']),
-    promoteCost: 160,
+    promoteCost: 300,
   }),
   Object.freeze({
     id: 'warlord',
     name: 'Warlord',
-    title: 'TIER 3 · WARLORD',
+    title: 'TIER 4 · WARLORD',
     texture: 'hero-warlord',
     height: 98,
     maxHealth: 820,
@@ -81,7 +103,29 @@ export const HERO_TIERS = Object.freeze([
     aura: 0xff7b6a,
     strike: Object.freeze({ damage: 170, radius: 104, cooldownMs: 9500, type: 'physical' }),
     skills: Object.freeze(['strike', 'warcry', 'bulwark']),
-    promoteCost: 300,
+    promoteCost: 520,
+  }),
+  /**
+   * Tier 5 is the wall: more health, a wider contact footprint, and the same
+   * three skills — the Sentinel is what you bring when the lane keeps leaking.
+   */
+  Object.freeze({
+    id: 'sentinel',
+    name: 'Sentinel',
+    title: 'TIER 5 · SENTINEL',
+    texture: 'hero-sentinel',
+    height: 100,
+    maxHealth: 1000,
+    speed: 118,
+    range: 40,
+    damage: 54,
+    intervalMs: 800,
+    contactDps: 24,
+    contactRange: 46,
+    aura: 0xc9a6ff,
+    strike: Object.freeze({ damage: 200, radius: 118, cooldownMs: 9000, type: 'physical' }),
+    skills: Object.freeze(['strike', 'warcry', 'bulwark']),
+    promoteCost: 860,
   }),
 ]);
 

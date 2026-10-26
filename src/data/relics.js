@@ -15,6 +15,9 @@ export const RELICS = [
     id: 'war-chest',
     name: 'War Chest',
     icon: '🪙',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui/icon_coin.png',
     desc: 'Start every battle with more gold.',
     maxLevel: 3,
     costs: [3, 5, 7],
@@ -26,6 +29,9 @@ export const RELICS = [
     id: 'reinforced-core',
     name: 'Reinforced Core',
     icon: '🛡️',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui-kit/glyph_fortify.png',
     desc: 'The realm core holds more damage.',
     maxLevel: 2,
     costs: [4, 6],
@@ -37,6 +43,9 @@ export const RELICS = [
     id: 'sharpened-blades',
     name: 'Sharpened Blades',
     icon: '⚔️',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui-kit/glyph_swords.png',
     desc: 'Every defence deals more damage.',
     maxLevel: 3,
     costs: [4, 6, 9],
@@ -48,6 +57,9 @@ export const RELICS = [
     id: 'swift-hands',
     name: 'Swift Hands',
     icon: '⏱️',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui-kit/glyph_gear.png',
     desc: 'Every defence fires faster.',
     maxLevel: 2,
     costs: [5, 8],
@@ -59,6 +71,9 @@ export const RELICS = [
     id: 'gilded-kills',
     name: 'Gilded Kills',
     icon: '💰',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui-kit/glyph_gem.png',
     desc: 'Every defeated enemy pays more gold.',
     maxLevel: 2,
     costs: [3, 5],
@@ -70,6 +85,9 @@ export const RELICS = [
     id: 'second-wind',
     name: 'Second Wind',
     icon: '♻️',
+    // Kit art first: an emoji is a font dependency, and a missing glyph
+    // renders as an empty box on half the platforms we ship to.
+    art: '/assets/ui-kit/glyph_overcharge.png',
     desc: 'Selling a defence returns more gold.',
     maxLevel: 2,
     costs: [3, 5],

@@ -168,23 +168,24 @@ describe('ProgressStore companions and ranks', () => {
     expect(store.equipPet(null)).toBeNull();
   });
 
-  it('promotes the Vanguard and refuses at the top rank', () => {
-    store.profile.gold = 1_000;
-    const first = store.promoteHero(heroTier(2).promoteCost, HERO_TIERS.length);
-    expect(first).toEqual({ ok: true, rank: 2 });
-    expect(store.gold).toBe(1_000 - heroTier(2).promoteCost);
-    const second = store.promoteHero(heroTier(3).promoteCost, HERO_TIERS.length);
-    expect(second).toEqual({ ok: true, rank: 3 });
-    const third = store.promoteHero(0, HERO_TIERS.length);
-    expect(third.ok).toBe(false);
-    expect(third.reason).toBe('maxed');
-    expect(store.heroRank).toBe(3);
+  it('climbs every rank of the Vanguard and refuses past the top', () => {
+    store.profile.gold = 100_000;
+    // The ladder is data, not a constant: five tiers have to promote in order.
+    expect(HERO_TIERS.length).toBeGreaterThanOrEqual(5);
+    for (let rank = 2; rank <= HERO_TIERS.length; rank++) {
+      const result = store.promoteHero(heroTier(rank).promoteCost, HERO_TIERS.length);
+      expect(result).toEqual({ ok: true, rank });
+      expect(store.heroRank).toBe(rank);
+    }
+    const past = store.promoteHero(0, HERO_TIERS.length);
+    expect(past.ok).toBe(false);
+    expect(past.reason).toBe('maxed');
   });
 
   it('clamps a hand-edited rank into the ladder', () => {
     store.profile.heroRank = 99;
     store.save();
-    expect(new ProgressStore({ storage, key: 'test' }).heroRank).toBe(3);
+    expect(new ProgressStore({ storage, key: 'test' }).heroRank).toBe(HERO_TIERS.length);
   });
 });
 

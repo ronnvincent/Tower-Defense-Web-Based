@@ -118,84 +118,6 @@ export class HUD {
    * @param {{health:number,maxHealth:number,down:boolean,strikeReady:boolean,strikeCooldownMs:number,strikeCooldownMax:number,moving:boolean}|null} hero
    * @param {{armed?:boolean}} [options]
    */
-  setHero(hero, { armed = false } = {}) {
-    const panel = document.getElementById('hero-panel');
-    if (!panel) return;
-    if (!hero) {
-      panel.classList.add('hidden');
-      return;
-    }
-    panel.classList.remove('hidden');
-    panel.classList.toggle('is-down', Boolean(hero.down));
-    panel.classList.toggle('is-armed', Boolean(armed) && !hero.down);
-
-    const ratio = hero.maxHealth ? hero.health / hero.maxHealth : 0;
-    const fill = document.getElementById('hero-hp-fill');
-    if (fill) fill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
-    const hpText = document.getElementById('hero-hp-text');
-    if (hpText) hpText.textContent = `${Math.ceil(hero.health)} / ${hero.maxHealth}`;
-
-    const state = document.getElementById('hero-state');
-    if (state) {
-      state.textContent = hero.down ? 'DOWN' : hero.moving ? 'MOVING' : 'AUTO';
-    }
-
-    const name = document.getElementById('hero-name');
-    if (name && hero.name) name.textContent = String(hero.name).toUpperCase();
-
-    // War Cry and Bulwark only exist from rank 2 and 3 on. The buttons are in
-    // the markup from the start so the panel never changes height mid-battle;
-    // an unlocked skill simply stops being hidden.
-    for (const id of ['warcry', 'bulwark']) {
-      const btn = document.getElementById(`hero-${id}`);
-      const info = (hero.skills || []).find((skill) => skill.id === id);
-      if (!btn) continue;
-      btn.classList.toggle('hidden', !info);
-      if (!info) continue;
-      btn.disabled = Boolean(hero.down) || !info.ready;
-      btn.classList.toggle('is-ready', Boolean(info.ready));
-      const charge = info.ready
-        ? 1
-        : 1 - info.cooldownMs / Math.max(1, info.cooldownMax);
-      btn.style.setProperty('--charge', String(Math.max(0, Math.min(1, charge))));
-      const text = document.getElementById(`hero-${id}-label`);
-      if (text) {
-        text.textContent = info.ready ? info.label : `${Math.ceil(info.cooldownMs / 1000)}s`;
-      }
-    }
-
-    const strike = document.getElementById('hero-strike');
-    if (strike) {
-      strike.disabled = !hero.strikeReady;
-      strike.classList.toggle('is-ready', Boolean(hero.strikeReady));
-      // The ring fills as the ability recharges — one custom property write.
-      const charge = hero.strikeReady
-        ? 1
-        : 1 - hero.strikeCooldownMs / Math.max(1, hero.strikeCooldownMax);
-      strike.style.setProperty('--charge', String(Math.max(0, Math.min(1, charge))));
-    }
-    const label = document.getElementById('hero-strike-label');
-    if (label) {
-      label.textContent = hero.strikeReady
-        ? 'STRIKE'
-        : `${Math.ceil(hero.strikeCooldownMs / 1000)}s`;
-    }
-
-    const move = document.getElementById('hero-move');
-    if (move) {
-      move.disabled = Boolean(hero.down);
-      move.setAttribute('aria-pressed', String(Boolean(armed) && !hero.down));
-    }
-  }
-
-  /** Arm/disarm the move button without repainting the whole panel. */
-  setHeroArmed(armed) {
-    const move = document.getElementById('hero-move');
-    const panel = document.getElementById('hero-panel');
-    if (move) move.setAttribute('aria-pressed', String(Boolean(armed)));
-    panel?.classList.toggle('is-armed', Boolean(armed));
-  }
-
   /* ================================================================= SHELL */
 
   /**
@@ -455,40 +377,6 @@ export class HUD {
       </div>
 
       <div id="powerup-rail" class="hud-panel powerup-rail" role="group" aria-label="Powerups"></div>
-
-      <div id="hero-panel" class="hud-panel hero-panel hidden" aria-label="Bastion Vanguard"
-           title="Bastion Vanguard — MOVE arms a tap, STRIKE is Shieldbreaker">
-        <div class="hero-portrait" aria-hidden="true"></div>
-        <div class="hero-body">
-          <div class="hero-head">
-            <span class="hero-name" id="hero-name">VANGUARD</span>
-            <span class="hero-state" id="hero-state">HOLDING</span>
-          </div>
-          <div class="hero-hp" role="img" aria-label="Hero health">
-            <i id="hero-hp-fill"></i>
-            <span id="hero-hp-text">500 / 500</span>
-          </div>
-          <div class="hero-actions">
-            <button id="hero-move" class="hero-btn" type="button" aria-pressed="false"
-                    title="Arm a move order, then tap the ground. Autopilot resumes after 6 s.">MOVE</button>
-            <button id="hero-strike" class="hero-btn hero-btn--strike" type="button" data-skill="strike"
-                    title="Shieldbreaker Strike — area damage around the Vanguard">
-              <img src="/assets/ui-kit/glyph_swords.png" alt="" draggable="false" width="16" height="16" />
-              <span id="hero-strike-label">STRIKE</span>
-            </button>
-            <button id="hero-warcry" class="hero-btn hero-btn--strike hidden" type="button"
-                    data-skill="warcry" title="War Cry — slows every creep nearby (Captain rank)">
-              <img src="/assets/ui-kit/glyph_frost.png" alt="" draggable="false" width="16" height="16" />
-              <span id="hero-warcry-label">WAR CRY</span>
-            </button>
-            <button id="hero-bulwark" class="hero-btn hero-btn--strike hidden" type="button"
-                    data-skill="bulwark" title="Bulwark — heal and brace against damage (Warlord rank)">
-              <img src="/assets/ui-kit/glyph_fortify.png" alt="" draggable="false" width="16" height="16" />
-              <span id="hero-bulwark-label">BULWARK</span>
-            </button>
-          </div>
-        </div>
-      </div>
 
       <div id="dock-scrim" class="dock-scrim hidden" aria-hidden="true"></div>
 
@@ -1252,17 +1140,6 @@ export class HUD {
     });
 
     // Camera controls
-    document.getElementById('hero-move')?.addEventListener('click', () => {
-      this.callbacks.onHeroMove?.();
-    });
-    document.getElementById('hero-strike')?.addEventListener('click', () => {
-      this.callbacks.onHeroStrike?.();
-    });
-    for (const id of ['warcry', 'bulwark']) {
-      document.getElementById(`hero-${id}`)?.addEventListener('click', () => {
-        this.callbacks.onHeroSkill?.(id);
-      });
-    }
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onZoomIn?.();

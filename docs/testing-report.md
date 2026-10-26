@@ -1331,3 +1331,85 @@ and `READY` / `START DUEL` / `LEAVE` all on screen.
 
 Full suite: **106 files / 1284 tests** (2 new: the rematch-request reducer case
 and the host-side request card); `npm run build` clean.
+
+## 22. The panel comes off, the ranks go to five (Request 31)
+
+### 22.1 The Vanguard card is gone
+
+`#hero-panel` was a floating card in the top-right corner: portrait, name,
+health, and four buttons (`MOVE`, `STRIKE`, and the rank-gated `WAR CRY` /
+`BULWARK`). It was the one piece of the battle HUD that asked for orders, and on
+a phone it sat on top of the enemy half of the board.
+
+The node, its 30 stylesheet rules, the four listeners, `HUD.setHero()` /
+`setHeroArmed()`, the `--hero-panel-w` measurement, the tap-armed move order and
+both manual cast entry points (`castHeroStrike`, `castHeroSkill`) are deleted.
+Nothing in the HUD now addresses the hero.
+
+The information it carried did not disappear with it:
+
+| was on the card | now |
+| --- | --- |
+| hero health | the bar the entity already draws above itself (`Hero.drawHealthBar`) |
+| `AUTO` / `MOVING` / `DOWN` | the sprite's own clip and the downed pose |
+| skill cooldowns | the casts are the feedback: the autopilot fires them and `playHeroCast` draws the ring |
+| `MOVE` | gone by design — the autopilot owns movement |
+
+Verified on both shells: `document.getElementById('hero-panel')` is `null`,
+the visible `.hud-panel` list is `hud-top-bar`, `hud-level-chip`,
+`camera-cluster`, `powerup-rail`, `hud-bottom-dock`, and the console is clean.
+
+### 22.2 Five ranks, not three
+
+`HERO_TIERS` is now a five-step ladder, each step a real loadout rather than a
+bigger number on the same sheet:
+
+| tier | id | sheet | health | damage | reach | skills | promote |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | vanguard | `hero-vanguard` (knight, sword) | 500 | 30 | 30 | strike | — |
+| 2 | halberd | `hero-halberd` (pawn, spear) | 580 | 34 | 46 | strike | 160 |
+| 3 | captain | `hero-captain` (knight, gold) | 640 | 38 | 34 | + warcry | 300 |
+| 4 | warlord | `hero-warlord` (knight, red) | 820 | 48 | 38 | + bulwark | 520 |
+| 5 | sentinel | `hero-sentinel` (knight, violet) | 1000 | 54 | 40 | + bulwark, wider aura | 860 |
+
+Two new sheets were re-packed from the same CC0 source by
+`scripts/build_unit_sheets.sh` (`hero-sentinel` from `warrior_purple.png`,
+`hero-halberd` from `pawn_blue.png`), both 1152×576, six frames per clip. The
+rank clamp in `ProgressStore` now reads `HERO_TIER_COUNT` instead of a literal
+`3`, so a saved rank of 99 loads as 5 rather than 3.
+
+The Halberd sits at tier 2 on purpose: the pawn's silhouette is smaller than a
+knight's, and a promotion that shrinks the hero read as a downgrade at rank 5.
+At tier 2 it is the reach step — the first rank that can hold the lane mouth
+without standing in it.
+
+Verified in the Muster Hall with a profile at rank 4: the tab reads
+`RANK 4 / 5`, `TIER 4 · WARLORD`, and the next-step plate is
+`TIER 5 · SENTINEL · 1000 HP · 54 dmg · 118 spd · 200 strike` with
+`PROMOTE · 860`. A battle launched from that profile spawned
+`hero.tier 5` with texture `hero-halberd`.
+
+### 22.3 One companion, and it says so
+
+Only one pet is ever spawned — `spawnPet()` returns early when `this.pet`
+exists, and a scene probe with a saved Boomer reported
+`petsInScene: 1` next to the Vanguard. The two figures at the gate are the
+Vanguard and the companion; with the card gone there was no label left to say
+which was which, so the spawn now raises one toast:
+`BOOMER JOINS THE VANGUARD — it fights on its own`.
+
+Casting was already automatic (the pet has its own cooldown and targets on its
+own). What it lacked was a visible tell at the source, so `playPetCast` now
+starts every cast with a small `nova` ring on the companion itself, before the
+elemental effect on the target; the archer's shot also uses the arrow impact
+strip so `shot` and `taunt` no longer look identical. A forced cast in the
+browser reported `{ id: 'bomb', hits: 1 }`, `casts 0 → 1`, `attackAnimMs 420`,
+cooldown 9300 ms and damage 110 at level 2 — and 0 console errors.
+
+### 22.4 What is still not there: a real death clip
+
+The CC0 pack ships idle, run and attack rows only. The hero's death is the
+`fx-skull` puff plus the downed pose, and companions cannot be targeted at all,
+so they never die. A full idle/walk/attack/death set needs a pack that actually
+carries a death row; that is a download-and-repack job, not a code change, and
+it is the next art task rather than something this pass pretended to ship.

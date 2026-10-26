@@ -64,6 +64,8 @@ SPECS=(
   "hero-vanguard|warrior_blue.png|192|0|1|2"
   "hero-captain|warrior_yellow.png|192|0|1|3"
   "hero-warlord|warrior_red.png|192|0|1|4"
+  "hero-sentinel|warrior_purple.png|192|0|1|4"
+  "hero-halberd|pawn_blue.png|192|0|1|3"
   "pet-squire|pawn_blue.png|192|0|1|3"
   "pet-fletch|archer_blue.png|192|0|1|2"
   "pet-ember|torch_blue.png|192|0|1|2"

@@ -39,7 +39,7 @@ export class AchievementsUI {
     const pct = Math.round(item.ratio * 100);
     return `
       <li class="ach-item ${item.unlocked ? 'unlocked' : ''}" data-id="${item.id}">
-        <span class="ach-icon" aria-hidden="true">${item.icon}</span>
+        <span class="ach-icon" aria-hidden="true">${item.art ? `<img class="ach-art" src="${item.art}" alt="" loading="lazy" />` : item.icon}</span>
         <span class="ach-body">
           <span class="ach-head">
             <span class="ach-name">${item.name}</span>
