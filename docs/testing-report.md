@@ -947,3 +947,62 @@ place — verified at 844×390 (zoom 0.622, 0 errors).
 
 Suite after both: **1250 / 1250**; build clean.
 
+## 17. Seated in the grass, and a board that stays put (Request 26)
+
+### 17.1 Why the keep still looked *nakalutang*
+
+The previous fix moved the sprite's anchor so that the *drawing's* bottom edge sat
+on the ground line. It did not touch the art, and the art was the problem: the
+sheet carried one big blurred ellipse whose centre sat ~6 % of the sheet height
+**below** that bottom edge, so on the board the darkest part of the shadow fell
+in front of the walls with nothing standing in it. That reads as a building
+hovering over its own shadow, which is exactly what the user kept seeing.
+
+`scripts/build_arena_art.sh` now composes the shadow around the footprint
+instead of below it, in four layers drawn at the art's own bottom edge:
+
+| layer | size (of the 420×374 drawing) | centre | blur | strength |
+| --- | --- | --- | --- | --- |
+| penumbra | rx 47 %, ry 11.5 % | bottom − 11 % | 10 | 0.45 |
+| wall ring | rx 42 %, ry 8.5 % | bottom − 8 % | 6 | 0.40 |
+| contact core | rx 30 %, ry 4.5 % | bottom − 3 % | 3 | 0.60 |
+| forward cast | rx 24 %, ry 4 % | bottom + 2.5 % | 7 | 0.22 |
+
+The wall ring is the layer that matters: the first attempt only darkened the
+front gate, so the left and right tower bases — the parts of an isometric
+building that a viewer reads as its feet — still floated. The sheet is now
+**470×462** (6 % horizontal / 12 % vertical padding) and
+`KEEP_PAD_RATIO = 0.0952` (`44 / 462`), so `setOrigin(0.5, 1 - KEEP_PAD_RATIO)`
+puts the drawing's bottom edge exactly on `keepFoot` and the contact core two
+pixels above it.
+
+Verified in the browser at level 1 (`bastion-approach`, grass) and level 5
+(`caldera`, dark volcanic soil): the shadow wraps the wall bases on both maps,
+0 console errors. `npx vitest run` **1250 / 1250**, build clean.
+
+### 17.2 Opening the Forge no longer moves the camera
+
+The frame lock landed in the previous pass (`measureBattleFrame` memoises the
+band), but it never engaged on the first battle: the boot `hud-layout-change`
+fires **before** `install()` attaches its listener, so `battleFrameLocked` was
+still `false` when the dock was folded, and the fold itself was the one event
+that re-measured the band. The `time.delayedCall(1500)` meant to cover that case
+never fired either — instrumenting the scene showed the Clock advancing
+(`time.now = 12471`) while a 300 ms `delayedCall` created from the console never
+ran, so the scene clock cannot be relied on for this.
+
+`install()` now schedules the lock with `window.setTimeout(900)` and then flips
+`battleFrameLocked` synchronously; the timer is cleared on `shutdown`. From that
+point only a `resize` / `orientationchange` may force a re-measure.
+
+| state | desktop 1366×768 (zoom / camera viewport) | mobile shell 844×390 |
+| --- | --- | --- |
+| dock open at start | 0.5625 / `[0,125,1280,432]` | 0.6224 / `[0,174,1280,478]` |
+| forge folded | 0.5625 / `[0,125,1280,432]` | 0.6224 / `[0,174,1280,478]` |
+| forge re-opened | 0.5625 / same | 0.6224 / same |
+| card picked (build mode) | 0.5625 / same | 0.6224 / same |
+
+Before the fix the same probe read 0.5625 open → **0.7604** folded (the board
+"zoomed in" and jumped 152 px taller). Both shells now hold the frame; the phone
+shell folds the forge by default and covers the bottom of the board with its
+sheet when opened, but never resizes it. 0 console errors in both runs.

@@ -98,25 +98,53 @@ echo "wrote $OUT/portal-vortex.png ($(identify -format '%wx%h' "$OUT/portal-vort
 # 225 px the board actually draws, its roofs blurred into one pale clump, while
 # the fortress reads as a single silhouette with a gate on the road.
 #
-# The keep is composed with a soft elliptical ground shadow, because a building
-# pasted on grass with no contact shadow reads as a sticker.
+# The keep is composed with a *grounded* shadow. The first version painted one
+# big blurred ellipse whose centre sat well below the art, so on the board the
+# building looked pasted on with a grey puddle underneath it — the user's
+# "parang nakalutang" note. A building reads as standing on the ground when the
+# shadow (a) is anchored on the footprint, not below it, (b) has a tight, dark
+# contact core right where the walls meet the floor, and (c) spills forward in
+# the light direction with a soft penumbra around it.
 # ---------------------------------------------------------------------------
-LD_LIBRARY_PATH="$CHROME_LIBS" node scripts/svg-to-png.mjs art-source/arena/fortress.svg "$WORK/keep.png" 420 0.02
+LD_LIBRARY_PATH="$CHROME_LIBS" node scripts/svg-to-png.mjs art-source/arena/fortress.svg "$WORK/keep.png" 420 0
 
 KEEP_W=$(identify -format '%w' "$WORK/keep.png")
 KEEP_H=$(identify -format '%h' "$WORK/keep.png")
-PAD_X=$((KEEP_W / 12))
-PAD_Y=$((KEEP_H / 8))
+PAD_X=$((KEEP_W * 6 / 100))
+PAD_Y=$((KEEP_H * 12 / 100))
 CANVAS_W=$((KEEP_W + PAD_X * 2))
 CANVAS_H=$((KEEP_H + PAD_Y * 2))
+# The ground line is the bottom edge of the drawing: that is the point the scene
+# anchors on, so the contact shadow has to be centred on it.
+CX=$(awk -v w="$CANVAS_W" 'BEGIN { printf "%d", w / 2 }')
+GROUND=$((PAD_Y + KEEP_H))
 
-# Ground shadow: an ellipse blurred hard, tinted, then composited under the art.
-convert -size ${CANVAS_W}x${CANVAS_H} xc:none \
-  -fill 'rgba(8,12,6,0.55)' -draw "ellipse $((CANVAS_W / 2)),$((CANVAS_H - PAD_Y / 2)) $((KEEP_W * 34 / 100)),$((KEEP_H * 12 / 100)) 0,360" \
-  -blur 0x9 "$WORK/shadow.png"
+shadow_ellipse() { # <out> <cx> <cy> <rx> <ry> <blur> <alpha>
+  convert -size ${CANVAS_W}x${CANVAS_H} xc:none \
+    -fill "rgba(6,10,4,0.62)" -draw "ellipse $2,$3 $4,$5 0,360" \
+    -blur 0x$6 -channel A -evaluate multiply $7 +channel "$1"
+}
 
-convert "$WORK/shadow.png" "$WORK/keep.png" -geometry +${PAD_X}+${PAD_Y} -compose over -composite \
+# 1. soft penumbra: the whole isometric footprint, lightest layer
+shadow_ellipse "$WORK/sh_pen.png" "$CX" "$((GROUND - KEEP_H * 11 / 100))" \
+  "$((KEEP_W * 47 / 100))" "$((KEEP_H * 115 / 1000))" 10 0.45
+# 2. mid: the wall ring — the left and right tower bases must darken too, or
+#    they read as hovering while only the front gate looks planted
+shadow_ellipse "$WORK/sh_mid.png" "$CX" "$((GROUND - KEEP_H * 8 / 100))" \
+  "$((KEEP_W * 42 / 100))" "$((KEEP_H * 85 / 1000))" 6 0.40
+# 3. contact core: tight + dark, right where the walls meet the floor
+shadow_ellipse "$WORK/sh_core.png" "$CX" "$((GROUND - KEEP_H * 3 / 100))" \
+  "$((KEEP_W * 30 / 100))" "$((KEEP_H * 45 / 1000))" 3 0.60
+# 4. forward cast: the little spill in front of the gate
+shadow_ellipse "$WORK/sh_cast.png" "$CX" "$((GROUND + KEEP_H * 25 / 1000))" \
+  "$((KEEP_W * 24 / 100))" "$((KEEP_H * 4 / 100))" 7 0.22
+
+convert "$WORK/sh_pen.png" "$WORK/sh_mid.png" -compose over -composite \
+  "$WORK/sh_cast.png" -compose over -composite \
+  "$WORK/sh_core.png" -compose over -composite \
+  "$WORK/keep.png" -geometry +${PAD_X}+${PAD_Y} -compose over -composite \
   -depth 8 "$OUT/bastion-fortress.png"
+
 echo "wrote $OUT/bastion-fortress.png ($(identify -format '%wx%h' "$OUT/bastion-fortress.png"))"
 
 # ---------------------------------------------------------------------------

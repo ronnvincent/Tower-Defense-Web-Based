@@ -115,6 +115,9 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     // The previous draft hand, so the next offer can steer away from it.
     this.lastOffer = [];
+    // The battle band is per battle: a fresh stage measures the HUD again.
+    this.battleFrame = null;
+    this.battleFrameLocked = false;
     // A duel is a separate contract: the arena supplies the map, the horde and
     // the economy, and everything the player owns in the campaign is ignored.
     this.pvp = data?.pvp || null;
@@ -450,14 +453,34 @@ export class GameScene extends Phaser.Scene {
     // The fit zoom is set by install(); publish the letterbox it leaves so the
     // Vanguard card can move into it before the first frame is drawn.
     this.publishBoardGutter();
-    this.onResizeFrame = () => this.reframeBattlefield();
+    this.onResizeFrame = () => this.reframeBattlefield(true);
     window.addEventListener('resize', this.onResizeFrame);
     window.addEventListener('orientationchange', this.onResizeFrame);
-    // The forge can fold open/closed mid-battle; HudLayout announces every
-    // re-measure so the camera re-fits instead of leaving the bastion behind
-    // the dock.
-    this.onHudLayout = () => this.reframeBattlefield();
+    this.events.once('shutdown', () => {
+      if (this.battleFrameTimer) window.clearTimeout(this.battleFrameTimer);
+      this.battleFrameTimer = null;
+    });
+    // The HUD announces every re-measure (a chip appearing, the forge folding).
+    // Those must move the floating controls, not the camera: the battle band is
+    // captured once the HUD has published its real numbers, then left alone.
+    this.battleFrameLocked = false;
+    this.onHudLayout = () => {
+      if (this.battleFrameLocked) return;
+      this.battleFrame = null;
+      this.reframeBattlefield(true);
+    };
     window.addEventListener('hud-layout-change', this.onHudLayout);
+    // Lock shortly after the HUD has settled. A `window.setTimeout`, not the
+    // scene clock: the Clock only processes events while the scene is running,
+    // and a lock that silently never fires is worse than no lock at all (it was
+    // the fold itself that ended up doing the one re-measure).
+    this.battleFrameTimer = window.setTimeout(() => {
+      this.battleFrameTimer = null;
+      if (!this.scene?.isActive?.()) return;
+      this.battleFrame = null;
+      this.reframeBattlefield(true);
+      this.battleFrameLocked = true;
+    }, 900);
 
     // 2c. Floating upgrade badges above every defence.
     this.badges = new UpgradeBadges(this, {
@@ -606,7 +629,7 @@ export class GameScene extends Phaser.Scene {
    * — and the same numbers the CSS uses to place the pills are the numbers the
    * camera frames the board with.
    */
-  measureBattleFrame() {
+  measureBattleFrame({ force = false } = {}) {
     const scale = this.scale;
     const gameHeight = scale?.height || 768;
     const canvasHeight = scale?.displaySize?.height || window.innerHeight || 768;
@@ -633,7 +656,14 @@ export class GameScene extends Phaser.Scene {
       dock != null
         ? toGame(canvasHeight + canvasTop - dock)
         : toGame(document.getElementById('hud-bottom-dock')?.getBoundingClientRect?.().top ?? canvasHeight);
-    return battleFrame({ canvasHeight: gameHeight, topBarBottom, dockTop });
+    // The band is captured once per battle. The forge opens and folds while the
+    // player is building, and every fold used to shorten or lengthen this band:
+    // the rig re-fitted and the whole board changed size mid-fight. A battle
+    // now keeps the frame it started with; only a real window resize (rotation,
+    // fullscreen, a dragged page) re-measures it.
+    if (!force && this.battleFrame) return this.battleFrame;
+    this.battleFrame = battleFrame({ canvasHeight: gameHeight, topBarBottom, dockTop });
+    return this.battleFrame;
   }
 
   /**
@@ -664,12 +694,20 @@ export class GameScene extends Phaser.Scene {
     const right = displayW - ((boardW - viewLeft) * cam.zoom * factor + canvasLeft);
     const root = document.documentElement;
     if (!root?.style) return;
-    root.style.setProperty('--board-gutter-right', `${Math.max(0, Math.round(right))}px`);
+    const gutter = Math.max(0, Math.round(right));
+    root.style.setProperty('--board-gutter-right', `${gutter}px`);
     // The card is 208 px wide plus its margin. It only shrinks when the gutter
     // can actually hold it — on a phone (no gutter) it keeps its full width and
     // stays where it has always been.
-    const fits = right >= 150;
-    const panelWidth = fits ? Math.round(Math.min(208, right - 18)) : 208;
+    // 146 px is the narrowest gutter the stacked card can still hold (128 px of
+    // panel: name + state, health, two full-width actions). Below that the card
+    // keeps its full width and floats over the board's corner, as it always did
+    // on small windows — a 70 px column of controls would be unusable.
+    // Compare the *rounded* gutter: 145.6 px rounds to 146 in the custom
+    // property, and mixing the two made the card keep its full width at 1440×900
+    // (gutter 146) while the stylesheet had already been told there was room.
+    const fits = gutter >= 146;
+    const panelWidth = fits ? Math.min(208, gutter - 18) : 208;
     root.style.setProperty('--hero-panel-w', `${panelWidth}px`);
     // Below ~200 px the card cannot hold a portrait, a name and two buttons in
     // one row without ellipsising all three, so it stacks instead.
@@ -678,10 +716,10 @@ export class GameScene extends Phaser.Scene {
       ?.classList.toggle('is-compact', fits && panelWidth < 200);
   }
 
-  /** Re-measure and re-fit after a rotation, resize or dock fold. */
-  reframeBattlefield() {
+  /** Re-measure and re-fit after a rotation or a real window resize. */
+  reframeBattlefield(force = false) {
     if (!this.cameraRig) return;
-    const frame = this.measureBattleFrame();
+    const frame = this.measureBattleFrame({ force });
     const current = this.cameraRig.frame;
     // A few pixels are not a reason to reset the zoom. `setFrame()` re-fits and
     // re-centres, so a chip appearing in the top bar used to nudge the whole
@@ -1047,18 +1085,22 @@ export class GameScene extends Phaser.Scene {
     // — the brief asks for the keep at the very bottom *with a margin*, and a
     // keep anchored at the tile centre ate that margin with its own base.
     const keepScale = 0.44;
-    // The foot lands *on* the bastion tile, not on a plinth below it. The sheet
-    // already carries its own contact shadow, so the keep sits in the grass the
-    // same way the portal's arch sits on its rune — nothing to float on.
-    const keepFoot = baseY + TILE_SIZE * 0.62;
+    // The foot lands *on* the bastion tile, not on a plinth below it.
+    const keepFoot = baseY + TILE_SIZE * 0.55;
 
     // The keep is a hand-drawn fortress (OpenGameArt "Fortress", CC0,
     // rasterised from vector at 420 px). 0.44 → ~185 px wide: three tiles,
     // which still reads as the place being defended without towering over the
     // courtyard it stands in (0.54 was 227 px and swallowed two lanes).
+    // The sheet is padded by a tenth of its height on every side, and the
+    // builder paints the contact shadow *into* that bottom padding. Anchored at
+    // origin 1 the whole padded texture sat on the ground, which left the walls
+    // floating a shadow's width above the grass — the "lumulutang" read. Origin
+    // 0.9 puts the building's own foot exactly on the ground line, with the
+    // painted shadow falling onto the tiles in front of it.
     this.bastionKeep = this.add
       .image(baseX, keepFoot, ARENA_ART.bastion.key)
-      .setOrigin(0.5, 1)
+      .setOrigin(0.5, 1 - KEEP_PAD_RATIO)
       .setDepth(12)
       .setScale(keepScale);
     if (this.theme?.baseTint) this.bastionKeep.setTint(this.theme.baseTint);

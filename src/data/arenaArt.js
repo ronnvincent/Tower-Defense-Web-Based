@@ -33,13 +33,16 @@
 
 /**
  * How much of the bastion sheet is transparent padding, as a fraction of its
- * height. `scripts/build_arena_art.sh` pads the rasterised fortress by a
- * twelfth of its width and an eighth of its height on every side, which is
- * exactly a tenth of the finished sheet top and bottom
- * (`(H/8) / (H + H/4)`). Anything that needs the *building* rather than the
- * texture — the health bar, the shadow — reads this instead of the raw bounds.
+ * height, on the top *and* the bottom edge.
+ * `scripts/build_arena_art.sh` rasterises the fortress at 420x374 and then pads
+ * it by 6 % of its width and 12 % of its height on every side, which gives a
+ * 470x462 sheet and `44 / 462 = 0.0952` of clear space above and below the
+ * building. Anything that needs the *building* rather than the texture — the
+ * health bar, the shadow — reads this instead of the raw bounds, and the scene
+ * anchors the sprite on the bottom padding edge, so the drawing's base sits
+ * exactly on the ground line.
  */
-export const KEEP_PAD_RATIO = 0.1;
+export const KEEP_PAD_RATIO = 0.0952;
 
 export const ARENA_ART = Object.freeze({
   bastion: { key: 'bastion-fortress', path: 'assets/arena/bastion-fortress.png' },
