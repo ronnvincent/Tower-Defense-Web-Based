@@ -726,12 +726,21 @@ export class GameScene extends Phaser.Scene {
 
         // 2. Surface: lane, water, boulder — each with its own autotile mask.
         if (isLane(r, c)) {
-          // The road is built, not grown: one paving material for the whole
-          // battlefield, laid over whatever the ground happens to be. That is
-          // also what keeps the lane legible across four biomes — a crystal
-          // causeway turning lavender mid-run read as a rendering bug.
+          // The road is built, not grown — but each biome ships its own paving
+          // palette, and `scripts/terrain.py` audits that palette against that
+          // biome's own ground (tests/terrain-contrast.test.js). Drawing the
+          // neutral paving everywhere bypassed that audit, which is why the lane
+          // on the ice sheet was pale grey on pale grey. Single-biome maps now
+          // use their theme's road; the endless field is the one board that
+          // changes biome mid-lane, so it keeps the neutral paving — a road that
+          // turns lavender halfway down reads as a rendering bug.
           const mask = maskAt(isLane, r, c);
-          const key = themed(`tile-road-${mask}`, null) || themed('tile-road-15', null) || 'tile-road-15';
+          const roadTheme = this.biomeGrid ? null : themeId;
+          const key =
+            themed(`tile-road-${mask}`, roadTheme) ||
+            themed(`tile-road-${mask}`, null) ||
+            themed('tile-road-15', null) ||
+            'tile-road-15';
           if (isBridge(r, c)) {
             // A bridge: the river keeps flowing underneath, and the road is
             // drawn as a narrower deck with timber rails so the crossing reads
