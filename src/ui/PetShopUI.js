@@ -63,6 +63,15 @@ function abilityLine(pet) {
   }
 }
 
+/**
+ * Cards lose their portraits' breathing room on a phone, where the shop has to
+ * fit a 390 px-tall viewport with the rank strip and the footer still on screen.
+ */
+function isCompactViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth <= 720 || window.innerHeight <= 520;
+}
+
 export class PetShopUI {
   /**
    * @param {HTMLElement} container
@@ -110,7 +119,8 @@ export class PetShopUI {
 
     return `
       <section class="hero-rank ${next ? '' : 'is-maxed'}" aria-label="Vanguard rank">
-        <span class="pet-portrait hero-portrait" style="${portraitStyle(current.texture, 86)}"
+        <span class="pet-portrait hero-portrait"
+              style="${portraitStyle(current.texture, isCompactViewport() ? 62 : 86)}"
               role="img" aria-label="${current.name}"></span>
         <div class="hero-rank-body">
           <div class="pet-head">
@@ -155,8 +165,8 @@ export class PetShopUI {
 
     return `
       <li class="pet-card ${owned ? 'owned' : ''} ${equipped ? 'equipped' : ''}" data-id="${pet.id}">
-        <span class="pet-portrait" style="${portraitStyle(pet.texture)}" role="img"
-              aria-label="${pet.name} the ${pet.kind}"></span>
+        <span class="pet-portrait" style="${portraitStyle(pet.texture, isCompactViewport() ? 58 : 76)}"
+              role="img" aria-label="${pet.name} the ${pet.kind}"></span>
         <div class="pet-body">
           <div class="pet-head">
             <span class="pet-name">${pet.name}</span>

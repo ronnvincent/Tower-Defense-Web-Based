@@ -5727,6 +5727,50 @@ body.is-fullscreen #app::after {
   border-color: rgba(226, 110, 92, 0.5);
 }
 
+.hero-rank {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'portrait body action';
+  align-items: center;
+  gap: 10px 14px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 158, 88, 0.34);
+  background:
+    linear-gradient(180deg, rgba(245, 196, 81, 0.06), transparent 62%),
+    rgba(5, 8, 13, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  /* The rank strip is a header, never a scroller. */
+  flex: 0 0 auto;
+}
+
+.hero-rank .pet-portrait {
+  grid-area: portrait;
+}
+
+.hero-rank-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.hero-rank .pet-action {
+  grid-area: action;
+  justify-content: flex-end;
+}
+
+.hero-rank-next {
+  margin: 4px 0 0;
+  font-size: var(--fs-micro);
+  line-height: 1.35;
+  color: var(--ink-muted);
+}
+
+.hero-rank-next .next-rank {
+  color: var(--gold-primary);
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
 .pet-grid {
   list-style: none;
   margin: 0;
@@ -5736,6 +5780,9 @@ body.is-fullscreen #app::after {
   gap: clamp(8px, 1.4vw, 14px);
   overflow: auto;
   align-content: start;
+  /* Only the cards scroll; the rank strip and the footer stay put. */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .pet-card {
@@ -5854,13 +5901,36 @@ body.is-fullscreen #app::after {
   color: var(--gold-primary);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (max-height: 520px) {
   .pet-grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   }
 
-  .pet-blurb {
+  .pet-blurb,
+  .pets-note,
+  .hero-rank-next {
     display: none;
+  }
+
+  .hero-rank {
+    padding: 6px 10px;
+  }
+
+  /* One row per companion: portrait, text, action. Two stacked rows per card
+     left the shop showing one and a half cards on a 390 px-tall screen. */
+  .pet-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'portrait body action';
+    align-items: center;
+    padding: 7px 10px;
+  }
+
+  .pet-kind {
+    display: none;
+  }
+
+  .pet-grid {
+    padding-bottom: 4px;
   }
 }
 
