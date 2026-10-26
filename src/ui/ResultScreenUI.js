@@ -37,8 +37,14 @@ export class ResultScreenUI {
     let html = '<div class="result-stars" aria-hidden="true">';
     for (let i = 0; i < STAR_MAX; i += 1) {
       const earned = i < stars;
-      html += `<img class="result-star ${earned ? 'earned' : ''}" style="animation-delay:${i * 0.14}s"
-                    src="/assets/ui/star_${earned ? 'gold' : 'empty'}.png" alt="" />`;
+      // The burst blooms a beat after its star lands, so the card reads as
+      // three separate hits instead of one three-star block appearing at once.
+      html += `<span class="result-star-slot ${earned ? 'earned' : ''}"
+                    style="--delay:${0.24 + i * 0.16}s">
+                 ${earned ? '<i class="result-star-burst"></i>' : ''}
+                 <img class="result-star ${earned ? 'earned' : ''}" style="animation-delay:${0.24 + i * 0.16}s"
+                      src="/assets/ui/star_${earned ? 'gold' : 'empty'}.png" alt="" />
+               </span>`;
     }
     html += '</div>';
     return `${html}<p class="sr-only">${stars} of ${STAR_MAX} stars</p>`;
@@ -97,9 +103,9 @@ export class ResultScreenUI {
         <div class="result-stat"><span class="lbl">SCORE</span><span class="val">${result.score}</span></div>
       `
       : `
-        <div class="result-stat"><span class="lbl">SCORE</span><span class="val gold-text">${result.score}</span></div>
+        <div class="result-stat"><span class="lbl">SCORE</span><span class="val gold-text" data-count="${result.score}">${result.score}</span></div>
         <div class="result-stat"><span class="lbl">WAVES</span><span class="val">${result.waves} / ${result.totalWaves ?? result.waves}</span></div>
-        <div class="result-stat"><span class="lbl">TIME</span><span class="val">${(result.timeMs / 1000).toFixed(1)}s</span></div>
+        <div class="result-stat"><span class="lbl">TIME</span><span class="val" data-count="${(result.timeMs / 1000).toFixed(1)}" data-decimals="1" data-suffix="s">${(result.timeMs / 1000).toFixed(1)}s</span></div>
       `;
 
     const rewardRow = victory && (rewards.gold || rewards.gems)
@@ -140,10 +146,10 @@ export class ResultScreenUI {
 
     const unlockRow = unlockedIds.length
       ? unlockedIds
-          .map((id) => `<p class="result-unlock">🔓 ${levelName(id).toUpperCase()} UNLOCKED</p>`)
+          .map((id) => `<p class="result-unlock">${levelName(id).toUpperCase()} UNLOCKED</p>`)
           .join('')
       : campaignComplete
-        ? '<p class="result-unlock">🏆 CAMPAIGN COMPLETE — ENDLESS SIEGE AWAITS</p>'
+        ? '<p class="result-unlock">CAMPAIGN COMPLETE — ENDLESS SIEGE AWAITS</p>'
         : victory && !endless
           ? '<p class="result-unlock subtle">Replay for a better star rating.</p>'
           : outcome === 'defeat' && endless
@@ -164,13 +170,15 @@ export class ResultScreenUI {
     this.container.innerHTML = `
       <div id="result-screen" class="overlay-screen" role="dialog" aria-label="${victory ? 'Victory' : 'Defeat'}">
         <div class="overlay-shell result-shell ${victory ? 'is-victory' : 'is-defeat'}">
+          <span class="result-shine" aria-hidden="true"></span>
+          <div class="result-body">
           <div class="result-ribbon">${victory ? (endless ? 'RUN OVER' : 'VICTORY') : 'DEFEAT'}</div>
           <h1 class="result-heading">${level?.name || 'Bastion'}</h1>
           ${
             !victory
-              ? '<div class="result-stars defeat-mark" aria-hidden="true">💀</div>'
+              ? '<div class="result-stars defeat-mark" aria-hidden="true"><img class="result-mark-icon" src="/assets/ui-kit/glyph_skull.png" alt="" /></div>'
               : endless || !stars
-                ? '<div class="result-stars run-mark" aria-hidden="true">⚔</div>'
+                ? '<div class="result-stars run-mark" aria-hidden="true"><img class="result-mark-icon" src="/assets/ui-kit/glyph_swords.png" alt="" /></div>'
                 : this.starMarkup(stars)
           }
           ${recordRun ? `<p class="result-record">NEW BEST ${result.previousStars}★ → ${stars}★</p>` : ''}
@@ -180,12 +188,45 @@ export class ResultScreenUI {
           ${dailyRow}
           ${achievementRow}
           ${unlockRow}
-          <div class="overlay-actions">${actions.join('')}</div>
+          </div>
+          <div class="overlay-actions result-actions">${actions.join('')}</div>
         </div>
       </div>
     `;
 
     this.bind();
+    this.animateCounters();
+  }
+
+  /**
+   * Count the score and the clock up from zero.
+   *
+   * The numbers are already in the markup, so this only ever *replaces* a value
+   * with the same value at t=1; a browser without rAF, or a player who asked
+   * for reduced motion, simply keeps the final figures.
+   */
+  animateCounters() {
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (reduce || typeof requestAnimationFrame !== 'function') return;
+    const nodes = [...this.container.querySelectorAll('[data-count]')];
+    if (!nodes.length) return;
+    const duration = 760;
+    let start = null;
+    const tick = (now) => {
+      if (start === null) start = now;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      for (const node of nodes) {
+        if (!node.isConnected) return;
+        const target = Number(node.dataset.count) || 0;
+        const decimals = Number(node.dataset.decimals || 0);
+        node.textContent = `${(target * eased).toFixed(decimals)}${node.dataset.suffix || ''}`;
+      }
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   bind() {

@@ -1071,3 +1071,98 @@ targets / does nothing while the hero is down" rules.
 sheets reach Phaser through `queueUnitSheets`, not a literal `load.*` call) and
 adds a new assertion that every sheet the manifest names exists in `public/`.
 Full suite: **106 files / 1270 tests**, build clean.
+
+## 19. A result card that fits, and a menu that stands in the middle (Request 28)
+
+### 19.1 What was actually broken on the phone
+
+The old card was one centred column: ribbon, level name, stars, three stat
+boxes, rewards, the unlock line, then five full-width buttons. At 844×390 that
+column is **taller than the frame**, so `.overlay-actions` wrapped onto a
+second row and painted *past* the gilded border — the defect in the user's
+screenshot. The fix is not a font-size nudge; the card changes shape:
+
+- `.result-shell` is `overflow: hidden` with a `.result-body` scroll pane, so
+  nothing can paint outside the frame at any size;
+- every direct child of `.result-body` is `flex: 0 0 auto` — before this, the
+  star row (whose `min-height` the compact query had zeroed) collapsed and the
+  gold stars were drawn *on top of* the "NEW BEST" line;
+- **landscape, ≥640 px wide and ≤540 px tall** (phones and short laptops) the
+  shell becomes a two-column grid: the run on the left, the five plates stacked
+  in a right-hand column. A vertical list needs 170 px of a 390 px screen; the
+  same plates in a column need the width, which there is.
+
+Measured in Chromium against `dist/` (`/tmp/browser/result28.mjs`):
+
+| viewport | card | body overflow | actions bottom vs frame | buttons outside frame | errors |
+| --- | --- | --- | --- | --- | --- |
+| 844×390 victory | `[32,25,780,340]` | 233 / 233 px (none) | 337 ≤ 365 | 0 | none |
+| 844×390 defeat | `[32,54,780,282]` | 161 / 161 px (none) | 308 ≤ 336 | 0 | none |
+| 390×844 portrait | `[10,180,370,485]` | 250 / 250 px (none) | 629 ≤ 665 | 0 | none |
+| 1366×768 desktop | `[403,148,560,472]` | 291 / 291 px (none) | 586 ≤ 620 | 0 | none |
+
+The only element the clip check reports is `.result-shine`, the 3 px highlight
+sweep, which is *meant* to travel across the frame. Before the change the same
+probe read `bodyScroll 182 / 138` at 844×390 — 44 px of run data hidden inside a
+scrolling pane — with the buttons in three rows below it.
+
+### 19.2 The entrance is a sequence, not a fade
+
+Only `prefers-reduced-motion` users get the static card; everyone else gets, in
+order (all CSS keyframes, no JS timers except the counters):
+
+| t (ms) | what lands |
+| --- | --- |
+| 0 → 340 | the card rises 14 px and scales 0.965 → 1 |
+| 90 → 510 | the ribbon is **stamped**: 1.42×, 2.4× bright, snaps to 0.965× then rest |
+| 110 → 490 | level name rises 10 px |
+| 240 / 400 / 560 | the three stars pop in one at a time (`cubic-bezier(0.2, 1.5, 0.4, 1)`) |
+| +120 ms after each | a radial gold burst blooms behind that star and fades (620 ms) |
+| 380 → 1280 | a single 102° light sweep crosses the card once |
+| 300 / 360 / 420 | SCORE, WAVES, TIME rise in sequence; SCORE and TIME count from 0 in 760 ms (cubic ease-out) |
+| 620 → 940 | the "new best" line rises, then breathes (1.6 s alternate) |
+| 470 → 810 | rewards and the unlock line rise |
+| 500 → 1000 | the five plates rise, 45 ms apart |
+
+Nothing loops except the record glow, and nothing moves after ~1 s: the card
+settles. A filmstrip (`/tmp/browser/shots/strip-90/330/900.png`) confirms the
+order at 844×390.
+
+### 19.3 The menu: centred, bigger, with a description
+
+`.menu-body` gained `justify-content: center`, `.menu-panel` lost its 56 px
+left gutter and its `flex-start` alignment, and the carved wall behind it
+(`.menu-stone`) plus the scrim moved to the same centre line. `.menu-rule`
+gained its mirrored hairline and `.menu-eyebrow` its second dash, so the
+centred lockup is symmetric.
+
+A `.menu-blurb` — the description the menu was missing — sits between the rule
+and the plate:
+
+> Raise ballistas, cannons and rune-forged keeps along the lanes, hold the Realm
+> Core against five realms of invaders, and carry one vanguard — ranks, skills
+> and pets — through the whole campaign.
+
+| reading | before | after |
+| --- | --- | --- |
+| panel centre (1366×768) | left-aligned at x 40 | **683 = viewport centre** |
+| PLAY plate centre | 302 | **683** |
+| title `OF KINGDOM` | 89 px | **89 px tall, box 694 px** (`clamp(42px, min(11.6vh, 8.2vw), 120px)`) |
+| description | none in the column | 406×59 px, 3 lines, 58ch cap |
+| 844×390 panel / plate centre | 422 / 430 (8 px off) | **422 / 422** |
+| 390×844 panel / plate centre | 195 / 195 | **195 / 195** |
+
+The 8 px offset at 844×390 was a leftover `padding-left: clamp(0, 2vw, 24px)`
+in the `max-width: 900px` block: fine while the panel was left-aligned, a
+mis-centring nudge once it was not.
+
+### 19.4 Suite
+
+`npx vitest run` → **106 files / 1270 tests passed**; `npm run build` clean
+(`index-*.js` 567.77 kB / 163.93 kB gzip at the time of the run). The result
+screen keeps its contract: `.result-ribbon` text, `.result-stats` `6 / 6`,
+`.result-star` count, the five action ids and the `REPLAY` / `RETRY` labels.
+The two emoji marks that used to head a defeat (`💀`) and a starless run (`⚔`)
+are now kit sprites (`glyph_skull.png`, `glyph_swords.png`), and the unlock line
+lost its `🔓` for a CSS diamond — the headless render showed an empty box where
+the emoji should be, and a shipped card may not depend on an emoji font.

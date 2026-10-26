@@ -2735,7 +2735,7 @@ kbd {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(4, 6, 10, 0.93) 0%, rgba(4, 6, 10, 0.84) 24%, rgba(4, 6, 10, 0.46) 46%, rgba(4, 6, 10, 0.1) 68%, rgba(4, 6, 10, 0.3) 100%),
+    linear-gradient(90deg, rgba(4, 6, 10, 0.42) 0%, rgba(4, 6, 10, 0.6) 22%, rgba(4, 6, 10, 0.72) 50%, rgba(4, 6, 10, 0.5) 78%, rgba(4, 6, 10, 0.34) 100%),
     linear-gradient(180deg, rgba(4, 6, 10, 0.84) 0%, rgba(4, 6, 10, 0.08) 26%, rgba(4, 6, 10, 0.04) 56%, rgba(4, 6, 10, 0.94) 100%),
     radial-gradient(130% 100% at 46% 50%, transparent 32%, rgba(0, 0, 0, 0.55) 100%);
 }
@@ -2745,8 +2745,9 @@ kbd {
    `cover`: stretched courses read as a wireframe grid, not as masonry. */
 .menu-stone {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 64%;
+  inset: 0 auto 0 50%;
+  width: min(78%, 980px);
+  transform: translateX(-50%);
   background-image: url('/assets/ui-kit/menu-stone.webp');
   /* One stretched copy, never a tile: the grain is soft enough that the
      non-uniform scale is invisible, and a repeated 512 px tile showed its seam
@@ -2755,10 +2756,10 @@ kbd {
   background-repeat: no-repeat;
   opacity: 0.52;
   -webkit-mask-image:
-    linear-gradient(90deg, #000 0%, #000 40%, rgba(0, 0, 0, 0.5) 66%, transparent 88%),
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 16%, #000 38%, #000 62%, rgba(0, 0, 0, 0.55) 84%, transparent 100%),
     linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
   mask-image:
-    linear-gradient(90deg, #000 0%, #000 40%, rgba(0, 0, 0, 0.5) 66%, transparent 88%),
+    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.55) 16%, #000 38%, #000 62%, rgba(0, 0, 0, 0.55) 84%, transparent 100%),
     linear-gradient(180deg, transparent 0%, #000 14%, #000 78%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
@@ -2870,6 +2871,9 @@ kbd {
   position: relative;
   z-index: 2;
   display: flex;
+  /* The lockup is the masthead, not a left rail: centre it and let the carved
+     wall behind it move with it. */
+  justify-content: center;
   align-items: center;
   min-height: 0;
   padding: 0 clamp(16px, 2.6vw, 40px);
@@ -2878,10 +2882,11 @@ kbd {
 .menu-panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: clamp(10px, 1.6vh, 20px);
-  width: min(560px, 100%);
-  padding-left: clamp(0px, 3.4vw, 56px);
+  width: min(640px, 100%);
+  padding-left: 0;
+  text-align: center;
   min-width: 0;
 }
 
@@ -2898,12 +2903,17 @@ kbd {
   text-transform: uppercase;
 }
 
-.menu-eyebrow::before {
+.menu-eyebrow::before,
+.menu-eyebrow::after {
   content: '';
   width: clamp(22px, 4vw, 38px);
   height: 1px;
   flex: 0 0 auto;
   background: linear-gradient(90deg, rgba(245, 196, 81, 0), rgba(245, 196, 81, 0.85));
+}
+
+.menu-eyebrow::after {
+  background: linear-gradient(90deg, rgba(245, 196, 81, 0.85), rgba(245, 196, 81, 0));
 }
 
 .menu-main-title {
@@ -2922,7 +2932,7 @@ kbd {
 }
 
 .menu-title-pre {
-  font-size: clamp(20px, min(3.6vh, 3vw), 34px);
+  font-size: clamp(21px, min(3.9vh, 3.2vw), 38px);
   color: #f2e4c6;
   letter-spacing: 0.3em;
 }
@@ -2931,7 +2941,7 @@ kbd {
    letters keep their edge against the sky. The vw arm of the clamp keeps the
    lockup on one line at 1920 while the vh arm keeps it inside a phone. */
 .menu-title-main {
-  font-size: clamp(38px, min(10vh, 7.2vw), 104px);
+  font-size: clamp(42px, min(11.6vh, 8.2vw), 120px);
   background-image: linear-gradient(
     176deg,
     #fffaea 2%,
@@ -2951,9 +2961,14 @@ kbd {
 .menu-rule {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  width: min(320px, 76%);
+  width: min(360px, 80%);
   height: 10px;
+}
+
+.menu-rule::after {
+  background: linear-gradient(270deg, rgba(245, 196, 81, 0.55), transparent);
 }
 
 .menu-rule::before,
@@ -2971,6 +2986,19 @@ kbd {
   background: linear-gradient(150deg, #ffe9b4, #b07c22);
   transform: rotate(45deg);
   box-shadow: 0 0 0 1px rgba(20, 12, 2, 0.7);
+}
+
+/* The one paragraph the menu gets: what the game is, in two lines, sitting
+   between the masthead and the plate. */
+.menu-blurb {
+  margin: 0;
+  max-width: min(58ch, 560px);
+  font-size: clamp(12.5px, 1.65vh, var(--fs-body));
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 /* ---- PLAY CAMPAIGN: the one plate --------------------------------------- */
@@ -3191,10 +3219,8 @@ kbd {
 
 /* Narrow desktop / tablet: same lockup, tighter gutters. */
 @media (max-width: 900px) {
-  .menu-panel {
-    padding-left: clamp(0px, 2vw, 24px);
-  }
-
+  /* The lockup is centred at every width now; the old left gutter would push
+     the plate 8 px off the viewport's centre line. */
   .menu-body {
     padding: 0 clamp(14px, 3.4vw, 30px);
   }
@@ -3215,7 +3241,7 @@ kbd {
 
   .menu-panel {
     align-items: center;
-    width: min(520px, 100%);
+    width: min(580px, 100%);
     padding-left: 0;
     text-align: center;
   }
@@ -5096,11 +5122,86 @@ body.is-fullscreen #app::after {
 /* ---- victory / defeat -------------------------------------------------- */
 
 .result-shell {
-  width: min(520px, 100%);
+  width: min(560px, 100%);
   align-items: center;
   text-align: center;
   gap: clamp(6px, 1.2vh, 14px);
   position: relative;
+  /* Nothing may paint outside the gilded frame. The body scrolls instead; a
+     wrapped row of buttons used to hang below the border on a phone. */
+  overflow: hidden;
+  min-height: 0;
+  animation: result-card-in 340ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.result-body {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.2vh, 14px);
+  scrollbar-width: thin;
+}
+
+/* However tight the card gets, a row is never squashed: the star slots used to
+   collapse and paint over the "new best" line instead of scrolling. */
+.result-body > * {
+  flex: 0 0 auto;
+}
+
+.result-actions {
+  flex: 0 0 auto;
+  width: 100%;
+  padding-top: clamp(4px, 1vh, 10px);
+}
+
+/* A single torch-lit sweep across the card, once, as it lands. */
+.result-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: linear-gradient(
+    102deg,
+    transparent 36%,
+    rgba(255, 240, 200, 0) 44%,
+    rgba(255, 244, 214, 0.28) 50%,
+    rgba(255, 240, 200, 0) 56%,
+    transparent 64%
+  );
+  transform: translateX(-120%);
+  animation: result-shine-sweep 900ms 380ms cubic-bezier(0.3, 0.7, 0.4, 1) 1 both;
+  mix-blend-mode: screen;
+}
+
+@keyframes result-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes result-shine-sweep {
+  from {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120%);
+    opacity: 0;
+  }
 }
 
 .result-shell.is-victory {
@@ -5140,13 +5241,53 @@ body.is-fullscreen #app::after {
 .result-stars {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  align-items: center;
+  gap: clamp(6px, 1.2vw, 14px);
   min-height: clamp(40px, 7vh, 58px);
 }
 
-.result-star {
+/* One slot per star: holds the sprite and the burst that blooms behind it. */
+.result-star-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: clamp(34px, 6.4vh, 56px);
   height: clamp(34px, 6.4vh, 56px);
+}
+
+.result-star-burst {
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    rgba(255, 226, 150, 0.55) 0%,
+    rgba(255, 200, 90, 0.22) 42%,
+    rgba(255, 190, 70, 0) 70%
+  );
+  opacity: 0;
+  transform: scale(0.5);
+  animation: result-star-burst 620ms calc(var(--delay) + 120ms) cubic-bezier(0.2, 0.8, 0.3, 1) 1 both;
+}
+
+@keyframes result-star-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.result-star {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.65));
@@ -5223,13 +5364,104 @@ body.is-fullscreen #app::after {
   }
 }
 
+/* The banner is stamped onto the card: it lands oversized and bright, then
+   snaps down to its final size — the one beat in the sequence that is a hit
+   rather than a fade. */
+.result-ribbon {
+  animation: result-stamp 420ms 90ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+}
+
+@keyframes result-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.42) rotate(-1.5deg);
+    filter: brightness(2.4);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(0.965) rotate(0.4deg);
+    filter: brightness(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: brightness(1);
+  }
+}
+
+.result-heading {
+  animation: result-rise 380ms 110ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.result-stats .result-stat {
+  animation: result-rise 360ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.result-stats .result-stat:nth-child(1) {
+  animation-delay: 300ms;
+}
+
+.result-stats .result-stat:nth-child(2) {
+  animation-delay: 360ms;
+}
+
+.result-stats .result-stat:nth-child(3) {
+  animation-delay: 420ms;
+}
+
+.result-rewards,
+.result-unlock,
+.result-record,
+.result-daily,
+.result-achievements,
+.result-contracts {
+  animation: result-rise 340ms 470ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.result-actions > .game-btn {
+  animation: result-rise 320ms cubic-bezier(0.22, 0.9, 0.24, 1) both;
+}
+
+.result-actions > .game-btn:nth-child(1) {
+  animation-delay: 500ms;
+}
+
+.result-actions > .game-btn:nth-child(2) {
+  animation-delay: 545ms;
+}
+
+.result-actions > .game-btn:nth-child(3) {
+  animation-delay: 590ms;
+}
+
+.result-actions > .game-btn:nth-child(4) {
+  animation-delay: 635ms;
+}
+
+.result-actions > .game-btn:nth-child(5) {
+  animation-delay: 680ms;
+}
+
+@keyframes result-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .result-record {
-  margin: -4px 0 0;
+  margin: 0;
+  animation:
+    result-rise 320ms 620ms cubic-bezier(0.22, 0.9, 0.24, 1) both,
+    result-record-glow 1.6s 1.2s ease-in-out infinite alternate;
   font-size: clamp(9px, 1.2vh, 11px);
   font-weight: 700;
   letter-spacing: 2.4px;
   color: var(--gold-primary);
-  animation: result-record-glow 1.6s ease-in-out infinite alternate;
 }
 
 @keyframes result-record-glow {
@@ -5286,6 +5518,10 @@ body.is-fullscreen #app::after {
 }
 
 .result-unlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   margin: 0;
   font-size: clamp(10px, 1.4vh, 13px);
   font-weight: 700;
@@ -5293,9 +5529,204 @@ body.is-fullscreen #app::after {
   color: var(--emerald-primary);
 }
 
+/* A struck diamond instead of a padlock emoji: it draws in the game's own gold
+   and does not depend on the browser shipping an emoji font. */
+.result-unlock::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  background: currentColor;
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1px rgba(6, 20, 12, 0.55);
+}
+
 .result-unlock.subtle {
   color: var(--text-dim);
   font-weight: 600;
+}
+
+.result-unlock.subtle::before {
+  opacity: 0.55;
+}
+
+/* The skull (a defeat) and the crossed swords (a run with no star rating) are
+   kit sprites, so they render identically everywhere. */
+.result-mark-icon {
+  width: clamp(34px, 6vh, 52px);
+  height: clamp(34px, 6vh, 52px);
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.7));
+  animation: result-star-pop 460ms 180ms cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+/* Phone: the whole card has to fit 390 px of height, so the numbers shrink
+   before the buttons do and the actions become a two-column grid that cannot
+   wrap into a stray row below the frame. */
+@media (max-width: 720px), (max-height: 480px) {
+  .result-shell {
+    width: min(540px, 100%);
+    gap: 4px;
+  }
+
+  .result-body {
+    gap: 4px;
+  }
+
+  .result-ribbon {
+    padding: 2px 16px;
+    letter-spacing: 3px;
+  }
+
+  .result-heading {
+    font-size: clamp(14px, 4.2vh, 19px);
+    letter-spacing: 1.4px;
+  }
+
+  .result-star-slot {
+    width: clamp(26px, 6.2vh, 34px);
+    height: clamp(26px, 6.2vh, 34px);
+  }
+
+  .result-stats {
+    gap: 5px;
+  }
+
+  .result-stat {
+    padding: 4px;
+    border-radius: 8px;
+  }
+
+  .result-stat .lbl {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .result-stat .val {
+    font-size: 13px;
+  }
+
+  .result-unlock,
+  .result-record,
+  .result-daily,
+  .result-achievements {
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  .result-contracts {
+    margin-top: 2px;
+  }
+
+  .result-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding-top: 4px;
+  }
+
+  .result-actions .game-btn {
+    width: 100%;
+    min-height: 34px;
+    padding-inline: 6px;
+    font-size: var(--fs-micro);
+  }
+
+  .result-actions .game-btn-primary {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Landscape phones and short laptops: the card turns on its side. A vertical
+   list of five plates needs 170 px of a 390 px screen; the same plates stacked
+   in a right-hand column leave the whole left side for the run itself. */
+@media (min-width: 640px) and (max-height: 540px) {
+  .result-shell {
+    width: min(780px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+    align-items: center;
+    gap: clamp(10px, 2.2vh, 18px);
+    padding: clamp(6px, 1.4vh, 12px) clamp(12px, 1.8vw, 18px);
+  }
+
+  .result-body {
+    grid-column: 1;
+    overflow: hidden;
+    justify-content: center;
+    gap: clamp(3px, 0.8vh, 8px);
+  }
+
+  .result-actions {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding-top: 0;
+  }
+
+  .result-actions .game-btn {
+    width: 100%;
+    min-height: 38px;
+    font-size: var(--fs-small);
+  }
+
+  .result-actions .game-btn-primary {
+    grid-column: auto;
+  }
+
+  .result-stats {
+    width: 100%;
+  }
+
+  .result-stats .result-stat {
+    padding: 5px 6px;
+  }
+
+  .result-stat .val {
+    font-size: 15px;
+  }
+
+  .result-ribbon {
+    font-size: 11px;
+    padding: 3px 18px;
+  }
+
+  .result-heading {
+    font-size: clamp(15px, 4.6vh, 21px);
+  }
+
+  .result-rewards {
+    margin-top: 2px;
+  }
+
+  .result-contracts {
+    margin-top: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-shell,
+  .result-ribbon,
+  .result-heading,
+  .result-star,
+  .result-star-burst,
+  .result-stats .result-stat,
+  .result-rewards,
+  .result-unlock,
+  .result-record,
+  .result-daily,
+  .result-achievements,
+  .result-contracts,
+  .result-actions > .game-btn {
+    animation: none;
+  }
+
+  .result-shine {
+    display: none;
+  }
 }
 
 @media (max-width: 720px), (max-height: 460px) {
@@ -7317,6 +7748,18 @@ body.is-fullscreen #app::after {
 
 [data-shell="mobile"] .menu-play {
   min-height: 62px;
+}
+
+/* Phone landmark: the blurb stays (it is the description the menu was missing)
+   but it costs two lines instead of four. */
+[data-shell="mobile"] .menu-panel {
+  gap: clamp(6px, 1.4vh, 12px);
+}
+
+[data-shell="mobile"] .menu-blurb {
+  max-width: min(54ch, 100%);
+  font-size: clamp(10px, 1.5vh, 12px);
+  line-height: 1.45;
 }
 
 /* A thumb can find a 44 px key in the dark; hover cannot be the only cue. */

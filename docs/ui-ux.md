@@ -369,3 +369,43 @@ changed relative to sections 1–8:
   banner, and `fx_ring` shockwaves land on big kills and boss events.
 - **Guard rail**: `tests/ui-kit.test.js` (40 tests) pins asset URLs, sprite dimensions,
   slice sanity, menu ids and the absence of the old pack.
+
+---
+
+## 10. The masthead takes the middle, and the result card turns on its side
+
+### 10.1 Main menu
+
+The lockup is no longer a left rail. `.menu-body` is `justify-content: center`
+and `.menu-panel` is a centred column (`align-items: center`,
+`text-align: center`, `width: min(640px, 100%)`) at **every** width — the
+portrait/mobile block already did this, so the two layouts now agree instead of
+swapping alignment at 760 px. The carved wall (`.menu-stone`) and the horizontal
+scrim follow the same centre line, and `.menu-eyebrow` / `.menu-rule` grew the
+mirrored hairline they needed once nothing was left-aligned.
+
+- **Title**: `clamp(42px, min(11.6vh, 8.2vw), 120px)` (was 38/10vh/7.2vw/104) for
+  `OF KINGDOM`, `clamp(21px, min(3.9vh, 3.2vw), 38px)` for `DEFENSE` — one step
+  up, same proportions, no rework.
+- **Description**: a new `.menu-blurb` between the rule and the plate, capped at
+  `min(58ch, 560px)`, `--ink-muted`, `text-wrap: pretty`. It stays on a phone at
+  `clamp(10px, 1.5vh, 12px)` / two lines instead of being hidden like
+  `.menu-footnote`.
+- The plate keeps its `min(524px, 100%)` width, so PLAY is the widest element in
+  the column and the eye lands on it first.
+
+### 10.2 Victory / defeat
+
+`.result-shell` never paints outside its frame (`overflow: hidden`, body scroll
+pane, `flex: 0 0 auto` children), and on a short landscape screen it becomes a
+**two-column card** — run on the left, the five action plates stacked on the
+right — instead of a 700 px column squeezed into 390 px. Full measurements,
+the motion timeline and the filmstrip are in
+[testing-report.md](testing-report.md) §19.
+
+### 10.3 Glyph discipline
+
+A defeat is headed by the kit's `glyph_skull.png`, a starless run by
+`glyph_swords.png`, and the unlock line by a CSS diamond. The card no longer
+relies on an emoji font: a headless Chromium with no colour-emoji font showed an
+empty box where `💀` / `⚔` / `🔓` used to be.
