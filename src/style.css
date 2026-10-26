@@ -9690,6 +9690,11 @@ html.draft-open body {
   .wm-btn {
     min-height: 46px;
   }
+
+  /* War Room rows: one tap target per mode, same floor as the actions. */
+  .wm-mode {
+    min-height: 48px;
+  }
 }
 
 /* War Room list: one row per real mode. */

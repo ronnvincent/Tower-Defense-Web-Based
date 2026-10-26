@@ -262,8 +262,10 @@ coordinates stay exact because nothing is drawn at a different scale than it is 
 
 ## 12. Mobile behaviour
 
-- **Touch targets:** the two measured failures (32 px map-panel actions, 30 px quality
-  options) are now 44/46 px under `(pointer: coarse)` and small viewports.
+- **Touch targets:** the measured failures (32 px map-panel actions, 30 px quality options,
+  38 px War Room rows) are now 44/46/48 px under `(pointer: coarse)` and small viewports.
+  Re-measured across all nine map panels at 844×390: every panel fits, every action button
+  is ≥ 44 px and no button is clipped.
 - **No page scroll:** the audit fails a screen if `documentElement.scrollWidth` exceeds the
   viewport; 0 failures across 6 sizes × 24 screens.
 - **No invisible blocking layers:** the gate/overlay elements are `display: none` when
