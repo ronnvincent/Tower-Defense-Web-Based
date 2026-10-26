@@ -147,8 +147,10 @@ export const ACHIEVEMENTS = [
     category: 'defense',
   },
   {
+    // Spec name: Untouched Bastion. The metric was already tracked (a victory
+    // with the core at full HP); only the label changed.
     id: 'hold-the-line',
-    name: 'Hold the Line',
+    name: 'Untouched Bastion',
     desc: 'Win a level without losing a single point of core health.',
     metric: 'flawlessVictories',
     target: 1,
@@ -156,11 +158,34 @@ export const ACHIEVEMENTS = [
     icon: '🛡️',
     category: 'defense',
   },
+  {
+    // Reached the top of a tower line: levels 1-5, the last one with the
+    // ascension aura. Counted per tower, once, at the moment it tops out.
+    id: 'tower-master',
+    name: 'Tower Master',
+    desc: 'Take one defence all the way to its final tier.',
+    metric: 'maxedTowers',
+    target: 1,
+    gems: 6,
+    icon: '⚒️',
+    category: 'defense',
+  },
+  {
+    // Both arcane spells count; overcharge and fortify are widgets, not spells.
+    id: 'arcane-arsenal',
+    name: 'Arcane Arsenal',
+    desc: 'Cast 10 arcane spells across all battles.',
+    metric: 'spellsCast',
+    target: 10,
+    gems: 6,
+    icon: '✨',
+    category: 'combat',
+  },
 
   // -------------------------------------------------------------- campaign
   {
     id: 'first-victory',
-    name: 'The Bastion Holds',
+    name: 'First Victory',
     desc: 'Win your first battle.',
     metric: 'victories',
     target: 1,
@@ -190,7 +215,7 @@ export const ACHIEVEMENTS = [
   },
   {
     id: 'boss-slayer',
-    name: 'Giant Killer',
+    name: 'Boss Slayer',
     desc: 'Defeat your first boss.',
     metric: 'bossesKilled',
     target: 1,

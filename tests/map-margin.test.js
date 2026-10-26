@@ -48,7 +48,7 @@ const edgePixelClearance = (map, cell) => edgeTileClearance(map, cell) * TILE_SI
 
 describe('battlefield margins', () => {
   it('covers the campaign maps, the War Room battlefields and every duel arena', () => {
-    expect(BATTLEFIELDS).toHaveLength(18);
+    expect(BATTLEFIELDS).toHaveLength(19);
   });
 
   it('never parks a spawn or a base on the outermost ring', () => {

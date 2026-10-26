@@ -43,7 +43,7 @@ describe('multi-lane routing', () => {
     // 5 campaign stages + 10 War Room layouts + 3 duel arenas. The War Room
     // layouts are held to the same contract as the campaign set: if a mode's
     // map had one lane or a lane that never reaches the core, this fails.
-    expect(BATTLEFIELDS).toHaveLength(18);
+    expect(BATTLEFIELDS).toHaveLength(19);
   });
 
   it('gives every battlefield two or three routes', () => {

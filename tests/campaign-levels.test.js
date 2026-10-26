@@ -121,13 +121,20 @@ describe('campaign wave design', () => {
         for (const group of wave.groups) expect(ENEMY_TYPES[group.type], group.type).toBeTruthy();
         if (wave.bossWave) expect(wave.bossKey).toBeTruthy();
       }
-      if (index > 0) expect(level.waves.length).toBeGreaterThan(LEVELS[index - 1].waves.length);
+      // Pacing, not a monotonic ladder: the opening stage is long on purpose
+      // (eight waves teach build order), stage 2 leans on speed instead of
+      // volume, and the last two stages are the longest runs in the campaign.
+      if (index > 0) expect(level.waves.length).toBeGreaterThanOrEqual(7);
+      if (level.id === 'level-5') {
+        expect(level.waves.length).toBe(Math.max(...LEVELS.map((entry) => entry.waves.length)));
+      }
     });
   });
 
-  it('keeps level 1 at the six waves the balance pass was tuned on', () => {
-    expect(LEVELS[0].waves).toHaveLength(6);
-    expect(LEVELS[0].baseHealth).toBe(25);
+  it('keeps the opening stage on the campaign contract: eight waves, 300 gold, 20 HP', () => {
+    expect(LEVELS[0].waves).toHaveLength(8);
+    expect(LEVELS[0].startingCoins).toBe(300);
+    expect(LEVELS[0].baseHealth).toBe(20);
   });
 
   it('gives every endless wave something to fight and a boss every fifth wave', () => {
@@ -143,7 +150,8 @@ describe('campaign wave design', () => {
   it('funds every level well enough to place a first tower', () => {
     for (const level of LEVELS) {
       expect(level.startingCoins).toBeGreaterThanOrEqual(200);
-      expect(level.baseHealth).toBe(25); // one core HP for the whole campaign
+      // Stage 1 is the tutorial core (20 HP); every later stage is 25.
+      expect(level.baseHealth).toBe(level.id === 'level-1' ? 20 : 25);
       expect(level.enemyHealthScale).toBeGreaterThanOrEqual(1);
     }
     // Mode levels are tuned individually (Titan Rush needs a fatter core than a

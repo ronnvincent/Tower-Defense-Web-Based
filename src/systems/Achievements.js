@@ -20,6 +20,8 @@ export const DEFAULT_STATS = {
   towersBuilt: 0,
   palisadesBuilt: 0,
   upgradesBought: 0,
+  maxedTowers: 0,
+  spellsCast: 0,
   maxTowersAtOnce: 0,
   goldEarned: 0,
   victories: 0,

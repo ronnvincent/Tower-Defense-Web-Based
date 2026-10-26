@@ -19,6 +19,7 @@
  */
 
 import { ENEMY_SHEETS, ENEMY_SKINS } from '../data/spireManifest.js';
+import { ENEMY_TYPES } from '../data/enemyData.js';
 
 export const ENEMY_DIRECTIONS = 3;
 
@@ -58,15 +59,18 @@ export function enemyTexturesForType(type, theme = 'grassland') {
 
 /** Every creature type the level can put on the field. */
 export function enemyTypesForLevel(level) {
+  // A type may fly on another creature's sheet (the Flying Wraith uses the
+  // wyvern art), so what the loader needs is the *art* key, not the rules key.
+  const artOf = (type) => ENEMY_TYPES[type]?.art || type;
   const types = new Set();
   for (const wave of level?.waves || []) {
     for (const group of wave?.groups || []) {
-      if (group?.type) types.add(group.type);
+      if (group?.type) types.add(artOf(group.type));
     }
     // Endless waves carry a rotating boss per wave.
-    if (wave?.bossKey) types.add(wave.bossKey);
+    if (wave?.bossKey) types.add(artOf(wave.bossKey));
   }
-  if (level?.boss) types.add(level.boss);
+  if (level?.boss) types.add(artOf(level.boss));
   // Endless (and anything else whose wave list is generated at runtime) can
   // field the whole bestiary, so it must load the whole bestiary for its biome.
   if (level?.endless) {

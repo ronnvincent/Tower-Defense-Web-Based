@@ -135,6 +135,24 @@ export const MAPS = {
     '..x..............x..', // 10
     'x...................', // 11
   ],
+  // Ashen Caldera — a shattered rim around a live caldera. The horde parts at
+  // the gate: one road hugs the north rim, one cuts straight through the cinder
+  // field, one follows the south rim past the lava lake. The three lanes meet
+  // again only at the core, so a single stack cannot watch them all.
+  'caldera': [
+    '....................', // 0
+    '..x..........x......', // 1
+    '..################..', // 2  ← north rim
+    '......#......#......', // 3
+    '..#...#..x...#...#..', // 4
+    'xS######....######Bx', // 5  ← gates one tile inside the frame
+    '..#...#..~~..#...#..', // 6  ← lava lake
+    '..#...########...#..', // 7
+    '..################..', // 8  ← south rim
+    '..#..x........x..#..', // 9
+    '..x.................', // 10
+    '....................', // 11
+  ],
   /* ---------------------------------------------------------------- War Room
      One battlefield per mode. Before these, four of the eight modes booted the
      same field (Rogue, Anomaly, Ascension and the Board all redirected to

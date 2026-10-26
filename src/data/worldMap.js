@@ -62,8 +62,14 @@ export const REGIONS = Object.freeze([
   },
   {
     id: 'ashen',
-    theme: 'volcanic',
-    levelId: 'endless',
+    // Named for the campaign stage that is planted here (the ashen tileset);
+    // Endless Siege shares the region but keeps its own banner and blurb.
+    theme: 'ashen',
+    // The ashen region holds the last campaign stage and the endless run: the
+    // caldera is fought on the way up, and Endless Siege is what is left when
+    // the campaign is done.
+    levelId: 'level-5',
+    levelIds: ['level-5', 'endless'],
     label: { x: 27, y: 85 },
     glow: { x: 24, y: 82, rx: 17, ry: 11 },
   },
@@ -151,14 +157,26 @@ export const LANDMARKS = Object.freeze([
     tag: 'STAGE IV',
   },
   {
+    id: 'banner-caldera',
+    name: THEMES.ashen.name,
+    kind: 'banner',
+    panel: 'briefing',
+    levelId: 'level-5',
+    art: '/assets/worldmap/landmark_banner-caldera.png',
+    x: 29,
+    y: 82,
+    width: 92,
+    tag: 'STAGE V',
+  },
+  {
     id: 'banner-endless',
     name: ENDLESS_LEVEL.name,
     kind: 'banner',
     panel: 'briefing',
     levelId: 'endless',
     art: '/assets/worldmap/landmark_banner-endless.png',
-    x: 17,
-    y: 76,
+    x: 15,
+    y: 74,
     width: 92,
     tag: 'ENDLESS SIEGE',
   },
@@ -271,7 +289,11 @@ export function landmarkForLevel(levelId) {
 
 /** The region a stage is fought in. */
 export function regionForLevel(levelId) {
-  return REGIONS.find((region) => region.levelId === levelId) || null;
+  return (
+    REGIONS.find((region) => region.levelId === levelId) ||
+    REGIONS.find((region) => region.levelIds?.includes(levelId)) ||
+    null
+  );
 }
 
 /**

@@ -690,6 +690,15 @@ export class Tower {
     }
   }
 
+  /**
+   * Whether this defence can shoot at airborne enemies. The rule lives in the
+   * tower's own data (`targetsAir`), so a new line inherits "can hit air" by
+   * default and has to opt out with a reason.
+   */
+  get canTargetAir() {
+    return this.def?.targetsAir !== false;
+  }
+
   /** True while a boss freeze pulse is suppressing this defence. */
   get isDisabled() {
     return this.disabledTimer > 0;
@@ -785,11 +794,15 @@ export class Tower {
     const range = this.attackRange;
     const enemies = this.context.activeEnemies;
 
-    // Filter enemies currently within range
+    // Filter enemies currently within range. Airborne creeps are invisible to
+    // ground-only defences (`targetsAir: false`): the wraith flies over the
+    // palisade, and the sling that cannot point up simply does not see it.
+    const canReachAir = this.canTargetAir;
     const inRange = [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (e.isDead || e.reachedBase) continue;
+      if (e.flying && !canReachAir) continue;
       const dist = Math.hypot(e.x - this.x, e.y - this.y);
       if (dist <= range) {
         inRange.push({ enemy: e, dist });

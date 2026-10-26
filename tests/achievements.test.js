@@ -27,8 +27,8 @@ function fakeStorage() {
 }
 
 describe('Achievements: catalogue', () => {
-  it('ships 24 unique, complete entries', () => {
-    expect(ACHIEVEMENTS).toHaveLength(24);
+  it('ships 26 unique, complete entries', () => {
+    expect(ACHIEVEMENTS).toHaveLength(26);
     const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
     expect(ids.size).toBe(ACHIEVEMENTS.length);
     for (const def of ACHIEVEMENTS) {
@@ -105,7 +105,7 @@ describe('Achievements: evaluation', () => {
   it('summarises claimed vs remaining gems', () => {
     const summary = achievementSummary({}, ['first-blood']);
     expect(summary.unlocked).toBe(1);
-    expect(summary.total).toBe(24);
+    expect(summary.total).toBe(26);
     expect(summary.gemsEarned).toBe(getAchievement('first-blood').gems);
     expect(summary.gemsEarned + summary.gemsRemaining).toBe(ACHIEVEMENT_GEM_TOTAL);
   });

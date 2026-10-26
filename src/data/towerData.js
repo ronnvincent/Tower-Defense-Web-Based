@@ -96,6 +96,8 @@ const CORE_TOWER_TYPES = {
     hotkey: '2',
     cost: 110,
     description: 'Lobbed stone artillery with area-of-effect splash damage.',
+    // Ground-only: an arcing stone cannot be aimed above the road.
+    targetsAir: false,
     projectile: 'cannonball',
     projectileSpeed: 380,
     placement: 'grass',
@@ -232,6 +234,8 @@ const CORE_TOWER_TYPES = {
     hotkey: '5',
     cost: 120,
     description: 'Heavy forge-hammer that slams the road for explosive damage. Shorter reach than the Sling, far harder hits.',
+    // Ground-only: the hammer only reaches what the forge can touch.
+    targetsAir: false,
     projectile: 'hammer',
     projectileSpeed: 460,
     placement: 'grass',

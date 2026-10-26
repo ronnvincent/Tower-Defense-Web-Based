@@ -29,6 +29,7 @@ describe('terrain surface contrast', () => {
 
   it('audits every battle map', () => {
     expect(Object.keys(table.themes).sort()).toEqual([
+      'ashen',
       'caldera',
       'crystal',
       'desert',

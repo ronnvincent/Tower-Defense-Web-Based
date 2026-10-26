@@ -208,6 +208,7 @@ export class HUD {
     this.shell = next;
     applyShell(document, next);
     this.syncShellChrome();
+    this.syncTopBarMetric();
     if (changed) {
       if (next === 'mobile') {
         this.setDockCollapsed(true, { persist: false, clearSelection: false });
@@ -219,6 +220,22 @@ export class HUD {
       }
     }
     return next;
+  }
+
+  /**
+   * Publish the measured height of the top bar as `--hud-topbar-h`.
+   *
+   * The bar's height is content-driven — clamped type sizes plus the wave
+   * strip inside it — so its bottom edge lands at 93 px on a 1920 screen and at
+   * 52 px on an 844x390 phone. Panels hanging off the top-right corner used a
+   * fixed 60 px offset, which put the hero card over the bar on desktop. The
+   * measured number is the only anchor that survives every viewport.
+   */
+  syncTopBarMetric() {
+    const bar = document.getElementById('hud-top-bar');
+    if (!bar) return;
+    const height = Math.round(bar.getBoundingClientRect().height);
+    if (height > 0) this.container.style.setProperty('--hud-topbar-h', `${height}px`);
   }
 
   /* ================================================================ MARKUP */

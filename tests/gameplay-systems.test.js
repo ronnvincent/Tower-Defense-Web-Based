@@ -249,7 +249,7 @@ describe('Boss Encounters & Multi-Phase Progression', () => {
   });
 
   it('verifies Wave Composition progression from introductory to Final Boss', () => {
-    expect(WAVES).toHaveLength(6);
+    expect(WAVES).toHaveLength(8);
 
     // Wave 1: Grunts introduction
     expect(WAVES[0].bossWave).toBeFalsy();
@@ -259,8 +259,15 @@ describe('Boss Encounters & Multi-Phase Progression', () => {
     expect(WAVES[2].bossWave).toBe(true);
     expect(WAVES[2].groups.some((g) => g.type === 'colossus')).toBe(true);
 
-    // Wave 6: Final Boss Abyssal Warlord
-    expect(WAVES[5].bossWave).toBe(true);
-    expect(WAVES[5].groups.some((g) => g.type === 'warlord')).toBe(true);
+    // Final wave: the Abyssal Warlord, still the last thing on the field.
+    const last = WAVES[WAVES.length - 1];
+    expect(last.bossWave).toBe(true);
+    expect(last.groups.some((g) => g.type === 'warlord')).toBe(true);
+    // The two waves added for the eight-wave contract sit between the spawn
+    // ramp and the boss, and both bring a mix rather than a single type.
+    for (const index of [4, 6]) {
+      expect(WAVES[index].groups.length).toBeGreaterThanOrEqual(3);
+      expect(WAVES[index].bossWave).toBeFalsy();
+    }
   });
 });

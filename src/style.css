@@ -6753,12 +6753,29 @@ body.is-fullscreen #app::after {
   flex-direction: column;
   gap: 10px;
   pointer-events: auto;
+  /* The rail is bottom-anchored, so a tall dock pushes it *up*. On a short
+     window with the forge folded open the four buttons climbed behind the top
+     bar (measured: 42 px of overlap at 844x390). Cap it to the band between the
+     bar and the dock and let it scroll inside that band instead. */
+  max-height: calc(100vh - var(--hud-topbar-h, 60px) - var(--dock-clearance) - 22px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
   --accent: #f5c451;
   --charge: 1;
 }
 
+.powerup-rail::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .powerup-btn {
   position: relative;
+  /* Fixed size inside the rail: the rail is a capped flex column, and without
+     this the buttons shrank to 30 px to fit instead of letting the rail
+     scroll (measured at 844x390). */
+  flex: 0 0 auto;
   width: 56px;
   height: 56px;
   padding: 0;
@@ -10845,7 +10862,10 @@ html.draft-open body {
    and it never grows into a second dock: 208 px on desktop, 176 px on phones.
    ========================================================================== */
 .hero-panel {
-  top: calc(clamp(6px, 1.2vh, 12px) + var(--safe-top) + 60px);
+  /* Anchored to the *measured* bar height (HUD.syncTopBarMetric): the bar grows
+     with type size, and the old fixed 60 px offset put this card on top of it
+     at desktop widths. */
+  top: calc(clamp(6px, 1.2vh, 12px) + var(--safe-top) + var(--hud-topbar-h, 60px) + 8px);
   right: calc(clamp(8px, 1.2vw, 16px) + var(--safe-right));
   display: flex;
   align-items: stretch;
@@ -11014,6 +11034,31 @@ html.draft-open body {
 }
 
 @media (pointer: coarse), (max-width: 900px) {
+  /* Thumb-sized chrome. Measured before this rule: the dock handle was 16 px
+     tall, the family tabs 30 px and the camera buttons 30-38 px — all below the
+     44 px floor this project uses for touch. */
+  .dock-toggle {
+    min-height: 44px;
+    padding-inline: 14px;
+  }
+
+  .dock-tab {
+    min-height: 44px;
+    padding-block: 0;
+  }
+
+  .camera-cluster button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* The wave / speed / pause / mute / fullscreen row measured 38-42 px tall on
+     a phone shell — the most-tapped controls in the game, under the floor. */
+  .hud-topbar .game-btn-icon,
+  .hud-topbar #btn-start-wave {
+    min-height: 44px;
+  }
+
   .hero-panel {
     width: 176px;
     padding: 5px 6px 5px 5px;
@@ -11033,7 +11078,27 @@ html.draft-open body {
 
 @media (max-height: 430px) {
   .hero-panel {
-    top: calc(clamp(4px, 1vh, 8px) + var(--safe-top) + 48px);
+    top: calc(clamp(4px, 1vh, 8px) + var(--safe-top) + var(--hud-topbar-h, 48px) + 6px);
     width: 168px;
+  }
+
+  /* Four 48 px powerups plus gaps measured 216 px tall, and the space between
+     the top bar and the dock on a 390 px-high phone is 208 — the rail's first
+     button sat under the bar. 44 px squares keep the touch target legal and
+     the whole rail inside the band. */
+  .powerup-rail {
+    gap: 6px;
+  }
+
+  .powerup-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* The card is 88 px tall with 44 px actions, and the camera pill is anchored
+     to the dock clearance. Rather than shrink a touch target, the pill drops
+     14 px into the slack it already had above the dock. */
+  .camera-cluster {
+    bottom: calc(var(--dock-clearance) - 14px);
   }
 }

@@ -246,6 +246,8 @@ export const ENGINEER_TOWER_TYPES = {
     role: 'Poison',
     description:
       'A glass still of corrosive venom. Direct hits are small, but the poison ignores armour entirely. Branches into Plague or Corrosive.',
+    // Ground-only: the still pours its pool along the ground.
+    targetsAir: false,
     projectile: 'acid',
     projectileSpeed: 500,
     placement: 'grass',
@@ -316,6 +318,8 @@ export const ENGINEER_TOWER_TYPES = {
     role: 'Control',
     description:
       'A dockside winch that throws a barbed spear: brutal single hits, a stun on impact and extra damage against bosses. Branches into Ballista or Grapple.',
+    // Ground-only: the winch line is anchored to the road.
+    targetsAir: false,
     projectile: 'harpoon',
     projectileSpeed: 700,
     placement: 'grass',

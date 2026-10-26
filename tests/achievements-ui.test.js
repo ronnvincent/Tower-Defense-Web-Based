@@ -27,10 +27,10 @@ describe('AchievementsUI', () => {
     ui.show();
 
     const items = container.querySelectorAll('.ach-item');
-    expect(items).toHaveLength(24);
+    expect(items).toHaveLength(26);
     expect(container.querySelectorAll('.ach-group')).toHaveLength(5);
     expect(container.textContent).toContain('ACHIEVEMENTS');
-    expect(container.textContent).toContain('0 / 24');
+    expect(container.textContent).toContain('0 / 26');
   });
 
   it('shows progress bars for locked entries and marks claimed ones', () => {

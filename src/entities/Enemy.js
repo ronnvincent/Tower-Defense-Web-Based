@@ -87,6 +87,9 @@ export class Enemy {
     this.baseDamage = this.def.baseDamage;
     this.radius = this.def.radius;
     this.isBoss = !!this.def.isBoss;
+    // Airborne units ignore the barricades entirely and are invisible to
+    // ground-only defences (Tower.acquireTarget filters on this).
+    this.flying = Boolean(this.def.flying);
 
     // Boss Mechanics
     this.bossPhases = this.def.bossPhases || [];
@@ -137,7 +140,11 @@ export class Enemy {
     // Main sprite — the Spire enemy strip, scaled by the *drawn* width of the
     // art (not the sheet's frame width) so wide and narrow enemies read at the
     // same size. Hitboxes are unchanged.
-    const sheetDef = ENEMY_SHEETS[this.typeKey];
+    // A type may borrow another creature's sheet (the Flying Wraith flies on
+    // the wyvern art). Everything visual keys off `artKey`; every rule keys
+    // off `this.typeKey`.
+    this.artKey = this.def.art || this.typeKey;
+    const sheetDef = ENEMY_SHEETS[this.artKey];
     const artSize = sheetDef ? Math.sqrt(sheetDef.artWidth * sheetDef.artHeight) : 64;
     this.baseScale = (this.radius * 2.3) / artSize;
     // Orientation contract — see faceTravel().
@@ -151,9 +158,9 @@ export class Enemy {
     // Biome + tier sheet (see systems/EnemySkins.js). A missing variant texture
     // can never leave an enemy invisible: it falls back to the base sheet, and
     // from there to the bare (south-facing) clips.
-    const skin = skinFor(this.typeKey, waveNumber, options.theme);
+    const skin = skinFor(this.artKey, waveNumber, options.theme);
     const hasTexture = Boolean(scene?.textures?.exists?.(skin.texture));
-    const texture = hasTexture ? skin.texture : `enemy-${this.typeKey}`;
+    const texture = hasTexture ? skin.texture : `enemy-${this.artKey}`;
     this.skin = { texture, tier: skin.tier };
     // Which direction row this creep is wearing. Bosses and imported art may
     // not ship all three, so each lookup is validated against the loaded clips.
@@ -170,6 +177,26 @@ export class Enemy {
     this.sprite = scene.add.sprite(0, 0, texture, 0).setScale(this.baseScale);
     this.playAnim('move');
     this.container.add(this.sprite);
+
+    // Airborne creeps ride above the road: the body is lifted, the shadow
+    // shrinks and dims, and a slow bob keeps it visibly unmoored. The container
+    // (and therefore the hitbox, the path and the health bars) stays on the
+    // ground tile, so nothing about combat maths changes.
+    if (this.flying) {
+      this.hoverOffset = -22;
+      this.sprite.y = this.hoverOffset;
+      if (this.shadow) this.shadow.setDisplaySize(this.radius * 1.5, this.radius * 0.7).setAlpha(0.35);
+      if (scene?.tweens?.add) {
+        this.hoverTween = scene.tweens.add({
+          targets: this.sprite,
+          y: this.hoverOffset + 4,
+          duration: 900 + Math.random() * 260,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    }
 
     if (skin.glow > 0) this.createBroodGlow(skin.glow);
 
@@ -307,6 +334,13 @@ export class Enemy {
    * attacking nothing at all.
    */
   updateSiege(deltaMs) {
+    // A wall on the road cannot stop a unit that is not on the road.
+    if (this.flying) {
+      this.isSieging = false;
+      this.siegeTarget = null;
+      this.siegeTimer = 0;
+      return false;
+    }
     const wall = this.getBarricadeAhead();
     if (!wall) {
       this.isSieging = false;

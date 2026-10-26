@@ -439,6 +439,10 @@ export const ENEMY_TYPES = {
   ashwing: {
     key: 'ashwing',
     name: 'Ashwing Wyvern',
+    // A wyvern that walks is a wyvern nobody believes in. Airborne units skip
+    // the road, ignore palisades and can only be shot by defences with
+    // `targetsAir` (see Tower.acquireTarget).
+    flying: true,
     role: 'Endless boss — wingbeat hastens the brood, ember breath shuts nearby towers down, and its final dive cannot be slowed.',
     health: 3400,
     speed: 46,
@@ -448,7 +452,8 @@ export const ENEMY_TYPES = {
     score: 850,
     baseDamage: 13,
     radius: 40,
-    siege: 95,
+    // Airborne: it never meets a palisade, so it has no siege value at all.
+    siege: 0,
     isBoss: true,
     bossPhases: [
       {
@@ -666,6 +671,29 @@ export const ENEMY_TYPES = {
    * rebuilt while the titan is already walking. They only appear from the fifth
    * boss cycle (wave 20) onwards, and never in a stage fight.
    */
+  // The campaign's airborne rank and file. It reuses the wyvern sheet — the
+  // only wings in the library — at a much smaller radius, so the silhouette
+  // reads as a raider rather than a boss. `art` is the sheet key; `key` stays
+  // the rules key.
+  wraith: {
+    key: 'wraith',
+    name: 'Flying Wraith',
+    role: 'Airborne raider — ignores roads and palisades; only anti-air towers can bring it down.',
+    art: 'ashwing',
+    health: 120,
+    speed: 74,
+    armor: 0,
+    shield: 0,
+    reward: 10,
+    score: 16,
+    baseDamage: 1,
+    // Wide wings read small when the art is scaled by radius; 18 keeps the
+    // wraith visibly bigger than a slime and smaller than the wyvern boss.
+    radius: 18,
+    siege: 0,
+    flying: true,
+  },
+
   obsidian: {
     key: 'obsidian',
     name: 'Obsidian Behemoth',

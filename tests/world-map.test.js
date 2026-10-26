@@ -78,13 +78,13 @@ describe('world map data', () => {
     }
   });
 
-  it('ships the art for all thirteen landmarks and the plate', () => {
+  it('ships the art for all fourteen landmarks and the plate', () => {
     const dir = 'public/assets/worldmap';
     expect(existsSync(`${dir}/${basename(PLATE.src)}`)).toBe(true);
     for (const entry of LANDMARKS) {
       expect(existsSync(`public${entry.art}`), `${entry.art} is missing`).toBe(true);
     }
-    expect(LANDMARKS).toHaveLength(13);
+    expect(LANDMARKS).toHaveLength(14);
   });
 
   it('gives every landmark a live destination', () => {

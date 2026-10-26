@@ -212,8 +212,13 @@ describe('Palisade: a wall the horde has to break', () => {
     expect(lvl2.upgradeCost).toBeGreaterThan(0);
   });
 
-  it('gives every enemy a siege attack so no archetype can be walled off forever', () => {
+  it('gives every ground enemy a siege attack so no archetype can be walled off forever', () => {
     for (const [key, def] of Object.entries(ENEMY_TYPES)) {
+      if (def.flying) {
+        // Airborne units do not need to break a wall — they never meet one.
+        expect(def.siege, `${key} is airborne and must not siege`).toBe(0);
+        continue;
+      }
       expect(def.siege, `${key} cannot damage a palisade`).toBeGreaterThan(0);
     }
     // Bigger units break walls faster than chaff.

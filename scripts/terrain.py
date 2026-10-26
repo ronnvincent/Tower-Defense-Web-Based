@@ -157,6 +157,39 @@ ROCK_RAMPS.update({
     "marsh": [(0x1A, 0x24, 0x1A), (0x2C, 0x3A, 0x28), (0x44, 0x55, 0x38), (0x6C, 0x7E, 0x54)],
 })
 
+# --- The fifth campaign stage -----------------------------------------------
+# Ashen Caldera is not the Endless battlefield in another shape, and it is not
+# the Cinder Crown duel ring either. Its ground is *settled* ash: a warm
+# grey-brown sheet that reads much lighter than the Endless caldera's near-black
+# rock, drifted over with pale fallout and split by cooled basalt plates. The
+# lane is bleached cinder — the brightest road in the game — so the long rim
+# roads stay obvious at a glance while the ground itself never competes.
+RAMPS.update({
+    "ashen": (
+        "-ashen",
+        # Warm ash, not cold concrete: the first pass read as grey pavement on
+        # screen, so every stop leans into the brown of cooled cinder.
+        [(0x2B, 0x22, 0x1F), (0x3F, 0x32, 0x2C), (0x53, 0x41, 0x37), (0x6C, 0x55, 0x45)],
+    ),
+})
+
+ROAD_RAMPS.update({
+    # Bleached cinder, not packed earth: the ash road on a caldera rim is the
+    # one pale surface left after everything else has burnt.
+    "ashen": [(0x6A, 0x59, 0x4C), (0x8B, 0x74, 0x60), (0xA6, 0x8C, 0x72), (0xC0, 0xA4, 0x86)],
+})
+
+WATER_RAMPS.update({
+    # The caldera itself: a slow, deep magma body under a black crust. Deeper
+    # and less orange than the Endless lake so the two fire biomes do not read
+    # as the same pool.
+    "ashen": [(0x52, 0x0C, 0x05), (0x96, 0x22, 0x08), (0xCE, 0x44, 0x0E), (0xFF, 0xA8, 0x58)],
+})
+
+ROCK_RAMPS.update({
+    "ashen": [(0x18, 0x14, 0x16), (0x2C, 0x26, 0x27), (0x45, 0x3B, 0x39), (0x68, 0x5A, 0x52)],
+})
+
 BIOMES = tuple(RAMPS)
 
 
@@ -318,6 +351,23 @@ def build_ground(theme, variant=0):
         for _ in range(3):
             cx, cy = rng.randrange(6, TILE - 6), rng.randrange(6, TILE - 6)
             _put(pix, cx, cy, (0x60, 0x40, 0x3C))
+
+    elif theme == "ashen":
+        # Drifted fallout over cooled basalt. Three effects, deliberately
+        # different in scale: loose pale drifts (soft, several pixels wide),
+        # hairline plate cracks (one pixel, sharp), and a scatter of cinders.
+        # Ash that is only speckled reads as noise; ash that drifts reads as
+        # something that settled.
+        for _ in range(6):
+            x, y = rng.randrange(TILE), rng.randrange(TILE)
+            for k in range(rng.randrange(7, 15)):
+                _put(pix, (x + k) % TILE, (y + (k // 3)) % TILE, highlight if rng.random() < 0.35 else light)
+        for _ in range(4):
+            x, y = rng.randrange(6, TILE - 16), rng.randrange(6, TILE - 6)
+            for k in range(rng.randrange(9, 17)):
+                _put(pix, x + k, y + (1 if k % 4 == 3 else 0), shadow)
+        for _ in range(3):
+            _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ramp, (1, 3))
 
     elif theme == "crystal":
         # Amethyst veins: short jagged runs with one lit pixel per bend, so the
@@ -1256,6 +1306,8 @@ def build_foliage(theme):
         return _build_crystal(rng)
     if theme == "caldera":
         return _build_obsidian(rng)
+    if theme == "ashen":
+        return _build_ember_spire(rng)
     if theme == "glacier":
         return _build_serac(rng)
     if theme == "oasis":
@@ -1267,6 +1319,65 @@ def build_foliage(theme):
     if theme == "marsh":
         return _build_willow(rng)
     return _build_conifer(rng)
+
+
+def _build_ember_spire(rng):
+    """Ashen Caldera's landmark: a fan of three crooked basalt shards.
+
+    The duel ring already has a single obsidian obelisk (``_build_obsidian``),
+    so this one is deliberately a *cluster*: a tall cracked shard leaning left,
+    two shorter ones beside it, all rising out of a pale ash drift. The ember
+    seam is buried low instead of running the full height, because at 64 px a
+    second full-length crack would read as the same prop.
+    """
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    edge, body, lit = (0x15, 0x11, 0x12), (0x2D, 0x27, 0x26), (0x4A, 0x40, 0x3B)
+    ash_lo, ash_hi = (0x6A, 0x60, 0x57), (0x9E, 0x91, 0x82)
+    ember, ember_lit = (0xCE, 0x44, 0x0E), (0xFF, 0xB2, 0x62)
+
+    # Ash drift: an irregular pale mound the shards stand in.
+    for x in range(12, 53):
+        t = (x - 12) / 41
+        hump = math.sin(t * math.pi) * 5
+        top = int(56 - hump) + rng.randint(-1, 1)
+        for y in range(top, 60):
+            _put(pix, x, y, ash_hi if y == top else ash_lo, FOLIAGE)
+    _shadow(pix, 32, 60, 20, 3, (0, 0, 0, 110))
+
+    def shard(cx, top, base_half, lean):
+        height = 58 - top
+        for y in range(top, 59):
+            t = (y - top) / height
+            half = max(1, int(round(base_half * t)))
+            shift = int(round(lean * (1 - t) * 3))
+            for x in range(cx - half + shift, cx + half + shift + 1):
+                if x == cx - half + shift:
+                    colour = lit
+                elif x >= cx + half + shift:
+                    colour = edge
+                else:
+                    colour = body
+                _put(pix, x, y, colour, FOLIAGE)
+        return top
+
+    shard(27, 14, 4, -1)   # tall, leaning left
+    shard(38, 30, 3, 1)    # short, leaning right
+    shard(44, 40, 2, 1)    # stub
+
+    # The ember seam: a short, hot zigzag low on the tall shard.
+    y = 52
+    x = 26
+    while y > 38:
+        _put(pix, x, y, ember_lit if y % 6 == 0 else ember, FOLIAGE)
+        y -= 1
+        if rng.random() < 0.5:
+            x += rng.choice((-1, 1))
+        x = max(24, min(29, x))
+
+    # Ash fall settling on the shard shoulders.
+    for _ in range(14):
+        _put(pix, rng.randint(22, 47), rng.randint(16, 34), ash_hi if rng.random() < 0.4 else ash_lo, FOLIAGE)
+    return pix
 
 
 def _build_dead_ash(rng):

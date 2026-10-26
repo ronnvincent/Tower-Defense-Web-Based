@@ -82,18 +82,18 @@ describe('WaveManager: full 6-wave campaign', () => {
     }
   });
 
-  it('grows the 32-slot circular queue for wave 5 (35 entries) without losing spawns', () => {
+  it('grows the 32-slot circular queue for wave 6 (35 entries) without losing spawns', () => {
     const manager = new WaveManager(WAVES, { onSpawn: () => {} });
-    for (let index = 0; index < 4; index += 1) runWave(manager);
+    for (let index = 0; index < 5; index += 1) runWave(manager);
 
-    expect(countWaveEnemies(WAVES[4])).toBeGreaterThan(32);
+    expect(countWaveEnemies(WAVES[5])).toBeGreaterThan(32);
     const resizesBefore = manager.spawnQueue.stats.resizes;
     const { spawned } = runWave(manager);
 
     expect(manager.spawnQueue.stats.resizes).toBeGreaterThan(resizesBefore);
-    expect(spawned).toHaveLength(countWaveEnemies(WAVES[4]));
+    expect(spawned).toHaveLength(countWaveEnemies(WAVES[5]));
     expect(new Set(spawned.map((entry) => entry.type))).toEqual(
-      new Set(WAVES[4].groups.map((group) => group.type))
+      new Set(WAVES[5].groups.map((group) => group.type))
     );
   });
 

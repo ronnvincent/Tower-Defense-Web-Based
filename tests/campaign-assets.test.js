@@ -36,9 +36,9 @@ function pngSize(path) {
 describe('campaign tiles', () => {
   it('ships a full tile set (grass, rock, water, foliage, 16 road masks) per theme', () => {
     const themes = Object.values(THEMES);
-    // Five campaign biomes, three duel arenas and three War Room biomes, each
+    // Six campaign biomes, three duel arenas and three War Room biomes, each
     // with its own palette rather than borrowing a campaign tileset.
-    expect(themes).toHaveLength(11);
+    expect(themes).toHaveLength(12);
 
     for (const theme of themes) {
       const suffix = theme.tileSuffix;
@@ -76,7 +76,10 @@ describe('campaign enemy art', () => {
   it('has a sheet for every creep the waves spawn, bosses included', () => {
     expect(enemyKeys.size).toBeGreaterThan(6);
     for (const key of enemyKeys) {
-      const sheet = ENEMY_SHEETS[key];
+      // A type may fly on another creature's sheet (`art`), so the manifest
+      // lookup goes through the art key exactly like EnemyAssets does.
+      const artKey = ENEMY_TYPES[key]?.art || key;
+      const sheet = ENEMY_SHEETS[artKey];
       expect(sheet, `no manifest entry for "${key}"`).toBeTruthy();
       expect(existsSync(file(ENEMIES, sheet.file)), `${sheet.file} missing`).toBe(true);
     }

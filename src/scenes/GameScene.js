@@ -43,6 +43,7 @@ import { difficultyFor } from '../systems/Difficulty.js';
 import { Leaderboard } from '../systems/Leaderboard.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Hero, HERO, HERO_TEXTURE, HERO_SHEET, HERO_FRAME } from '../entities/Hero.js';
+import { MAX_LEVEL } from '../data/towerAscension.js';
 import { Tower } from '../entities/Tower.js';
 import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
@@ -1642,6 +1643,9 @@ export class GameScene extends Phaser.Scene {
   handleUpgradeTower(tower, choiceKey = null) {
     if (tower.upgrade(choiceKey)) {
       this.trackStats({ upgradesBought: 1 });
+      // Tower Master fires on the upgrade that tops the line out, not on the
+      // first purchase: the stat is the finished tower, not the habit.
+      if (tower.level >= MAX_LEVEL) this.trackStats({ maxedTowers: 1 });
       if (this.selectedTower === tower) {
         this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
       }
@@ -2819,6 +2823,7 @@ export class GameScene extends Phaser.Scene {
    * shake. Damage falls off from the centre so a perfect drop is worth aiming.
    */
   castMeteor(x, y) {
+    this.trackStats({ spellsCast: 1 });
     const { radius, damage } = METEOR;
     const element = 'explosive';
     this.vfx?.groundBlast?.(x, y, 1.6);
@@ -2847,6 +2852,7 @@ export class GameScene extends Phaser.Scene {
    * slow instead of multiplying them.
    */
   castFrost(x, y) {
+    this.trackStats({ spellsCast: 1 });
     const { radius, slow, durationMs } = FROST;
     this.vfx?.impact?.(x, y, 'frost', { scale: 1.5, splash: radius, shake: false });
     this.vfx?.shockwave?.(x, y, radius / 60, 'frost');

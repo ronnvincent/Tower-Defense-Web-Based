@@ -1,5 +1,5 @@
 /**
- * levelData.js — the campaign: four hand-built levels plus Endless Siege.
+ * levelData.js — the campaign: five hand-built levels plus Endless Siege.
  *
  * A level is a self-contained ruleset. GameScene reads it in init() and nothing
  * else in the game hard-codes "six waves" any more:
@@ -16,8 +16,8 @@
  *   stars           base-health fractions for 2★ and 3★
  *   boss            archetype that closes the level
  *
- * The level-1 waves are the original six, untouched, so the first campaign is
- * still the battle the balance pass was tuned against.
+ * Level 1 is the tutorial battlefield: eight waves, 300 gold and 20 core HP,
+ * so a player learns build order and gold banking before anything else bites.
  */
 
 import { WAVES } from './waveData.js';
@@ -73,6 +73,21 @@ export const THEMES = {
     portalTint: 0xc9a6ff,
     baseTint: 0xece2ff,
     blurb: 'A four-turn spiral cut through amethyst. The Prism Warden refracts everything you throw at it.',
+  },
+
+  /* The fifth campaign stage. Ashen Caldera is a *settled* caldera: pale ash
+     over cooled basalt, a bleached cinder road, and a magma body deep enough to
+     read as red rock rather than a bonfire. It is deliberately lighter than
+     `volcanic`, which stays the near-black lava field of Endless Siege. */
+  ashen: {
+    id: 'ashen',
+    name: 'Ashen Caldera',
+    tileSuffix: '-ashen',
+    accent: '#ffb46a',
+    fog: 'rgba(74, 40, 30, 0.22)',
+    portalTint: 0xff8a4a,
+    baseTint: 0xffe8d6,
+    blurb: 'Three rim roads around a dead volcano, and the Magma Regent already on the ash.',
   },
 
   /* ---------------------------------------------------------------- duel arenas
@@ -152,8 +167,8 @@ export const LEVELS = [
     theme: 'grassland',
     map: 'grassland',
     blurb: THEMES.grassland.blurb,
-    startingCoins: 220,
-    baseHealth: 25,
+    startingCoins: 300,
+    baseHealth: 20,
     enemyHealthScale: 1,
     waves: WAVES,
     reward: { gold: 150, gems: 4 },
@@ -402,12 +417,115 @@ export const LEVELS = [
       },
     ],
   },
+  {
+    id: 'level-5',
+    index: 5,
+    name: 'Ashen Caldera',
+    theme: 'ashen',
+    // A 20x12 caldera rim with three loopless roads: the north rim, the cinder
+    // field through the middle and the south rim past the lava lake. Built on
+    // its own battlefield so the last stage never reuses the Endless map.
+    map: 'caldera',
+    blurb: THEMES.ashen.blurb,
+    startingCoins: 320,
+    baseHealth: 25,
+    enemyHealthScale: 1.6,
+    reward: { gold: 380, gems: 14 },
+    stars: { two: 0.5, three: 0.85 },
+    boss: 'magmalord',
+    waves: [
+      {
+        name: 'Ashfall Scouts',
+        groups: [
+          { type: 'grunt', count: 14, interval: 820 },
+          { type: 'runner', count: 6, interval: 520, delay: 1400 },
+        ],
+      },
+      {
+        name: 'Cinder Sprint',
+        groups: [
+          { type: 'runner', count: 18, interval: 330 },
+          { type: 'raider', count: 8, interval: 620, delay: 1200 },
+        ],
+      },
+      {
+        name: 'The Broken Rim',
+        groups: [
+          { type: 'thrall', count: 8, interval: 1250 },
+          { type: 'bonearcher', count: 6, interval: 900, delay: 1500 },
+          { type: 'grunt', count: 12, interval: 600, delay: 800 },
+        ],
+      },
+      {
+        // The flying archetype enters the campaign here: wraiths ignore the
+        // road, so palisades do nothing and only anti-air defences answer.
+        name: 'Wingbeat',
+        groups: [
+          { type: 'wraith', count: 6, interval: 1100 },
+          { type: 'grunt', count: 12, interval: 700, delay: 900 },
+        ],
+      },
+      {
+        name: 'Iron Vigil',
+        groups: [
+          { type: 'brute', count: 8, interval: 1200 },
+          { type: 'healer', count: 4, interval: 1900, delay: 1200 },
+          { type: 'shield', count: 6, interval: 1150, delay: 1600 },
+        ],
+      },
+      {
+        name: 'Molten Tide',
+        groups: [
+          { type: 'swarm', count: 30, interval: 220 },
+          { type: 'wraith', count: 8, interval: 950, delay: 1400 },
+          { type: 'runner', count: 14, interval: 380, delay: 1800 },
+        ],
+      },
+      {
+        name: 'The Ashen Guard',
+        groups: [
+          { type: 'shield', count: 10, interval: 1000 },
+          { type: 'brute', count: 8, interval: 1150, delay: 1100 },
+          { type: 'healer', count: 5, interval: 1800, delay: 1500 },
+        ],
+      },
+      {
+        name: 'Sky and Stone',
+        groups: [
+          { type: 'wraith', count: 12, interval: 800 },
+          { type: 'brute', count: 10, interval: 1050, delay: 1200 },
+          { type: 'raider', count: 12, interval: 420, delay: 900 },
+        ],
+      },
+      {
+        name: 'Herald of the Caldera',
+        bossWave: true,
+        bossKey: 'ironhorn',
+        groups: [
+          { type: 'thrall', count: 8, interval: 1200 },
+          { type: 'ironhorn', count: 1, interval: 0, delay: 2400 },
+          { type: 'wraith', count: 6, interval: 900, delay: 1600 },
+        ],
+      },
+      {
+        name: 'The Magma Regent',
+        bossWave: true,
+        bossKey: 'magmalord',
+        groups: [
+          { type: 'shield', count: 8, interval: 1050 },
+          { type: 'brute', count: 8, interval: 1150, delay: 900 },
+          { type: 'magmalord', count: 1, interval: 0, delay: 2600 },
+          { type: 'wraith', count: 8, interval: 850, delay: 1800 },
+        ],
+      },
+    ],
+  },
 ];
 
 /** Endless Siege — the last node on the world map, unlocked with level 2. */
 export const ENDLESS_LEVEL = {
   id: 'endless',
-  index: 5,
+  index: 6,
   name: 'Endless Siege',
   theme: 'volcanic',
   // The Convergence: a 28x18 four-biome battlefield, twice the area of a stage
@@ -492,7 +610,7 @@ export function makeTitanWaves() {
  */
 export const TITAN_RUSH_LEVEL = {
   id: 'titan-rush',
-  index: 6,
+  index: 7,
   name: 'Titan Rush',
   theme: 'volcanic',
   // Throne of Ash: a ring around a dead caldera. The old titan run borrowed the
@@ -519,7 +637,7 @@ export const TITAN_RUSH_LEVEL = {
  */
 export const TIME_ATTACK_LEVEL = {
   id: 'time-attack',
-  index: 7,
+  index: 8,
   name: 'Time Attack',
   theme: 'desert',
   // Dune Circuit: an oval with a chicane. Long straights plus one bottleneck is
@@ -558,7 +676,7 @@ export const TIME_ATTACK_LEVEL = {
 const MODE_RUN_LEVELS = [
   {
     id: 'rogue-siege',
-    index: 8,
+    index: 9,
     name: 'Rogue Siege',
     theme: 'moor',
     map: 'blackfen',
@@ -575,7 +693,7 @@ const MODE_RUN_LEVELS = [
   },
   {
     id: 'anomaly-waves',
-    index: 9,
+    index: 10,
     name: 'Anomaly Waves',
     theme: 'crystal',
     map: 'shattered',
@@ -592,7 +710,7 @@ const MODE_RUN_LEVELS = [
   },
   {
     id: 'ascension',
-    index: 10,
+    index: 11,
     name: 'Ascension',
     theme: 'highland',
     map: 'skyward',
@@ -609,7 +727,7 @@ const MODE_RUN_LEVELS = [
   },
   {
     id: 'contract-board',
-    index: 11,
+    index: 12,
     name: 'Contract Board',
     theme: 'marsh',
     map: 'tidewatch',
