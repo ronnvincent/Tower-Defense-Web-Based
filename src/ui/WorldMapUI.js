@@ -95,6 +95,7 @@ export class WorldMapUI {
    * }} [callbacks]
    */
   constructor(container, progress, callbacks = {}) {
+    this.lastHoverAt = 0;
     this.container = container;
     this.progress = progress;
     this.callbacks = callbacks;
@@ -265,12 +266,19 @@ export class WorldMapUI {
     for (const node of el.querySelectorAll('[data-wm-id]')) {
       node.addEventListener('click', () => {
         if (this.suppressClick) return;
-        audio.playClick();
+        // No generic click here: the panel's own cue is this sound, and two
+        // transients on one press sound like a stutter.
         this.openPanel(node.dataset.wmId);
       });
       node.addEventListener('pointerenter', (event) => {
         if (event.pointerType === 'touch') return;
         this.showTip(node.dataset.wmId, event);
+        // Sweeping the mouse across the kingdom should tick, not machine-gun.
+        const now = performance.now();
+        if (now - this.lastHoverAt > 90) {
+          this.lastHoverAt = now;
+          audio.playHover();
+        }
       });
       node.addEventListener('pointermove', (event) => {
         if (event.pointerType === 'touch') return;
@@ -886,7 +894,9 @@ export class WorldMapUI {
     this.hideTip();
     this.bindPanel(landmark);
     // Walking up to a building changes what you hear: fire and hammering at the
-    // forge, water and the portal at the shrine, wind everywhere else.
+    // forge, water and the portal at the shrine, wind everywhere else. The tap
+    // gives the change an edge — otherwise the bed appears out of nowhere.
+    if (this.visible) audio.playPanelOpen();
     audioDirector.setLocation(landmark.panel);
     this.panel.focus?.({ preventScroll: true });
     if (focus) this.focusLandmark(landmark);
@@ -929,6 +939,7 @@ export class WorldMapUI {
       this.tweenTo(this.fromMemory(this.memory));
     }
     this.memory = null;
+    if (this.visible) audio.playPanelClose();
     audioDirector.setLocation(null);
     if (this.visible) this.stage.focus?.({ preventScroll: true });
   }

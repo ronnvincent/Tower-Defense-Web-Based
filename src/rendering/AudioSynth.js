@@ -313,6 +313,69 @@ export class AudioSynth {
     osc.stop(now + 0.12);
   }
 
+  /**
+   * A map panel opening: a wooden tap with a breath of air under it. The map's
+   * own cues exist because the ambience changes on the same click — without a
+   * transient the Forge simply "becomes" loud, which reads as a bug.
+   */
+  playPanelOpen() {
+    this.unlock();
+    this.#panelCue(240, 150, 1400, 0.26);
+  }
+
+  /** The same tap, lower and shorter: the panel is being put away. */
+  playPanelClose() {
+    this.unlock();
+    this.#panelCue(150, 96, 700, 0.2);
+  }
+
+  /**
+   * A landmark under the cursor. Deliberately quiet, and it never creates a
+   * context: a hover is not a user gesture, so before the first click there is
+   * nothing to play and nothing to beep.
+   */
+  playHover() {
+    if (!this.ctx || this.ctx.state !== 'running' || this.muted) return;
+    const g = this.#gain(0.05);
+    if (!g) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(960, now);
+    osc.frequency.exponentialRampToValueAtTime(820, now + 0.03);
+    g.gain.setValueAtTime(0.05, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+    osc.connect(g);
+    osc.start(now);
+    osc.stop(now + 0.04);
+  }
+
+  #panelCue(fromHz, toHz, tickHz, life) {
+    const g = this.#gain(0.22);
+    if (!g) return;
+    const now = this.ctx.currentTime;
+    g.gain.setValueAtTime(0.22, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + life);
+    const body = this.ctx.createOscillator();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(fromHz, now);
+    body.frequency.exponentialRampToValueAtTime(toHz, now + life * 0.85);
+    body.connect(g);
+    body.start(now);
+    body.stop(now + life);
+    const tick = this.ctx.createOscillator();
+    tick.type = 'triangle';
+    tick.frequency.setValueAtTime(tickHz, now);
+    tick.frequency.exponentialRampToValueAtTime(tickHz * 0.64, now + 0.03);
+    const tickGain = this.ctx.createGain();
+    tickGain.gain.setValueAtTime(0.12, now);
+    tickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    tick.connect(tickGain);
+    tickGain.connect(g);
+    tick.start(now);
+    tick.stop(now + 0.06);
+  }
+
   playShoot(type) {
     this.unlock();
     if (type === 'archer' && this.playBuffer('wood', 0.5, 1.6)) return;

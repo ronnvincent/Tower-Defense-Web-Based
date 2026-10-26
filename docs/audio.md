@@ -133,6 +133,22 @@ key on the menu and on the map. It is mounted on `<body>`, not in
 `#modal-container`, because several screens replace that container's markup; a
 settings panel that a result screen can delete is worse than none.
 
+### Cues on the map
+
+A landmark is a place, and moving the camera to it changes the ambience — so
+the press needs a transient, or the Forge simply *becomes* loud:
+
+| Action | Sound |
+| --- | --- |
+| a landmark under the cursor | a 30 ms tick at 0.05 gain, at most one per 90 ms |
+| a landmark pressed / panel opened | a wooden tap (240 → 150 Hz) over a 1.4 kHz tick |
+| the panel closed | the same tap lower and shorter (150 → 96 Hz) |
+
+The hover tick returns early when there is no running context: a hover is not a
+user gesture, so before the first click it must do nothing at all. Measured on
+the `sfx` bus in Chromium: idle 0, panel open 0.086 RMS, panel close 0.057, and
+0 with mute on.
+
 Every change writes the save immediately, so closing the panel (or the tab)
 mid-drag keeps the level. Escape closes it, focus returns to the key that opened
 it, and each fader is a labelled range input — mouse, touch and arrow keys all
