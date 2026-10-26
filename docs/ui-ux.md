@@ -102,7 +102,7 @@ Phaser view (`UpgradeBadges`).
 | The top bar is battle-only | It carries the three stat chips, the wave readout, START WAVE, speed, pause, mute and fullscreen. The codex and the way out of a battle moved to the pause card, which is the only place they are relevant. |
 | Leaving a run takes two taps | Pause → LEAVE BATTLE arms a crimson caution (“Leaving now discards this battle — tap again to confirm”) that disarms itself after 4 s. The second tap stops the scene and reopens the world map, so a mis-tap can never throw the player back to the title screen. |
 | The pause card replaces the paused pill | `#pause-overlay` (z-index 200) sits above the HUD and below `#modal-container`, so the codex and leaderboard still open on top of it. The old chip is hidden by CSS while the card is open. |
-| Portrait phones get guidance | The game is 20×12 tiles, so portrait shows a “rotate your device” card with a *Continue anyway* escape hatch. |
+| Portrait phones get guidance | The game is 26×12 tiles, so portrait shows a “rotate your device” card with a *Continue anyway* escape hatch. |
 
 ---
 
@@ -112,8 +112,11 @@ Phaser view (`UpgradeBadges`).
 box inside it, so the HUD is anchored to the screen even when the stage overflows it. Two measured
 custom properties — `--dock-clearance` and `--topbar-clearance`, published by
 [`src/ui/hudLayout.js`](../src/ui/hudLayout.js) — keep every floating control clear of the dock and
-the top bar at any aspect ratio. The placement hint lives *inside* the dock as a flow child, so it
-grows the panel upwards instead of covering a card.
+the top bar at any aspect ratio. The placement hint is a child of the dock but *out of its layout
+flow* (`position: absolute; bottom: calc(100% + 10px)`), so it hovers over the board's bottom rim
+instead of covering a card — and, crucially, picking a card no longer changes the dock's height. As a
+flow child it added ~42 px to the panel, which shortened the measured camera band and made the room
+re-fit: the board visibly shrank every time a defence was selected.
 
 | Breakpoint | Behaviour |
 |---|---|

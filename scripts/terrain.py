@@ -652,6 +652,114 @@ def build_road(theme, mask):
     return pix
 
 
+def _mix(a, b, t):
+    """Linear blend of two RGB triples."""
+    return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
+
+
+def _put_alpha(pix, x, y, rgb, alpha, size=TILE):
+    if 0 <= x < size and 0 <= y < size:
+        i = (y * size + x) * 4
+        pix[i : i + 4] = bytes((rgb[0] & 255, rgb[1] & 255, rgb[2] & 255, alpha & 255))
+
+
+def build_bridge(theme):
+    """A one-tile bridge deck, drawn over a river or a pond.
+
+    The tile is authored for the direction the horde actually walks: the deck
+    runs **north–south**, so the planks are rungs stacked down the tile and the
+    two parapets run left and right. The renderer rotates it a quarter turn for
+    the rare crossing where the water runs north-south instead.
+
+    Why a sprite and not a squashed road tile: a lane tile scaled to 60 % reads
+    as a floating picture of a road. A deck that fills the tile edge to edge,
+    with its own parapets, sills and a shadow falling into the water, is the
+    only thing that makes a crossing look *built* — and because the material
+    comes from the biome's own paved ramp, the bridge belongs to its map instead
+    of looking imported.
+
+    Everything outside the deck is transparent: the water is painted first and
+    keeps showing through around the structure.
+    """
+    road = ROAD_RAMPS[theme]
+    rock = ROCK_RAMPS[theme]
+    rng = random.Random(seed_for(theme, "bridge"))
+    dark, base, light, hi = road
+
+    # Timber parapets: the road ramp pushed toward the biome's own rock, so a
+    # caldera bridge is ashen stone and a grassland bridge is dark oak.
+    rail_dark = _mix(rock[0], (0x14, 0x0C, 0x06), 0.45)
+    rail = _mix(rock[1], (0x3A, 0x24, 0x12), 0.5)
+    rail_lit = _mix(rail, (0xFF, 0xE8, 0xC4), 0.28)
+
+    pix = bytearray(TILE * TILE * 4)
+
+    deck_x0, deck_x1 = 11, 53  # inclusive start, exclusive end
+    rail_l0, rail_l1 = 3, 11
+    rail_r0, rail_r1 = 53, 61
+
+    # Shadow the deck casts onto the water: a soft band just outside each
+    # parapet, so the structure sits on the river instead of hovering over it.
+    for y in range(TILE):
+        for x in (0, 1, 2, 61, 62, 63):
+            _put_alpha(pix, x, y, (0, 0, 0), 70 if x in (2, 61) else 40)
+
+    # Deck: horizontal planks. Each is 8 px deep with a lit top edge, a grain
+    # body, and a dark seam where it meets the next plank.
+    for y in range(TILE):
+        band = y % 8
+        for x in range(deck_x0, deck_x1):
+            if band == 0:
+                c = hi
+            elif band == 7:
+                c = dark
+            else:
+                # Fine grain: two spare darker flecks per plank row.
+                c = base if (x * 7 + y * 3) % 23 else light
+            _put(pix, x, y, c)
+
+    # Nail heads on every second plank, at both ends of the deck.
+    for y in range(4, TILE, 8):
+        for x in (deck_x0 + 2, deck_x1 - 3):
+            _put(pix, x, y, rail_dark)
+
+    # Parapets: dark outer face, body, lit inner face, and a shadow line where
+    # the rail meets the deck.
+    for y in range(TILE):
+        for x in range(rail_l0, rail_l1):
+            edge = x - rail_l0
+            c = rail_dark if edge < 2 else (rail_lit if edge >= 5 else rail)
+            _put(pix, x, y, c)
+        for x in range(rail_r0, rail_r1):
+            edge = rail_r1 - 1 - x
+            c = rail_dark if edge < 2 else (rail_lit if edge >= 5 else rail)
+            _put(pix, x, y, c)
+        _put(pix, rail_l1 - 1, y, rail_dark)
+        _put(pix, rail_r0, y, rail_dark)
+
+    # Posts: three on each parapet, a shade proud of the rail with a lit cap.
+    for py in (3, 28, 53):
+        for x in range(rail_l0 - 1, rail_l1 + 1):
+            _put(pix, x, py, rail_lit)
+            _put(pix, x, py + 1, rail)
+            _put(pix, x, py + 6, rail_dark)
+        for x in range(rail_r0 - 1, rail_r1 + 1):
+            _put(pix, x, py, rail_lit)
+            _put(pix, x, py + 1, rail)
+            _put(pix, x, py + 6, rail_dark)
+
+    # Sills (abutments) at both mouths: a dressed stone course that the deck
+    # lands on, which is what makes the bridge read as built into the bank.
+    for y in (0, 1, TILE - 2, TILE - 1):
+        for x in range(rail_l0, rail_r1):
+            block = (x // 4) % 2
+            _put(pix, x, y, rock[1] if block else rock[0])
+        _put(pix, rail_l0, y, rail_dark)
+        _put(pix, rail_r1 - 1, y, rail_dark)
+
+    return pix
+
+
 def build_water(theme, mask=15):
     """Lake autotile: banded depth, ripples and a foam shoreline."""
     deep, mid, light, foam = WATER_RAMPS[theme]

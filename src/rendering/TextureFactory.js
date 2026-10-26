@@ -433,20 +433,6 @@ function makeLandmarks(scene) {
     }
   });
 
-  canvasTexture(scene, 'base-platform', 80, 80, (ctx) => {
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath();
-    ctx.ellipse(40, 46, 34, 26, 0, 0, TAU);
-    ctx.fill();
-    const pts = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * TAU + Math.PI / 6;
-      pts.push([40 + Math.cos(a) * 32, 40 + Math.sin(a) * 32]);
-    }
-    polygon(ctx, pts, linear(ctx, 0, 8, 0, 72, [[0, '#8790a6'], [1, '#353b4d']]), '#1d2131', 3);
-    const inner = pts.map(([x, y]) => [40 + (x - 40) * 0.7, 40 + (y - 40) * 0.7]);
-    polygon(ctx, inner, '#262b3a', 'rgba(78,225,255,0.8)', 2);
-  });
 
   canvasTexture(scene, 'base-crystal', 48, 72, (ctx) => {
     polygon(ctx, [[24, 2], [42, 26], [24, 70], [6, 26]], linear(ctx, 6, 2, 42, 70, [[0, '#f0fdff'], [0.45, '#4ee1ff'], [1, '#1460a0']]), '#d8f7ff', 2);

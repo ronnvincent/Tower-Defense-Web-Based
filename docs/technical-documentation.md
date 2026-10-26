@@ -530,6 +530,14 @@ Each biome also owns one landmark prop (`build_foliage`): Spire oak, saguaro,
 snow-laden fir, charred deadwood, crystal prism cluster. A recoloured tree was tried first and read as
 "the same tree, tinted", which is exactly what the map pass was meant to remove.
 
+Crossings are their own art. `terrain.build_bridge(theme)` draws a one-tile
+deck — rung planks, two timber parapets with posts, dressed-stone sills and a
+shadow cast onto the water — from the biome's own road and rock ramps, and
+`scripts/build_bridges.py` writes `bridge{suffix}.png` for all twelve biomes.
+The renderer puts it on any lane cell that has water on both sides, rotated a
+quarter turn when the water runs north-south, so a crossing is never a squashed
+road tile.
+
 Duel arenas do not borrow those tilesets: `scripts/build_arena_tiles.py` writes
 a full 42-tile set per arena theme (`-caldera`, `-glacier`, `-oasis`) from the
 same palette tables, including a themed landmark (`_build_obsidian`,

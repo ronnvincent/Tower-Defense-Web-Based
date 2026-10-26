@@ -69,6 +69,10 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`tile-rock-2${suffix}`, `assets/tiles/rock_2${suffix}.png`);
       this.load.image(`tile-water${suffix}`, `assets/tiles/water${suffix}.png`);
       this.load.image(`tile-foliage${suffix}`, `assets/tiles/foliage${suffix}.png`);
+      // The crossing is its own sprite: planks, parapets and stone sills, drawn
+      // per biome by scripts/build_bridges.py, so a bridge is never a squashed
+      // road tile floating over the water.
+      this.load.image(`tile-bridge${suffix}`, `assets/tiles/bridge${suffix}.png`);
       for (const kind of DECOR_KINDS) {
         this.load.image(`tile-decor-${kind}${suffix}`, `assets/tiles/decor_${kind}${suffix}.png`);
       }

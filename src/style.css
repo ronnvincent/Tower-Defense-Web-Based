@@ -1298,20 +1298,28 @@ body.is-fullscreen::before {
 /* ==========================================================================
    PLACEMENT HINT
    --------------------------------------------------------------------------
-   The hint is a normal flex child of the dock, not an absolute overlay. The
-   dock is anchored to the bottom of the screen, so showing the hint grows the
-   panel upwards — the cards never move and the pill can never sit on top of a
-   touch target, whatever the dock's height happens to be.
+   The hint floats *above* the dock instead of growing it.
+
+   As a flex child it added ~42 px to the panel the moment a card was picked.
+   That taller panel meant a shorter measured band, so the camera re-fitted and
+   the whole board shrank every time the player went to build — the exact "why
+   did my map get smaller" bug. An overlay costs no layout: the dock keeps its
+   height, `--dock-clearance` never changes, the camera never re-fits, and the
+   pill sits over the board's bottom rim (rock, never a build target) instead of
+   over a card.
    ========================================================================== */
 
 .placement-hint {
-  position: static;
-  flex: 0 0 auto;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: 100%;
-  margin: 0 auto 8px;
+  max-width: min(92vw, 640px);
+  margin: 0;
   padding: 7px 10px 7px 16px;
   border-radius: 999px;
   background: rgba(9, 14, 18, 0.9);

@@ -853,3 +853,60 @@ Checked on level 1 (two crossings, dirt causeway) and on Cinder Crown (three
 crossings, ash causeway): the river is continuous, each deck is one tile wide
 along the lane, and the caldera's divider is water rather than lava.
 
+## 15. Bridges, a grounded keep, and a dock that stops resizing the board (Request 24)
+
+### 15.1 Every crossing is a bridge sprite
+
+A crossing used to be a road tile scaled to 60 % and drawn over a water tile.
+At the campaign zoom its edges never met the banks, so the river looked cut and
+the deck looked like a picture of a road floating in it.
+
+`terrain.build_bridge(theme)` now draws a real deck: rung planks with grain and
+nail heads, two timber parapets with three posts each, dressed-stone sills at
+both mouths, and a soft shadow that falls onto the water. The material comes
+from the biome's own paved and rock ramps, so a caldera bridge is ashen stone
+and a grassland bridge is dark oak. `scripts/build_bridges.py` writes
+`bridge{suffix}.png` for all twelve biomes (12 files, deterministic); `BootScene`
+loads `tile-bridge{suffix}` and `GameScene` draws it on every lane cell that has
+water on both sides, rotated a quarter turn when the water runs north-south.
+
+Verified in the browser on grassland (level 1), ice (level 3), desert (level 2),
+volcanic (Endless) and Cinder Crown: one deck per crossing, running with the
+lane, river unbroken underneath.
+
+### 15.2 The keep stands on the ground
+
+`base-platform` — a procedural hexagonal plinth drawn under the fortress — is
+gone, and with it the "my base is floating" read. The keep's foot now lands on
+the bastion tile itself (`baseY + 0.62 tiles`) instead of a plinth below it, and
+the sprite dropped from 0.54 to 0.44 scale (227 px → 185 px wide), so it reads
+as the place being defended without swallowing the courtyard. The core crystal
+moved to the gate and the world bar follows the new bounds.
+
+### 15.3 Building no longer shrinks the map
+
+`#placement-hint` was a flex child of the dock. Picking a card grew the panel
+by 42 px, `--dock-clearance` went 219 → 261, the camera band went 432 → 392 and
+`reframeBattlefield()` re-fitted: **zoom 0.5625 → 0.5104** — the board visibly
+shrank every time the player went to build. Measured in headless Chrome before
+and after (`buildzoom.mjs`, `fs.mjs`):
+
+| state | dock | band | zoom |
+| --- | --- | --- | --- |
+| idle, before | 559 / 199 px | 432 | 0.5625 |
+| card selected, before | 517 / 241 px | 392 | 0.5104 |
+| idle, after | 559 / 199 px | 432 | 0.5625 |
+| card selected, after | 559 / 199 px | 432 | 0.5625 |
+
+The pill is now an absolute overlay pinned to `bottom: calc(100% + 10px)` of the
+dock, so it can only ever hover over the board's bottom rim, never over a card.
+`reframeBattlefield()` also ignores changes of ≤ 8 px, so a chip appearing in
+the top bar cannot nudge the camera either.
+
+Fullscreen was checked through the real button (`#btn-fullscreen`): the document
+enters fullscreen, the layout is unchanged and there are no console errors.
+`tests/mobile-layout.test.js` was rewritten for the new invariant (the hint must
+be out of flow *and* anchored above the panel).
+
+Suite after all of it: **1250 / 1250**, `npm run build` clean.
+

@@ -637,6 +637,18 @@ export class GameScene extends Phaser.Scene {
   reframeBattlefield() {
     if (!this.cameraRig) return;
     const frame = this.measureBattleFrame();
+    const current = this.cameraRig.frame;
+    // A few pixels are not a reason to reset the zoom. `setFrame()` re-fits and
+    // re-centres, so a chip appearing in the top bar used to nudge the whole
+    // board — the jump read as "the map got smaller". Only a real change (a
+    // fold, a rotation, a fullscreen toggle) is worth the re-fit.
+    if (
+      current &&
+      Math.abs(current.top - frame.top) <= 8 &&
+      Math.abs(current.height - frame.height) <= 8
+    ) {
+      return;
+    }
     this.cameraRig.setFrame(frame);
   }
 
@@ -751,52 +763,45 @@ export class GameScene extends Phaser.Scene {
           const mask = maskAt(isLane, r, c);
           const key = themed(`tile-road-${mask}`, themeId) || themed('tile-road-15', themeId) || 'tile-road-15';
           if (isBridge(r, c)) {
-            // A bridge: the river keeps flowing underneath, and the road is
-            // drawn as a narrower deck with timber rails so the crossing reads
-            // as construction instead of a suspiciously dry patch of water.
+            // A bridge is a lane laid *over* the river: the water keeps running
+            // underneath and the deck is its own sprite, so the crossing reads
+            // as construction instead of a dry patch of water.
             const underMask = maskAt(isWaterBed, r, c);
             const under =
               themed(`tile-water-${underMask}`, RIVER_THEME) || themed('tile-water', RIVER_THEME);
             if (under) {
               this.add.image(cx, cy, under).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
             }
-            // The deck follows the *lane*, so it has to be read off where the
-            // water sits: a river lying east-west (water left and right) is
-            // crossed by a lane running north-south and needs a tall, narrow
-            // deck. Testing it the other way round made every crossing a short,
-            // wide slab that read as a gap in the river rather than a bridge.
+            // The deck art is authored north-south (planks as rungs, parapets
+            // left and right). Rotate a quarter turn when the water runs
+            // north-south instead, i.e. when the lane itself runs east-west.
             const waterRunsEastWest = isWater(r, c - 1) && isWater(r, c + 1);
-            const deckHalf = TILE_SIZE * 0.31;
-            const deck = this.add.image(cx, cy, key).setDepth(1);
-            if (waterRunsEastWest) deck.setDisplaySize(TILE_SIZE * 0.62, TILE_SIZE);
-            else deck.setDisplaySize(TILE_SIZE, TILE_SIZE * 0.62);
-            // Parapets down both sides of the deck, with a lit inner edge, so
-            // the width of the crossing is legible even at the campaign zoom.
-            tilesGraphics.lineStyle(3, 0x3b2413, 0.95);
-            const rails = waterRunsEastWest
-              ? [
-                  [cx - deckHalf, y, cx - deckHalf, y + TILE_SIZE],
-                  [cx + deckHalf, y, cx + deckHalf, y + TILE_SIZE],
-                ]
-              : [
-                  [x, cy - deckHalf, x + TILE_SIZE, cy - deckHalf],
-                  [x, cy + deckHalf, x + TILE_SIZE, cy + deckHalf],
-                ];
-            for (const [x1, y1, x2, y2] of rails) tilesGraphics.lineBetween(x1, y1, x2, y2);
-            // A lighter line just inside each parapet marks the walkable width
-            // of the crossing without shouting.
-            tilesGraphics.lineStyle(1, 0xb08a52, 0.45);
-            const inner = 2.5;
-            const lit = waterRunsEastWest
-              ? [
-                  [cx - deckHalf + inner, y + 2, cx - deckHalf + inner, y + TILE_SIZE - 2],
-                  [cx + deckHalf - inner, y + 2, cx + deckHalf - inner, y + TILE_SIZE - 2],
-                ]
-              : [
-                  [x + 2, cy - deckHalf + inner, x + TILE_SIZE - 2, cy - deckHalf + inner],
-                  [x + 2, cy + deckHalf - inner, x + TILE_SIZE - 2, cy + deckHalf - inner],
-                ];
-            for (const [x1, y1, x2, y2] of lit) tilesGraphics.lineBetween(x1, y1, x2, y2);
+            const deckKey = themed('tile-bridge', themeId);
+            if (deckKey) {
+              const deck = this.add
+                .image(cx, cy, deckKey)
+                .setDisplaySize(TILE_SIZE, TILE_SIZE)
+                .setDepth(2);
+              if (!waterRunsEastWest) deck.setAngle(90);
+            } else {
+              // No bridge art for this biome (a data edit, not a crash): fall
+              // back to a narrow painted causeway so the route stays readable.
+              const deck = this.add.image(cx, cy, key).setDepth(2);
+              if (waterRunsEastWest) deck.setDisplaySize(TILE_SIZE * 0.62, TILE_SIZE);
+              else deck.setDisplaySize(TILE_SIZE, TILE_SIZE * 0.62);
+              tilesGraphics.lineStyle(3, 0x3b2413, 0.95);
+              const half = TILE_SIZE * 0.31;
+              const rails = waterRunsEastWest
+                ? [
+                    [cx - half, y, cx - half, y + TILE_SIZE],
+                    [cx + half, y, cx + half, y + TILE_SIZE],
+                  ]
+                : [
+                    [x, cy - half, x + TILE_SIZE, cy - half],
+                    [x, cy + half, x + TILE_SIZE, cy + half],
+                  ];
+              for (const [x1, y1, x2, y2] of rails) tilesGraphics.lineBetween(x1, y1, x2, y2);
+            }
           } else {
             this.add.image(cx, cy, key).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(1);
           }
@@ -981,20 +986,16 @@ export class GameScene extends Phaser.Scene {
     // bottom margin row, so the two rows of grass and rock under it stay visible
     // — the brief asks for the keep at the very bottom *with a margin*, and a
     // keep anchored at the tile centre ate that margin with its own base.
-    const keepScale = 0.54;
-    const keepFoot = baseY + TILE_SIZE * 0.9;
-
-    // Courtyard apron so the keep does not appear to float on grass.
-    this.basePlatform = this.add
-      .image(baseX, keepFoot, 'base-platform')
-      .setDepth(6)
-      .setScale(2.6, 1.5)
-      .setAlpha(0.8);
+    const keepScale = 0.44;
+    // The foot lands *on* the bastion tile, not on a plinth below it. The sheet
+    // already carries its own contact shadow, so the keep sits in the grass the
+    // same way the portal's arch sits on its rune — nothing to float on.
+    const keepFoot = baseY + TILE_SIZE * 0.62;
 
     // The keep is a hand-drawn fortress (OpenGameArt "Fortress", CC0,
-    // rasterised from vector at 420 px). 0.54 → ~227 px wide: three and a half
-    // tiles, which is what makes it read as the place being defended rather
-    // than a prop on the courtyard, and it leaves the gate on the road.
+    // rasterised from vector at 420 px). 0.44 → ~185 px wide: three tiles,
+    // which still reads as the place being defended without towering over the
+    // courtyard it stands in (0.54 was 227 px and swallowed two lanes).
     this.bastionKeep = this.add
       .image(baseX, keepFoot, ARENA_ART.bastion.key)
       .setOrigin(0.5, 1)
@@ -1007,14 +1008,14 @@ export class GameScene extends Phaser.Scene {
     // The heart of the city: a floating core right at the gate, small enough to
     // read as a beacon on the building instead of a stone in front of it.
     this.baseCrystal = this.add
-      .image(baseX, baseY + TILE_SIZE * 0.42, 'base-crystal')
+      .image(baseX, baseY + TILE_SIZE * 0.3, 'base-crystal')
       .setDepth(13)
-      .setScale(0.52);
+      .setScale(0.46);
     if (this.theme?.baseTint) this.baseCrystal.setTint(this.theme.baseTint);
 
     this.tweens.add({
       targets: this.baseCrystal,
-      y: baseY + TILE_SIZE * 0.32,
+      y: baseY + TILE_SIZE * 0.2,
       duration: 1600,
       yoyo: true,
       repeat: -1,

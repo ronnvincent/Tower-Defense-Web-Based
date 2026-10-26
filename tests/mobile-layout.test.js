@@ -114,18 +114,25 @@ describe('HudLayout', () => {
 });
 
 describe('Placement hint cannot cover the dock', () => {
-  it('is a flow child of the dock, not an absolute overlay', () => {
+  it('floats above the panel instead of growing it', () => {
+    // Still a child of the dock element...
     expect(hudSource).toMatch(/<div id="hud-bottom-dock"[\s\S]*?<div id="placement-hint"/);
     const block = rule(css, '.placement-hint');
-    expect(block).toContain('position: static');
-    expect(block).not.toContain('position: absolute');
-    expect(block).not.toContain('bottom: calc(100%');
+    // ...but out of its layout flow. Left as a flex child it added ~42 px to
+    // the dock the moment a card was picked; that shortened the measured camera
+    // band, the rig re-fitted, and the whole board shrank every time the player
+    // went to build (Request 24).
+    expect(block).toContain('position: absolute');
+    expect(block).not.toContain('position: static');
   });
 
-  it('stacks above the cards with a margin', () => {
+  it('anchors to the top edge of the dock, never over the cards', () => {
     const block = rule(css, '.placement-hint');
-    expect(block).toMatch(/margin:\s*0 auto 8px/);
-    expect(block).toContain('max-width: 100%');
+    // 100% of the dock's own height = the pill's bottom sits on the panel's top
+    // edge, so it can only ever hover over the battlefield, never over a card.
+    expect(block).toMatch(/bottom:\s*calc\(100%\s*\+\s*\d+px\)/);
+    expect(block).toContain('margin: 0');
+    expect(block).toContain('max-width');
   });
 });
 
