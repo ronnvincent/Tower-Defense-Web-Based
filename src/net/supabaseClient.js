@@ -17,7 +17,7 @@
  * Configuration, first match wins:
  *   1. `?supabase=<url>&key=<anon key>` in the page URL (per link, not stored)
  *   2. `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` at build time
- *   3. `/supabase-dev` — the local stand-in served by the dev/preview proxy
+ *   3. `/supabase-dev` — the local stand-in, but only on a loopback origin
  *
  * The anon key is a *public* key by design; it can only call the functions the
  * migration grants. It is not a secret and must never be the service-role key.
@@ -71,10 +71,12 @@ export function resolveSupabaseConfig({ search, env, origin } = {}) {
   const envKey = String(envVars.VITE_SUPABASE_ANON_KEY || envVars.SUPABASE_ANON_KEY || '').trim();
   if (envUrl && envKey) return { url: envUrl, anonKey: envKey, source: 'env' };
 
-  // 3. The local stand-in. `vite dev` and `vite preview` proxy this path to
-  //    `server/cloud-dev.mjs`; on a static host it simply 404s and the cloud is
-  //    reported as off, which is the honest answer.
-  if (pageOrigin) {
+  // 3. The local stand-in — on loopback only. `vite dev` and `vite preview`
+  //    proxy `/supabase-dev` to `server/cloud-dev.mjs`. A deployed site has no
+  //    such path, so inventing one there would make the app claim a ledger it
+  //    cannot reach and 404 on every single call; on a public host with no env
+  //    pair the honest answer is "none configured", and the game stays local.
+  if (isLoopbackOrigin(pageOrigin)) {
     return {
       url: normaliseSupabaseUrl(`${pageOrigin}${SUPABASE_DEV_PATH}`),
       anonKey: 'dev-anon',
@@ -83,6 +85,23 @@ export function resolveSupabaseConfig({ search, env, origin } = {}) {
   }
 
   return { url: '', anonKey: '', source: 'none' };
+}
+
+/** True for localhost / 127.0.0.1 / [::1] / *.localhost — where the proxy lives. */
+export function isLoopbackOrigin(origin) {
+  let host;
+  try {
+    host = new URL(String(origin || '')).hostname;
+  } catch {
+    return false;
+  }
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host === '[::1]' ||
+    host.endsWith('.localhost')
+  );
 }
 
 /**

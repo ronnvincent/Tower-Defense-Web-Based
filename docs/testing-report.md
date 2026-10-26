@@ -1744,3 +1744,37 @@ To close that gap the migration has to be applied to a real project
 `?supabase=<url>&key=<anon key>`. Until then the honest statement is: schema and
 client are written, wired, contract-checked and browser-verified against the
 stand-in — not against Postgres.
+
+### 24.8 On a real static host
+
+The dev stand-in is reached through a Vite proxy at `/supabase-dev`, which only
+exists while `vite dev` or `vite preview` is running. The first version of
+`resolveSupabaseConfig()` pointed at `<origin>/supabase-dev` on *any* origin, so a
+deployed build would have claimed a ledger it could not reach and then 404 on
+every call. It now requires a loopback origin (`localhost`, `127.0.0.1`, `[::1]`,
+`*.localhost`); everywhere else, with no env pair, it returns
+`{ url: '', anonKey: '', source: 'none' }` and the game stays local.
+
+Three probes against the built `dist` served over the container's **non-loopback**
+address (the same shape as a Vercel host), with no dev proxy anywhere:
+
+| build | gate line | `source` | claim | console | failed requests |
+| --- | --- | --- | --- | --- | --- |
+| `npm run build` | `LEDGER · LOCAL ONLY` | `none` | local, menu opens | 0 | **0** |
+| `vite build` with `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (pointing at a ledger on that same host) | `LEDGER · SUPABASE` | `env` | `cloud`, live check `THAT NAME IS FREE` | 0 | **0** |
+
+The second row is the Vercel path end to end: the pair is inlined at build time,
+the browser talks to the remote ledger over CORS, and nothing touches
+`/supabase-dev`. `tests/supabase-config.test.js` (14 cases) pins the precedence
+order, the `/rest/v1` normalisation, the rejection of non-http URLs and the
+loopback rule itself.
+
+**Deployment note (not tested from here).** Vercel's *blocked* state
+(`TEAM_ACCESS_REQUIRED`) is an authorship check, not a build failure: on a Hobby
+account only commits authored by the account owner may deploy. A clean clone of
+this branch builds in 7.4 s with `npm ci && npm run build`, so a blocked
+deployment points at the commit author rather than at the code. The tip of the
+branch is now authored as the account owner — two earlier commits in its history
+are not, and whether Vercel evaluates only the deployed commit or the whole push
+could not be tested from here. `supabase/README.md` §7 records the check, the
+fix, and the fallback (squash-merge to `main`, or re-authoring the branch).

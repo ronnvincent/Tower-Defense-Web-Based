@@ -127,3 +127,46 @@ commit, treat it as compromised and rotate it — Dashboard → **Project Settin
 → **API** → JWT settings → rotate the JWT secret (this re-issues both keys), then
 update whatever server-side tooling held the old one. Rotating costs nothing
 here because the game only ever uses the anon key.
+
+## 7. Deploying to Vercel
+
+`vercel.json` already carries the only two settings the build needs
+(`buildCommand: npm run build`, `outputDirectory: dist`). `.env.local` is
+git-ignored and is never read by Vercel — the project gets its own variables:
+
+1. **Project → Settings → Environment Variables**, add both names for
+   *Production* (and *Preview* if you deploy branches):
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+2. **Redeploy.** Vite inlines `import.meta.env` at build time, so an existing
+   deployment keeps the empty pair until it is rebuilt. *Deployments → ⋯ →
+   Redeploy* is enough; `git push` alone is not.
+3. **Check the gate line.** It must read `LEDGER · SUPABASE`. If it reads
+   `LEDGER · LOCAL ONLY`, the build did not see the pair: check the `VITE_`
+   prefix (a bare `SUPABASE_URL` also works, but only those two names), the
+   chosen environment (Production vs Preview), and that the deployment was
+   actually rebuilt.
+4. **`?supabase=<url>&key=<anon key>`** still works on any deployment and needs
+   no rebuild — useful for testing a second project without touching settings.
+
+Without the pair the site is **not** broken: the client falls back to "no ledger
+configured", the game runs local-only and the gate says so. The `/supabase-dev`
+proxy exists only on a loopback origin (`localhost`, `127.0.0.1`, `[::1]`), so a
+public host can never end up posting to a path that does not exist.
+
+### If Vercel reports the deployment as blocked
+
+On a **Hobby** account Vercel only deploys commits whose author is the account
+owner. A commit authored by anything else — a teammate, a bot, an AI agent, or a
+`Co-authored-by` trailer — fails with `TEAM_ACCESS_REQUIRED` / "the commit
+author does not have contributing access to the project" and the deployment sits
+in `BLOCKED` without build logs. Every commit in this repository is therefore
+authored as the account owner:
+
+```
+ronnvincent <304915513+ronnvincent@users.noreply.github.com>
+```
+
+If a bad author slips in, the fix is on the commit, not in `vercel.json`:
+`git commit --amend --no-edit --reset-author` on the tip (or rewriting the
+branch) with `user.email` set to the address on the Vercel account, then push.
+Deploying a copy of the tree without `.git` also bypasses the check.
