@@ -244,6 +244,10 @@ export class Hero {
     const width = 46;
     const height = 5;
     const ratio = this.maxHealth ? this.health / this.maxHealth : 0;
+    // A full-health bar is noise on top of the bastion art (the HUD panel
+    // already shows 500 / 500), so the world bar only appears once the
+    // Vanguard has actually taken a hit — or gone down.
+    if (ratio >= 1 && !this.isDown) return;
     const y = -46;
     bar.fillStyle(0x0b0d12, 0.85).fillRect(-width / 2 - 1, y - 1, width + 2, height + 2);
     bar.fillStyle(0x3a2a2a, 1).fillRect(-width / 2, y, width, height);

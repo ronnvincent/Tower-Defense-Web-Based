@@ -6,9 +6,11 @@
  * decision is where the *next* gold goes, not whether you can afford a start),
  * and stars are measured against the core HP you keep.
  *
- * `preplaced` cells are checked by `tests/puzzles.test.js` against the real
- * battlefield data — a tower on a road cell would silently fail to build, so the
- * data is validated instead of trusted.
+ * `preplaced` cells are checked by `tests/modes.test.js` against the real
+ * battlefield data — a tower on a road, water or rock cell would silently fail
+ * to build, so the data is validated instead of trusted. Since the arena
+ * grammar gave every map two mirrored flank roads, the pre-placed pair stands
+ * on the grass beside each flank's bend.
  */
 
 /** @typedef {{key:string,row:number,col:number}} PreplacedTower */
@@ -22,8 +24,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 120,
     baseHealth: 20,
     preplaced: [
-      { key: 'archer', row: 4, col: 4 },
-      { key: 'archer', row: 4, col: 13 },
+      { key: 'archer', row: 6, col: 6 },
+      { key: 'archer', row: 6, col: 18 },
     ],
     waves: [
       { name: 'Probe', groups: [{ type: 'grunt', count: 12, interval: 800 }] },
@@ -45,8 +47,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 130,
     baseHealth: 20,
     preplaced: [
-      { key: 'cannon', row: 3, col: 6 },
-      { key: 'archer', row: 3, col: 13 },
+      { key: 'cannon', row: 6, col: 7 },
+      { key: 'archer', row: 6, col: 17 },
     ],
     waves: [
       {
@@ -74,8 +76,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 140,
     baseHealth: 22,
     preplaced: [
-      { key: 'frost', row: 5, col: 8 },
-      { key: 'frost', row: 5, col: 12 },
+      { key: 'frost', row: 6, col: 12 },
+      { key: 'frost', row: 6, col: 17 },
     ],
     waves: [
       { name: 'Sprint', groups: [{ type: 'runner', count: 14, interval: 380 }] },
@@ -104,8 +106,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 150,
     baseHealth: 20,
     preplaced: [
-      { key: 'forge', row: 2, col: 5 },
-      { key: 'archer', row: 4, col: 7 },
+      { key: 'forge', row: 6, col: 6 },
+      { key: 'archer', row: 6, col: 17 },
     ],
     waves: [
       {
@@ -140,7 +142,7 @@ export const PUZZLES = Object.freeze([
     blurb: 'One mortar on the east wall and 90 gold. Hold the line anyway.',
     startingCoins: 90,
     baseHealth: 18,
-    preplaced: [{ key: 'cannon', row: 6, col: 16 }],
+    preplaced: [{ key: 'cannon', row: 6, col: 12 }],
     waves: [
       {
         name: 'Probe',
@@ -175,8 +177,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 170,
     baseHealth: 22,
     preplaced: [
-      { key: 'frost', row: 4, col: 9 },
-      { key: 'frost', row: 4, col: 15 },
+      { key: 'frost', row: 7, col: 7 },
+      { key: 'frost', row: 7, col: 13 },
     ],
     waves: [
       {

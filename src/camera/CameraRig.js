@@ -51,12 +51,22 @@ export class CameraRig {
       height: scene.scale.height,
     };
     this.onZoomChange = options.onZoomChange || null;
+    // The band of the canvas the battlefield may draw in (see battleFrame.js).
+    // Default: the whole canvas, which is what every test and the duel viewer
+    // expect.
+    this.frame = options.frame || { top: 0, height: scene.scale.height };
     // The rig owns the *effective* zoom range for this battlefield: a map that
-    // is exactly one canvas wide frames at 1× and cannot zoom out, a larger
-    // arena frames further back so both halves stay reachable.
+    // fits the band frames at that fit and cannot zoom out, a larger arena
+    // frames further back so both halves stay reachable.
+    //
+    // The fit is measured against the **band**, not the whole canvas. Fitting a
+    // 12-row board to the canvas height framed it at 0.95× inside a 432 px
+    // band: the bottom two rows — the bastion row and the rim under it — sat
+    // behind the forge dock, which is the exact failure `battleFrame` exists to
+    // prevent. `frame.height` is the space the board actually has.
     this.limits = options.limits || zoomLimitsFor(this.bounds, {
       width: scene.scale.width,
-      height: scene.scale.height,
+      height: this.frame?.height || scene.scale.height,
     });
 
     this.pointers = new Map(); // pointer.id -> last known {x, y}
@@ -90,20 +100,19 @@ export class CameraRig {
     if (input.addPointer) input.addPointer(2);
     if (input.mouse && input.mouse.disableContextMenu) input.mouse.disableContextMenu();
 
-    this.camera.setBounds(
-      this.bounds.x,
-      this.bounds.y,
-      this.bounds.width,
-      this.bounds.height
-    );
-    this.camera.setZoom(this.limits.min);
-    const start = clampScroll(
-      { x: this.bounds.x, y: this.bounds.y },
-      this.view,
-      this.limits.min,
-      this.bounds
-    );
-    this.camera.setScroll(start.x, start.y);
+    // The rig clamps every camera move itself (`clampScroll`), so Phaser's own
+    // bounds stay *off*. Phaser's `clampX/Y` pins a world that is smaller than
+    // the viewport to the top-left corner — that is what left a 26×12 board
+    // hugging the left edge of a wide band with half the screen empty next to
+    // it. The rig's clamp centres such a world instead, and it runs on every
+    // pan, wheel tick, pinch, focus and reset, so nothing can slip outside.
+    this.camera.useBounds = false;
+    this.applyFrame();
+    // `reset()` — not a bare `setZoom` — because it also moves `targetZoom` to
+    // the fit. Setting only the camera left the target at the constructor's 1×,
+    // so `update()` immediately smoothed *back out* to 1 and the board cropped
+    // itself behind the dock again a second after boot.
+    this.reset();
 
     this.bind(input, 'pointerdown', (pointer) => this.onPointerDown(pointer));
     this.bind(input, 'pointermove', (pointer) => this.onPointerMove(pointer));
@@ -146,6 +155,43 @@ export class CameraRig {
     this.pointers.clear();
   }
 
+  /* ---------------------------------------------------------------- framing */
+
+  /**
+   * Draw the battlefield only inside the band the HUD leaves free.
+   *
+   * Phaser renders a camera into its viewport rect, and `camera.width/height`
+   * become that rect — so every piece of rig maths (fit zoom, clamp, pointer →
+   * world) follows automatically. The only thing that has to be corrected by
+   * hand is the pointer, which arrives in *canvas* coordinates.
+   */
+  applyFrame() {
+    const frame = this.frame;
+    if (!frame || (!frame.top && frame.height >= this.camera.height)) {
+      this.camera.setViewport(0, 0, this.camera.width, this.camera.height);
+      return this;
+    }
+    this.camera.setViewport(0, frame.top, this.scene.scale.width, frame.height);
+    return this;
+  }
+
+  /** Re-measure the band after a resize / rotation / dock change. */
+  setFrame(frame) {
+    if (!frame || !Number.isFinite(frame.height) || frame.height <= 0) return this;
+    this.frame = frame;
+    const viewport = { width: this.scene.scale.width, height: this.scene.scale.height };
+    this.applyFrame();
+    this.limits = zoomLimitsFor(this.bounds, { width: viewport.width, height: frame.height });
+    this.reset();
+    this.notify(true);
+    return this;
+  }
+
+  /** Canvas point → camera-view point (the band's own coordinate space). */
+  toViewPoint(x, y) {
+    return { x, y: y - (this.frame?.top || 0) };
+  }
+
   /* -------------------------------------------------------------- utilities */
 
   get view() {
@@ -168,7 +214,8 @@ export class CameraRig {
 
   /** Pointer (canvas px) → world px. Replaces the old `pointer.x / TILE_SIZE`. */
   screenToWorld(screenX, screenY) {
-    const point = screenToWorld(screenX, screenY, this.view);
+    const viewPoint = this.toViewPoint(screenX, screenY);
+    const point = screenToWorld(viewPoint.x, viewPoint.y, this.view);
     this._out.x = point.x;
     this._out.y = point.y;
     return this._out;
@@ -176,7 +223,8 @@ export class CameraRig {
 
   /** World px → canvas px (relative to the canvas, not the page). */
   worldToScreen(worldX, worldY) {
-    return worldToScreen(worldX, worldY, this.view);
+    const point = worldToScreen(worldX, worldY, this.view);
+    return { x: point.x, y: point.y + (this.frame?.top || 0) };
   }
 
   /**
@@ -360,7 +408,7 @@ export class CameraRig {
   }
 
   beginPinch() {
-    const [a, b] = this.activeTouchPointers();
+    const [a, b] = this.activeTouchPointers().map((p) => this.toViewPoint(p.x, p.y));
     if (!a || !b) return;
     this.mode = 'pinch';
     this.pinchView = this.view;
@@ -372,7 +420,7 @@ export class CameraRig {
   }
 
   updatePinch() {
-    const [a, b] = this.activeTouchPointers();
+    const [a, b] = this.activeTouchPointers().map((p) => this.toViewPoint(p.x, p.y));
     if (!a || !b || !this.pinchStart) return;
     const current = { distance: Math.max(1, distance(a, b)), mid: midpoint(a, b) };
     const result = pinchTransform(this.pinchStart, current, this.pinchView, this.bounds, this.limits);
@@ -388,7 +436,7 @@ export class CameraRig {
     // A wheel tick zooms around the cursor, exactly like a map UI.
     const factor = Math.exp(-deltaY * WHEEL_SENSITIVITY);
     const bounded = clamp(factor, 1 - WHEEL_STEP_LIMIT, 1 + WHEEL_STEP_LIMIT);
-    this.zoomBy(bounded, { x: pointer.x, y: pointer.y });
+    this.zoomBy(bounded, this.toViewPoint(pointer.x, pointer.y));
   }
 
   /* ----------------------------------------------------------------- frame */

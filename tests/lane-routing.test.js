@@ -43,7 +43,7 @@ describe('multi-lane routing', () => {
     // 5 campaign stages + 10 War Room layouts + 3 duel arenas. The War Room
     // layouts are held to the same contract as the campaign set: if a mode's
     // map had one lane or a lane that never reaches the core, this fails.
-    expect(BATTLEFIELDS).toHaveLength(19);
+    expect(BATTLEFIELDS).toHaveLength(20);
   });
 
   it('gives every battlefield two or three routes', () => {
@@ -179,12 +179,16 @@ describe('one lane per wave', () => {
   it('wraps in both directions and never returns undefined', () => {
     const pf = new PathfindingSystem(parseMap(MAPS.grassland));
     pf.computeLanes();
+    // The arena grammar gives every map the same two mirrored lanes, so the
+    // wrap is checked against the live lane count instead of a fixed three.
+    const n = pf.lanes.length;
+    expect(n).toBe(2);
     expect(pf.laneAt(0)).toEqual(pf.lanes[0]);
-    expect(pf.laneAt(3)).toEqual(pf.lanes[0]);
-    expect(pf.laneAt(4)).toEqual(pf.lanes[1]);
-    expect(pf.laneAt(-1)).toEqual(pf.lanes[pf.lanes.length - 1]);
+    expect(pf.laneAt(n)).toEqual(pf.lanes[0]);
+    expect(pf.laneAt(n + 1)).toEqual(pf.lanes[1]);
+    expect(pf.laneAt(-1)).toEqual(pf.lanes[n - 1]);
     expect(pf.laneAt(undefined)).toEqual(pf.lanes[0]);
-    expect(pf.laneAt(2.7)).toEqual(pf.lanes[2 % pf.lanes.length]);
+    expect(pf.laneAt(2.7)).toEqual(pf.lanes[2 % n]);
   });
 
   it('falls back to the shortest path before computeLanes has run', () => {
@@ -300,14 +304,18 @@ describe('lane entrance hint', () => {
     }
   });
 
-  it('names a lane by where it leaves the shortest route', () => {
-    // Ice forks three ways at the same cell: middle, up and down.
+  it('names a lane by the flank it takes out of the portal', () => {
+    // Ice crosses the river three times, so the labels must be the left flank,
+    // the middle crossing and the right flank — naming the left-hand road
+    // CENTRE was the bug this pins.
     const ice = lanesOf(MAPS.ice);
     const labels = ice.map((_, index) => laneLabel(ice, index));
-    expect(labels[0]).toBe('CENTRE');
-    expect(labels).toContain('UPPER');
-    expect(labels).toContain('LOWER');
+    expect(ice).toHaveLength(3);
+    expect([...labels].sort()).toEqual(['CENTRE', 'LEFT', 'RIGHT']);
     expect(new Set(labels).size).toBe(3);
+    // Two-lane boards get the two flanks, never a centre for a flank road.
+    const two = lanesOf(MAPS.grassland).map((_, index, all) => laneLabel(all, index));
+    expect([...two].sort()).toEqual(['LEFT', 'RIGHT']);
     for (const [name, layout] of BATTLEFIELDS) {
       const lanes = lanesOf(layout);
       lanes.forEach((_, index) => {

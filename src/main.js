@@ -73,7 +73,18 @@ const game = new Phaser.Game(phaserConfig);
 // Dev-only handle for QA: the battle scene is otherwise unreachable from the
 // console, which made "the monsters look wrong on screen" impossible to diagnose
 // without guessing. Never exposed in a production build.
-if (import.meta.env?.DEV) window.game = game;
+// The scene handle is what the automated probes drive (hero check, viewport
+// matrix, balance runs). In dev it is always on; in a production bundle it is
+// opt-in with `?probe=1` so a built artifact can still be smoke-tested without
+// shipping a permanent global hook to every player.
+const probeRequested = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has('probe');
+  } catch {
+    return false;
+  }
+})();
+if (import.meta.env?.DEV || probeRequested) window.game = game;
 
 // Campaign progress outlives any single battle: GameScene.init() reads it for
 // the level definition, the unlock graph and the saved star ratings.

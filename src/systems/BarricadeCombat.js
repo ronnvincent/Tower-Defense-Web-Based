@@ -145,3 +145,60 @@ export function resolveSiegeSwing(wall, amount) {
   const remaining = Math.max(0, wall.health - dealt);
   return { dealt, remaining, destroyed: remaining <= 0 };
 }
+
+/* --------------------------------------------------------------------------
+ * Bastion assault
+ *
+ * The old rule was a leak: an enemy that walked off the end of its path took a
+ * lump of base integrity and vanished. That read as a monster phasing through
+ * the gate, and it made the bastion a number instead of a place.
+ *
+ * Now the end of the path is a *siege*. The horde stops at the wall, swings on
+ * a cadence, and stays alive — so every hit it lands is a hit you could have
+ * prevented by killing it at the gate. `assaultDamage` splits the old lump into
+ * thirds, because a living attacker hits several times; the totals only stay
+ * comparable when the per-swing number is smaller.
+ * ------------------------------------------------------------------------- */
+
+/** How close (world px) to the bastion an attacker stops and swings. */
+export const ASSAULT_RANGE = 72;
+
+/** Damage of a single swing on the bastion. Bosses hit ~4× a grunt. */
+export function assaultDamage(def) {
+  const threat = Math.max(1, Number(def?.baseDamage) || 1);
+  return Math.max(1, Math.round(threat / 3));
+}
+
+/** Milliseconds between swings. Heavier attackers swing slower, per hit. */
+export function assaultInterval(def) {
+  const threat = Math.max(1, Number(def?.baseDamage) || 1);
+  if (threat >= 9) return 2000;
+  if (threat >= 4) return 1700;
+  return 1500;
+}
+
+/** Full width of the ring fan, in radians (80°, so ±40° off the bearing). */
+export const ASSAULT_FAN = (Math.PI * 2) / 9;
+
+/**
+ * Where on the ring around the bastion this attacker stands.
+ *
+ * Spreading the horde around the gate keeps a twenty-creep wave from stacking
+ * into one sprite, and reads as a siege rather than a queue. The slot is
+ * deterministic per enemy id, so a duel replay walks the same ring.
+ *
+ * The slot is fanned around `approachAngle` — the side of the bastion the creep
+ * actually came from — instead of around a fixed compass point. A fixed ring
+ * sent north-side attackers to south-side slots, so they walked *through* the
+ * keep to get there: the exact pass-through the gate must never allow.
+ *
+ * @param {number} id            enemy id (deterministic slot)
+ * @param {number} [radius]      ring radius in pixels
+ * @param {number} [approachAngle] bearing from the bastion to the creep
+ */
+export function assaultRing(id, radius = ASSAULT_RANGE, approachAngle = -Math.PI / 2) {
+  const slot = Math.abs(Math.floor(Number(id) || 0)) % 9;
+  const bearing = Number.isFinite(approachAngle) ? approachAngle : -Math.PI / 2;
+  const fan = (slot / 8 - 0.5) * ASSAULT_FAN;
+  return { angle: bearing + fan, radius };
+}

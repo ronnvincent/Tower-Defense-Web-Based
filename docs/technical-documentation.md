@@ -45,10 +45,16 @@
 ## 2. Battlefield Graph & Pathfinding System
 
 ### Map Representation
-Five battlefields are defined in `src/data/mapData.js`, each a $20 \times 12$ matrix of tiles (64×64 pixels each, total resolution $1280 \times 768$ px).
-- Road tiles (`#`), Spawn portal (`S`), and Base monolith (`B`) are flagged as **walkable**.
-- Grass (`.`) is buildable by towers.
-- Rock (`x`) and Water (`~`) are impassable barriers.
+Every battlefield is compiled by `src/data/arenaLayout.js` (`buildArena`) and
+exported from `src/data/mapData.js` as a $21 \times 12$ matrix of tiles (64×64
+pixels each, total resolution $1344 \times 768$ px). The grammar is the same on
+every map: the portal sits at the top of the field, the bastion at the bottom on
+the same centre column, a rift crosses row 5 with two 2-wide bridges, and two
+mirrored flank roads of 19 cells each run down to the gate.
+- Road tiles (`#`), Spawn portal (`S`), and Base (`B`) are flagged as **walkable**.
+- Grass (`.`) is buildable; road tiles are buildable too (free placement).
+- Rock (`x`) and Water (`~`) are impassable barriers; the portal's landing ring
+  and the bastion plaza are the only no-build zones (`systems/BuildZone.js`).
 
 ### Graph Construction
 On initialization, `buildGridGraph()` scans the map grid and constructs an **undirected unweighted graph**:
@@ -57,10 +63,13 @@ On initialization, `buildGridGraph()` scans the map grid and constructs an **und
 - Total nodes: $V \approx 90$ walkable cells. Average degree: $d \le 4$.
 
 ### Barricade Placement on the Marched Route
-The map contains **three distinct routes** from Spawn `(5,1)` to Base `(5,18)`:
-1. **Middle Route:** 22 cells (21 steps) — Natural shortest path.
-2. **North Route:** 26 cells (25 steps).
-3. **South Route:** 28 cells (27 steps).
+The map contains **two mirrored routes** from the portal `(2,10)` to the bastion
+`(8,10)` — one per bridge — of 19 cells each:
+1. **Left lane:** down the west flank, across the left bridge, into the gate.
+2. **Right lane:** down the east flank, across the right bridge, into the gate.
+
+`laneIndexForWave(wave)` deals a whole wave down one lane and alternates, so a
+wave never splits across both roads.
 
 Every gate sits one tile inside the outer ring. The portal is a 96 px sprite and
 the core platform 80 px, centred on a 64 px tile, so a gate parked on the last

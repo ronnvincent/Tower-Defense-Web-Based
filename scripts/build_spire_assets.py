@@ -1213,6 +1213,7 @@ MAP_THEMES = {
     "tidewatch": ("tidewatch", "marsh"),
     "ash-throne": ("ash-throne", "volcanic"),
     "bastion": ("bastion", "caldera"),
+    "caldera": ("caldera", "ashen"),
     "emberfall": ("emberfall", "volcanic"),
     "frostgate": ("frostgate", "ice"),
     "prismatic": ("prismatic", "crystal"),
@@ -1299,6 +1300,7 @@ def build_map_thumbnails():
         "highland": 1.5,
         "marsh": 1.7,
         "caldera": 1.2,
+        "ashen": 1.25,
     }
 
     def palette(theme):
@@ -1326,7 +1328,7 @@ def build_map_thumbnails():
     # show the ground a mode actually boots, which is the whole point of giving
     # every mode its own layout.
     map_themes = dict(MAP_THEMES)
-    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh"):
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh", "ashen"):
         map_themes.setdefault(theme, (theme, theme))
     # `map_themes` now maps battlefield -> (battlefield, theme); build the theme
     # list from its values so a theme never appears twice in the target list.
@@ -1334,7 +1336,7 @@ def build_map_thumbnails():
     for _, theme in map_themes.values():
         if theme not in themes_seen:
             themes_seen.append(theme)
-    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh"):
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh", "ashen"):
         if theme not in themes_seen:
             themes_seen.append(theme)
     targets = [(f"map_{theme}", theme, theme) for theme in themes_seen]

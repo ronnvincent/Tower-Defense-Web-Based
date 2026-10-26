@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { Graph, buildGridGraph, cellKey, restoreGridNode } from '../src/dsa/Graph.js';
 import { bfsShortestPath } from '../src/dsa/BFS.js';
 import { parseMap, isWalkableTile, MAP_LAYOUT } from '../src/data/mapData.js';
+import { ARENA } from '../src/data/arenaLayout.js';
 import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 
 /** Build a graph from a small ASCII grid where '#' is walkable. */
@@ -119,13 +120,22 @@ describe('BFS shortest path', () => {
 
 describe('Game map + PathfindingSystem', () => {
   const map = parseMap(MAP_LAYOUT);
+  // The arena grammar is generated (see src/data/arenaLayout.js): 26 columns so
+  // the two gates and three crossings have room, portal on row 2, bastion on
+  // row 9 and the river on row 5 between them. Every cell below is derived from
+  // the board itself — a hand-typed coordinate would rot the moment a map moved.
+  const SPAWN = `${ARENA.portalRow},${ARENA.axisCol}`;
+  const BASE = `${ARENA.baseRow},${ARENA.axisCol}`;
 
-  it('parses a 20×12 map with one spawn and one base', () => {
-    expect(map.cols).toBe(20);
-    expect(map.rows).toBe(12);
-    // Both gates sit one tile inside the frame — see tests/map-margin.test.js.
-    expect(map.spawn).toEqual({ row: 5, col: 1 });
-    expect(map.base).toEqual({ row: 5, col: 18 });
+  it('parses the generated arena with one spawn and one base', () => {
+    expect(map.cols).toBe(ARENA.cols);
+    expect(map.rows).toBe(ARENA.rows);
+    expect(map.spawn).toEqual({ row: ARENA.portalRow, col: ARENA.axisCol });
+    expect(map.base).toEqual({ row: ARENA.baseRow, col: ARENA.axisCol });
+    // Both gates keep a full row of terrain between them and the frame — see
+    // tests/map-margin.test.js.
+    expect(map.spawn.row).toBeGreaterThan(1);
+    expect(map.base.row).toBeLessThan(map.rows - 1);
   });
 
   it('rejects malformed layouts', () => {
@@ -134,13 +144,15 @@ describe('Game map + PathfindingSystem', () => {
     expect(() => parseMap(['.##B'])).toThrow(/spawn/);
   });
 
-  it('finds the 22-cell middle route on the real map', () => {
+  it('finds a short route from the portal to the bastion on the real map', () => {
     const pf = new PathfindingSystem(map);
     const res = pf.computeMainPath();
     expect(res.found).toBe(true);
-    expect(res.path[0]).toBe('5,1');
-    expect(res.path[res.path.length - 1]).toBe('5,18');
-    expect(res.stats.pathNodes).toBe(22);
+    expect(res.path[0]).toBe(SPAWN);
+    expect(res.path[res.path.length - 1]).toBe(BASE);
+    // A lane crosses the river exactly once and walks the length of the board.
+    expect(res.stats.pathNodes).toBeGreaterThanOrEqual(15);
+    expect(res.path.filter((key) => key.startsWith(`${ARENA.riverRow},`)).length).toBe(1);
     for (const key of res.path) {
       const [r, c] = key.split(',').map(Number);
       expect(isWalkableTile(map.tiles[r][c])).toBe(true);
@@ -150,43 +162,52 @@ describe('Game map + PathfindingSystem', () => {
   it('keeps the palisade out of the graph so the horde can never dodge it', () => {
     const pf = new PathfindingSystem(map);
     pf.computeMainPath();
-
-    // 7,9 is a middle-lane road cell — the exact tile a player would wall off.
-    expect(pf.isRoad('7,9')).toBe(true);
-    expect(pf.graph.hasNode('7,9')).toBe(true);
-    expect(pf.mainPath).toContain('7,9');
-
-    // The old design removed the node and pushed BFS onto the 28-cell north
-    // route. That "detour" is precisely the dodge the redesign removed: the
-    // graph is untouched, so every enemy keeps walking into the wall and has
-    // to break it (Enemy.updateSiege) before it can use the road again.
+    // The road directly under the portal is the tile a player walls off.
+    const underPortal = `${ARENA.portalRow + 1},${ARENA.axisCol}`;
+    expect(pf.isRoad(underPortal)).toBe(true);
+    const nodes = pf.graph.nodeCount();
     pf.computeMainPath();
-    expect(pf.mainPath.length).toBe(22);
-    expect(pf.mainPath).toContain('7,9');
-    expect(pf.graph.hasNode('7,9')).toBe(true);
+    expect(pf.graph.nodeCount()).toBe(nodes);
+    expect(pf.mainPath).toContain(underPortal);
   });
 
-  it('still measures the hypothetical detour at the BFS level', () => {
-    // Kept as documentation of the graph-cut concept: if a wall *were* solid
-    // to BFS the middle lane would cost 4 extra cells. The game uses this only
-    // in the algorithm panel/visualiser, never to steer enemies.
+  it('routes through the other bridge when one is blocked', () => {
     const pf = new PathfindingSystem(map);
     const direct = pf.computeMainPath();
-    const detour = bfsShortestPath(pf.graph, pf.spawnKey, pf.baseKey, { blocked: new Set(['7,9']) });
-    expect(direct.stats.pathNodes).toBe(22);
+    const bridgeOf = (path) => path.find((key) => key.startsWith(`${ARENA.riverRow},`));
+    const firstBridge = bridgeOf(direct.path);
+    const [bRow, bCol] = firstBridge.split(',').map(Number);
+    // A keep dropped on the landing short of that bridge closes it; the horde
+    // takes the other crossing rather than walking through the keep.
+    pf.setBlocked([`${bRow - 1},${bCol}`]);
+    const detour = pf.computeMainPath();
     expect(detour.found).toBe(true);
-    expect(detour.stats.pathNodes).toBe(26);
-    expect(detour.path).toContain('1,10');
-    expect(pf.graph.hasNode('7,9')).toBe(true); // the blocked set is temporary
+    expect(detour.path).not.toContain(`${bRow - 1},${bCol}`);
+    expect(bridgeOf(detour.path)).not.toBe(firstBridge);
+    expect(detour.path.length).toBeGreaterThanOrEqual(direct.path.length);
+    expect(pf.hasRoute()).toBe(true);
+    pf.setBlocked([]);
+    expect(pf.computeMainPath().path).toContain(`${bRow - 1},${bCol}`);
+  });
+
+  it('reports no route when the bastion is walled in', () => {
+    const pf = new PathfindingSystem(map);
+    // Seal the gate approach: the one road cell above the bastion.
+    const gateApproach = `${ARENA.baseRow - 1},${ARENA.axisCol}`;
+    pf.setBlocked([gateApproach]);
+    expect(pf.hasRoute()).toBe(false);
+    expect(pf.computeMainPath().found).toBe(false);
+    expect(pf.computeLanes({ max: 3 })).toEqual([]);
   });
 
   it('runs BFS from any road cell to the base and records the run', () => {
     const pf = new PathfindingSystem(map);
     pf.computeMainPath();
-    const fromNorthLane = pf.pathToBase('1,10', 'route test');
-    expect(fromNorthLane.found).toBe(true);
-    expect(fromNorthLane.path[0]).toBe('1,10');
-    expect(fromNorthLane.path[fromNorthLane.path.length - 1]).toBe(pf.baseKey);
+    const fromLane = pf.mainPath[3];
+    const res = pf.pathToBase(fromLane, 'route test');
+    expect(res.found).toBe(true);
+    expect(res.path[0]).toBe(fromLane);
+    expect(res.path[res.path.length - 1]).toBe(pf.baseKey);
     expect(pf.lastRun.purpose).toBe('route test');
     expect(pf.cumulative.runs).toBe(2);
     expect(pf.cumulative.nodesVisited).toBeGreaterThan(0);
@@ -195,10 +216,10 @@ describe('Game map + PathfindingSystem', () => {
   it('records cumulative BFS statistics across runs', () => {
     const pf = new PathfindingSystem(map);
     pf.computeMainPath();
-    pf.pathToBase('5,2');
+    pf.pathToBase('3,8');
     expect(pf.cumulative.runs).toBe(2);
     expect(pf.cumulative.nodesVisited).toBeGreaterThan(0);
-    expect(pf.lastRun.start).toBe('5,2');
-    expect(pf.routeLength).toBe(22);
+    expect(pf.lastRun.start).toBe('3,8');
+    expect(pf.routeLength).toBeGreaterThan(0);
   });
 });

@@ -5,6 +5,7 @@ import {
   badgeHit,
   badgeModel,
   badgeScale,
+  cameraZoom,
 } from '../src/ui/UpgradeBadge.js';
 
 const tower = (level, nextUpgrades) => ({ level, nextUpgrades });
@@ -75,6 +76,17 @@ describe('badge placement', () => {
     expect(badgeScale(2)).toBe(BADGE.minScale); // 1/2 clamped up to minScale
     expect(badgeScale(0.5)).toBe(BADGE.maxScale);
     expect(badgeScale(0)).toBe(1); // guards division by zero
+  });
+
+  it('reads a zoom even while the scene has no main camera', () => {
+    // A restart drops `cameras.main` for a frame; scaling badges used to throw
+    // out of syncHUD() in that window. 1× is the safe stand-in until the new
+    // camera exists (the next update re-scales every badge).
+    expect(cameraZoom({ cameras: { main: { zoom: 1.75 } } })).toBe(1.75);
+    expect(cameraZoom({ cameras: { main: null } })).toBe(1);
+    expect(cameraZoom({ cameras: {} })).toBe(1);
+    expect(cameraZoom(undefined)).toBe(1);
+    expect(cameraZoom({})).toBe(1);
   });
 
   it('hit-tests in world space using the on-screen scale', () => {

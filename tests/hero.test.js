@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi } from 'vitest';
 import {
   HERO,
@@ -270,5 +271,57 @@ describe('hero movement and the down state', () => {
     expect(hero.health).toBe(0);
     hero.takeDamage(100);
     expect(hero.health).toBe(0);
+  });
+});
+
+describe('the Vanguard health bar', () => {
+  it('stays hidden at full health and appears once hurt', () => {
+    const hero = makeHero();
+    const calls = { rects: 0, clears: 0 };
+    hero.healthBar = {
+      clear() {
+        calls.clears += 1;
+        return this;
+      },
+      fillStyle() {
+        return this;
+      },
+      fillRect() {
+        calls.rects += 1;
+        return this;
+      },
+    };
+    hero.drawHealthBar();
+    expect(calls.clears).toBe(1);
+    // No frame, no fill: a full bar would sit on top of the bastion painting.
+    expect(calls.rects).toBe(0);
+
+    hero.takeDamage(120);
+    calls.rects = 0;
+    hero.drawHealthBar();
+    expect(calls.rects).toBe(3); // frame, track, fill
+
+    // A downed Vanguard keeps its (empty) bar on screen.
+    hero.takeDamage(999);
+    calls.rects = 0;
+    hero.drawHealthBar();
+    expect(calls.rects).toBeGreaterThan(0);
+  });
+});
+
+describe('scene wiring', () => {
+  // jsdom has no file: URL, so the path is read from the repo root instead.
+  const source = readFileSync('src/scenes/GameScene.js', 'utf8');
+
+  it('spawns the Vanguard in front of the bastion gate, not under the keep', () => {
+    expect(source).toContain('heroGateCell()');
+    const start = source.indexOf('heroGateCell() {');
+    expect(start).toBeGreaterThan(-1);
+    const body = source.slice(start, start + 1200);
+    // The gate cell is the row below the bastion, on solid ground.
+    expect(body).toContain('base.row + 1');
+    expect(body).toContain('tile === TILE.GRASS');
+    // …with a fallback so a tighter courtyard still spawns somewhere legal.
+    expect(body).toContain('mainPath');
   });
 });

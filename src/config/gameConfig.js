@@ -39,6 +39,21 @@ export const SCORE = {
  */
 export const WAVE_CLEAR_COINS = { base: 30, perWave: 8 };
 
+/**
+ * Automatic wave preparation windows, in ms.
+ *
+ * The battle is a rhythm: a longer window before the first wave so the opening
+ * build is a decision, then a shorter breather between waves so gold is spent
+ * under mild pressure. A level can override either window
+ * (`level.wavePrep = { firstMs, betweenMs }`); `minMs` is the floor that stops
+ * bad data from turning the stage into an unplayable conveyor belt.
+ */
+export const WAVE_PREP = {
+  firstMs: 15000,
+  betweenMs: 8000,
+  minMs: 3000,
+};
+
 /** Colour palette shared by Phaser rendering (hex numbers). */
 export const COLORS = {
   background: 0x0a0f1e,

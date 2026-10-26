@@ -675,6 +675,61 @@ export const ENEMY_TYPES = {
   // only wings in the library — at a much smaller radius, so the silhouette
   // reads as a raider rather than a boss. `art` is the sheet key; `key` stays
   // the rules key.
+  /**
+   * Armored Guard — the spec's "35 % physical resist" archetype.
+   *
+   * Flat armour (the `brute` line) already exists; this one is a *typed*
+   * resistance instead, so a physical tower that is fine against 40 armour gets
+   * no comfort here, while a magic tower that ignores armour is not punished
+   * for it. `resistances` is read by the central resolver.
+   */
+  guard: {
+    key: 'guard',
+    name: 'Armored Guard',
+    role: 'Shrugged plate — takes 35 % less physical damage; magic and true damage ignore the plate.',
+    art: 'brute',
+    health: 150,
+    speed: 24,
+    armor: 0,
+    shield: 0,
+    resistances: { physical: 0.35, piercing: 0.2 },
+    reward: 14,
+    score: 22,
+    baseDamage: 2,
+    radius: 20,
+    siege: 22,
+  },
+
+  /**
+   * Hex Adept — the enemy-support archetype.
+   *
+   * It does not fight; every 7 s it wards nearby creeps with a 20-point barrier
+   * inside a 100 px radius, and `Enemy.grantShield` refuses to replace a
+   * stronger shield. Killing it is worth more than its own health bar suggests,
+   * which is the point of a support unit.
+   */
+  hex: {
+    key: 'hex',
+    name: 'Hex Adept',
+    role: 'Curses its escort: every 7 s it puts a 20-point barrier on nearby creeps. Kill it first.',
+    art: 'healer',
+    health: 90,
+    speed: 28,
+    armor: 0,
+    shield: 0,
+    reward: 12,
+    score: 26,
+    baseDamage: 1,
+    radius: 18,
+    // Every ground archetype has to be able to break a wall down, or a single
+    // palisade would wall the caster off forever and the escort would follow it
+    // into a dead end. 6 puts it on the light-unit tier (runner 6, swarm 4),
+    // below the 215-HP healer's 8: a fragile caster is not a wall-breaker, but
+    // it is not wall-proof either.
+    siege: 6,
+    support: { kind: 'shield', amount: 20, radius: 100, intervalMs: 7000 },
+  },
+
   wraith: {
     key: 'wraith',
     name: 'Flying Wraith',

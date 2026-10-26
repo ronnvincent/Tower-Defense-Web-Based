@@ -45,6 +45,34 @@ export function bossFor(level) {
   return (key && ENEMY_TYPES[key]?.name) || 'None';
 }
 
+/**
+ * What the run starts with, straight from the level data the battle boots with.
+ * A briefing that promised a different purse than `GameScene` seeds is exactly
+ * the kind of "the UI lies" bug this card exists to prevent.
+ */
+export function startingFor(level) {
+  return { gold: Number(level?.startingCoins) || 0, hp: Number(level?.baseHealth) || 0 };
+}
+
+/**
+ * The first few enemy archetypes a stage fields, in the order the wave list
+ * introduces them. Derived from `waves[].groups[].type`, so it can never list a
+ * creep the stage does not spawn; `extra` counts the rest instead of pretending
+ * the preview is complete.
+ */
+export function enemyPreviewFor(level, limit = 3) {
+  const order = [];
+  for (const wave of level?.waves || []) {
+    for (const group of wave?.groups || []) {
+      if (!group?.type || order.includes(group.type)) continue;
+      order.push(group.type);
+    }
+  }
+  const names = order.map((key) => ENEMY_TYPES[key]?.name || key);
+  const shown = names.slice(0, Math.max(0, limit));
+  return { names: shown, extra: Math.max(0, names.length - shown.length) };
+}
+
 /** Human label for a stage state, used by the chip on the map and in the card. */
 export function stateLabel(state) {
   switch (state) {
@@ -112,6 +140,8 @@ export function missionBriefingMarkup(
   ).join('');
   const stageLabel = endless ? 'ENDLESS' : `STAGE ${level?.index ?? 1}`;
   const waves = endless ? '∞' : String(level?.waves?.length ?? 0);
+  const starting = startingFor(level);
+  const preview = enemyPreviewFor(level);
   const clearLine = endless
     ? '<span class="wm-fact-value muted">Bounties only</span>'
     : `${reward.gold || 0} gold · ${reward.gems || 0} gems`;
@@ -135,6 +165,12 @@ export function missionBriefingMarkup(
     <dl class="wm-facts">
       <div class="wm-fact"><dt>WAVES</dt><dd>${waves}</dd></div>
       <div class="wm-fact"><dt>BOSS</dt><dd>${bossFor(level)}</dd></div>
+      <div class="wm-fact" id="wm-start-fact"><dt>START</dt><dd>${starting.gold} gold · ${starting.hp} HP</dd></div>
+      <div class="wm-fact" id="wm-enemy-fact"><dt>SCOUTED</dt><dd>${
+        preview.names.length
+          ? `${preview.names.join(' · ')}${preview.extra ? ` +${preview.extra}` : ''}`
+          : '<span class="wm-fact-value muted">—</span>'
+      }</dd></div>
       <div class="wm-fact"><dt>THREAT</dt><dd><span class="wm-pips" data-pips="${threat.pips}" aria-hidden="true">${pips}</span> ${threat.label}</dd></div>
       <div class="wm-fact"><dt>FIRST CLEAR</dt><dd>${clearLine}</dd></div>
       <div class="wm-fact"><dt>BEST SCORE</dt><dd>${bestScore ? bestScore.toLocaleString('en-US') : '<span class="wm-fact-value muted">—</span>'}</dd></div>

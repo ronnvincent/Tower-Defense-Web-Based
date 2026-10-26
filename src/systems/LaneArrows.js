@@ -113,23 +113,45 @@ export function paintLaneHint(graphics, lane, tileSize, { steps = LANE_HINT_STEP
 }
 
 /**
- * Human name for a lane, derived from where it leaves the shortest route.
+ * Human name for a lane.
  *
- * "Wave 3 · UPPER LANE" is the hint a player can act on before the creeps even
- * move, and it is computed from the map instead of being hard-coded per level.
+ * Every lane of a battlefield starts at the same portal and ends at the same
+ * gate, so "which road is this?" is answered by *where the road spends its
+ * length*: the lane whose cells sit furthest left is the LEFT lane, the one on
+ * the right is RIGHT, and a lane between them is the CENTRE.
+ *
+ * The centroid is used rather than "the first cell where two lanes differ".
+ * That older rule assumed a mirror-symmetric board where one lane was the
+ * reference — on a three-crossing diagonal every lane peels off to the same
+ * side of the portal, so all of them would have been called RIGHT.
+ *
+ * @param {string[][]} lanes
+ * @param {number} index
+ * @returns {'LEFT'|'CENTRE'|'RIGHT'|'UPPER'|'LOWER'}
  */
-export function laneLabel(lanes, index) {
-  const list = Array.isArray(lanes) ? lanes : [];
-  const lane = list[index];
-  const base = list[0];
-  if (!lane || !base || index <= 0) return 'CENTRE';
-
-  const at = lane.findIndex((cell, i) => cell !== base[i]);
-  if (at < 1) return 'CENTRE';
-  const [fromRow, fromCol] = base[at - 1].split(',').map(Number);
-  const [row, col] = lane[at].split(',').map(Number);
-  if (Math.abs(row - fromRow) >= Math.abs(col - fromCol)) {
-    return row < fromRow ? 'UPPER' : 'LOWER';
+function centroid(lane) {
+  let col = 0;
+  let row = 0;
+  for (const key of lane) {
+    const [r, c] = key.split(',').map(Number);
+    row += r;
+    col += c;
   }
-  return col < fromCol ? 'LEFT' : 'RIGHT';
+  return { row: row / lane.length, col: col / lane.length };
+}
+
+export function laneLabel(lanes, index) {
+  const list = (Array.isArray(lanes) ? lanes : []).filter((lane) => lane?.length);
+  const lane = list[index];
+  if (!lane) return 'CENTRE';
+  if (list.length === 1) return 'CENTRE';
+  const sorted = list
+    .map((cells, i) => ({ i, ...centroid(cells) }))
+    .sort((a, b) => a.col - b.col || a.i - b.i);
+  const at = sorted.findIndex((entry) => entry.i === index);
+  // The two lanes at the ends of the spread are the flanks; anything between
+  // them (a three-crossing board) is the centre lane.
+  if (at === 0) return 'LEFT';
+  if (at === sorted.length - 1) return 'RIGHT';
+  return 'CENTRE';
 }

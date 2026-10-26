@@ -54,14 +54,30 @@ export class PathfindingSystem {
     this.lanes = [];
     /** Union of all lane cells — the ground a tower may not stand on. */
     this.laneCells = new Set();
+    /**
+     * Cells the horde must walk around. Keeps built on a lane land here, and
+     * every later search treats them as walls — the road network does not move,
+     * the horde simply takes the detour. Palisades are NOT in this set: a wall
+     * is a thing the horde breaks down, not a thing it avoids.
+     */
+    this.extraBlocked = new Set();
     this.lastMainResult = null; // full BFS result of the latest spawn → base search
     this.lastRun = null; // stats of the most recent BFS run of any kind
     this.cumulative = { runs: 0, nodesVisited: 0, nodesExplored: 0, neighborChecks: 0, timeMs: 0, failedRuns: 0 };
   }
 
+  /** Replace the extra obstacle set (keeps standing on a lane). */
+  setBlocked(cells = []) {
+    this.extraBlocked = new Set(cells);
+    return this.extraBlocked;
+  }
+
   /** Run BFS and record its statistics. */
   #search(start, goal, options, purpose) {
-    const result = bfsShortestPath(this.graph, start, goal, options);
+    const merged = this.extraBlocked.size
+      ? { ...options, blocked: new Set([...(options.blocked || []), ...this.extraBlocked]) }
+      : options;
+    const result = bfsShortestPath(this.graph, start, goal, merged);
     const s = result.stats;
     this.cumulative.runs++;
     this.cumulative.nodesVisited += s.nodesVisited;
@@ -177,6 +193,12 @@ export class PathfindingSystem {
   /** Shortest route from any walkable cell to the base. */
   pathToBase(startKey, purpose = 'route to base') {
     return this.#search(startKey, this.baseKey, {}, purpose);
+  }
+
+  /** Can the horde still reach the bastion with the current obstacles? */
+  hasRoute() {
+    if (!this.extraBlocked.size) return this.mainPath.length > 0;
+    return this.#search(this.spawnKey, this.baseKey, {}, 'route check').found;
   }
 
   /** True when a cell belongs to the walkable road network. */

@@ -96,6 +96,19 @@ export function badgeScale(zoom) {
   return clamp(1 / (zoom || 1), BADGE.minScale, BADGE.maxScale);
 }
 
+/**
+ * Camera zoom for badge scaling, tolerant of a scene that is mid-(re)start.
+ *
+ * A scene restart tears the main camera down before `create()` builds the new
+ * one, so anything that touches the badge list in that window used to read
+ * `cameras.main.zoom` off `undefined` and throw out of `syncHUD()` — killing the
+ * rest of the frame (HUD paint, queued builds). Badges are cosmetic and are
+ * re-scaled on the next update, so the honest answer in that window is 1×.
+ */
+export function cameraZoom(scene) {
+  return scene?.cameras?.main?.zoom ?? 1;
+}
+
 /** Does a world-space point fall inside a badge (used for click routing)? */
 export function badgeHit(badge, worldX, worldY) {
   const halfW = (BADGE.width * badge.scale) / 2;
@@ -201,7 +214,7 @@ export class UpgradeBadges {
     container.add(text);
 
     const pop = 0.4;
-    container.setScale(badgeScale(this.scene.cameras.main.zoom) * pop);
+    container.setScale(badgeScale(cameraZoom(this.scene)) * pop);
 
     return { container, gfx, text, model, levelKey, tower, pop };
   }
@@ -241,6 +254,9 @@ export class UpgradeBadges {
 
   /** Keep every badge the same apparent size regardless of camera zoom. */
   update(camera) {
+    // `update()` runs from the scene's frame loop, which can still fire while a
+    // restart is between frames: no main camera means nothing to scale or cull.
+    if (!camera) return;
     const scale = badgeScale(camera.zoom);
     const view = camera.worldView;
     const pad = 80;

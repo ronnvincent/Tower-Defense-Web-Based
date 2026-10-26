@@ -1,5 +1,6 @@
 import { cellKey } from '../dsa/Graph.js';
 import { TILE } from '../data/mapData.js';
+import { zoneBlock, onPlayerGround } from './BuildZone.js';
 
 /**
  * PlacementSystem — validates build requests and tracks tile occupancy.
@@ -17,8 +18,14 @@ export const PLACEMENT_ERRORS = {
   endpoint: 'Cannot block the spawn portal or the base',
   occupied: 'This tile is already occupied',
   'no-coins': 'Not enough coins',
+  'max-towers': 'Every build point is taken — sell a keep to raise another',
   'enemy-on-tile': 'An enemy is on this tile',
   'off-route': 'No enemies march through this tile',
+  'not-a-slot': 'Keeps stand on the marked pads — pick a ring',
+  'enemy-half': 'The far bank is the horde’s ground — build on our side of the river',
+  'spawn-zone': 'That is the portal landing ground — the horde spawns here',
+  'base-zone': 'That is the bastion plaza — leave the gate room',
+  'no-route': 'That keep would seal the only road to the bastion',
   'not-walkable': 'This road tile is not part of the path network',
   'unknown-type': 'Unknown defence',
   'game-over': 'The match is over',
@@ -74,19 +81,20 @@ export class PlacementSystem {
     const type = this.map.tiles[row][col];
 
     if (definition.placement === 'road') {
+      // A palisade is a road object: it is dropped on the lane the horde walks,
+      // and only on our side of the river — a wall on the far bank would be met
+      // before the horde has even crossed, which is not what the card promises.
       if (type === TILE.SPAWN || type === TILE.BASE) return fail('endpoint');
       if (type !== TILE.ROAD) return fail('needs-road');
+      if (!onPlayerGround({ row, col }, this.map)) return fail('enemy-half');
+      if (options.route && !options.route.has(cellKey(row, col))) return fail('off-route');
     } else {
-      if (type === TILE.ROCK || type === TILE.WATER) return fail('blocked-tile');
-      if (type !== TILE.GRASS) return fail('road-tile');
-    }
-
-    // A wall only does its job on the road the horde actually walks. The map
-    // ships decoy lanes the BFS route never uses; without this check a player
-    // could pay 30 gold for a palisade the monsters simply stroll past, which
-    // reads exactly like the horde "dodging" the wall.
-    if (definition.placement === 'road' && options.route && !options.route.has(cellKey(row, col))) {
-      return fail('off-route');
+      // Keeps stand on the grass **beside** the lane. Not on the lane: the road
+      // is the path the horde walks, and a tower dropped on it either rerouted
+      // the whole wave or — worse — sat in the monsters' way and never fired.
+      if (type !== TILE.GRASS) return fail(type === TILE.ROAD ? 'road-tile' : 'blocked-tile');
+      const zone = zoneBlock({ row, col }, this.map);
+      if (zone) return fail(zone);
     }
 
     if (this.isOccupied(row, col)) return fail('occupied');

@@ -1,5 +1,6 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
+import { ARENA_ART, PORTAL_ANIM, KEEP_PAD_RATIO } from '../data/arenaArt.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
 import { getPuzzle, puzzleLevel } from '../data/puzzles.js';
 import {
@@ -37,6 +38,15 @@ import {
   waveComboPayout,
 } from '../systems/ComboMeter.js';
 import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js';
+import { deriveBuildSlots, resolveSlotConfig, slotAt } from '../systems/BuildSlots.js';
+import { BASTION_STATE, bastionState, isBastionCritical, leakIntensity } from '../systems/Bastion.js';
+import {
+  PREP_PHASE,
+  advanceWavePrep,
+  armWavePrep,
+  cancelWavePrep,
+  createWavePrep,
+} from '../systems/WavePrep.js';
 import { Vfx } from '../systems/Vfx.js';
 import { PowerupState, POWERUPS, METEOR, FROST, frostTargets } from '../systems/Powerups.js';
 import { difficultyFor } from '../systems/Difficulty.js';
@@ -71,6 +81,7 @@ import {
 } from '../systems/DuelPacing.js';
 import { blessingBonuses, canBuyBlessing, getBlessing } from '../systems/Blessings.js';
 import { CameraRig } from '../camera/CameraRig.js';
+import { battleFrame } from '../camera/battleFrame.js';
 import { UpgradeBadges } from '../ui/UpgradeBadge.js';
 import { ProgressStore } from '../systems/Progression.js';
 import { waveAccent } from '../systems/EnemySkins.js';
@@ -267,6 +278,19 @@ export class GameScene extends Phaser.Scene {
     // next wave chooses another one.
     this.waveLaneIndex = 0;
     this.laneHintDrawn = false;
+    // The pads the bastion is held from — derived from the battlefield, never
+    // hand-listed (see `systems/BuildSlots.js`). A stage that does not opt in
+    // gets `null` here and keeps the older free placement.
+    this.slotConfig = resolveSlotConfig(this.level);
+    const slotResult = this.slotConfig
+      ? deriveBuildSlots(
+          this.map,
+          this.pathfinding.lanes.length ? this.pathfinding.lanes : [this.pathfinding.mainPath],
+          this.slotConfig
+        )
+      : null;
+    this.buildSlots = slotResult ? slotResult.slots : [];
+    this.buildSlotKeys = slotResult ? slotResult.keys : null;
     this.duelReported = false;
     // The Vanguard stands one road cell short of the core, so it starts inside
     // the fight instead of behind it. Created here — after the lane graph, before
@@ -303,6 +327,11 @@ export class GameScene extends Phaser.Scene {
     this.modeId = this.runModeLabel();
 
     // Relics are the meta-progression: a little more gold, a little more core.
+    // Build points are a data field on the level (`maxTowers`). Only stage 1
+    // caps them — the campaign's opening contract is "eight defences, spend
+    // them well". Every other level, mode and duel leaves it undefined, which
+    // reads as unlimited and keeps their existing placement rules untouched.
+    this.maxTowers = Number.isFinite(this.level.maxTowers) ? this.level.maxTowers : Infinity;
     this.economy = new EconomyManager(this.level.startingCoins + this.relicBonuses.startingGold);
     this.gameState = new GameStateManager(this.level.baseHealth + this.relicBonuses.baseHealth);
     this.placement = new PlacementSystem(this.map);
@@ -325,6 +354,12 @@ export class GameScene extends Phaser.Scene {
     // like. Campaign and endless keep the manual start.
     this.duelPacing = this.level.pvp ? createDuelPacing() : null;
 
+    // The preparation window. Campaign, endless and the solo modes open the
+    // next wave themselves when it runs out; a duel and Time Attack own their
+    // cadence already, and a second clock opening the same wave is a bug.
+    this.wavePrep = this.autoWavesEnabled() ? createWavePrep(this.level) : null;
+    this.prepSecond = null;
+
     // Speed & simulation controls
     this.simSpeed = 1;
     this.selectedBuildKey = null;
@@ -339,6 +374,10 @@ export class GameScene extends Phaser.Scene {
 
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
+    // Build pads sit just above the tiles and below every unit: a pad is
+    // terrain, not an object standing on it.
+    this.slotGraphics = this.add.graphics().setDepth(4);
+    this.drawBuildSlots();
     // Entrance hint: a beacon on the gate plus a few chevrons down the mouth of
     // *this wave's* lane, above the tiles (3) and under the portals and units
     // (10). One lane takes the whole wave, so the player needs to know which
@@ -384,14 +423,27 @@ export class GameScene extends Phaser.Scene {
     // Camera bounds are the *map* in world pixels, not the canvas. A campaign
     // map happens to be canvas-sized, so nothing changes there; a duel arena is
     // bigger, and the rig can then pan and pull back to the rival half.
+    // The board is framed inside the band the HUD leaves free (top bar →
+    // forge dock), so the bastion's own row is never hidden behind the forge.
+    // `battleFrame` is pure geometry; `measureBattleFrame` reads the real
+    // rectangles, which the HUD keeps in two custom properties.
     this.cameraRig = new CameraRig(this, {
       bounds: { x: 0, y: 0, width: this.map.cols * TILE_SIZE, height: this.map.rows * TILE_SIZE },
+      frame: this.measureBattleFrame(),
       onZoomChange: (state) => {
         this.hud?.setZoomState(state);
         this.refreshHoverFromLastPointer();
       },
     });
     this.cameraRig.install();
+    this.onResizeFrame = () => this.reframeBattlefield();
+    window.addEventListener('resize', this.onResizeFrame);
+    window.addEventListener('orientationchange', this.onResizeFrame);
+    // The forge can fold open/closed mid-battle; HudLayout announces every
+    // re-measure so the camera re-fits instead of leaving the bastion behind
+    // the dock.
+    this.onHudLayout = () => this.reframeBattlefield();
+    window.addEventListener('hud-layout-change', this.onHudLayout);
 
     // 2c. Floating upgrade badges above every defence.
     this.badges = new UpgradeBadges(this, {
@@ -476,6 +528,9 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       this.hud?.hideFocus?.();
+      window.removeEventListener('resize', this.onResizeFrame);
+      window.removeEventListener('orientationchange', this.onResizeFrame);
+      window.removeEventListener('hud-layout-change', this.onHudLayout);
       this.cameraRig?.destroy();
       this.badges?.clear();
       this.vfx?.destroy();
@@ -529,7 +584,88 @@ export class GameScene extends Phaser.Scene {
    * hash-driven approach is what removes the "one grass tile repeated 240
    * times" grid the old renderer produced.
    */
+  /**
+   * The band the battlefield may draw in, measured from the live HUD.
+   *
+   * `hudLayout` publishes the top bar's clearance and the forge's clearance as
+   * custom properties on <html>, so the scene never has to guess a pixel value
+   * — and the same numbers the CSS uses to place the pills are the numbers the
+   * camera frames the board with.
+   */
+  measureBattleFrame() {
+    const scale = this.scale;
+    const gameHeight = scale?.height || 768;
+    const canvasHeight = scale?.displaySize?.height || window.innerHeight || 768;
+    // The canvas is a FIT-scaled 1280x768 stage: one CSS pixel on screen is
+    // `scaleFactor` game pixels, and the canvas itself may sit below the top of
+    // the window. Both numbers are needed to turn a DOM rectangle into the
+    // camera's coordinate space.
+    const scaleFactor = canvasHeight > 0 ? canvasHeight / gameHeight : 1;
+    const canvasTop = scale?.canvasBounds?.top || 0;
+    const toGame = (cssY) => (cssY - canvasTop) / (scaleFactor || 1);
+
+    const read = (name) => {
+      const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+      return Number.isFinite(value) ? value : null;
+    };
+    // The HUD publishes its own clearance in CSS px, so the camera never guesses.
+    const topbar = read('--topbar-clearance');
+    const dock = read('--dock-clearance');
+    const topBarBottom =
+      topbar != null
+        ? toGame(topbar)
+        : toGame(document.getElementById('hud-top-bar')?.getBoundingClientRect?.().bottom ?? 0);
+    const dockTop =
+      dock != null
+        ? toGame(canvasHeight + canvasTop - dock)
+        : toGame(document.getElementById('hud-bottom-dock')?.getBoundingClientRect?.().top ?? canvasHeight);
+    return battleFrame({ canvasHeight: gameHeight, topBarBottom, dockTop });
+  }
+
+  /** Re-measure and re-fit after a rotation, resize or dock fold. */
+  reframeBattlefield() {
+    if (!this.cameraRig) return;
+    const frame = this.measureBattleFrame();
+    this.cameraRig.setFrame(frame);
+  }
+
+  /**
+   * The river that splits the board, drawn as *moving* water.
+   *
+   * The rift row is the horizontal line between the enemy's ground and ours; a
+   * still stripe of blue reads as a painted border, not as a river. One
+   * TileSprite across the row is scrolled in `update()` — a single draw object,
+   * so the animation costs a texture offset instead of a per-cell redraw.
+   */
+  createRiverFlow() {
+    const river = this.map.riverRow;
+    if (river == null) return null;
+    const width = this.map.cols * TILE_SIZE;
+    const height = TILE_SIZE;
+    const x = width / 2;
+    const y = river * TILE_SIZE + TILE_SIZE / 2;
+    if (!this.textures?.exists?.('river-flow')) return null;
+    const flow = this.add
+      .tileSprite(x, y, width, height, 'river-flow')
+      .setDepth(1)
+      .setAlpha(0.42)
+      .setBlendMode('ADD');
+    // A second, slower sheet on top gives the water a cross-current instead of
+    // one sliding wallpaper.
+    const under = this.add
+      .tileSprite(x, y, width, height, 'river-flow')
+      .setDepth(1)
+      .setAlpha(0.22)
+      .setBlendMode('ADD')
+      .setScale(1, -1);
+    this.riverFlow = flow;
+    this.riverUnder = under;
+    return flow;
+  }
+
   renderBattlefieldMap() {
+    // The water layer is drawn first so every bridge deck lands on top of it.
+    this.createRiverFlow();
     const tilesGraphics = this.add.graphics().setDepth(3);
     // Biome overlay: null on the campaign maps (they are one biome each), a
     // 2D theme-id grid on the endless battlefield. Cache the per-theme texture
@@ -684,6 +820,26 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Arena halves. The top of the field belongs to the horde and the bottom
+    // is the player's courtyard; the rift between them is the seam. Two flat
+    // washes plus one glowing line, painted once per board, not per frame.
+    const riftY = (this.map.tiles.findIndex((row) => row.every((t) => t === TILE.WATER))) * TILE_SIZE;
+    if (riftY >= 0) {
+      tilesGraphics.fillStyle(0x2c0f63, 0.24);
+      tilesGraphics.fillRect(0, 0, this.map.cols * TILE_SIZE, riftY);
+      tilesGraphics.fillStyle(0x0a1b2e, 0.12);
+      tilesGraphics.fillRect(
+        0,
+        riftY + TILE_SIZE,
+        this.map.cols * TILE_SIZE,
+        (this.map.rows - 1) * TILE_SIZE - riftY
+      );
+      tilesGraphics.fillStyle(0x8b5cff, 0.16);
+      tilesGraphics.fillRect(0, riftY - 2, this.map.cols * TILE_SIZE, 3);
+      tilesGraphics.fillStyle(0x8b5cff, 0.1);
+      tilesGraphics.fillRect(0, riftY + TILE_SIZE - 1, this.map.cols * TILE_SIZE, 3);
+    }
+
     // Subtle tactical grid lines (kept so placement stays readable)
     tilesGraphics.lineStyle(1, 0x1b2838, 0.16);
     for (let c = 0; c <= this.map.cols; c++) {
@@ -697,31 +853,297 @@ export class GameScene extends Phaser.Scene {
   createPortalAndBase() {
     const { spawn, base } = this.map;
 
-    // Spawn Portal
+    /* ---------------------------------------------------------- the portal */
+    // The old portal was a canvas spiral, which is why it read as a placeholder.
+    // It is now a composed set piece: a carved gate arch, an animated vortex
+    // sheet playing inside it (`portal-vortex`, generated from the CC0 Kenney
+    // particle art — see `docs/arena-redesign.md`), a ground sigil that turns
+    // under the arch, and a light pool on the tiles.
     const spawnX = spawn.col * TILE_SIZE + TILE_SIZE / 2;
     const spawnY = spawn.row * TILE_SIZE + TILE_SIZE / 2;
-    this.portalSprite = this.add.image(spawnX, spawnY, 'portal').setDepth(10);
-    if (this.theme?.portalTint) this.portalSprite.setTint(this.theme.portalTint);
+
+    this.portalFloor = this.add
+      .image(spawnX, spawnY + 6, 'fx-rune')
+      .setDepth(6)
+      .setScale(1.5)
+      .setAlpha(0.5)
+      .setTint(this.theme?.portalTint ?? 0xb07bff)
+      .setBlendMode('ADD');
+    this.tweens.add({ targets: this.portalFloor, angle: 360, duration: 24000, repeat: -1 });
     this.tweens.add({
-      targets: this.portalSprite,
-      rotation: Math.PI * 2,
-      duration: 7000,
+      targets: this.portalFloor,
+      alpha: { from: 0.35, to: 0.6 },
+      duration: 2200,
+      yoyo: true,
       repeat: -1,
+      ease: 'Sine.easeInOut',
     });
 
-    // Base Monolith
+    // The arch sits just under the top bar (measured: the bar ends at 104 px on
+    // a 1366×768 window) and its base straddles the spawn tile. The stone keeps
+    // its own warm colour — only the magic inside it is tinted, which is what
+    // makes a purple gate in a green field read as an intruder.
+    this.portalArch = this.add
+      .image(spawnX, spawnY + 35, 'portal-arch')
+      .setOrigin(0.5, 0.8)
+      .setDepth(10)
+      .setScale(0.48);
+
+    if (this.anims?.exists?.(PORTAL_ANIM)) {
+      this.portalVortex = this.add
+        .sprite(spawnX, spawnY - 4, 'portal-vortex')
+        .setDepth(11)
+        .setScale(0.52)
+        .setBlendMode('ADD')
+        .play(PORTAL_ANIM);
+    } else {
+      // Fallback: the old procedural texture, so a failed atlas load is a
+      // smaller portal, never a missing one.
+      this.portalVortex = this.add.image(spawnX, spawnY, 'portal').setDepth(11);
+    }
+    this.portalSprite = this.portalVortex;
+
+    // Spawn gate light: a soft pool that breathes, so the mouth of the portal
+    // stays readable under the top bar in every biome.
+    this.portalGlow = this.add
+      .image(spawnX, spawnY + 14, 'fx-glow')
+      .setDepth(9)
+      .setScale(1.5)
+      .setAlpha(0.28)
+      .setTint(this.theme?.portalTint ?? 0xb07bff)
+      .setBlendMode('ADD');
+    this.tweens.add({
+      targets: this.portalGlow,
+      scale: { from: 1.35, to: 1.65 },
+      alpha: { from: 0.22, to: 0.36 },
+      duration: 1900,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    /* --------------------------------------------------------- the bastion */
+    // The bastion is a keep, not a crystal on a plate: a painted fortress with
+    // a glowing core in the gate, a shield ring that flares when it is hit, and
+    // a health bar that lives in the world above the battlements.
     const baseX = base.col * TILE_SIZE + TILE_SIZE / 2;
     const baseY = base.row * TILE_SIZE + TILE_SIZE / 2;
-    this.basePlatform = this.add.image(baseX, baseY, 'base-platform').setDepth(10);
-    this.baseCrystal = this.add.image(baseX, baseY - 12, 'base-crystal').setDepth(11);
+
+    // The keep stands ON the bastion tile with its foot at the top of the
+    // bottom margin row, so the two rows of grass and rock under it stay visible
+    // — the brief asks for the keep at the very bottom *with a margin*, and a
+    // keep anchored at the tile centre ate that margin with its own base.
+    const keepScale = 0.54;
+    const keepFoot = baseY + TILE_SIZE * 0.9;
+
+    // Courtyard apron so the keep does not appear to float on grass.
+    this.basePlatform = this.add
+      .image(baseX, keepFoot, 'base-platform')
+      .setDepth(6)
+      .setScale(2.6, 1.5)
+      .setAlpha(0.8);
+
+    // The keep is a hand-drawn fortress (OpenGameArt "Fortress", CC0,
+    // rasterised from vector at 420 px). 0.54 → ~227 px wide: three and a half
+    // tiles, which is what makes it read as the place being defended rather
+    // than a prop on the courtyard, and it leaves the gate on the road.
+    this.bastionKeep = this.add
+      .image(baseX, keepFoot, ARENA_ART.bastion.key)
+      .setOrigin(0.5, 1)
+      .setDepth(12)
+      .setScale(keepScale);
+    if (this.theme?.baseTint) this.bastionKeep.setTint(this.theme.baseTint);
+
+    // The core crystal stays the "heart" of the keep: every existing reaction
+    // (flash, pulse, shatter) targets it, so the new art inherits the juice.
+    // The heart of the city: a floating core right at the gate, small enough to
+    // read as a beacon on the building instead of a stone in front of it.
+    this.baseCrystal = this.add
+      .image(baseX, baseY + TILE_SIZE * 0.42, 'base-crystal')
+      .setDepth(13)
+      .setScale(0.52);
     if (this.theme?.baseTint) this.baseCrystal.setTint(this.theme.baseTint);
 
     this.tweens.add({
       targets: this.baseCrystal,
-      y: baseY - 20,
+      y: baseY + TILE_SIZE * 0.32,
       duration: 1600,
       yoyo: true,
       repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // Shield ring: a single circle that is only re-drawn when the bastion is
+    // hit or healed, never per frame.
+    this.bastionShield = this.add
+      .graphics()
+      .setDepth(11)
+      .setBlendMode('ADD');
+    // The repaint guard is keyed on the HP string, and the scene instance is
+    // reused across battles: without this reset a fresh bar would be skipped
+    // whenever the next stage happens to start on the same HP (25/25), leaving
+    // the world bar invisible for the whole battle.
+    this.bastionBarShown = null;
+    this.bastionBar = this.add.graphics().setDepth(24);
+    // Anchor the bar above the *battlements*, not above the texture. The PNG is
+    // the fortress plus a tenth of its height of transparent padding on each
+    // side (scripts/build_arena_art.sh adds it for the contact shadow), so the
+    // texture's top edge is empty air — anchoring to it floated the bar up into
+    // the river. `KEEP_PAD_RATIO` is that padding as a fraction of the sheet.
+    const keepTop = this.bastionKeep.getBounds().top;
+    const keepVisibleTop = keepTop + this.bastionKeep.displayHeight * KEEP_PAD_RATIO;
+    this.bastionBarY = keepVisibleTop - 20;
+    this.bastionBarLabel = this.add
+      .text(baseX, this.bastionBarY - 4, '', {
+        fontFamily: 'Rajdhani, "Segoe UI", sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#f4f8ff',
+        stroke: '#05070c',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(24);
+
+    this.bastionHome = { y: baseY - 4, tint: this.theme?.baseTint ?? 0xffffff };
+    this.bastionPulse = null;
+    this.bastionState = bastionState(this.gameState?.baseHealth, this.gameState?.maxBaseHealth);
+    this.syncBastionBar();
+  }
+
+  /** World-space bastion health bar. Repainted only when the number moves. */
+  syncBastionBar() {
+    const bar = this.bastionBar;
+    if (!bar?.clear) return;
+    const hp = Math.max(0, this.gameState?.baseHealth ?? 0);
+    const max = Math.max(1, this.gameState?.maxBaseHealth ?? 1);
+    // The bar is a graphics repaint, so it is skipped unless the number moved.
+    if (this.bastionBarShown === `${hp}/${max}`) return;
+    this.bastionBarShown = `${hp}/${max}`;
+    const ratio = Math.max(0, Math.min(1, hp / max));
+    const width = TILE_SIZE * 3.1;
+    const height = 10;
+    const x = this.map.base.col * TILE_SIZE + TILE_SIZE / 2 - width / 2;
+    const y = this.bastionBarY ?? this.map.base.row * TILE_SIZE - TILE_SIZE * 3.12;
+    const state = bastionState(hp, max);
+    const fill = state === 'critical' ? 0xff5a5a : state === 'warning' ? 0xffb648 : 0x67e8a6;
+
+    bar.clear();
+    bar.fillStyle(0x05070c, 0.78);
+    bar.fillRoundedRect(x - 3, y - 3, width + 6, height + 6, 5);
+    bar.lineStyle(1.5, 0xc99834, 0.85);
+    bar.strokeRoundedRect(x - 3, y - 3, width + 6, height + 6, 5);
+    bar.fillStyle(fill, 1);
+    bar.fillRoundedRect(x, y, Math.max(2, width * ratio), height, 4);
+    // Notches every 25 % so the player can read the bar at a glance.
+    bar.lineStyle(1, 0x05070c, 0.55);
+    for (let i = 1; i < 4; i += 1) {
+      const nx = x + (width / 4) * i;
+      bar.lineBetween(nx, y + 1, nx, y + height - 1);
+    }
+    if (this.bastionBarLabel) {
+      this.bastionBarLabel.setText(`${hp} / ${max}`);
+      this.bastionBarLabel.setColor(state === 'critical' ? '#ff9a9a' : state === 'warning' ? '#ffd08a' : '#eaf7ff');
+    }
+    this.bastionShield?.clear?.();
+    if (this.bastionShield) {
+      this.bastionShield.lineStyle(3, fill, state === 'critical' ? 0.16 : 0.09);
+      this.bastionShield.strokeCircle(
+        this.map.base.col * TILE_SIZE + TILE_SIZE / 2,
+        this.map.base.row * TILE_SIZE + TILE_SIZE / 2 + TILE_SIZE * 0.2,
+        TILE_SIZE * 0.86
+      );
+    }
+    this.bastionState = state;
+    return ratio;
+  }
+
+  /**
+   * A creep reached the gates: the crystal takes the hit *visibly*.
+   *
+   * The camera shake that already existed stays, but its strength now follows
+   * the share of the bar the hit removed, and the crystal itself flashes and
+   * punches. Everything is a short tween with a fixed duration — no per-frame
+   * work, no accumulation, so a burst of leaks cannot stack twenty loops.
+   */
+  flashBastion(leak) {
+    const crystal = this.baseCrystal;
+    if (!crystal) return;
+    const intensity = leakIntensity(leak, this.gameState?.maxBaseHealth);
+    this.tweens?.add?.({
+      targets: crystal,
+      scaleX: { from: 1 + 0.22 * intensity, to: 1 },
+      scaleY: { from: 1 + 0.22 * intensity, to: 1 },
+      duration: 260,
+      ease: 'Quad.easeOut',
+    });
+    crystal.setTint?.(0xff6b6b);
+    this.time?.delayedCall?.(190, () => {
+      if (crystal.active) crystal.setTint?.(this.bastionHome?.tint ?? 0xffffff);
+    });
+    this.syncBastionPulse();
+  }
+
+  /**
+   * Keep—or stop—the low-integrity pulse.
+   *
+   * One looping alpha tween at a time: the handle is kept so a heal, a restart
+   * or a defeat can stop it instead of leaving a dead sprite pulsing forever.
+   */
+  syncBastionPulse() {
+    const state = bastionState(this.gameState?.baseHealth, this.gameState?.maxBaseHealth);
+    this.bastionState = state;
+    const wants = isBastionCritical(state) && !this.gameState?.isOver();
+    if (!wants) {
+      this.bastionPulse?.stop?.();
+      this.bastionPulse?.remove?.();
+      this.bastionPulse = null;
+      if (this.baseCrystal?.active) {
+        this.baseCrystal.setAlpha?.(1);
+        if (state !== BASTION_STATE.FALLEN) this.baseCrystal.setTint?.(this.bastionHome?.tint ?? 0xffffff);
+      }
+      return;
+    }
+    if (this.bastionPulse) return;
+    this.bastionPulse = this.tweens?.add?.({
+      targets: this.baseCrystal,
+      alpha: { from: 1, to: 0.45 },
+      duration: 520,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  /** Defeat: the bastion goes dark, then dark again (idempotent by design). */
+  shatterBastion() {
+    this.bastionPulse?.stop?.();
+    this.bastionPulse?.remove?.();
+    this.bastionPulse = null;
+    const crystal = this.baseCrystal;
+    if (!crystal) return;
+    crystal.setTint?.(0x40455a);
+    this.tweens?.add?.({
+      targets: crystal,
+      alpha: { from: 1, to: 0.28 },
+      scaleX: { from: 1.16, to: 0.86 },
+      scaleY: { from: 1.16, to: 0.86 },
+      duration: 620,
+      ease: 'Cubic.easeOut',
+    });
+  }
+
+  /** Victory: the crystal holds its colour and gives one bright flare. */
+  flareBastion() {
+    const crystal = this.baseCrystal;
+    if (!crystal) return;
+    crystal.setTint?.(this.bastionHome?.tint ?? 0xffffff);
+    this.tweens?.add?.({
+      targets: crystal,
+      scaleX: { from: 1, to: 1.14 },
+      scaleY: { from: 1, to: 1.14 },
+      duration: 420,
+      yoyo: true,
       ease: 'Sine.easeInOut',
     });
   }
@@ -829,6 +1251,14 @@ export class GameScene extends Phaser.Scene {
         this.handleBossSpeedAura(boss, radius, multiplier, durationMs),
       onDisableTowers: (boss, radius, durationMs) =>
         this.handleBossDisableTowers(boss, radius, durationMs),
+      // The bastion is a target, not a doorway: creeps stop on a ring around it
+      // and lay siege (see Enemy.updateBaseAssault). The scene owns the point,
+      // so the art and the hitbox can never disagree.
+      getBasePoint: () => ({
+        x: this.map.base.col * TILE_SIZE + TILE_SIZE / 2,
+        y: this.map.base.row * TILE_SIZE + TILE_SIZE / 2,
+      }),
+      onHitBase: (e, damage) => this.handleEnemyHitBase(e, damage),
       onSummonMinions: (typeKey, count) => {
         for (let k = 0; k < count; k++) {
           // Timers fire from Phaser's UPDATE event, outside update()'s guard —
@@ -995,6 +1425,42 @@ export class GameScene extends Phaser.Scene {
     return affected;
   }
 
+  /**
+   * A creep landed a swing on the bastion.
+   *
+   * This is the single door through which base damage passes: the enemy never
+   * touches `gameState.baseHealth` itself, and the world bar, the HUD, the
+   * crystal flash and the defeat check are all driven from here. Called on
+   * every swing (roughly every 1.5 s per attacker), never per frame.
+   */
+  handleEnemyHitBase(enemy, amount = 1) {
+    if (this.gameState.isOver()) return;
+    const damage = Math.max(1, Math.round((Number(amount) || 1) * (this.difficulty?.damageScale ?? 1)));
+    const destroyed = this.gameState.damageBase(damage);
+    this.gameState.counters.baseHits = (this.gameState.counters.baseHits || 0) + 1;
+    this.leaksThisWave = (this.leaksThisWave || 0) + 1;
+
+    // The gate answers: a short shake scaled to the share of the bar lost, a
+    // spark burst at the wall, and the crystal's punch.
+    const intensity = leakIntensity(damage, this.gameState.maxBaseHealth);
+    this.cameras?.main?.shake?.(90 + 90 * intensity, 0.002 + 0.006 * intensity);
+    this.flashBastion(damage);
+    this.syncBastionBar();
+    this.spawnDeathBurst?.(
+      this.map.base.col * TILE_SIZE + TILE_SIZE / 2,
+      this.map.base.row * TILE_SIZE + TILE_SIZE * 0.2,
+      1
+    );
+    audio.playEnemyHit?.();
+
+    if (this.combo.chain > 0) {
+      resetCombo(this.combo);
+      this.hud?.hideCombo();
+    }
+    if (destroyed) this.handleGameOver();
+    this.syncHUD();
+  }
+
   handleEnemyReachedBase(enemy) {
     audio.playDefeat();
     this.cameras.main.shake(160, 0.007);
@@ -1005,6 +1471,8 @@ export class GameScene extends Phaser.Scene {
     }
     const leak = Math.max(1, Math.round(enemy.baseDamage * (this.difficulty?.damageScale ?? 1)));
     const destroyed = this.gameState.damageBase(leak);
+    // The hit lands on the crystal itself, not just on the number in the bar.
+    this.flashBastion(leak);
     this.gameState.counters.enemiesEscaped++;
     this.leaksThisWave = (this.leaksThisWave || 0) + 1;
 
@@ -1076,6 +1544,49 @@ export class GameScene extends Phaser.Scene {
     this.hud?.updateBossPhase(boss, phase);
   }
 
+  /**
+   * Does this run open its waves on a clock?
+   *
+   * A duel paces both seats itself (`tickDuelPacing`), Time Attack is a race
+   * against the run clock (`tickTimeAttack`), and a puzzle is a fixed board. A
+   * level may also switch the clock off with `rules.autoWaves === false`.
+   */
+  autoWavesEnabled() {
+    if (this.level?.pvp) return false;
+    if (this.mode?.timeAttack) return false;
+    if (this.level?.rules?.autoWaves === false) return false;
+    return true;
+  }
+
+  /**
+   * Advance the preparation countdown by one simulation step.
+   *
+   * Called from `stepSimulation`, so a paused game, an open draft card or a
+   * finished match never ticks it — there is no second timer anywhere, and no
+   * scene timer to leak. The window only opens when the wave manager says the
+   * next wave is legal (`canStartNextWave`), so a countdown that runs out while
+   * the horde is still on the road simply waits.
+   */
+  tickWavePrep(deltaMs) {
+    const prep = this.wavePrep;
+    if (!prep?.active) return;
+    const next = advanceWavePrep(prep, deltaMs, {
+      canStart: this.waveManager.canStartNextWave(),
+      over: this.gameState.isOver(),
+    });
+    if (next.open) {
+      this.prepSecond = null;
+      this.openWave();
+      return;
+    }
+    // Repaint the countdown once per displayed second, not once per frame.
+    const second = Math.ceil(prep.remainingMs / 1000);
+    if (second !== this.prepSecond) {
+      this.prepSecond = second;
+      this.hud?.updatePrepClock?.(prep.remainingMs);
+    }
+  }
+
   handleStartWave() {
     // A duel opens its waves itself. A manual start on one phone would let its
     // board run ahead of the rival's, and the two strips would stop being
@@ -1106,6 +1617,10 @@ export class GameScene extends Phaser.Scene {
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
     if (started) {
+      // The window is spent. Cancelling here (rather than when it closes) means
+      // a manual early call and the clock can never both open the same wave.
+      cancelWavePrep(this.wavePrep);
+      this.prepSecond = null;
       startNewWave(this.combo);
       const wave = this.waveManager.waveNumber;
       // The whole wave walks one lane, so say it out loud and move the beacon.
@@ -1660,6 +2175,8 @@ export class GameScene extends Phaser.Scene {
     const refund = Math.round(tower.sellRefund * this.relicBonuses.sellRefund);
     this.economy.earn(refund);
     this.placement.release(tower.row, tower.col);
+    // The road the keep was blocking is open again.
+    this.refreshLanes?.();
 
     this.gameState.counters.towersSold++;
 
@@ -1672,6 +2189,7 @@ export class GameScene extends Phaser.Scene {
     // Removing a support tower must not leave stale buffs behind.
     this.refreshTowerAuras();
     this.syncHUD();
+    this.drawBuildSlots();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
   }
 
@@ -1802,20 +2320,17 @@ export class GameScene extends Phaser.Scene {
   /**
    * Put the Bastion Vanguard on the field.
    *
-   * The spawn cell is the last road tile before the core: the hero belongs where
-   * the fight ends, not at the gate where it would meet the horde alone. The walk
-   * bounds are the map minus half a tile, so a move order cannot put it off the
-   * board.
+   * The hero belongs at the bastion gate — the cell in front of the keep, where
+   * the horde stops to assault the wall. It used to spawn on the last road cell
+   * before the core, which the tall keep painting now covers completely; the
+   * gate cell keeps the Vanguard visible and inside the fight. The walk bounds
+   * are the map minus half a tile, so a move order cannot put it off the board.
    */
   spawnHero() {
     if (!this.hero && this.add && this.map) {
-      const path = this.pathfinding?.mainPath || [];
-      const cell = path.length > 1 ? path[path.length - 2] : null;
-      const [row, col] = cell
-        ? String(cell).split(',').map(Number)
-        : [this.map.base.row, this.map.base.col];
-      const x = col * TILE_SIZE + TILE_SIZE / 2;
-      const y = row * TILE_SIZE + TILE_SIZE / 2;
+      const gate = this.heroGateCell();
+      const x = gate.col * TILE_SIZE + TILE_SIZE / 2;
+      const y = gate.row * TILE_SIZE + TILE_SIZE / 2;
       this.hero = new Hero(this, {
         x,
         y,
@@ -1829,6 +2344,34 @@ export class GameScene extends Phaser.Scene {
       this.syncHeroHud();
     }
     return this.hero;
+  }
+
+  /**
+   * The open cell in front of the bastion gate. Falls back to the boss approach
+   * (the last road cell before the core) and finally to the core tile itself,
+   * so a map with a tighter courtyard still spawns the hero somewhere legal.
+   */
+  heroGateCell() {
+    const { base } = this.map;
+    const candidates = [
+      { row: base.row + 1, col: base.col },
+      { row: base.row + 1, col: base.col - 1 },
+      { row: base.row + 1, col: base.col + 1 },
+      { row: base.row, col: base.col - 1 },
+      { row: base.row, col: base.col + 1 },
+    ];
+    for (const cell of candidates) {
+      if (cell.row < 0 || cell.col < 0 || cell.row >= this.map.rows || cell.col >= this.map.cols) continue;
+      const tile = this.map.tiles[cell.row][cell.col];
+      if (tile === TILE.GRASS || tile === TILE.ROAD) return cell;
+    }
+    const path = this.pathfinding?.mainPath || [];
+    const cell = path.length > 1 ? path[path.length - 2] : null;
+    if (cell) {
+      const [row, col] = String(cell).split(',').map(Number);
+      return { row, col };
+    }
+    return { row: base.row, col: base.col };
   }
 
   /** What the HUD panel needs, one small object. */
@@ -2036,6 +2579,10 @@ export class GameScene extends Phaser.Scene {
     if (typeKey === 'barricade' && this.runMods?.noBarricades) {
       return { ok: false, reason: 'barricade-locked' };
     }
+    // Free placement: keeps stand on any solid ground outside the portal's
+    // landing ring and the bastion plaza. The pads are a *hint*, not a rule —
+    // see systems/BuildZone.js for the three sentences that replaced the old
+    // half-map + designated-pad maze.
     const base = this.placement.validate(def, row, col, this.economy.coins, {
       route: this.routeCells,
     });
@@ -2046,7 +2593,23 @@ export class GameScene extends Phaser.Scene {
     if (typeKey === 'barricade' && this.isEnemyOnCell(row, col)) {
       return { ok: false, reason: 'enemy-on-tile' };
     }
+
+    // Palisades are consumables, not keeps: they do not eat a build point.
+    // Counting them would let a wall-only opening lock the player out of the
+    // towers the same gold was meant to buy.
+    if (def.placement !== 'road') {
+      if (this.usedBuildPoints() >= this.maxTowers) {
+        return { ok: false, reason: 'max-towers' };
+      }
+    }
     return { ok: true, reason: null };
+  }
+
+  /** Combat keeps standing right now (palisades excluded). */
+  usedBuildPoints() {
+    let used = 0;
+    for (const tower of this.activeTowers || []) if (!tower.isBarricade) used += 1;
+    return used;
   }
 
   /** Is a living enemy standing on (or stepping into) this cell? */
@@ -2106,6 +2669,7 @@ export class GameScene extends Phaser.Scene {
     wall.destroy();
 
     this.syncHUD();
+    this.drawBuildSlots();
     this.updateGhostGraphics();
   }
 
@@ -2121,6 +2685,22 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Pre-flight: if this keep would wall the horde out of the bastion, refuse
+    // it now — before spending gold, before the tower exists. The check is one
+    // BFS over a 26×12 grid (~0.3 ms), so it can run on every click.
+    if (def.placement !== 'road') {
+      const blocked = this.blockedBuildCells();
+      blocked.push(`${row},${col}`);
+      this.pathfinding.setBlocked(blocked);
+      const reachable = this.pathfinding.hasRoute();
+      this.pathfinding.setBlocked(this.blockedBuildCells());
+      if (!reachable) {
+        audio.playError();
+        this.hud?.showToast(PLACEMENT_ERRORS['no-route'], 'error');
+        return false;
+      }
+    }
+
     this.economy.spend(def.cost);
     const tower = new Tower(this, typeKey, row, col, {
       economy: this.economy,
@@ -2132,6 +2712,11 @@ export class GameScene extends Phaser.Scene {
     });
     this.placement.occupy(row, col, tower);
     this.activeTowers.push(tower);
+
+    // A keep on a lane is a wall the horde walks around: re-run BFS with the
+    // new footprint (pre-flighted above, so this always succeeds) and hand any
+    // already-marching creep a detour from the cell it is standing on.
+    if (!tower.isBarricade) this.refreshLanes();
 
     if (tower.isBarricade) {
       this.gameState.counters.barricadesPlaced++;
@@ -2146,6 +2731,7 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshTowerAuras();
     this.syncHUD();
+    this.drawBuildSlots();
     this.updateGhostGraphics();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
   }
@@ -2247,6 +2833,95 @@ export class GameScene extends Phaser.Scene {
    * index. Called once at scene start and again whenever the pending wave
    * changes — never per frame.
    */
+  /**
+   * Paint the build pads under the keeps.
+   *
+   * A pad is terrain, so it is drawn once per board edit (build, sell, a breach
+   * tearing a palisade down) instead of every frame. FREE pads get a ring and a
+   * centre pip in the stage's own accent colour; an occupied pad draws nothing,
+   * because the keep standing on it is the marker. That keeps the field legible
+   * in a big wave: eight rings, not thirty.
+   *
+   * @returns {number} how many pads are still free
+   */
+  drawBuildSlots() {
+    const graphics = this.slotGraphics;
+    if (!graphics?.clear) return 0;
+    graphics.clear();
+    if (!this.buildSlots?.length) return 0;
+    // Pads are a suggestion, so they only appear while a defence is armed:
+    // on the open field they read as "you may only build here", which is no
+    // longer true.
+    if (!this.selectedBuildKey) return 0;
+    const accent = Number.parseInt(String(this.theme?.accent || '#8fd694').replace('#', ''), 16);
+    const radius = TILE_SIZE * 0.33;
+    let free = 0;
+    for (const slot of this.buildSlots) {
+      if (this.placement?.isOccupied?.(slot.row, slot.col)) continue;
+      free += 1;
+      const cx = slot.col * TILE_SIZE + TILE_SIZE / 2;
+      const cy = slot.row * TILE_SIZE + TILE_SIZE / 2;
+      graphics.fillStyle(0x0a0f1e, 0.18);
+      graphics.fillCircle(cx, cy, radius);
+      graphics.lineStyle(2, accent, 0.34);
+      graphics.strokeCircle(cx, cy, radius);
+      graphics.fillStyle(accent, 0.55);
+      graphics.fillCircle(cx, cy, 2.5);
+    }
+    return free;
+  }
+
+  /** Is this cell one of the designated pads? (Stages without pads always say yes.) */
+  isBuildSlot(row, col) {
+    // Kept for the HUD's "is this a suggested pad" hint only. Placement no
+    // longer consults it — every solid tile outside the gates is buildable.
+    if (!this.buildSlotKeys) return false;
+    return Boolean(slotAt(this.buildSlots, row, col));
+  }
+
+  /**
+   * Recompute the horde's lanes around whatever keeps are standing.
+   *
+   * Called after every build and sell — not per frame. Returns false when no
+   * route from the portal to the bastion survives, which is the signal the
+   * caller uses to undo the build. Active enemies whose remaining path is now
+   * blocked are re-routed from the cell they are standing on, so a tower that
+   * lands in front of a marching wave makes it walk around instead of through.
+   */
+  /** Cells occupied by keeps — the horde routes around these. */
+  blockedBuildCells() {
+    const blocked = [];
+    for (const tower of this.activeTowers || []) {
+      if (!tower.isBarricade && !tower.isDestroyed) blocked.push(`${tower.row},${tower.col}`);
+    }
+    return blocked;
+  }
+
+  refreshLanes() {
+    const blocked = this.blockedBuildCells();
+    this.pathfinding.setBlocked(blocked);
+    const lanes = this.pathfinding.computeLanes({ max: 3 });
+    if (!lanes.length) return false;
+    this.routeCells = this.pathfinding.laneCells.size
+      ? this.pathfinding.laneCells
+      : new Set(this.pathfinding.mainPath);
+
+    const blockedSet = new Set(blocked);
+    for (const enemy of this.activeEnemies || []) {
+      if (enemy.isDead || enemy.reachedBase || enemy.assaulting) continue;
+      const remaining = enemy.path?.slice(enemy.pathIndex) || [];
+      if (!remaining.some((key) => blockedSet.has(key))) continue;
+      const from = enemy.getCurrentCellKey?.();
+      if (!from) continue;
+      const route = this.pathfinding.pathToBase(from, 'enemy detour');
+      if (route.found) enemy.setPath?.(route.path);
+    }
+
+    this.waveLaneIndex = this.laneIndexForWave(Math.max(1, this.waveManager?.waveNumber || 1));
+    this.drawLaneHint();
+    return true;
+  }
+
   drawLaneHint() {
     const graphics = this.laneHintGraphics;
     if (!graphics?.clear) return 0;
@@ -2353,6 +3028,10 @@ export class GameScene extends Phaser.Scene {
   handleGameOver() {
     if (this.gameState.isOver()) return;
     this.gameState.end(STATUS.GAME_OVER);
+    // A finished match has no next wave to prepare for.
+    cancelWavePrep(this.wavePrep);
+    this.prepSecond = null;
+    this.shatterBastion();
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     audio.playDefeat();
@@ -2387,6 +3066,12 @@ export class GameScene extends Phaser.Scene {
   handleVictory() {
     if (this.gameState.isOver()) return;
     this.gameState.end(STATUS.VICTORY);
+    // Nothing is left to prepare for: the last wave is dead and the bastion
+    // stands. Cancelling here keeps the countdown out of the victory screen.
+    cancelWavePrep(this.wavePrep);
+    this.prepSecond = null;
+    this.syncBastionPulse();
+    this.flareBastion();
     this.hud?.hideBossBar();
     window.gameCodex?.hide?.();
     // Base health survival score bonus
@@ -2700,8 +3385,18 @@ export class GameScene extends Phaser.Scene {
       nextWave: this.nextWavePreview(),
       bestWave: this.level.endless ? this.progress?.profile?.endlessBestWave || 0 : 0,
       schedule: this.duelScheduleInfo(),
+      prep: this.wavePrep
+        ? {
+            active: Boolean(this.wavePrep.active),
+            remainingMs: this.wavePrep.remainingMs,
+            phase: this.wavePrep.phase,
+          }
+        : null,
     });
     this.badges?.sync(this.activeTowers, this.economy.coins);
+    // Heals (blessings, relics) go through the same bar as damage.
+    this.syncBastionBar();
+    this.hud?.setBuildPoints?.(this.usedBuildPoints(), this.maxTowers);
     if (this.level.pvp) this.hud?.setContracts?.(this.contractRows());
     this.syncDuelTelemetry();
   }
@@ -2927,6 +3622,10 @@ export class GameScene extends Phaser.Scene {
       this.cameraRig?.update(rawDelta);
       this.badges?.update(this.cameras.main);
       this.syncLaneHint();
+      // Two texture offsets per frame — that is the whole cost of a flowing
+      // river, and it keeps running while the battle is paused.
+      if (this.riverFlow) this.riverFlow.tilePositionX += rawDelta * 0.055;
+      if (this.riverUnder) this.riverUnder.tilePositionX -= rawDelta * 0.032;
 
       if (this.gameState.isPaused() || this.gameState.isOver()) return;
 
@@ -2934,6 +3633,51 @@ export class GameScene extends Phaser.Scene {
     } catch (error) {
       this.reportRuntimeError(error);
     }
+  }
+
+  /**
+   * Run the support casters' clock.
+   *
+   * Each caster keeps its own `supportTimer` in milliseconds so two adepts that
+   * spawned a second apart fire a second apart instead of pulsing in lockstep.
+   * The pulse grants a barrier through `Enemy.grantShield`, which implements the
+   * replace-only-if-stronger rule and returns the points actually added, so the
+   * visual flourish only fires when a creep really gained a shield.
+   */
+  tickEnemySupport(deltaMs) {
+    if (!this.activeEnemies?.length) return;
+    const dt = Math.max(0, Number(deltaMs) || 0);
+    if (!dt) return;
+    for (const caster of this.activeEnemies) {
+      const support = caster?.def?.support;
+      if (!support || support.kind !== 'shield') continue;
+      if (caster.isDead || caster.reachedBase) continue;
+      caster.supportTimer = (caster.supportTimer || 0) + dt;
+      if (caster.supportTimer < (support.intervalMs || 7000)) continue;
+      caster.supportTimer = 0;
+      this.pulseShieldWard(caster, support);
+    }
+  }
+
+  /**
+   * One ward pulse: shield every living creep inside the radius (air included —
+   * the ward is magic, not a road effect; only the caster itself is skipped).
+   */
+  pulseShieldWard(caster, support) {
+    const radius = Math.max(0, support.radius || 0);
+    const amount = Math.max(0, support.amount || 0);
+    if (!radius || !amount) return 0;
+    let warded = 0;
+    for (const ally of this.activeEnemies) {
+      if (ally === caster || ally.isDead || ally.reachedBase) continue;
+      if (Math.hypot((ally.x || 0) - (caster.x || 0), (ally.y || 0) - (caster.y || 0)) > radius) continue;
+      if (ally.grantShield?.(amount) > 0) warded += 1;
+    }
+    if (warded > 0) {
+      this.vfx?.impact?.(caster.x, caster.y, 'magic', { scale: 1.2 });
+      this.vfx?.groundBlast?.(caster.x, caster.y, 1.1);
+    }
+    return warded;
   }
 
   /** One simulation tick: waves, enemies, towers, projectiles, boss HUD. */
@@ -2959,6 +3703,16 @@ export class GameScene extends Phaser.Scene {
 
     // 0. The duel's own clock — it opens waves without a button.
     this.tickDuelPacing(clampedDelta);
+
+    // 0a. The preparation window — campaign, endless and solo modes open the
+    // next wave themselves once it runs out (see `tickWavePrep`).
+    this.tickWavePrep(clampedDelta);
+
+    // 0b. Enemy support. A Hex Adept wards its escort on its own clock, on the
+    // same simulation time as everything else (so a pause or a 2x toggle moves
+    // it correctly). Pure function body in `tickEnemySupport` so it is unit
+    // testable without a live scene.
+    this.tickEnemySupport(clampedDelta);
 
     // 1. Wave Manager Update
     const waveEvent = this.waveManager.update(clampedDelta, this.activeEnemies.length);
@@ -2999,7 +3753,12 @@ export class GameScene extends Phaser.Scene {
       if (this.level.endless) this.payEndlessMilestones(waveEvent.waveNumber);
       this.syncAchievements();
 
-      if (!waveEvent.isFinal) this.afterWaveCleared(waveEvent);
+      if (!waveEvent.isFinal) {
+        this.afterWaveCleared(waveEvent);
+        // Arm the next window *after* the clear bonus is paid, so the player is
+        // never spending gold the toast has not announced yet.
+        if (this.wavePrep) armWavePrep(this.wavePrep, PREP_PHASE.BETWEEN);
+      }
 
       if (waveEvent.isFinal) {
         closePacing(this.duelPacing);

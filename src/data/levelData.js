@@ -165,10 +165,26 @@ export const LEVELS = [
     index: 1,
     name: 'Verdant Marches',
     theme: 'grassland',
-    map: 'grassland',
+    // The Bastion Gate: portal at the top, the realm's bastion at the bottom and
+    // three switchback roads between them (see `MAPS['bastion-approach']`).
+    map: 'bastion-approach',
     blurb: THEMES.grassland.blurb,
     startingCoins: 300,
     baseHealth: 20,
+    // The opening contract, spelled out so the HUD can show it: eight keeps,
+    // then upgrades instead of more keeps. Later stages lift the cap.
+    maxTowers: 8,
+    // The bastion is held from marked pads, not from any patch of grass: the
+    // battlefield derives sixteen of them in the lower defence zone (rows 4-7,
+    // between the top bar and the forge dock), at least two tiles apart and
+    // within artillery reach of the roads (see `systems/BuildSlots.js`). A stage
+    // without this field keeps free placement.
+    // Pads are hints, not a rule: they mark good overwatch on free ground. The
+    // row band now covers both halves of the arena for the same reason.
+    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
+    // Waves open themselves: 20 s to make the opening build, 10 s to spend each
+    // clear bonus. The button still calls a wave in early for the bounty.
+    wavePrep: { firstMs: 20000, betweenMs: 10000 },
     enemyHealthScale: 1,
     waves: WAVES,
     reward: { gold: 150, gems: 4 },
@@ -184,6 +200,10 @@ export const LEVELS = [
     blurb: THEMES.desert.blurb,
     startingCoins: 240,
     baseHealth: 25,
+    // The bastion is held from marked pads on every campaign stage, not just the
+    // opening one: sixteen pads derived from that battlefield's own roads, in the
+    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
+    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.15,
     reward: { gold: 200, gems: 6 },
     stars: { two: 0.5, three: 0.85 },
@@ -258,6 +278,10 @@ export const LEVELS = [
     blurb: THEMES.ice.blurb,
     startingCoins: 260,
     baseHealth: 25,
+    // The bastion is held from marked pads on every campaign stage, not just the
+    // opening one: sixteen pads derived from that battlefield's own roads, in the
+    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
+    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.3,
     reward: { gold: 260, gems: 8 },
     stars: { two: 0.5, three: 0.85 },
@@ -337,6 +361,10 @@ export const LEVELS = [
     blurb: THEMES.crystal.blurb,
     startingCoins: 280,
     baseHealth: 25,
+    // The bastion is held from marked pads on every campaign stage, not just the
+    // opening one: sixteen pads derived from that battlefield's own roads, in the
+    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
+    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.45,
     reward: { gold: 320, gems: 10 },
     stars: { two: 0.5, three: 0.85 },
@@ -429,6 +457,10 @@ export const LEVELS = [
     blurb: THEMES.ashen.blurb,
     startingCoins: 320,
     baseHealth: 25,
+    // The bastion is held from marked pads on every campaign stage, not just the
+    // opening one: sixteen pads derived from that battlefield's own roads, in the
+    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
+    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.6,
     reward: { gold: 380, gems: 14 },
     stars: { two: 0.5, three: 0.85 },
@@ -466,10 +498,14 @@ export const LEVELS = [
         ],
       },
       {
+        // The stage that combines everything introduces the two archetypes the
+        // rest of the campaign does not use: a plate that resists physical by
+        // type, and a caster that wards its escort.
         name: 'Iron Vigil',
         groups: [
-          { type: 'brute', count: 8, interval: 1200 },
-          { type: 'healer', count: 4, interval: 1900, delay: 1200 },
+          { type: 'guard', count: 6, interval: 1300 },
+          { type: 'brute', count: 6, interval: 1200, delay: 900 },
+          { type: 'hex', count: 2, interval: 2400, delay: 2000 },
           { type: 'shield', count: 6, interval: 1150, delay: 1600 },
         ],
       },
@@ -484,9 +520,10 @@ export const LEVELS = [
       {
         name: 'The Ashen Guard',
         groups: [
-          { type: 'shield', count: 10, interval: 1000 },
-          { type: 'brute', count: 8, interval: 1150, delay: 1100 },
-          { type: 'healer', count: 5, interval: 1800, delay: 1500 },
+          { type: 'guard', count: 8, interval: 1100 },
+          { type: 'hex', count: 3, interval: 2000, delay: 1400 },
+          { type: 'shield', count: 8, interval: 1000, delay: 1100 },
+          { type: 'healer', count: 4, interval: 1800, delay: 1500 },
         ],
       },
       {

@@ -4,7 +4,15 @@ import { ENEMY_TYPES, waveHealthMultiplier } from '../data/enemyData.js';
 import { ENEMY_SHEETS } from '../data/spireManifest.js';
 import { skinFor, waveAccent } from '../systems/EnemySkins.js';
 import { calculateDamage, DAMAGE_TYPE } from '../systems/CombatCalculator.js';
-import { siegeStep, siegeDamage, siegeInterval } from '../systems/BarricadeCombat.js';
+import {
+  siegeStep,
+  siegeDamage,
+  siegeInterval,
+  assaultDamage,
+  assaultInterval,
+  assaultRing,
+  ASSAULT_RANGE,
+} from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
 
 let enemyIdCounter = 1;
@@ -119,6 +127,9 @@ export class Enemy {
     this.isSieging = false;
     this.siegeTarget = null;
     this.siegeTimer = 0;
+    // Bastion assault state (see updateBaseAssault).
+    this.assaulting = false;
+    this.assaultTimer = 0;
 
     // States
     this.isDead = false;
@@ -215,13 +226,7 @@ export class Enemy {
     this.container.add(this.hpBarFill);
 
     // Shield Bar (cyan, layered above health bar if maxShield > 0)
-    if (this.maxShield > 0) {
-      this.shieldBarBg = scene.add.rectangle(0, -this.radius - 13, barWidth + 2, 4, 0x091424);
-      this.shieldBarFill = scene.add.rectangle(-barWidth / 2, -this.radius - 13, barWidth, 2, 0x4ee1ff);
-      this.shieldBarFill.setOrigin(0, 0.5);
-      this.container.add(this.shieldBarBg);
-      this.container.add(this.shieldBarFill);
-    }
+    if (this.maxShield > 0) this.createShieldBar();
 
     this.container.setDepth(20 + this.y * 0.001);
 
@@ -268,6 +273,32 @@ export class Enemy {
         this.currentAnim = clip;
       }
     }
+  }
+
+  /**
+   * The cyan shield strip above the health bar.
+   *
+   * Split out of the constructor because a support caster can hand a barrier to
+   * a creep that shipped without one: that creep has no strip to update, and a
+   * shield you cannot see reads as a damage bug.
+   */
+  createShieldBar() {
+    const scene = this.scene;
+    if (!scene?.add || this.shieldBarFill) return;
+    const barWidth = this.barWidth || Math.max(30, this.radius * 1.8);
+    this.barWidth = barWidth;
+    this.shieldBarBg = scene.add.rectangle(0, -this.radius - 13, barWidth + 2, 4, 0x091424);
+    this.shieldBarFill = scene.add.rectangle(-barWidth / 2, -this.radius - 13, barWidth, 2, 0x4ee1ff);
+    this.shieldBarFill.setOrigin(0, 0.5);
+    this.container.add(this.shieldBarBg);
+    this.container.add(this.shieldBarFill);
+  }
+
+  /** Barrier + strip, created on demand for a granted shield. */
+  ensureShieldVisual() {
+    if (!this.scene?.add) return;
+    this.createShieldBarrier();
+    this.createShieldBar();
   }
 
   createShieldBarrier() {
@@ -386,6 +417,30 @@ export class Enemy {
   }
 
   /**
+   * Grant a barrier from an enemy support caster.
+   *
+   * Rule (from the spec): a shield is only replaced when the new one is
+   * **stronger**. Re-applying a 20-point ward to a creep already carrying a
+   * 120-point shield must not weaken it, and two adepts standing together must
+   * not stack into 40. Returns the points actually added, so the caster can
+   * decide whether anything happened.
+   *
+   * @param {number} amount
+   * @returns {number} shield points added (0 when nothing changed)
+   */
+  grantShield(amount) {
+    const points = Math.max(0, Math.round(Number(amount) || 0));
+    if (points <= 0 || this.isDead || this.reachedBase) return 0;
+    if (points <= this.shield) return 0;
+    const gained = points - this.shield;
+    this.shield = points;
+    this.maxShield = Math.max(this.maxShield || 0, points);
+    this.ensureShieldVisual();
+    this.updateHealthBar?.();
+    return gained;
+  }
+
+  /**
    * Applies damage via centralized CombatCalculator.
    * @param {number} rawDamage
    * @param {string} [damageType] key in DAMAGE_TYPE
@@ -415,6 +470,7 @@ export class Enemy {
       armorPenetration: options.armorPenetration || 0,
       armorBreak: this.armorBreak,
       activeShield: this.shield,
+      resistances: this.def.resistances || null,
       distance: options.distance || 0,
       splashRadius: options.splashRadius || 0,
     });
@@ -711,6 +767,80 @@ export class Enemy {
     this.destroy();
   }
 
+  /**
+   * Bastion assault. Returns true while this frame was spent attacking the
+   * gate (the caller then skips waypoint movement).
+   *
+   * The attacker aims for a point on a ring around the bastion rather than the
+   * bastion's own tile: twenty creeps converging on one pixel read as a bug,
+   * and the ring is what makes the gate look surrounded.
+   */
+  updateBaseAssault(deltaMs) {
+    if (this.isDead || this.reachedBase) return false;
+    const base = this.callbacks.getBasePoint?.();
+    if (!base) return false;
+
+    // The ring slot is picked once, from the bearing the creep arrived on, so
+    // it stands down on the side it walked in from and never crosses the keep.
+    if (!this.assaultPoint) {
+      const bearing = Math.atan2(this.y - base.y, this.x - base.x);
+      const ring = assaultRing(this.id, ASSAULT_RANGE, bearing);
+      this.assaultPoint = {
+        x: base.x + Math.cos(ring.angle) * ring.radius,
+        y: base.y + Math.sin(ring.angle) * ring.radius,
+      };
+    }
+    const target = this.assaultPoint;
+
+    const dist = Math.hypot(target.x - this.x, target.y - this.y);
+    const toBase = Math.hypot(base.x - this.x, base.y - this.y);
+    // Only start the siege once the creep is at the wall — a creep still
+    // crossing the courtyard keeps walking, so the towers keep getting shots.
+    if (!this.assaulting && toBase > ASSAULT_RANGE + 18) return false;
+
+    this.assaulting = true;
+    this.isSieging = false;
+    this.siegeTarget = null;
+    this.siegeTimer = 0;
+
+    const step = (this.speed * deltaMs) / 1000;
+    if (dist > step) {
+      this.x += ((target.x - this.x) / dist) * step;
+      this.y += ((target.y - this.y) / dist) * step;
+    } else {
+      this.x = target.x;
+      this.y = target.y;
+      this.assaultTimer += deltaMs;
+      const interval = assaultInterval(this.def);
+      if (this.assaultTimer >= interval) {
+        this.assaultTimer -= interval;
+        this.callbacks.onHitBase?.(this, assaultDamage(this.def));
+      }
+    }
+
+    // Face the gate and heave. Same wobble language as a palisade siege, so
+    // "attacking a thing" reads identically everywhere in the game.
+    this.faceTravel(base.x - this.x, base.y - this.y);
+    this.wobbleTimer += deltaMs * 0.03;
+    const scaleY = this.baseScale * (1 + Math.sin(this.wobbleTimer) * 0.12);
+    this.sprite.setScale(this.baseScale, scaleY);
+    this.container.setPosition(this.x, this.y);
+    this.container.setDepth(20 + this.y * 0.001);
+    return true;
+  }
+
+  /**
+   * Swap in a new route (used when the player builds a keep across this
+   * creep's remaining lane). The first cell is where the creep is standing, so
+   * the march continues from `pathIndex = 1` — no teleport, no lost distance.
+   */
+  setPath(cells) {
+    if (!Array.isArray(cells) || cells.length < 2) return false;
+    this.path = cells.slice();
+    this.pathIndex = 1;
+    return true;
+  }
+
   reachBase() {
     if (this.reachedBase || this.isDead) return;
     this.reachedBase = true;
@@ -796,7 +926,11 @@ export class Enemy {
       }
     }
 
-    // 5. A palisade on the next waypoint stops the march: break it down.
+    // 5. The bastion is the target, not a doorway: an attacker that reaches it
+    //    stops at the wall and lays siege instead of walking through.
+    if (this.updateBaseAssault(deltaMs)) return;
+
+    // 5b. A palisade on the next waypoint stops the march: break it down.
     if (this.updateSiege(deltaMs)) return;
 
     // 6. Waypoint Movement

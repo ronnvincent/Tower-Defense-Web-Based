@@ -113,12 +113,24 @@ export function clampScroll(scroll, viewport, zoom, bounds) {
   const displayWidth = viewport.width / zoom;
   const displayHeight = viewport.height / zoom;
 
-  const minX = bounds.x + (displayWidth - viewport.width) / 2;
-  const maxX = Math.max(minX, minX + bounds.width - displayWidth);
-  const minY = bounds.y + (displayHeight - viewport.height) / 2;
-  const maxY = Math.max(minY, minY + bounds.height - displayHeight);
+  // A world *smaller* than the view cannot be clamped "inside" it. Phaser pins
+  // it to the top-left corner in that case, which showed a 12-row board hugging
+  // the left of a wide band with half the screen empty beside it. Centre it
+  // instead — the scroll that puts the board's midpoint on the view's midpoint.
+  const axis = (display, size, origin, viewportSize) =>
+    display > size
+      ? origin + (size - viewportSize) / 2
+      : {
+          min: origin + (display - viewportSize) / 2,
+          max: origin + (size - display) + (display - viewportSize) / 2,
+        };
 
-  return { x: clamp(scroll.x, minX, maxX), y: clamp(scroll.y, minY, maxY) };
+  const x = axis(displayWidth, bounds.width, bounds.x, viewport.width);
+  const y = axis(displayHeight, bounds.height, bounds.y, viewport.height);
+  const clampAxis = (value, range) =>
+    typeof range === 'number' ? range : clamp(value, range.min, range.max);
+
+  return { x: clampAxis(scroll.x, x), y: clampAxis(scroll.y, y) };
 }
 
 /**

@@ -3,6 +3,7 @@ import { TOWER_VISUALS, BARRICADE_VISUALS, SLOTS } from '../data/towerVisuals.js
 import { DECOR_ART } from '../data/towerDecor.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
+import { ARENA_ART, PORTAL_ANIM } from '../data/arenaArt.js';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
 const GROUND_VARIANTS = ['', '_2', '_3'];
@@ -150,13 +151,37 @@ export class BootScene extends Phaser.Scene {
     //    textures.exists(), so a missing file costs a shockwave, not the game.
     this.load.image('fx-ring', 'assets/ui-kit/fx_ring.png');
     this.load.image('fx-glow', 'assets/ui-kit/fx_glow.png');
+
+    // 9. Arena landmarks: the painted portal gate, the painted bastion keep,
+    //    and the 32-frame vortex spritesheet that plays inside the gate.
+    this.load.image(ARENA_ART.bastion.key, ARENA_ART.bastion.path);
+    this.load.image(ARENA_ART.portalArch.key, ARENA_ART.portalArch.path);
+    this.load.image(ARENA_ART.riverFlow.key, ARENA_ART.riverFlow.path);
+    this.load.spritesheet(ARENA_ART.portalVortex.key, ARENA_ART.portalVortex.path, {
+      frameWidth: ARENA_ART.portalVortex.frameWidth,
+      frameHeight: ARENA_ART.portalVortex.frameHeight,
+    });
   }
 
   create() {
     // Procedural fallbacks only fill keys the packs do not provide.
     generateAllTextures(this);
     this.createTowerAnimations();
+    this.createArenaAnimations();
     this.scene.start('MenuScene');
+  }
+
+  /** The portal vortex: one looping clip, 30 fps, so it breathes instead of spins. */
+  createArenaAnimations() {
+    if (!this.textures.exists(ARENA_ART.portalVortex.key)) return;
+    if (this.anims.exists(PORTAL_ANIM)) return;
+    const { frames } = ARENA_ART.portalVortex;
+    this.anims.create({
+      key: PORTAL_ANIM,
+      frames: this.anims.generateFrameNumbers(ARENA_ART.portalVortex.key, { start: 0, end: frames - 1 }),
+      frameRate: 30,
+      repeat: -1,
+    });
   }
 
   /** One looping "idle" (resting pose) and one-shot "fire" clip per tower slot. */

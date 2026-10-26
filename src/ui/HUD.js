@@ -8,6 +8,8 @@ import { clampPanel, placeInspector } from './panelPlacement.js';
 import { HudLayout } from './hudLayout.js';
 import { ENEMY_TYPES } from '../data/enemyData.js';
 import { COMBO_WINDOW_MS } from '../systems/ComboMeter.js';
+import { formatPrepClock } from '../systems/WavePrep.js';
+import { BASTION_STATE, bastionState } from '../systems/Bastion.js';
 import { focusReadout } from '../systems/FocusTarget.js';
 import { applyShell, readShellOverride, resolveShell } from './shellMode.js';
 import { haptics } from '../systems/Haptics.js';
@@ -72,6 +74,9 @@ export class HUD {
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
     this.earlyCallAvailable = false;
+    // The auto-start window currently on screen (see `updatePrepClock`).
+    this.prepActive = false;
+    this.prepBaseText = '';
     this.comboActive = false;
     this.comboTimer = null;
     this.fullscreenState = { supported: true, active: false };
@@ -466,6 +471,9 @@ export class HUD {
             <span class="dock-title-short" id="dock-title-short">BUILD</span>
             <span class="dock-toggle-chevron" aria-hidden="true">▾</span>
           </button>
+          <!-- Build-point budget. Only stages that cap keeps (stage 1: eight)
+               show it; everywhere else setBuildPoints hides it again. -->
+          <span id="dock-points" class="dock-points hidden" aria-live="polite"></span>
         </div>
         <div class="dock-tabs" id="dock-tabs" role="tablist" aria-label="Defence families"></div>
         <div class="dock-cards" id="dock-cards-container"></div>
@@ -936,6 +944,30 @@ export class HUD {
     // toast lane needs re-measuring so nothing lands across the chips.
     document.documentElement.classList.toggle('has-run-rail', visible);
     this.layout?.schedule?.();
+  }
+
+  /**
+   * Build-point readout in the forge header.
+   *
+   * A cap the player cannot see is a bug report waiting to happen, so the
+   * counter appears the moment a level declares `maxTowers` and turns amber
+   * when the budget is gone. `Infinity` hides it — that is every mode, duel
+   * and later campaign stage, where placement stays free.
+   */
+  setBuildPoints(used, max) {
+    const el = document.getElementById('dock-points');
+    if (!el) return;
+    const capped = Number.isFinite(max);
+    if (!capped) {
+      el.classList.add('hidden');
+      el.textContent = '';
+      return;
+    }
+    const count = Math.min(Math.max(0, used | 0), max);
+    el.classList.remove('hidden');
+    el.textContent = `${count}/${max} BUILDS`;
+    el.classList.toggle('is-full', count >= max);
+    el.setAttribute('aria-label', `${count} of ${max} build points used`);
   }
 
   setMatchLabel(text) {
@@ -1994,6 +2026,7 @@ export class HUD {
       nextWave,
       bestWave,
       schedule,
+      prep,
     } = state;
 
     this.coins = coins;
@@ -2005,9 +2038,20 @@ export class HUD {
       this.setText('hud-level-name', String(levelName).toUpperCase());
       document.getElementById('hud-level-chip')?.classList.toggle('endless', Boolean(endless));
     }
+    // The auto-start window lands on the wave badge, not on the button's
+    // sub-line: `.btn-sub` is a mobile-only second line, so a countdown written
+    // there is invisible on desktop (measured — the text was in the DOM and not
+    // on screen). The badge line is visible on every shell.
+    this.prepActive = Boolean(prep?.active);
+    const badge = document.querySelector('.hud-wave-badge');
+    badge?.classList.toggle('prepping', this.prepActive);
     this.setText(
       'val-enemies-left',
-      isSpawning ? `${enemiesRemaining} spawning…` : `${enemiesRemaining} left`
+      this.prepActive
+        ? `IN ${formatPrepClock(prep.remainingMs)}`
+        : isSpawning
+          ? `${enemiesRemaining} spawning…`
+          : `${enemiesRemaining} left`
     );
 
     // Endless only: the personal best sits under the wave number, and turns
@@ -2026,9 +2070,11 @@ export class HUD {
 
     const hpStat = document.getElementById('stat-base-hp');
     if (hpStat) {
-      const ratio = maxBaseHealth ? baseHealth / maxBaseHealth : 0;
-      hpStat.classList.toggle('critical', ratio <= 0.3);
-      hpStat.classList.toggle('warning', ratio > 0.3 && ratio <= 0.6);
+      // One rule, shared with the scene's crystal reaction (systems/Bastion.js).
+      const state = bastionState(baseHealth, maxBaseHealth);
+      const critical = state === BASTION_STATE.CRITICAL || state === BASTION_STATE.FALLEN;
+      hpStat.classList.toggle('critical', critical);
+      hpStat.classList.toggle('warning', state === BASTION_STATE.WARNING);
     }
 
     const startBtn = document.getElementById('btn-start-wave');
@@ -2075,7 +2121,11 @@ export class HUD {
         : ready && count > 0
           ? `${count} ${count === 1 ? 'CREEP' : 'CREEPS'}${nextWave.boss ? ' · BOSS' : ''}`
           : '';
-      if (sub.textContent !== subText) sub.textContent = subText;
+      // The mobile sub-line keeps the scout report; the clock lives on the wave
+      // badge above (see `updatePrepClock`).
+      this.prepBaseText = subText;
+      const text = subText;
+      if (sub.textContent !== text) sub.textContent = text;
     }
 
     this.setWavePreview(nextWave, canStartWave);
@@ -2097,6 +2147,26 @@ export class HUD {
       if (refund) refund.textContent = this.inspectedTower.sellRefund;
     }
     if (this.selectedBuildKey) this.setPlacementHint(this.selectedBuildKey);
+  }
+
+  /**
+   * Repaint just the countdown line.
+   *
+   * The battle loop calls this at most once per displayed second (the scene
+   * only syncs when the ceil of the remaining time changes), so the HUD is not
+   * rewritten every frame to show a clock that has not moved.
+   */
+  updatePrepClock(remainingMs) {
+    if (!this.prepActive) return false;
+    this.setText('val-enemies-left', `IN ${formatPrepClock(remainingMs)}`);
+    // `.btn-sub` is display:none on desktop, but on a phone it is the line a
+    // thumb covers the battlefield with — keep it in step when it is shown.
+    const sub = document.getElementById('start-wave-sub');
+    if (sub) {
+      const text = prepLine(remainingMs, this.prepBaseText);
+      if (sub.textContent !== text) sub.textContent = text;
+    }
+    return true;
   }
 
   /* ------------------------------------------------------- wave preview */
@@ -2189,4 +2259,14 @@ function escapeStatus(value) {
     '"': '&quot;',
     "'": '&#39;',
   }[ch]));
+}
+
+/**
+ * One line under the wave button: the auto-start clock, then what the scout
+ * report says is coming. Kept as a function so `update()` and the per-second
+ * `updatePrepClock()` cannot drift apart.
+ */
+function prepLine(remainingMs, baseText) {
+  const clock = formatPrepClock(remainingMs);
+  return baseText ? `⏱ ${clock} · ${baseText}` : `⏱ ${clock}`;
 }

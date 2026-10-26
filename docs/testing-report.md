@@ -2,8 +2,8 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 933 tests across 79 test suites.
-- **Pass Rate:** **100% (933 / 933 Passed)**
+- **Total Automated Unit Tests:** 1250 tests across 105 test suites.
+- **Pass Rate:** **100% (1250 / 1250 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -649,3 +649,138 @@ wave composition on the button, pause status) and the CSS contract (rail height,
 hidden camera pill and preview, sheet geometry, single-line toasts, scrim,
 `touch-action` hand-off). `tests/haptics.test.js` (8) — device default, stored
 preference, unsupported platform, pattern length ceiling, thrown calls.
+
+## 12. Arena re-cut (Request 22) — what was actually executed
+
+The board was rebuilt from the ground up: a wider landscape arena split by a
+river (40 % enemy ground above, 60 % ours below), 2–3 crossings per map, every
+map re-authored, and the keep redrawn from a downloaded CC0 vector. Everything
+below was run, not assumed.
+
+### 12.1 Geometry audit — all 17 maps
+
+`/tmp/audit.mjs` builds every entry of `MAPS`, parses it, runs
+`PathfindingSystem.computeMainPath()` + `computeLanes()` and checks the rim, the
+river, the gate rows and the lane spread:
+
+| map | lanes | cells | map | lanes | cells |
+|---|---|---:|---|---|---:|
+| grassland | 2 | 18 / 18 | blackfen | 3 | 18 / 18 / 18 |
+| bastion-approach | 2 | 25 / 25 | shattered | 3 | 27 / 27 / 27 |
+| desert | 2 | 16 / 16 | skyward | 2 | 14 / 14 |
+| ice | 3 | 25 / 25 / 25 | tidewatch | 2 | 21 / 21 |
+| crystal | 3 | 24 / 24 / 24 | bastion | 2 | 18 / 18 |
+| caldera | 3 | 21 / 21 / 21 | emberfall | 3 | 26 / 26 / 26 |
+| volcanic | 3 | 23 / 23 / 23 | frostgate | 2 | 18 / 18 / 20 |
+| ash-throne | 2 | 27 / 27 | prismatic | 2 | 18 / 18 |
+| dune | 2 | 20 / 20 | | | |
+
+Every map: 26 columns × 12 rows, rock rim on all four sides (the river breaks
+the left/right rim on purpose — it runs off the board), portal on row 2, river
+on row 5, bastion on row 9, two rows of margin under the keep.
+
+### 12.2 Headless Chromium run (real browser, real WebGL)
+
+The sandbox has no system Chromium, so one is provisioned from npm
+(`@sparticuz/chromium`, AL2023 build) plus the NSS libraries from the same
+package; `LD_LIBRARY_PATH=/tmp/al2023/lib:/tmp` and `--use-angle=swiftshader`
+give a working WebGL context. The built `dist/` was served with
+`python3 -m http.server` and driven by `puppeteer-core` at 1366×768.
+
+What was observed, in order:
+
+1. **Boot → menu** renders (Phaser 3.90, WebGL, no console errors).
+2. **`gameFlow.startLevel()`** into `level-1`, `level-3`, `level-4`:
+   camera viewport 1280×432 at y=125, zoom **0.5625** = the band fit, board
+   centred (`scrollX 192`, not 497), zero page errors.
+3. **Lane counts in the live scene** match the audit: 2, 3 and 3 lanes with
+   equal lengths (25/25, 25/25/25, 24/24/24).
+4. **Build path**: `validateBuild('archer', 6, 2)` → ok, `attemptBuild` creates
+   the keep (`activeTowers` 1, HUD `1/8 BUILDS`); a lane cell answers
+   `road-tile`, enemy-half grass answers `enemy-half`, the portal ring answers
+   `spawn-zone`.
+5. **Wave → base attack**: the wave opened, 7 → 10 creeps marched the lane and
+   reached the gate (`x 1305, y 599` against a base at col 21 / row 9), base HP
+   20 → 0, and the DEFEAT card appeared with `0 / 8` waves and `33.2 s`.
+
+### 12.3 Bugs found by that run (and fixed at the source)
+
+| Symptom in the browser | Root cause | Fix |
+|---|---|---|
+| The bastion sat *behind* the forge dock | `CameraRig` fitted the zoom to the whole canvas, not to the band `battleFrame` measures | fit against `frame.height` (`CameraRig` constructor) |
+| The board crept back to 1× a second after boot | `install()` set `camera.zoom` but left `targetZoom` at 1, so `update()` smoothed straight back out | `install()` now calls `reset()` |
+| The board hugged the left edge with half the band empty | Phaser's `useBounds` clamp pins a world smaller than the viewport to the top-left | `useBounds = false`; the rig's own `clampScroll` (which centres a small world) is the single clamp |
+| The world HP bar vanished on the second battle | repaint guard keyed on the HP string while the scene instance is reused | reset `bastionBarShown` when the bar is created |
+| `MAPS` was not exported any more | the variant rewrite dropped the compiled record | restored, built once from `ARENA_VARIANTS` |
+| A three-lane board named every lane `RIGHT` | labels came from "where a lane peels off the reference lane" | label by lane centroid: left / centre / right |
+| “spawn-zone” could never be reported | the enemy-half rule was checked first | portal ring is tested first |
+
+### 12.4 Suites updated to the new contract
+
+`systems`, `graph-bfs`, `bastion-field`, `build-points`, `build-slots`,
+`endless-map`, `lane-routing`, `modes` — 27 assertions that encoded the old
+21×12 board or the overturned “build anywhere” rule were rewritten to derive
+their cells from `ARENA` / the parsed map, and the free-placement cases now
+assert the refusal (`road-tile`, `enemy-half`). Final run: **1250 / 1250**.
+
+## 13. The bastion, the courtyard and the bands (Request 22, second pass)
+
+Three defects were still visible in the browser after section 12, and all three
+were fixed at the cause rather than nudged.
+
+### 13.1 The keep's health bar floated on the river
+
+`bastionBarY` was read from `bastionKeep.getBounds().top`, i.e. the top edge of
+the *texture*. That texture is the fortress plus a tenth of its height of
+transparent padding (the contact shadow's room), so the bar was anchored ~40 px
+above the actual battlements and landed in the water row.
+
+- `KEEP_PAD_RATIO = 0.1` now documents that padding in `src/data/arenaArt.js`
+  (it is `(H/8) / (H + H/4)` from `scripts/build_arena_art.sh`), and
+  `GameScene` anchors the bar to `keepTop + displayHeight × KEEP_PAD_RATIO − 20`.
+- The keep's foot moved from `baseY + TILE_SIZE × 0.34` to `+ 0.9`, putting it on
+  the top edge of the bottom margin row. The two rows of grass and rock under the
+  bastion are visible again (the brief asks for the keep at the very bottom
+  *with a margin*), and the bar now sits on the grass strip between the river and
+  the battlements.
+
+Measured after the change (`/tmp/browser/dockoverlap.mjs`, 1366×768): keep
+texture top/bottom `378 / 630` → `414 / 666`; bar on grass; camera viewport
+`1280 × 432`; board fits the band at zoom `0.5625`.
+
+### 13.2 Every courtyard was a paved plaza with holes in it
+
+`arenaLanes` gave each lane its own `turnRow`, so two or three roads ran down our
+half in parallel and their stairs enclosed grass pockets. The bottom of the map
+read as a lattice.
+
+Every lane now turns in on the same courtyard row: the routes converge on one
+approach road to the keep with a spur per crossing. Lane counts and lengths are
+unchanged (re-ran the audit in `tests/lane-routing.test.js` and the 17-map
+length table): 2 or 3 routes per map, longest ≤ 1.35 × shortest.
+
+### 13.3 The endless field was four hard stripes
+
+`endlessBiomeGrid()` painted ice / desert / volcanic / crystal from top to
+bottom, and the crystal strip put the keep on lilac ground.
+
+Three bands now (ice under the portal, desert across the enemy corridor, caldera
+from the water down), with the water row kept desert-themed so the divider reads
+as **water** and not as lava. `tests/endless-map.test.js` was rewritten to pin
+that contract, including `expect(themes.has('crystal')).toBe(false)` so the
+lilac strip cannot come back by accident.
+
+### 13.4 Balance: wave 1 on level 1
+
+An earlier probe lost the base in 33 s; the runs below show that was the
+placement, not the map.
+
+| run | towers | result |
+|---|---|---|
+| `/tmp/browser/balance.mjs` — five ballistas clustered on the road side | 5 × 60 g | base 20 → 0 at t≈68 s, 9 of 10 grunts alive |
+| `/tmp/browser/balance2.mjs` — five ballistas ranked by lane coverage | 5 × 60 g | **base 20/20, every grunt killed, wave closed at t≈45 s, 146 g earned** |
+| `/tmp/browser/combat.mjs` — targeting trace | 2 in range | towers acquire at ~390 px of travel, grunt 92 → 60 → 28 → 12 HP |
+
+`validateBuild` still answers `road-tile` on a lane cell and `enemy-half` above
+the river; the DOM Start Wave button still opens the wave; zero page or console
+errors in all three runs. Suites: **1250 / 1250**; `npm run build` clean.

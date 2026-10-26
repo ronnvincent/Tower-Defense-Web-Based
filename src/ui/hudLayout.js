@@ -72,15 +72,24 @@ export class HudLayout {
     this.frame = null;
   }
 
+  /** Event fired on <window> after every re-measure that changed a value. */
+  static get EVENT() {
+    return 'hud-layout-change';
+  }
+
   /** Measure now and publish the custom properties. */
   sync() {
     const root = this.doc?.documentElement;
     if (!root) return;
     const viewportHeight = this.win?.innerHeight || root.clientHeight || 0;
 
+    let changed = false;
     const dock = this.doc.getElementById('hud-bottom-dock');
     const dockPx = dockClearance(dock?.getBoundingClientRect?.(), viewportHeight);
-    if (dockPx != null) root.style.setProperty(DOCK_CLEARANCE_VAR, `${dockPx}px`);
+    if (dockPx != null) {
+      if (root.style.getPropertyValue(DOCK_CLEARANCE_VAR) !== `${dockPx}px`) changed = true;
+      root.style.setProperty(DOCK_CLEARANCE_VAR, `${dockPx}px`);
+    }
 
     // The run rail hangs below the top bar but is not part of its box, so it
     // has to be measured too — otherwise a toast lands across a mode's chips.
@@ -91,7 +100,13 @@ export class HudLayout {
       const railPx = topClearance(rail.getBoundingClientRect?.());
       if (railPx != null) topPx = Math.max(topPx ?? 0, railPx);
     }
-    if (topPx != null) root.style.setProperty(TOPBAR_CLEARANCE_VAR, `${topPx}px`);
+    if (topPx != null) {
+      if (root.style.getPropertyValue(TOPBAR_CLEARANCE_VAR) !== `${topPx}px`) changed = true;
+      root.style.setProperty(TOPBAR_CLEARANCE_VAR, `${topPx}px`);
+    }
+    // The battlefield camera frames itself inside the band these two numbers
+    // describe, so a folded dock has to tell it to re-fit.
+    if (changed) this.win?.dispatchEvent?.(new (this.win.Event || Event)(HudLayout.EVENT));
   }
 
   /** Coalesce bursts of resize events into one measurement per frame. */

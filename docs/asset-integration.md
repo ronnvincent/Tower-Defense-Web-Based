@@ -451,17 +451,69 @@ and accepts grey mud. `tests/terrain-contrast.test.js` enforces the floor
 (≥ 26) and also fails if two biomes end up with the same lane or water value.
 
 ### Maps
-`src/data/mapData.js` holds four 20×12 ASCII battlefields — `grassland`,
-`desert`, `ice` and `volcanic` (a four-step staircase, 31 tiles) — each verified
-pathable by the BFS graph. Levels 1–3 use the first three; Endless Siege marches
-the volcanic one. `build_tiles()` also renders the 120×72 world-map minimaps from
-the same ASCII and the same themed tiles.
+Every battlefield is compiled from one grammar — `src/data/arenaLayout.js`
+(`arenaLanes` + `buildArena`) — into a 26×12 arena:
+
+* the **portal** stands on row 2, one full row of enemy ground under the top rim;
+* the **river** is row 5, the horizontal split: five rows of enemy ground above
+  it, seven rows of ours below (the 40 / 60 cut, in whole rows);
+* the **bastion** stands on row 9 with two rows of margin under it (row 10 grass,
+  row 11 rock rim), so neither gate ever touches the edge;
+* **two or three crossings** per map, never one shared arena;
+* the two gates may sit on **different columns** — a map that runs corner to
+  corner makes every crossing between them exactly the same length, which is
+  what gives a three-lane board three genuinely equal routes
+  (`PathfindingSystem.computeLanes` keeps them all).
+
+Each map is one entry in `ARENA_VARIANTS` (gate columns, bridge columns, corridor
+and courtyard rows, stagger, props); `MAPS` is the compiled result and every
+layout is verified pathable by the BFS graph. The campaign uses `grassland`,
+`desert`, `ice`, `crystal` and `volcanic`; the War Room modes use the rest;
+Endless Siege marches the volcanic arena with a four-band biome overlay
+(`MAP_BIOMES`), its bands cut on the arena's own rows.
 
 ### UI art
 - `star_gold.png` / `star_empty.png` / `lock.png` — Kenney *Game Icons* white
   silhouettes, tinted (`tint_pixels`) gold, slate and parchment.
 - `icon_gem.png` — the Kenney top-down gem prop (`towerDefense_tile183`),
   hue-shifted to violet and centred on a 64 px canvas.
+### Bastion arena art
+`public/assets/arena/` carries the board's landmarks. The keep is vector-sourced
+art, rasterised by `scripts/svg-to-png.mjs` and composed with a contact shadow by
+`scripts/build_arena_art.sh`, so it is reproducible from the CC0 sources in
+`art-source/arena/`:
+
+| File | Size | Use | Source |
+|---|---|---|---|
+| `bastion-fortress.png` | 490×466 | the player's keep, bottom-anchored on the bastion tile | OpenGameArt *Fortress*, CC0 (`art-source/arena/fortress.svg`) |
+| `portal-arch.png` | 220×224 | the gate frame at the spawn tile, origin 0.5 / 0.8 | this project's art pass |
+| `portal-vortex.png` | 1152×576 | 32 frames of 144 px (8×4), the animated portal core | Kenney particle art, CC0 |
+| `river-flow.png` | 512×512 | seamless ripple layer scrolled across the river row | Kenney water caustics, CC0 |
+
+`bastion-keep.png` (the painted castle) and `bastion-city.png` (the walled city
+tried after it) stay on disk as recoverable originals; neither is loaded by the
+game. `bastion-city.svg` is still in `art-source/arena/` with `fortress.svg`.
+
+The sheet is the fortress plus a tenth of its height of transparent padding on
+every side, which is what the contact shadow is blurred into. `KEEP_PAD_RATIO`
+in `src/data/arenaArt.js` publishes that tenth, so the world health bar anchors
+to the top of the *battlements* (`keepTop + displayHeight × 0.1`) instead of to
+the empty air above the texture — anchoring to the raw bounds floated the bar
+into the river row. The keep's foot sits at `baseY + TILE_SIZE × 0.9`, on the
+top edge of the bottom margin row, so the two rows of grass and rock under the
+bastion stay visible.
+
+`src/data/arenaArt.js` is the manifest (`ARENA_ART`, `PORTAL_ANIM`); `BootScene`
+loads the four files and registers `portal-vortex-idle` at 30 fps, and
+`GameScene.createPortalAndBase()` places them. The river is drawn as two
+`tileSprite`s across row 5 with `ADD` blending, scrolled at different speeds in
+`update()` — one texture offset per frame, not a per-cell redraw. The vortex is composited by
+`scripts/build_arena_art.sh` from the CC0 Kenney FX sheets the game already
+ships: every layer is composited on **black**, and the sheet is played with
+`ADD`, so it has no alpha channel **by design** — additive blending drops the
+black and keeps the glow. Layers are flattened after they are rotated; rotating
+first and flattening later leaves pink wedges in the corners.
+
 - `map_<theme>.png` — 120×72 minimaps rendered from the *same* ASCII
   battlefields in `src/data/mapData.js` and the *same* themed tiles the game
   loads: one 6 px block per cell, road cells brightened so the lane reads at

@@ -8,6 +8,7 @@ import {
   getMapBiomes,
   TILE,
 } from '../src/data/mapData.js';
+import { ARENA } from '../src/data/arenaLayout.js';
 import { TILE_SIZE } from '../src/config/gameConfig.js';
 import { THEMES } from '../src/data/levelData.js';
 
@@ -15,10 +16,10 @@ import { THEMES } from '../src/data/levelData.js';
  * The Convergence — the endless battlefield.
  *
  * Two complaints drove this map: the horde was fighting in a shoebox, and the
- * caldera was one flat colour. So it is 28×18 (twice a campaign map), it carries
- * three roads of 33-39 cells each rather than one 54-cell snake, and its ground
- * is painted from four tile sets at once: snowfield, dunes, caldera and the
- * crystal dais under the core.
+ * caldera was one flat colour. It now uses the same arena grammar as every
+ * other battlefield (portal on top, bastion at the bottom, rift across the
+ * middle) and its ground is painted from four tile sets at once: snowfield,
+ * dunes, caldera and the crystal vein along the east wall.
  *
  * These tests pin the parts a hand edit could quietly break: the size, the
  * four-biome coverage, the road actually passing through every biome, and the
@@ -68,22 +69,25 @@ function shortestPath(parsed) {
 }
 
 describe('The Convergence layout', () => {
-  it('is more than twice the area of a campaign map', () => {
+  it('uses the shared arena grammar', () => {
     const campaign = parseMap(MAP_LAYOUT);
-    expect(map.cols).toBe(28);
-    expect(map.rows).toBe(18);
-    expect(map.rows * map.cols).toBeGreaterThanOrEqual(2 * campaign.rows * campaign.cols);
-    // 28x18 at 64 px still frames inside the camera's 0.45x floor.
+    expect(map.cols).toBe(campaign.cols);
+    expect(map.rows).toBe(campaign.rows);
+    // Portal above, bastion below, a river between them — the endless field
+    // reads as the same board as the campaign, only repainted.
+    expect(map.spawn.row).toBeLessThan(map.base.row);
+    expect(map.rows).toBe(ARENA.rows);
+    expect(map.cols).toBe(ARENA.cols);
+    // 26x12 at 64 px still frames inside the camera's 0.45x floor.
     const fit = Math.min(1280 / (map.cols * TILE_SIZE), 768 / (map.rows * TILE_SIZE));
     expect(fit).toBeGreaterThan(0.45);
   });
 
   it('runs a road long enough to matter', () => {
     const route = shortestPath(map);
-    // Three lanes of 33-39 cells replaced one 54-cell snake: the shortest walk
-    // is shorter, but the horde that used to queue on a single road now picks
-    // one of three. 30 cells is still ~30 s at creep speed, not a stroll.
-    expect(route.length).toBeGreaterThan(30);
+    // Two mirrored lane roads, 19 cells each: ~19 s at 62 px/s, long enough for
+    // the defence to work and short enough that wave 1 is not a waiting game.
+    expect(route.length).toBeGreaterThanOrEqual(15);
     // …but a creep must not take a minute and a half to reach the core at base
     // speed (62 px/s), or wave 1 would be a waiting game.
     const seconds = (route.length * TILE_SIZE) / 62;
@@ -91,27 +95,38 @@ describe('The Convergence layout', () => {
   });
 
   it('puts water on the map and lets the road cross it', () => {
+    // The rift fills one full row except for the three bridges.
     const water = map.tiles.flat().filter((tile) => tile === TILE.WATER).length;
-    expect(water).toBeGreaterThan(20);
+    expect(water).toBeGreaterThanOrEqual(12);
+    expect(map.tiles[ARENA.riverRow].filter((t) => t === TILE.WATER).length).toBeGreaterThan(12);
 
-    const isWater = (r, c) => map.tiles[r]?.[c] === TILE.WATER;
+    // The rift is the row holding the most water. Its walkable cells must form
+    // exactly two contiguous crossings — the two bridges — and nothing else
+    // (a grass gap in the rift would read as a third, unmarked crossing).
     const isLane = (r, c) => {
       const tile = map.tiles[r]?.[c];
       return tile === TILE.ROAD || tile === TILE.SPAWN || tile === TILE.BASE;
     };
-    let bridges = 0;
-    for (let r = 0; r < map.rows; r++) {
-      for (let c = 0; c < map.cols; c++) {
-        if (!isLane(r, c)) continue;
-        const across = (isWater(r, c - 1) && isWater(r, c + 1)) || (isWater(r - 1, c) && isWater(r + 1, c));
-        if (across) bridges += 1;
+    const waterIn = map.tiles.map((row) => row.filter((tile) => tile === TILE.WATER).length);
+    const riftRow = waterIn.indexOf(Math.max(...waterIn));
+    expect(waterIn[riftRow]).toBeGreaterThan(0);
+    const crossings = [];
+    let run = 0;
+    for (let c = 0; c < map.cols; c += 1) {
+      if (isLane(riftRow, c)) run += 1;
+      else if (map.tiles[riftRow][c] !== TILE.WATER) throw new Error(`rift row ${riftRow} has a ${map.tiles[riftRow][c]} at col ${c}`);
+      else if (run) {
+        crossings.push(run);
+        run = 0;
       }
     }
-    expect(bridges).toBeGreaterThanOrEqual(2);
+    if (run) crossings.push(run);
+    // Three bridges on the endless field, one cell wide each.
+    expect(crossings).toEqual([1, 1, 1]);
   });
 });
 
-describe('four biomes on one battlefield', () => {
+describe('three biomes on one battlefield', () => {
   const grid = getMapBiomes('volcanic');
 
   it('ships a biome grid that matches the layout', () => {
@@ -121,24 +136,31 @@ describe('four biomes on one battlefield', () => {
     expect(MAP_BIOMES.volcanic).toHaveLength(map.rows);
   });
 
-  it('paints snow, sand, fire and crystal, in that order down the map', () => {
+  it('paints snow, sand and fire — one band per biome, top to bottom', () => {
     const themes = new Set(grid.flat());
-    for (const theme of ['ice', 'desert', 'volcanic', 'crystal']) {
+    for (const theme of ['ice', 'desert', 'volcanic']) {
       expect(themes.has(theme), `${theme} is missing`).toBe(true);
       // Every biome it uses must own a real generated tile set.
       expect(THEMES[theme], `${theme} has no theme entry`).toBeTruthy();
     }
+    // Three bands, not four: the crystal strip that used to sit under the keep
+    // turned the whole player half lilac and made the bastion look dropped on a
+    // different map. The river is the seam, so the warm half starts there.
+    expect(themes.has('crystal')).toBe(false);
     expect(grid[0][0]).toBe('ice');
     expect(grid[map.rows - 1][0]).toBe('volcanic');
-    // The core sits on the crystal dais, the gate in the snowfield.
-    expect(grid[map.base.row][map.base.col]).toBe('crystal');
     expect(grid[map.spawn.row][map.spawn.col]).toBe('ice');
+    expect(grid[map.base.row][map.base.col]).toBe('volcanic');
+    // The water row itself stays desert-themed so the divider reads as water
+    // rather than as a lava flow.
+    expect(grid[ARENA.riverRow][0]).toBe('desert');
+    expect(grid[ARENA.riverRow + 1][0]).toBe('volcanic');
   });
 
-  it('makes the road travel through every biome', () => {
+  it('makes the road travel from the snowfield into the caldera', () => {
     const route = shortestPath(map);
     const visited = new Set(route.map((cell) => grid[cell.row][cell.col]));
-    for (const theme of ['ice', 'desert', 'volcanic', 'crystal']) {
+    for (const theme of ['ice', 'desert', 'volcanic']) {
       expect(visited.has(theme), `the road never reaches the ${theme} band`).toBe(true);
     }
   });
