@@ -23,7 +23,7 @@
  */
 
 import { THEMES } from './levelData.js';
-import { ARENA, arenaLanes, buildArena, scatterProps } from './arenaLayout.js';
+import { ARENA, arenaLanes, buildArena, colAt, scatterProps } from './arenaLayout.js';
 
 /** Shared rules. No relics, no blessings, no powerups: the arena equalises. */
 /**
@@ -46,36 +46,39 @@ export const PVP_RULES = Object.freeze({
   waves: 10,
 });
 
+/** Column by offset from the axis, exactly like a campaign map. */
+const A = colAt;
+
 /** One board from its spec, exactly like a campaign map. */
 const arenaBoard = (spec) => buildArena({ ...spec, lanes: arenaLanes(spec) });
 
 const CINDER_CROWN = arenaBoard({
-  portalCol: 5,
-  baseCol: 20,
-  bridges: [6, 11, 16],
+  portalCol: A(-7),
+  baseCol: A(8),
+  bridges: [A(-6), A(-1), A(4)],
   corridorRow: [4, 3, 4],
   turnRow: 7,
-  rocks: scatterProps('cinder-crown', { count: 9, fromRow: 6, toRow: 10 }),
-  ponds: [[10, 2], [10, 23]],
+  rocks: scatterProps('cinder-crown', { count: 9, fromRow: 6, toRow: 9 }),
+  ponds: [[9, A(-10)], [9, A(11)]],
 });
 
 const FROSTSPINE = arenaBoard({
   portalCol: ARENA.axisCol,
   baseCol: ARENA.axisCol,
-  bridges: [6, 18],
+  bridges: [A(-6), A(6)],
   corridorRow: [3, 4],
   turnRow: 8,
-  rocks: scatterProps('frostspine', { count: 12, fromRow: 6, toRow: 10 }),
+  rocks: scatterProps('frostspine', { count: 12, fromRow: 6, toRow: 9 }),
 });
 
 const DUST_MERIDIAN = arenaBoard({
-  portalCol: 20,
-  baseCol: 5,
-  bridges: [7, 13],
+  portalCol: A(8),
+  baseCol: A(-7),
+  bridges: [A(-5), A(1)],
   corridorRow: [3, 4],
   turnRow: 7,
-  ponds: [[9, 11], [10, 17]],
-  rocks: scatterProps('dust-meridian', { count: 8, fromRow: 6, toRow: 10 }),
+  ponds: [[9, A(-1)], [9, A(5)]],
+  rocks: scatterProps('dust-meridian', { count: 8, fromRow: 6, toRow: 9 }),
 });
 
 /**

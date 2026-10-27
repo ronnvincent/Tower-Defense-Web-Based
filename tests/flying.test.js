@@ -150,11 +150,17 @@ describe('the campaign fields the flyer', () => {
   const spawnsOf = (level) =>
     level.waves.flatMap((wave) => (wave.groups || []).map((group) => group.type));
 
-  it('debuts the wraith in the last stage', () => {
-    const level5 = getLevel('level-5');
-    expect(spawnsOf(level5)).toContain('wraith');
-    for (const level of LEVELS.filter((entry) => entry.id !== 'level-5')) {
-      expect(spawnsOf(level), `${level.id} should not field the wraith yet`).not.toContain('wraith');
+  it('fields the wraith across the campaign, always after the opening waves', () => {
+    // It used to be a stage-5 exclusive. That made the air rule a curiosity and
+    // left four stages where a dock of ground-only guns was never wrong — see
+    // systems/AirRoutes.js. The debut is still late in each stage, because the
+    // first two waves are the build-up, not the exam.
+    const withWraith = LEVELS.filter((level) => spawnsOf(level).includes('wraith'));
+    expect(withWraith.map((level) => level.id)).toContain('level-5');
+    expect(withWraith.length).toBeGreaterThanOrEqual(4);
+    for (const level of withWraith) {
+      const first = level.waves.findIndex((wave) => wave.groups.some((group) => group.type === 'wraith'));
+      expect(first, `${level.id} opens with flyers`).toBeGreaterThanOrEqual(3);
     }
   });
 });

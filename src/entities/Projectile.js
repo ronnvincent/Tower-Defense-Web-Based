@@ -1,6 +1,7 @@
 import { audio } from '../rendering/AudioSynth.js';
 import { PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../data/towerVisuals.js';
 import { ELEMENT_BY_DAMAGE } from '../systems/Vfx.js';
+import { projectileCanHit } from '../systems/TargetCategories.js';
 
 let projIdCounter = 1;
 
@@ -150,6 +151,12 @@ export class Projectile {
       // every enemy in the blast took full damage.
       for (const enemy of this.activeEnemies) {
         if (enemy.isDead || enemy.reachedBase) continue;
+        // The blast keeps the firing line's targeting rules. A ground-only
+        // shell that catches a wraith in its radius used to damage it, which
+        // made "this tower cannot hit air" a lie the moment two creeps stood
+        // close together. A shell that is *meant* to sweep the sky says so with
+        // `splashIgnoresTargeting` in its data.
+        if (!this.stats.splashIgnoresTargeting && !projectileCanHit(this.stats, enemy)) continue;
         const d = Math.hypot(enemy.x - impactX, enemy.y - impactY);
         if (d <= this.stats.splash) {
           const res = this.hitEnemy(enemy, this.stats.damage, {
@@ -171,7 +178,7 @@ export class Projectile {
       // Single target impact
       audio.playEnemyHit();
 
-      if (this.target && !this.target.isDead) {
+      if (this.target && !this.target.isDead && projectileCanHit(this.stats, this.target)) {
         // A splash shell already damaged this target in the loop above; do not
         // hit it a second time, only top up the status effects.
         const alreadyHit = (this.stats.splash || 0) > 0;
@@ -273,6 +280,9 @@ export class Projectile {
     this.scene.cameras?.main?.shake?.(70, 0.0022);
     for (const enemy of this.activeEnemies) {
       if (enemy.isDead || enemy.reachedBase) continue;
+      // A nova is still a shot from *this* tower: a frost bolt that cannot
+      // reach the sky must not freeze a wyvern standing in the ring.
+      if (!projectileCanHit(this.stats, enemy)) continue;
       const d = Math.hypot(enemy.x - x, enemy.y - y);
       if (d > radius) continue;
       if (this.stats.slow && this.stats.slowMs) {
@@ -291,35 +301,49 @@ export class Projectile {
   executeChainLightning(primaryTarget) {
     const chainRange = this.stats.chainRange || 90;
     const maxChains = this.stats.chainTargets || 2;
-    let hitCount = 0;
+    // Every creep this arc has already touched. The old loop walked the enemy
+    // array once, so it could not repeat a target — but it also could not pick
+    // the *nearest* one, and it ignored the firing line's categories entirely:
+    // a ground-locked keep's lightning climbed into the sky.
+    const visited = new Set([primaryTarget]);
     let lastTarget = primaryTarget;
+    let hitCount = 0;
 
-    for (const enemy of this.activeEnemies) {
-      if (enemy === primaryTarget || enemy.isDead || enemy.reachedBase) continue;
-      const d = Math.hypot(enemy.x - lastTarget.x, enemy.y - lastTarget.y);
-      if (d <= chainRange) {
-        // Draw lightning line between targets
-        const line = this.scene.add.graphics();
-        line.setDepth(45);
-        line.lineStyle(2, 0xffea78, 0.9);
-        line.lineBetween(lastTarget.x, lastTarget.y, enemy.x, enemy.y);
-        this.scene.tweens.add({
-          targets: line,
-          alpha: 0,
-          duration: 150,
-          onComplete: () => line.destroy(),
-        });
-
-        const chainDmg = Math.round(this.stats.damage * 0.75);
-        const res = enemy.applyDamage(chainDmg, 'lightning');
-        if (res.finalDamage > 0) {
-          this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0xffea78);
+    while (hitCount < maxChains) {
+      let next = null;
+      let nextDist = Infinity;
+      for (const enemy of this.activeEnemies) {
+        if (visited.has(enemy) || enemy.isDead || enemy.reachedBase) continue;
+        if (!projectileCanHit(this.stats, enemy)) continue;
+        const d = Math.hypot(enemy.x - lastTarget.x, enemy.y - lastTarget.y);
+        if (d <= chainRange && d < nextDist) {
+          next = enemy;
+          nextDist = d;
         }
-
-        lastTarget = enemy;
-        hitCount++;
-        if (hitCount >= maxChains) break;
       }
+      if (!next) break;
+
+      // Draw lightning line between targets
+      const line = this.scene.add.graphics();
+      line.setDepth(45);
+      line.lineStyle(2, 0xffea78, 0.9);
+      line.lineBetween(lastTarget.x, lastTarget.y, next.x, next.y);
+      this.scene.tweens.add({
+        targets: line,
+        alpha: 0,
+        duration: 150,
+        onComplete: () => line.destroy(),
+      });
+
+      const chainDmg = Math.round(this.stats.damage * 0.75);
+      const res = next.applyDamage(chainDmg, 'lightning');
+      if (res.finalDamage > 0) {
+        this.showDamageText(next.x, next.y - 10, res.finalDamage, 0xffea78);
+      }
+
+      visited.add(next);
+      lastTarget = next;
+      hitCount += 1;
     }
   }
 

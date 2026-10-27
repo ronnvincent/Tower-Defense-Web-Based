@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { LEVELS, ENDLESS_LEVEL } from '../src/data/levelData.js';
 import { ENEMY_SHEETS } from '../src/data/spireManifest.js';
 import {
@@ -52,9 +53,14 @@ describe('EnemyAssets — selection', () => {
     const level = LEVELS[0];
     const types = enemyTypesForLevel(level);
     for (const wave of level.waves) {
-      for (const group of wave.groups) expect(types.has(group.type)).toBe(true);
+      for (const group of wave.groups) {
+        // The loader keys on the *art* strip: a wraith flies on the wyvern
+        // sheet, so its art key is not its rules key.
+        const art = ENEMY_TYPES[group.type]?.art || group.type;
+        expect(types.has(art), `${group.type} needs ${art}`).toBe(true);
+      }
     }
-    expect(types.has(level.boss)).toBe(true);
+    expect(types.has(ENEMY_TYPES[level.boss]?.art || level.boss)).toBe(true);
 
     const keys = enemyTexturesForLevel(level);
     expect(keys.length).toBeLessThan(40);

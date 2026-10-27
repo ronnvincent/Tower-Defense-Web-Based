@@ -733,6 +733,20 @@ body.is-fullscreen::before {
   font-weight: 700;
 }
 
+/* A flyer in the scouting report. Sky-blue + a leading wing glyph, because the
+   strip is read at a glance during a ten-second prep and a colour alone is not
+   enough for a colour-blind player. */
+.wave-preview-chip.air {
+  color: #9ddcf5;
+}
+
+.wave-preview-chip.air::before {
+  content: '▲';
+  font-size: 0.7em;
+  line-height: 1;
+  opacity: 0.9;
+}
+
 /* ------------------------------------------------------------ combo chip */
 
 /* Kill-chain feedback. Absolute, so a chaining player never shifts the HUD. */
@@ -1293,6 +1307,77 @@ body.is-fullscreen::before {
   gap: 2px;
   margin-top: 1px;
   font-variant-numeric: tabular-nums;
+}
+
+/* What a defence can actually hit, printed on its dock card.
+   Two creeps of the same lane can look nothing alike at a glance, and the
+   difference between "this kills the wraith" and "this watches it fly past" is
+   the difference between a won wave and a lost bastion. Colour carries the
+   split (sky blue = air, earth green = ground, gold = both) so a card reads at
+   dock size without a legend; the text carries it for anyone who cannot. */
+.card-target {
+  margin-top: 2px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.card-target.target-both {
+  color: #ffe6b0;
+  border-color: rgba(198, 158, 88, 0.4);
+  background: rgba(58, 42, 18, 0.55);
+}
+
+.card-target.target-ground {
+  color: #b6e6a0;
+  border-color: rgba(96, 158, 72, 0.45);
+  background: rgba(24, 48, 20, 0.55);
+}
+
+.card-target.target-air {
+  color: #9ddcf5;
+  border-color: rgba(74, 152, 190, 0.45);
+  background: rgba(16, 38, 52, 0.55);
+}
+
+/* The inspector spells the same rule out in words: the dock badge is an
+   abbreviation for the dock, the panel has the room to be a sentence. */
+.val.targets-ground {
+  color: #b6e6a0;
+}
+
+.val.targets-air {
+  color: #9ddcf5;
+}
+
+.val.targets-both {
+  color: #ffe6b0;
+}
+
+/* On a phone the dock card is an icon with a price; a third text line pushes
+   the cost out of the card on a 375 px-tall screen. So the badge moves into the
+   corner the hotkey vacates: a touch player has no keyboard, and "can this kill
+   a wraith?" is the question the dock has to answer before the first wave. */
+[data-shell="mobile"] .card-hotkey {
+  display: none;
+}
+
+[data-shell="mobile"] .card-target {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  margin: 0;
+  padding: 0 3px;
+  font-size: 8px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  border-radius: 3px;
+  background: rgba(8, 11, 16, 0.82);
 }
 
 /* ==========================================================================
@@ -1993,6 +2078,33 @@ body.is-fullscreen::before {
   font-weight: 700;
   color: var(--cyan-primary);
   white-space: nowrap;
+}
+
+/* "GROUND + AIR" beside the name. The dock card carries the same word, so the
+   category is legible before a defence is even bought and again the moment it
+   is tapped — no scrolling, no legend. */
+.inspector-targets {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  background: rgba(58, 42, 18, 0.55);
+  color: #ffe6b0;
+}
+
+.inspector-targets.target-ground {
+  color: #b6e6a0;
+  border-color: rgba(96, 158, 72, 0.45);
+  background: rgba(24, 48, 20, 0.55);
+}
+
+.inspector-targets.target-air {
+  color: #9ddcf5;
+  border-color: rgba(74, 152, 190, 0.45);
+  background: rgba(16, 38, 52, 0.55);
 }
 
 .inspector-header-btns {
@@ -10620,7 +10732,12 @@ body.is-fullscreen #app::after {
      ended exactly on the body's edge, so their price row was dimmed by the
      "scroll me" shading — a choice you cannot read is worse than 22 px less
      battlefield. Anything taller than 250 px is a tablet; the cap stays. */
-  max-height: min(58vh, 250px);
+  /* 70vh, up from 58: the sheet is the only thing on screen while it is open —
+     the dock is folded to a pill — and 58 % of a 390 px phone left the sixth
+     stat cell cut in half. The cap still clears the top bar and the dock pill,
+     so the sheet can never cover the wave clock or the SELL/UPGRADE row it
+     exists for. */
+  max-height: min(70vh, 280px);
   padding: 6px;
   border-image-width: 11px;
   animation: inspectorSheetUp 0.18s ease-out;
@@ -10695,7 +10812,7 @@ body.is-fullscreen #app::after {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: calc(min(58vh, 250px) - 52px);
+  max-height: calc(min(70vh, 280px) - 52px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -10737,10 +10854,55 @@ body.is-fullscreen #app::after {
 }
 
 [data-shell="mobile"] .target-btn {
-  min-height: 34px;
-  padding: 4px 2px;
+  /* 30 px: a comfortable thumb target that still leaves the upgrade card and
+     two rows of numbers above the fold on a 390 px-tall screen. */
+  min-height: 30px;
+  padding: 3px 2px;
   font-size: 9px;
   letter-spacing: 0.6px;
+}
+
+/* Three numbers to a row instead of two, smaller type: DAMAGE / RANGE / RATE on
+   one line, DPS / TYPE / TARGETS on the next. What used to be four rows of
+   36 px cells is now two rows of 30 px, and the two prose cells sit below them
+   under an explicit heading. */
+[data-shell="mobile"] .inspector-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+[data-shell="mobile"] .inspector-stats-grid .stat-cell {
+  padding: 3px 6px;
+  gap: 0;
+}
+
+[data-shell="mobile"] .inspector-stats-grid .stat-cell.full-width {
+  grid-column: span 3;
+}
+
+[data-shell="mobile"] .inspector-stats-grid .stat-cell .lbl {
+  font-size: 8px;
+  letter-spacing: 0.6px;
+}
+
+[data-shell="mobile"] .inspector-stats-grid .stat-cell .val {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+/* The heading that says "the prose below this line continues". Generated
+   content, not markup: it is decoration over a region that is already labelled
+   cell by cell, so nothing is lost to a screen reader. */
+[data-shell="mobile"] .inspector-stats-grid::before {
+  content: 'COMBAT DETAILS';
+  grid-column: 1 / -1;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gold-primary);
+  opacity: 0.8;
+  padding: 1px 0 0;
 }
 
 [data-shell="mobile"] .inspector-stats-grid {

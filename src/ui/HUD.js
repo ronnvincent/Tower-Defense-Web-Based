@@ -13,6 +13,7 @@ import { BASTION_STATE, bastionState } from '../systems/Bastion.js';
 import { focusReadout } from '../systems/FocusTarget.js';
 import { applyShell, readShellOverride, resolveShell } from './shellMode.js';
 import { haptics } from '../systems/Haptics.js';
+import { targetBadge, targetLabel } from '../systems/TargetCategories.js';
 
 /** "1.25" / "2" — never "1.50", which reads like a precision bug. */
 function formatMultiplier(value) {
@@ -342,6 +343,9 @@ export class HUD {
               <span class="inspector-grip" aria-hidden="true">⠿</span>
               <span class="inspector-name" id="inspect-name">Archer Tower</span>
               <span class="inspector-level" id="inspect-level">★ Level 1</span>
+              <!-- What this defence can hit, in the title row: the answer must
+                   not be two scrolls away from the question. -->
+              <span class="inspector-targets" id="inspect-targets">GROUND + AIR</span>
             </div>
             <div class="inspector-header-btns">
               <button id="btn-collapse-inspect" class="inspector-chip-btn" title="Collapse panel" aria-label="Collapse panel">▾</button>
@@ -536,7 +540,7 @@ export class HUD {
       const group = groupForBuild(key);
       return `
         <button class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" data-group="${group.key}" id="card-${key}"
-                title="${def.description}" aria-label="Build ${def.name} for ${def.cost} gold">
+                title="${def.description}" aria-label="Build ${def.name} for ${def.cost} gold. Hits ${targetLabel(def).toLowerCase()} creeps">
           <div class="card-hotkey" aria-hidden="true">${def.hotkey}</div>
           <div class="card-icon-frame">
             <div class="card-sprite sprite-${key}"></div>
@@ -544,6 +548,7 @@ export class HUD {
           <div class="card-info">
             <span class="card-name">${def.name}</span>
             <span class="card-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${def.cost}</span>
+            <span class="card-target target-${targetBadge(def).toLowerCase().replace(/[^a-z]/g, '')}" title="Can hit ${targetLabel(def).toLowerCase()} creeps">${targetBadge(def)}</span>
           </div>
         </button>
       `;
@@ -1358,6 +1363,15 @@ export class HUD {
 
     document.getElementById('inspect-name').textContent = tower.stats?.title || tower.def.name;
     document.getElementById('inspect-level').textContent = titleStr;
+    const targetChip = document.getElementById('inspect-targets');
+    if (targetChip) {
+      // A palisade damages only what walks into it; a battery that fires at the
+      // sky says so. Same helper as the dock card, so the two can never disagree.
+      const label = targetLabel(tower.def);
+      targetChip.textContent = label;
+      targetChip.className = `inspector-targets target-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}`;
+      targetChip.title = `Can hit ${label.toLowerCase()} creeps`;
+    }
 
     const statsGrid = document.getElementById('inspect-stats');
     const targetingGroup = document.getElementById('inspect-targeting');
@@ -1381,6 +1395,10 @@ export class HUD {
           <span class="lbl">THORNS RETALIATION</span>
           <span class="val">${thorns > 0 ? `${thorns} damage per second to attackers` : 'None at level 1'}</span>
         </div>
+        <div class="stat-cell full-width">
+          <span class="lbl">TARGETS</span>
+          <span class="val">GROUND ONLY — spikes are set in the road</span>
+        </div>
       `;
     } else {
       targetingGroup.style.display = 'block';
@@ -1393,6 +1411,7 @@ export class HUD {
         <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s</span></div>
         <div class="stat-cell"><span class="lbl">DPS</span><span class="val">${this.describeDps(s)}</span></div>
         <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
+        <div class="stat-cell"><span class="lbl">TARGETS</span><span class="val targets-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}">${targetLabel(tower.def)}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SIGNATURE</span><span class="val">${this.describeAbility(s)}</span></div>
       `;
@@ -2159,22 +2178,30 @@ export class HUD {
     }
 
     const key = `${nextWave.number}:${nextWave.total}:${nextWave.boss}:${nextWave.groups
-      .map((g) => `${g.type}${g.count}`)
+      .map((g) => `${g.type}${g.count}${ENEMY_TYPES[g.type]?.flying ? 'a' : 'g'}`)
       .join(',')}`;
     if (key === this.lastPreviewKey) return;
     this.lastPreviewKey = key;
 
+    // A wave that carries flyers is a different problem from one that does not:
+    // a dock of Boulder Slings and Flame Keeps will watch it pass. The scout
+    // strip names the flyers and heads the report with AIR so the prep
+    // countdown is spent buying the answer, not discovering the question.
+    let air = 0;
     const chips = nextWave.groups
       .map((group) => {
         const name = ENEMY_TYPES[group.type]?.name || group.type;
         const boss = ENEMY_TYPES[group.type]?.isBoss;
-        return `<span class="wave-preview-chip${boss ? ' boss' : ''}" title="${name}">
+        const flies = Boolean(ENEMY_TYPES[group.type]?.flying);
+        if (flies) air += group.count;
+        return `<span class="wave-preview-chip${boss ? ' boss' : ''}${flies ? ' air' : ''}" title="${name}${flies ? ' — flying' : ''}">
           <b>${group.count}</b> ${name.replace(/^(Goblin|Iron|Shadow|Plague|Aegis|Stone|Abyssal|Crystal)\s+/i, '')}
         </span>`;
       })
       .join('');
 
-    el.innerHTML = `<span class="wave-preview-head">NEXT IN ${nextWave.number}${nextWave.boss ? ' · BOSS' : ''}</span>${chips}`;
+    const flags = [air > 0 ? 'AIR' : '', nextWave.boss ? 'BOSS' : ''].filter(Boolean).join(' · ');
+    el.innerHTML = `<span class="wave-preview-head">NEXT IN ${nextWave.number}${flags ? ` · ${flags}` : ''}</span>${chips}`;
   }
 
   /* ------------------------------------------------------------- combo */

@@ -65,17 +65,28 @@ describe('battlefield margins', () => {
   });
 
   it('keeps both gates out from under the top bar and the dock', () => {
-    // Two rows of grass plus the gate tile itself is what the HUD needs before
-    // the gate stops being buried: the top bar reaches ~1.7 tiles into the map
-    // on a landscape phone, the dock ~2.3.
+    // The portal still needs two rows of grass above it: the top bar reaches
+    // ~1.7 tiles into the map on a landscape phone.
+    //
+    // The bastion needs one. It sits at 87.5 % of the world height now (row 10
+    // of 12, the 85-90 % band), and the camera fits the board into the *band*
+    // between the top bar and the forge (camera/battleFrame.js), so the last
+    // playable row is drawn above the dock instead of behind it. The row under
+    // the keep is the rock rim, which is the visible margin the player sees.
     for (const [name, layout] of BATTLEFIELDS) {
       const map = parseMap(layout);
+      expect(
+        verticalTileClearance(map, map.spawn),
+        `${name} portal at row ${map.spawn.row} is in the top HUD band`
+      ).toBeGreaterThanOrEqual(2);
+      expect(
+        verticalTileClearance(map, map.base),
+        `${name} bastion at row ${map.base.row} touches the bottom rim`
+      ).toBeGreaterThanOrEqual(1);
       for (const gate of ['spawn', 'base']) {
-        expect(
-          verticalTileClearance(map, map[gate]),
-          `${name} ${gate} at row ${map[gate].row} is in the top/bottom HUD band`
-        ).toBeGreaterThanOrEqual(2);
         expect(sideTileClearance(map, map[gate]), `${name} ${gate} touches a side`).toBeGreaterThanOrEqual(1);
+        // The gate never stands on the last row: there is always terrain below.
+        expect(map[gate].row).toBeLessThanOrEqual(map.rows - 2);
       }
     }
   });
@@ -103,9 +114,13 @@ describe('battlefield margins', () => {
       expect(spawn.row, `${arena.id} portal is not on the enemy bank`).toBeLessThan(map.riverRow);
       expect(base.row, `${arena.id} keep is not on our bank`).toBeGreaterThan(map.riverRow);
       expect(spawn.row, `${arena.id} portal has no margin above`).toBeGreaterThanOrEqual(2);
-      expect(base.row, `${arena.id} keep has no margin below`).toBeLessThanOrEqual(map.rows - 3);
+      expect(base.row, `${arena.id} keep has no margin below`).toBeLessThanOrEqual(map.rows - 2);
       expect(edgeTileClearance(map, spawn), `${arena.id} portal touches an edge`).toBeGreaterThanOrEqual(2);
-      expect(edgeTileClearance(map, base), `${arena.id} keep touches an edge`).toBeGreaterThanOrEqual(2);
+      // The keep owns row 10 of 12 by design, so its bottom clearance is the one
+      // rim row; the sides keep the full two tiles so the fortress art has room.
+      expect(edgeTileClearance(map, base), `${arena.id} keep touches an edge`).toBeGreaterThanOrEqual(1);
+      expect(sideTileClearance(map, base), `${arena.id} keep touches a side`).toBeGreaterThanOrEqual(2);
+      expect(map.base.row, `${arena.id} keep is not on the rim`).toBeLessThanOrEqual(map.rows - 2);
     }
   });
 

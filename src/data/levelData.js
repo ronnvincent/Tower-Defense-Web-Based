@@ -254,6 +254,9 @@ export const LEVELS = [
           { type: 'shield', count: 8, interval: 1300 },
           { type: 'brute', count: 6, interval: 1200, delay: 1200 },
           { type: 'runner', count: 12, interval: 380, delay: 1500 },
+          // Sunscorch's sky opens here. Four wraiths over the mesa: the shield
+          // wall is the wave a player has spent everything on the ground for.
+          { type: 'wraith', count: 4, interval: 1000, delay: 1000 },
         ],
       },
       {
@@ -310,6 +313,9 @@ export const LEVELS = [
         groups: [
           { type: 'brute', count: 6, interval: 1400 },
           { type: 'healer', count: 4, interval: 1900, delay: 1200 },
+          // Frostbite Hollow's sky: the ice sheets are wide open, so the fliers
+          // cross water the ground horde has to walk around.
+          { type: 'wraith', count: 4, interval: 1100, delay: 900 },
         ],
       },
       {
@@ -430,6 +436,9 @@ export const LEVELS = [
           { type: 'healer', count: 4, interval: 1700, delay: 1400 },
           { type: 'raider', count: 10, interval: 460, delay: 600 },
           { type: 'thrall', count: 5, interval: 1700, delay: 2200 },
+          // The prism shatters upward: the biggest sky group of the campaign
+          // before the Caldera, arriving while the ground is still backed up.
+          { type: 'wraith', count: 9, interval: 780, delay: 1200 },
         ],
       },
       {

@@ -442,6 +442,9 @@ export const BARRICADE = {
   cost: 30,
   description: 'A solid wall on the road. Enemies must break it down — it buys time and blocks them in your kill zone.',
   placement: 'road',
+  // A wall is not a weapon. Its only damage is contact thorns, set in the road,
+  // so it must not claim the sky: the dock badge said BOTH for a pile of stakes.
+  targetsAir: false,
   levels: [
     {
       level: 1,

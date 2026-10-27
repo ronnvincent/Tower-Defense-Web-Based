@@ -341,10 +341,19 @@ describe('scene wiring', () => {
     return source.slice(start, start + 4000);
   };
 
-  it('spawns every enemy — boss included — on the wave lane', () => {
+  it('spawns every enemy — boss included — on a lane for its own domain', () => {
     const spawn = body('spawnEnemy');
-    expect(spawn).toContain('this.pathfinding.laneAt(this.laneIndexForWave(waveNumber))');
+    // Ground creeps still file down the wave's road lane, in the same order and
+    // with the same rotation as before.
+    expect(spawn).toContain('this.pathfinding.laneAt(slot)');
+    // Flyers take the sky lane for the same ordinal (systems/AirRoutes.js), and
+    // fall back to the road lane if a board ever produces none.
+    expect(spawn).toContain('this.airRoutes?.laneAt(slot)');
+    expect(spawn).toContain('Boolean(ENEMY_TYPES[typeKey]?.flying)');
+    // One `lane` variable feeds the constructor, so a boss and its escort cannot
+    // drift onto different roads.
     expect(spawn).toMatch(/new Enemy\(this, typeKey, waveNumber, lane,/);
+    expect(spawn.match(/const lane =/g)).toHaveLength(1);
   });
 
   it('moves the hint when a wave opens', () => {

@@ -24,6 +24,7 @@ import { drawCards } from '../data/draftCards.js';
 import { rollAnomaly } from '../data/anomalies.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
+import { buildAirRoutes } from '../systems/AirRoutes.js';
 import { paintLaneHint, laneLabel, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { GameStateManager, STATUS } from '../systems/GameStateManager.js';
@@ -305,6 +306,11 @@ export class GameScene extends Phaser.Scene {
     this.routeCells = this.pathfinding.laneCells.size
       ? this.pathfinding.laneCells
       : new Set(this.pathfinding.mainPath);
+    // The sky lanes. A flyer crosses the ponds, the river and the rocks; it does
+    // not use a bridge and it cannot be stopped by a palisade. The lanes are
+    // derived from the board (three mouths, one bend) so every stage already has
+    // air routes without a hand-drawn table — see systems/AirRoutes.js.
+    this.airRoutes = buildAirRoutes(this.map);
     // Which lane the coming wave walks. One lane per wave, rotating — see
     // `laneIndexForWave` — so the whole horde files down the same road and the
     // next wave chooses another one.
@@ -1161,6 +1167,21 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(24);
 
+    // Courtyard apron: the keep used to stand straight on the grass, which made
+    // it read as a sticker on the field rather than a place being defended. A
+    // soft two-tone ellipse under it (depth 5: above the tiles, below every
+    // prop, tower, creep and bar) settles the building without hiding a tile.
+    // Purely decorative — the placement rules keep their own `BASE_CLEARANCE`
+    // and `BASTION_APRON` numbers and never read this graphic.
+    this.bastionApron = this.add.graphics().setDepth(5);
+    this.bastionApron.setBlendMode('NORMAL');
+    this.bastionApron.fillStyle(0x0b1220, 0.16);
+    this.bastionApron.fillEllipse(baseX, keepFoot - 6, TILE_SIZE * 4.6, TILE_SIZE * 1.5);
+    this.bastionApron.fillStyle(Number.parseInt(String(this.theme?.accent || '#8fd694').replace('#', ''), 16), 0.09);
+    this.bastionApron.fillEllipse(baseX, keepFoot - 10, TILE_SIZE * 3.5, TILE_SIZE * 1.05);
+    this.bastionApron.lineStyle(1, 0xf0d9a8, 0.18);
+    this.bastionApron.strokeEllipse(baseX, keepFoot - 6, TILE_SIZE * 4.6, TILE_SIZE * 1.5);
+
     this.bastionHome = { y: baseY - 4, tint: this.theme?.baseTint ?? 0xffffff };
     this.bastionPulse = null;
     this.bastionState = bastionState(this.gameState?.baseHealth, this.gameState?.maxBaseHealth);
@@ -1353,7 +1374,15 @@ export class GameScene extends Phaser.Scene {
     // Every spawn of a wave — including a boss and the minions it summons —
     // joins the same lane, and the choice is the wave ordinal, never random, so
     // both duel seats send the same horde down the same road.
-    const lane = this.pathfinding.laneAt(this.laneIndexForWave(waveNumber));
+    // Ground creeps walk the road lanes; flyers take the sky lane for the same
+    // wave ordinal, so a wave of wraiths arrives on the flank the ground wave
+    // is *not* using and a dock of ground-only guns cannot cover both by
+    // accident.
+    const flies = Boolean(ENEMY_TYPES[typeKey]?.flying);
+    const slot = this.laneIndexForWave(waveNumber);
+    const lane = flies
+      ? (this.airRoutes?.laneAt(slot)?.length ? this.airRoutes.laneAt(slot) : this.pathfinding.laneAt(slot))
+      : this.pathfinding.laneAt(slot);
 
     // TWIN TITANS: one extra titan trails the boss by three seconds, once per
     // wave. Spawned through the same path so the escort, the boss panel and the
@@ -3114,7 +3143,13 @@ export class GameScene extends Phaser.Scene {
     // on the open field they read as "you may only build here", which is no
     // longer true.
     if (!this.selectedBuildKey) return 0;
-    const accent = Number.parseInt(String(this.theme?.accent || '#8fd694').replace('#', ''), 16);
+    // Parchment gold, not the biome accent: the accent is a *green* on the
+    // grassland board, and a green ring on green grass is invisible (that is
+    // exactly how the pads looked in the 1366x768 screenshot this pass started
+    // from). Gold reads on green, sand, ice and ash, and matches the dock cards
+    // the player has just pressed.
+    const accent = 0xf6e2ac;
+    const halo = 0x0b1220;
     const radius = TILE_SIZE * 0.33;
     let free = 0;
     for (const slot of this.buildSlots) {
@@ -3122,11 +3157,36 @@ export class GameScene extends Phaser.Scene {
       free += 1;
       const cx = slot.col * TILE_SIZE + TILE_SIZE / 2;
       const cy = slot.row * TILE_SIZE + TILE_SIZE / 2;
-      graphics.fillStyle(0x0a0f1e, 0.18);
+      graphics.fillStyle(halo, 0.22);
       graphics.fillCircle(cx, cy, radius);
-      graphics.lineStyle(2, accent, 0.34);
+      // Two strokes: a dark halo first so the ring survives a bright biome, then
+      // the gold line on top.
+      graphics.lineStyle(4, halo, 0.42);
       graphics.strokeCircle(cx, cy, radius);
-      graphics.fillStyle(accent, 0.55);
+      graphics.lineStyle(2, accent, 0.68);
+      graphics.strokeCircle(cx, cy, radius);
+      // Corner brackets at the pad's own tile edge: a ring alone reads as a
+      // decorative rune, the brackets read as "something fits here". Drawn
+      // inside the tile so two neighbouring pads never form one blob.
+      const half = TILE_SIZE * 0.42;
+      const arm = TILE_SIZE * 0.16;
+      graphics.lineStyle(3, halo, 0.42);
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        graphics.beginPath();
+        graphics.moveTo(cx + sx * half, cy + sy * (half - arm));
+        graphics.lineTo(cx + sx * half, cy + sy * half);
+        graphics.lineTo(cx + sx * (half - arm), cy + sy * half);
+        graphics.strokePath();
+      }
+      graphics.lineStyle(2, accent, 0.62);
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        graphics.beginPath();
+        graphics.moveTo(cx + sx * half, cy + sy * (half - arm));
+        graphics.lineTo(cx + sx * half, cy + sy * half);
+        graphics.lineTo(cx + sx * (half - arm), cy + sy * half);
+        graphics.strokePath();
+      }
+      graphics.fillStyle(accent, 0.6);
       graphics.fillCircle(cx, cy, 2.5);
     }
     return free;

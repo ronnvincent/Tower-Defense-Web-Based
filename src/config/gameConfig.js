@@ -4,10 +4,29 @@
  * easy to tune and easy to explain.
  */
 export const TILE_SIZE = 64;
-export const MAP_COLS = 20;
-export const MAP_ROWS = 12;
-export const GAME_WIDTH = TILE_SIZE * MAP_COLS; // 1280
-export const GAME_HEIGHT = TILE_SIZE * MAP_ROWS; // 768
+
+/**
+ * The canvas is a *render surface*, not the battlefield.
+ *
+ * It used to be expressed as "20 columns x 12 rows of 64 px", which read as if
+ * the map were 20 tiles wide — the map has been 32 columns since Req 37, and the
+ * two numbers had nothing to do with each other any more. The stage is a fixed
+ * 5:3 surface that Phaser's FIT mode scales to the window; the camera then
+ * frames the real board inside the band the HUD leaves free (see
+ * `src/camera/battleFrame.js`).
+ *
+ * The stage aspect cannot make the battlefield bigger: at a fixed window the
+ * board's on-screen width is `boardAspect * bandHeight` (measured in Chrome,
+ * 1366 x 768: 2.667 x 434 = 1157 px), so only the HUD band and the board's own
+ * aspect move that number. Keep the aspect here in one place anyway — the CSS
+ * (`--stage-width`) and this constant must agree or the canvas letterboxes
+ * itself twice.
+ */
+export const STAGE_ASPECT = 5 / 3;
+export const STAGE_WIDTH = 1280;
+export const STAGE_HEIGHT = 768;
+export const GAME_WIDTH = STAGE_WIDTH;
+export const GAME_HEIGHT = STAGE_HEIGHT;
 
 /**
  * Starting economy. Raised from 160 gold / 20 HP after play-testing: a fresh

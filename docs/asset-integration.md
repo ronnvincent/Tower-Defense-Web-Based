@@ -556,3 +556,79 @@ Requires only the standard library plus the unpacked source packs in
 the manifest — and rewrites `src/data/spireManifest.js`. Terrain and enemy tiers
 are deterministic (crc32 seeding), so a rebuild with no source change produces
 identical bytes.
+
+## 8. Req 37 asset audit (2026-10-27)
+
+The brief for this pass was explicit: **inspect what the build already ships
+before searching for more**, and only integrate a pack whose licence is checked
+and whose download actually works from this sandbox. This section records both
+halves — the inventory, and the honest result of the search.
+
+### 8.1 What the build already ships
+
+`public/assets/` is 27.46 MB across 1,284 files. Counted today, not remembered:
+
+| folder | files | size | what it is |
+| --- | --: | --: | --- |
+| `enemies/` | 216 | 20.32 MB | 20 creature sheets × 5 biome skins × 3 escalation tiers |
+| `towers/` + `units/` | 229 | 0.49 MB | 11 tower families: base strip + weapon strip per level/specialisation, plus the vanguard units |
+| `tiles/` | 516 | 0.32 MB | terrain autotiles (grass/road/rock/water/foliage) for five biomes |
+| `fx/` | 56 | 1.41 MB | Kenney explosion/particle strips, re-graded per element |
+| `projectiles/` | 41 | 0.01 MB | one projectile texture per firing tower |
+| `arena/` | 6 | 1.11 MB | portal vortex (32 frames, 144 px), fortress, keep, city, river flow |
+| `ui/` + `ui-kit/` + `cozy-ui/` | 188 | 1.79 MB | panels, buttons, icons, dock cards |
+| `audio/`, `hero/`, `worldmap/`, `effects/` | 32 | 2.01 MB | the rest |
+
+### 8.2 Animation coverage, sheet by sheet
+
+`src/data/spireManifest.js` is generated from the real PNGs (`scripts/build_spire_assets.py`),
+so these row counts are measured, not assumed:
+
+| asset class | real animation rows | gap |
+| --- | --- | --- |
+| ground creatures (18 sheets) | 9 rows = **idle / move / death** × 3 facings | **no attack row, no hit row** |
+| flyer (`enemy-ashwing`) | 9 rows, same three clips | no dedicated hover/attack/hit |
+| towers (11 families) | base strip **+ weapon strip**, 6–29 real frames per tier | weapon recoil is the attack; no separate "hit" |
+| bastion | `bastion-fortress.svg` → 420 px raster, OpenGameArt "Fortress", **CC0** | static by design |
+| portal | 32 frames of 144 px packed 8×4, composited from CC0 Kenney particles | — |
+| projectiles / effects | per-element strips + impact/frost/lightning ramps, Kenney **CC0** | — |
+
+So the shipped set is a genuine animated set for idle/walk/death, and the towers
+and effects carry their own animation. What it does **not** have is a per-creature
+attack and hit clip — the game currently plays the idle clip while a creep beats
+on a barricade or the bastion.
+
+### 8.3 Can we download more from here? (re-tested today)
+
+| host | result |
+| --- | --- |
+| `github.com`, `api.github.com`, `codeload.github.com` | **200** — usable |
+| `registry.npmjs.org`, `pypi.org` | **200** — usable |
+| `opengameart.org`, `kenney.nl`, `itch.io`, `craftpix.net` | TLS handshake dropped (`SSL_ERROR_SYSCALL`, status 000) |
+| `raw.githubusercontent.com` | blocked (use the `contents` API with `Accept: application/vnd.github.raw`) |
+
+The one route that still works is a **GitHub-hosted CC0 mirror** —
+[`Tiddybub/2d-assets`](https://github.com/Tiddybub/2d-assets) (1,101 packs, each
+with a `SOURCE.md` naming the upstream page and licence). Its tree and code
+search answered normally today, so a blobless sparse clone of a chosen pack is
+possible; the previous 26 MB library at `/home/user/asset-library` is no longer
+on this machine and would have to be re-fetched.
+
+### 8.4 Packs that would close the gap — manual links, licence stated
+
+Nothing below was downloaded or integrated in this pass; the battlefield work
+was finished on the existing art. These are the packs to fetch by hand if the
+attack/hit rows are wanted next. All are **CC0** (commercial use, no attribution
+required) unless noted.
+
+| pack | link | licence | what it adds | why not integrated yet |
+| --- | --- | --- | --- | --- |
+| Tower defense slime enemy (Tisroc) | <https://opengameart.org/content/tower-defense-slime-enemy> | CC0 | top-down enemy with **idle / walk / hurt / death / attack** PNGs + one combined sheet — exactly the missing clips | one creature only; needs a 9-row repack and a new skin lane |
+| Tower Defense (Top-Down) (Kenney) | <https://kenney.nl/assets/tower-defense-top-down> | CC0 | 300 tiles/props/towers/enemies, matches our road grammar | static art, no animation rows; we already use Kenney for fx |
+| Tower Defense (isometric) (Kenney) | <https://opengameart.org/content/tower-defense-assets-isometric> | CC0 | modular tower blocks | isometric projection does not fit our orthographic board |
+| Tiny Swords (Pixel Frog) | <https://pixelfrog-assets.itch.io/tiny-swords> | CC0 | units with idle/run/attack (+ death in later drops), buildings, terrain | side-on framing — enemies would need redrawing to read top-down |
+| Explosion Pack / Particle Pack (Kenney) | <https://kenney.nl/assets/explosion-pack> | CC0 | the fx we already ship | already integrated |
+
+**Verdict for P5:** audit done, licences verified, download route documented,
+no pirated or ripped art used, and **no new pack integrated** — the pass ships
+the existing CC0 set.

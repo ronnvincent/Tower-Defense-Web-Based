@@ -1,6 +1,7 @@
 import { TILE_SIZE, SELL_REFUND_RATIO } from '../config/gameConfig.js';
 import { TOWER_TYPES, BARRICADE } from '../data/towerData.js';
 import { MAX_LEVEL, ascensionTier, nextAscension } from '../data/towerAscension.js';
+import { canTarget, defenceTargets, isFlying } from '../systems/TargetCategories.js';
 import {
   TOWER_VISUALS,
   BARRICADE_VISUALS,
@@ -696,7 +697,12 @@ export class Tower {
    * default and has to opt out with a reason.
    */
   get canTargetAir() {
-    return this.def?.targetsAir !== false;
+    return defenceTargets(this.def).air;
+  }
+
+  /** True while the tower may damage ground creeps (soldiers, walls, all guns). */
+  get canTargetGround() {
+    return defenceTargets(this.def).ground;
   }
 
   /** True while a boss freeze pulse is suppressing this defence. */
@@ -782,7 +788,8 @@ export class Tower {
     const enemies = this.context.activeEnemies;
     const thorns = this.stats.thornsDamage;
     for (const e of enemies) {
-      if (e.isDead || e.reachedBase) continue;
+      // Spikes are set in the road: they cannot reach something flying over it.
+      if (e.isDead || e.reachedBase || isFlying(e)) continue;
       const d = Math.hypot(e.x - this.x, e.y - this.y);
       if (d <= 58) {
         e.applyDamage(thorns, 'physical');
@@ -797,12 +804,12 @@ export class Tower {
     // Filter enemies currently within range. Airborne creeps are invisible to
     // ground-only defences (`targetsAir: false`): the wraith flies over the
     // palisade, and the sling that cannot point up simply does not see it.
-    const canReachAir = this.canTargetAir;
     const inRange = [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (e.isDead || e.reachedBase) continue;
-      if (e.flying && !canReachAir) continue;
+      // One rule for every line: the categories in the tower's own data decide
+      // what it may look at (see systems/TargetCategories.js).
+      if (!canTarget(this.def, e)) continue;
       const dist = Math.hypot(e.x - this.x, e.y - this.y);
       if (dist <= range) {
         inRange.push({ enemy: e, dist });
@@ -907,9 +914,14 @@ export class Tower {
     this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.typeKey);
 
     const shots = Math.max(1, s.ability?.shots || 1);
+    const fired = defenceTargets(this.def);
     const stats = {
       // The firing line, so the impact can pick that defence's own effect.
       line: this.typeKey,
+      // The shot carries what its tower may hit: the blast and the chain have
+      // to keep the rule after the tower is no longer looking at the target.
+      targetsGround: fired.ground,
+      targetsAir: fired.air,
       damage: this.attackDamage,
       speed: projSpeed,
       damageType: s.damageType || 'physical',

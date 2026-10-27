@@ -4,9 +4,13 @@
  * THE BOARD
  * ---------
  * The battlefield is landscape and split **horizontally**, the way a player
- * already reads an arena-defence board — twenty-six columns wide, twelve rows
- * tall, which is the widest shape the battle band between the top bar and the
- * forge can show without cropping a rim:
+ * already reads an arena-defence board — thirty-two columns wide, twelve rows
+ * tall. The width is set by the battle band, not by taste: the camera fits the
+ * board into the strip between the top bar and the forge, and that strip is
+ * close to 2.7:1 on a landscape phone. At 26 columns the board was 2.17:1, so
+ * the fit came out **height-bound** and left ~110 px of empty world down each
+ * side — the field read as small because a fifth of the frame was not field.
+ * 32 x 12 is 2.67:1, which fills the band at both ends instead of one:
  *
  *     ┌──────────────────────────────────────────────────┐
  *     │ 0  rim  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    │
@@ -51,7 +55,7 @@
 
 /** Fixed arena geometry. Cols is even so the axis column sits between two rim margins. */
 export const ARENA = Object.freeze({
-  cols: 26,
+  cols: 32,
   rows: 12,
   /** Rim row above the portal — the visible margin at the top of the field. */
   rimRow: 0,
@@ -64,13 +68,38 @@ export const ARENA = Object.freeze({
   riverRow: 5,
   /** First row of our side — the only rows a defence may be built on. */
   playerRow: 6,
-  /** Bastion row: two rows of margin below it (row 10 grass, row 11 rim). */
-  baseRow: 9,
+  /**
+   * Bastion row. One rim row below it (row 11) and the whole player half above
+   * it; the bastion's centre sits at 87.5 % of the world height, which is the
+   * 85-90 % band a keep should own. The board is fitted into the camera band
+   * (see `camera/battleFrame.js`), so the last playable row is never behind the
+   * forge: the row of margin that used to be spent on the dock is now spent on
+   * the enemy, and the keep sits where a keep belongs.
+   */
+  baseRow: 10,
   /** Bottom rim — the margin that keeps the bastion off the edge. */
   rimRowBottom: 11,
   /** Centre column: portal and bastion are always on it. */
-  axisCol: 12,
+  axisCol: 15,
 });
+
+/**
+ * A column authored as an offset from the centre axis.
+ *
+ * Every battlefield is written this way (`colAt(-8)`, not `col 4`) so widening
+ * the arena moves every map at once instead of leaving twelve hand-tuned boards
+ * hugging the left edge of a wider field.
+ */
+export const colAt = (offset) => ARENA.axisCol + Math.round(offset);
+
+/**
+ * Tiles around the bastion kept free of scattered scenery (Chebyshev).
+ *
+ * Two tiles, because the keep art is roughly two tiles wide and the gates need
+ * a clear approach lane either side; pads outside the apron still ring the
+ * bastion on every side.
+ */
+export const BASTION_APRON = 2;
 
 const GRASS = '.';
 const ROAD = '#';
@@ -196,11 +225,43 @@ export function buildArena(spec = {}) {
 
   // 6. Props. Rocks and ponds are decoration *and* the honest answer to "why
   //    can't I build there" — they are terrain, not an invisible rule.
+  //
+  //    They are kept out of the bastion apron, though. A boulder two tiles from
+  //    the gate used to eat the best pads on the board while looking like
+  //    scenery, which is the one thing an obstacle must never do: the field has
+  //    to explain itself. A prop that would land in the apron is *moved* to the
+  //    nearest free grass outside it, not deleted — the scenery stays, it just
+  //    stops arguing with the gate.
+  const apron = (r, c) =>
+    Math.max(Math.abs(r - baseRow), Math.abs(c - baseCol)) <= BASTION_APRON;
+  const relocate = (r, c, ch) => {
+    for (let radius = 1; radius <= BASTION_APRON + 3; radius += 1) {
+      for (let dr = -radius; dr <= radius; dr += 1) {
+        for (let dc = -radius; dc <= radius; dc += 1) {
+          if (Math.max(Math.abs(dr), Math.abs(dc)) !== radius) continue;
+          const nr = baseRow + dr;
+          const nc = baseCol + dc;
+          if (nr < 1 || nr > rows - 2 || nc < 1 || nc >= cols - 1) continue;
+          if (grid[nr][nc] !== GRASS) continue;
+          if (apron(nr, nc)) continue;
+          set(nr, nc, ch);
+          return true;
+        }
+      }
+    }
+    return false;
+  };
   for (const [r, c] of spec.rocks || []) {
-    if (grid[r]?.[c] === GRASS) set(r, c, ROCK);
+    if (grid[r]?.[c] !== GRASS) continue;
+    if (apron(r, c) && relocate(r, c, ROCK)) continue;
+    if (apron(r, c)) continue;
+    set(r, c, ROCK);
   }
   for (const [r, c] of spec.ponds || []) {
-    if (grid[r]?.[c] === GRASS) set(r, c, WATER);
+    if (grid[r]?.[c] !== GRASS) continue;
+    if (apron(r, c) && relocate(r, c, WATER)) continue;
+    if (apron(r, c)) continue;
+    set(r, c, WATER);
   }
 
   return grid.map((row) => row.join(''));

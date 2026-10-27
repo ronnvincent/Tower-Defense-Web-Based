@@ -1,4 +1,4 @@
-import { ARENA, arenaLanes, buildArena, scatterProps } from './arenaLayout.js';
+import { ARENA, arenaLanes, buildArena, colAt, scatterProps } from './arenaLayout.js';
 
 /**
  * Battlefield data.
@@ -40,6 +40,8 @@ import { ARENA, arenaLanes, buildArena, scatterProps } from './arenaLayout.js';
  * on one layout.
  */
 const C = ARENA.axisCol;
+/** Column by offset from the axis — every board is authored this way. */
+const A = colAt;
 
 /** Build one board from its spec: the lanes are derived from the same numbers. */
 const arena = (spec) => buildArena({ ...spec, lanes: arenaLanes(spec) });
@@ -48,69 +50,69 @@ const ARENA_VARIANTS = {
   // -- Campaign ------------------------------------------------------------
   // The teaching map: both gates on the axis, one bridge each side, a clean
   // step out, across and in. The only perfectly symmetrical board left.
-  grassland: { portalCol: C, baseCol: C, bridges: [7, 17] },
+  grassland: { portalCol: C, baseCol: C, bridges: [A(-5), A(5)] },
   // Corner to corner: the horde enters top-left and the keep stands bottom
   // right, so the longest march in the campaign is a diagonal.
   'bastion-approach': {
-    portalCol: 4,
-    baseCol: 21,
-    bridges: [8, 16],
+    portalCol: A(-8),
+    baseCol: A(9),
+    bridges: [A(-4), A(4)],
     stair: false,
     corridorRow: [3, 4],
     turnRow: [8, 6],
-    ponds: [[9, 6], [9, 19]],
+    ponds: [[9, A(-6)], [9, A(7)]],
   },
   // Low corridor: the horde drops to the last row of its own ground and runs
   // wide *under* everything before it crosses.
   desert: {
     portalCol: C,
     baseCol: C,
-    bridges: [8, 16],
+    bridges: [A(-4), A(4)],
     corridorRow: [4, 3],
     stair: 'enemy',
-    rocks: scatterProps('desert', { count: 10, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('desert', { count: 10, fromRow: 6, toRow: 9 }),
   },
   // Three crossings on the diagonal: three lanes of exactly the same length.
   ice: {
-    portalCol: 4,
-    baseCol: 21,
-    bridges: [8, 13, 18],
+    portalCol: A(-8),
+    baseCol: A(9),
+    bridges: [A(-4), A(1), A(6)],
     corridorRow: [3, 4, 3],
     turnRow: [8, 7, 6],
-    rocks: scatterProps('ice', { count: 8, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('ice', { count: 8, fromRow: 6, toRow: 9 }),
   },
   // Mirrored diagonal, corridor hugging the top rim, courtyard stepped deep.
   crystal: {
-    portalCol: 21,
-    baseCol: 5,
-    bridges: [9, 16],
+    portalCol: A(9),
+    baseCol: A(-7),
+    bridges: [A(-3), A(4)],
     corridorRow: [3, 4],
     stair: 'court',
     turnRow: [8, 6],
-    ponds: [[9, 12], [10, 13]],
+    ponds: [[9, C], [10, A(1)]],
   },
   caldera: {
-    portalCol: 6,
-    baseCol: 19,
-    bridges: [10, 15],
+    portalCol: A(-6),
+    baseCol: A(7),
+    bridges: [A(-2), A(3)],
     corridorRow: [4, 3],
     turnRow: [8, 6],
-    rocks: scatterProps('caldera', { count: 9, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('caldera', { count: 9, fromRow: 6, toRow: 9 }),
   },
   volcanic: {
-    portalCol: 21,
-    baseCol: 6,
-    bridges: [10, 13, 17],
+    portalCol: A(9),
+    baseCol: A(-6),
+    bridges: [A(-2), A(1), A(5)],
     corridorRow: [3, 4, 3],
     turnRow: [6, 7, 8],
-    rocks: scatterProps('volcanic', { count: 12, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('volcanic', { count: 12, fromRow: 6, toRow: 9 }),
   },
   // The widest diagonal in the set: rim to rim, three crossings, and rocks
   // scattered across the enemy half so the muster reads as broken ground.
   'ash-throne': {
-    portalCol: 3,
-    baseCol: 22,
-    bridges: [8, 17],
+    portalCol: A(-9),
+    baseCol: A(10),
+    bridges: [A(-4), A(5)],
     corridorRow: [3, 4],
     turnRow: [7, 8],
     rocks: scatterProps('ash', { count: 8, fromRow: 3, toRow: 4 }),
@@ -118,75 +120,75 @@ const ARENA_VARIANTS = {
   dune: {
     portalCol: C,
     baseCol: C,
-    bridges: [6, 18],
+    bridges: [A(-6), A(6)],
     corridorRow: 3,
     stair: 'court',
     turnRow: [6, 7],
-    rocks: scatterProps('dune', { count: 10, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('dune', { count: 10, fromRow: 6, toRow: 9 }),
   },
 
   // -- War Room ------------------------------------------------------------
   blackfen: {
-    portalCol: 8,
-    baseCol: 18,
-    bridges: [11, 15],
+    portalCol: A(-4),
+    baseCol: A(6),
+    bridges: [A(-1), A(3)],
     corridorRow: [4, 3],
     stair: 'enemy',
     turnRow: [8, 7],
-    ponds: [[9, 9], [10, 16], [6, 5]],
+    ponds: [[9, A(-3)], [10, A(4)], [6, A(-7)]],
   },
   shattered: {
-    portalCol: 3,
-    baseCol: 22,
-    bridges: [7, 12, 17],
+    portalCol: A(-9),
+    baseCol: A(10),
+    bridges: [A(-5), C, A(5)],
     corridorRow: [3, 4, 3],
     turnRow: [8, 7, 6],
-    rocks: scatterProps('shattered', { count: 12, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('shattered', { count: 12, fromRow: 6, toRow: 9 }),
   },
   // No stagger at all: two straight roads down the flanks, which makes the
   // skyward board read as a pair of runways.
   skyward: {
     portalCol: C,
     baseCol: C,
-    bridges: [9, 15],
+    bridges: [A(-3), A(3)],
     corridorRow: [4, 3],
     stair: false,
     turnRow: 7,
     rocks: scatterProps('skyward', { count: 9, fromRow: 3, toRow: 4 }),
   },
   tidewatch: {
-    portalCol: 5,
-    baseCol: 18,
-    bridges: [9, 14],
+    portalCol: A(-7),
+    baseCol: A(6),
+    bridges: [A(-3), A(2)],
     corridorRow: [3, 4],
     turnRow: [7, 8],
-    ponds: [[9, 8], [10, 21], [10, 3]],
+    ponds: [[9, A(-4)], [10, A(9)], [10, A(-9)]],
   },
-  bastion: { portalCol: C, baseCol: C, bridges: [7, 17], corridorRow: [3, 4], turnRow: [8, 6] },
+  bastion: { portalCol: C, baseCol: C, bridges: [A(-5), A(5)], corridorRow: [3, 4], turnRow: [8, 6] },
   emberfall: {
-    portalCol: 22,
-    baseCol: 4,
-    bridges: [9, 13, 17],
+    portalCol: A(10),
+    baseCol: A(-8),
+    bridges: [A(-3), A(1), A(5)],
     corridorRow: [3, 4, 3],
     turnRow: [7, 6, 8],
-    ponds: [[9, 11], [10, 15]],
+    ponds: [[9, A(-1)], [10, A(3)]],
   },
   frostgate: {
-    portalCol: 10,
-    baseCol: 20,
-    bridges: [12, 17],
+    portalCol: A(-2),
+    baseCol: A(8),
+    bridges: [C, A(5)],
     corridorRow: [3, 4],
     stair: 'enemy',
     turnRow: [7, 6],
-    rocks: scatterProps('frostgate', { count: 8, fromRow: 6, toRow: 10 }),
+    rocks: scatterProps('frostgate', { count: 8, fromRow: 6, toRow: 9 }),
   },
   prismatic: {
-    portalCol: 7,
-    baseCol: 17,
-    bridges: [10, 14],
+    portalCol: A(-5),
+    baseCol: A(5),
+    bridges: [A(-2), A(2)],
     corridorRow: [3, 4],
     turnRow: [8, 6],
-    ponds: [[9, 12], [9, 21]],
+    ponds: [[9, C], [9, A(9)]],
   },
 };
 

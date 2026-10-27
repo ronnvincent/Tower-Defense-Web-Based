@@ -188,12 +188,20 @@ describe('camera fit for the duel boards', () => {
   });
 
   it('fits the board on a phone in landscape without hitting the floor', () => {
-    const phone = { width: 844, height: 390 };
-    const fit = fitZoom(BOARD, phone);
+    // The camera's viewport is the *canvas* (1280 x 768 game px), not the CSS
+    // viewport: the board is fitted into the band between the top bar and the
+    // forge, which on a 390 px-tall phone is 478 of the 768 canvas rows. Feeding
+    // the CSS size here was modelling a camera the rig does not have, and it
+    // made a 32-column board look like it needed a sub-floor zoom.
+    const phoneBand = { width: 1280, height: 478 };
+    const fit = fitZoom(BOARD, phoneBand);
     expect(fit).toBeGreaterThan(ZOOM_LIMITS.min);
-    expect(fit).toBeLessThan(0.6);
+    expect(fit).toBeLessThan(1);
     // The floor is the safety net for screens smaller than any phone.
     expect(ZOOM_LIMITS.min).toBeLessThan(fit);
+    // At the band's height the board is height-bound and still fills ~99 % of
+    // the canvas width, which is the whole point of the wider arena.
+    expect(BOARD.width * fit).toBeGreaterThan(1280 * 0.95);
   });
 
   it('lets the camera pan across the board when zoomed in', () => {
