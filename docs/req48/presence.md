@@ -125,8 +125,12 @@ Artillery is the fantasy: it is supposed to cover most of the board.
 
 The board is 2 048 × 768, so 840 px is more than a third of the map in a straight
 line: a single maxed bombard covers a whole flank. It pays for that with the
-slowest reload in the game (3.4 s) and a 120 px dead zone — it cannot be parked
-against the road.
+slowest reload in the game (3.4 s).
+
+> **Amended by Req 50.** This pass also gave the line a 120 px dead zone. That
+> was wrong and has been removed: the nearest a creep can legally stand to a
+> tower is one tile (64 px), so the floor covered every walk-by and the piece
+> went silent on anything that got close. Reach is the only gate now.
 
 Every other siege line was lifted to keep the ordering sane, and the rest of the
 roster was left alone:

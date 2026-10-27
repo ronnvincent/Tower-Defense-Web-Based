@@ -800,22 +800,6 @@ export class Tower {
     return true;
   }
 
-  /**
-   * Minimum reach: a siege gun cannot depress enough to shoot something standing
-   * on its own emplacement.
-   *
-   * Read straight from the data rather than through `stats`, because headless
-   * tests drive `acquireTarget` on a bare `Tower.prototype` object whose `def`
-   * has no `levels` — a getter that assumes a constructed tower would throw in
-   * exactly the code path those tests cover.
-   */
-  get minRange() {
-    const levels = this.def?.levels;
-    const levelStats = levels?.[(this.level || 1) - 1];
-    const spec = this.specialization ? this.def?.specializations?.[this.specialization] : null;
-    return levelStats?.minRange ?? spec?.minRange ?? this.def?.minRange ?? 0;
-  }
-
   canUpgrade(choiceKey = null) {
     const opts = this.nextUpgrades;
     if (opts.length === 0) return false;
@@ -1157,7 +1141,6 @@ export class Tower {
 
   acquireTarget() {
     const range = this.attackRange;
-    const minRange = this.minRange;
     const enemies = this.context.activeEnemies;
 
     // The last line of the battle is the gate. A creep that has broken through
@@ -1174,10 +1157,17 @@ export class Tower {
       ? Math.hypot(bastion.x - this.x, bastion.y - this.y) <= range
       : false;
 
-    // Filter enemies currently within the weapon's arc. Airborne creeps are
-    // invisible to a ground-locked gun, and a siege piece cannot depress far
-    // enough to shoot something standing on its own emplacement — both rules
-    // live in `canEngage` so they cannot drift apart.
+    // Filter enemies currently within the weapon's arc. The only thing that
+    // refuses a target is a rule about *what* it is (a ground-locked gun cannot
+    // see something flying over it), never about being too close.
+    //
+    // This used to drop everything inside a `minRange` floor — 90 px on the
+    // mortar line, 130 px on the twin-bore battery. A tower can only ever be
+    // raised on a tile, and a road tile's centre is 64 px from the grass tile
+    // beside it: the floor was wider than the nearest a creep could legally
+    // stand, so a siege piece was blind to every creep that walked past it.
+    // "My defences stop firing when the enemy gets close" is that rule, and it
+    // is gone: a weapon answers whatever stands inside its reach.
     const inRange = [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
@@ -1185,7 +1175,6 @@ export class Tower {
       const dist = Math.hypot(e.x - this.x, e.y - this.y);
       const assaultingTheGate = coversBastion && e.assaulting === true;
       if (dist > range && !assaultingTheGate) continue;
-      if (minRange > 0 && dist < minRange) continue;
       inRange.push({ enemy: e, dist });
     }
 

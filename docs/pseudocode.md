@@ -268,8 +268,7 @@ END ALGORITHM
 
 ```text
 ALGORITHM AcquireTarget(tower)
-  range      <- tower.attackRange
-  minRange   <- tower.minRange
+  range      <- tower.attackRange                     // the only distance gate
   bastion    <- tower.context.getBasePoint()          // GameScene.bastionPoint(), one definition
   coversGate <- bastion != null
                 AND distance(tower, bastion) <= range
@@ -285,7 +284,9 @@ ALGORITHM AcquireTarget(tower)
     hitsTheGate <- coversGate AND enemy.assaulting == true
 
     IF d > range AND NOT hitsTheGate THEN CONTINUE
-    IF minRange > 0 AND d < minRange THEN CONTINUE
+    // No minimum range: a creep inside the ring is shootable at any distance.
+    // A floor of 90–140 px was wider than the 64 px gap between a tower's tile
+    // and the road beside it, so siege pieces went silent on any walk-by.
     candidates.push({ enemy, d })
   END FOR
 

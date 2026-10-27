@@ -249,13 +249,17 @@ describe('the category filter is a real rule', () => {
     expect(mortar.engagedTargets).toEqual({ ground: true, air: false });
   });
 
-  it('honours a minimum range (a siege gun cannot shoot its own emplacement)', () => {
+  it('does not refuse a target standing on its own emplacement', () => {
+    // This used to be the opposite assertion: a siege gun skipped anything
+    // closer than its `minRange` floor. That floor (90–140 px) was wider than
+    // the nearest a creep can legally stand (one tile, 64 px), so a piece beside
+    // the road was blind to everything that walked past it. Reach is the only
+    // gate now — see tests/point-blank.test.js.
     const gun = tower(scene, context, 'royalArtillery', 5, 10);
     const pointBlank = creep(scene, 'grunt', gun.x + 20, gun.y);
-    const far = creep(scene, 'grunt', gun.x + 300, gun.y);
-    scene.activeEnemies.push(pointBlank, far);
+    scene.activeEnemies.push(pointBlank);
     gun.acquireTarget();
-    expect(gun.currentTarget).toBe(far);
+    expect(gun.currentTarget).toBe(pointBlank);
   });
 });
 

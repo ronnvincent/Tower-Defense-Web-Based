@@ -48,7 +48,6 @@
  *   royal             the base-defence roster; enables branch-B art, shots and fx
  *   targetsGround     false → never aims at, splashes or chains into ground units
  *   targetsAir        false → never aims at, splashes or chains into flyers
- *   minRange          inside this radius the weapon cannot depress enough to fire
  *   targeting         which priority modes and category filters the inspector
  *                     offers, and which pair it starts with
  *   supportOnly       no attack loop at all (aura / repair instead)
@@ -138,7 +137,6 @@ export const ROYAL_TOWER_TYPES = {
     damageType: 'explosive',
     targetsGround: true,
     targetsAir: true,
-    minRange: 100,
     targeting: SIEGE_TARGETING,
     /** Silhouette contract for the generator: [width, height] in px at L1. */
     art: { footprint: [52, 96], material: 'oak-iron', rise: 10 },
@@ -150,7 +148,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 4200,
         damageType: 'explosive',
         armorPenetration: 0.25,
-        minRange: 100,
         description: 'A bronze bombard on an oak sledge. One shot every 4.2 s — but it reaches the far lane.',
       },
       {
@@ -161,7 +158,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 4000,
         damageType: 'explosive',
         armorPenetration: 0.3,
-        minRange: 105,
       },
     ]),
     /**
@@ -180,7 +176,6 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'explosive',
         armorPenetration: 0.4,
         bossBonus: 0.26,
-        minRange: 110,
         description: 'One 480 damage shell every 3.8 s from 800 px — most of the board — with a 26 % bonus against titans. Reaches 840 px at the top tier; the salvo battery fires twice as often and reaches less far.',
       },
       battery: {
@@ -193,9 +188,8 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 2900,
         damageType: 'explosive',
         armorPenetration: 0.3,
-        minRange: 130,
         ability: { shots: 2, label: 'Salvo Pair' },
-        description: 'Two shells a volley: 210 damage each, 145 DPS together, out of a 720 px reach (760 px at the top tier) and a 130 px dead zone. The bombard hits once for far more; this one hits twice as often.',
+        description: 'Two shells a volley: 210 damage each, 145 DPS together, out of a 720 px reach (760 px at the top tier). The bombard hits once for far more; this one hits twice as often.',
       },
     },
 
@@ -383,7 +377,6 @@ export const ROYAL_TOWER_TYPES = {
     targetsGround: true,
     targetsAir: false,
     groundOnly: true,
-    minRange: 90,
     art: { footprint: [50, 70], material: 'iron-oak', rise: 6 },
     levels: track([
       {
@@ -393,7 +386,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 2600,
         damageType: 'explosive',
         splash: 95,
-        minRange: 90,
         targetsGround: true,
         targetsAir: false,
         description: 'A short iron tube on a timber bed. The shell lands where the crew aimed it.',
@@ -406,7 +398,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 2500,
         damageType: 'explosive',
         splash: 105,
-        minRange: 92,
         targetsGround: true,
         targetsAir: false,
       },
@@ -426,7 +417,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 2350,
         damageType: 'explosive',
         splash: 115,
-        minRange: 95,
         targetsGround: true,
         targetsAir: false,
         description: '100 damage across a 115 px blast, ground only: 43 DPS on one body and 96 DPS across a pack. The cluster fires two lighter shells.',
@@ -441,7 +431,6 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 1900,
         damageType: 'explosive',
         splash: 55,
-        minRange: 95,
         targetsGround: true,
         targetsAir: false,
         ability: { shots: 2, label: 'Fanned Salvo' },

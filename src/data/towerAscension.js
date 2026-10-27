@@ -636,12 +636,12 @@ export const ASCENSION = {
   /* ================================================== the ten royal lines */
   royalArtillery: {
     bombard: {
-      elite: { slug: 'bombard-2', title: 'Counterweight Bombard', upgradeCost: 240, damage: 640, range: 820, cooldown: 3600, damageType: 'explosive', armorPenetration: 0.5, minRange: 115, bossBonus: 0.3, description: 'One 640 damage shell every 3.6 s across 820 px: 178 DPS, 50 % penetration and a 30 % titan bonus. Slower than the salvo battery and far heavier.' },
-      apex: { slug: 'bombard-3', title: 'Royal Siege Battery', upgradeCost: 290, damage: 900, range: 840, cooldown: 3400, damageType: 'explosive', armorPenetration: 0.6, minRange: 120, description: 'Twin-banded royal bombard, 900 a shell. Eleven waves of reload paid off.', bossBonus: 0.34, ability: { label: 'Titan Shell' } },
+      elite: { slug: 'bombard-2', title: 'Counterweight Bombard', upgradeCost: 240, damage: 640, range: 820, cooldown: 3600, damageType: 'explosive', armorPenetration: 0.5, bossBonus: 0.3, description: 'One 640 damage shell every 3.6 s across 820 px: 178 DPS, 50 % penetration and a 30 % titan bonus. Slower than the salvo battery and far heavier.' },
+      apex: { slug: 'bombard-3', title: 'Royal Siege Battery', upgradeCost: 290, damage: 900, range: 840, cooldown: 3400, damageType: 'explosive', armorPenetration: 0.6, description: 'Twin-banded royal bombard, 900 a shell. Eleven waves of reload paid off.', bossBonus: 0.34, ability: { label: 'Titan Shell' } },
     },
     battery: {
-      elite: { slug: 'battery-2', title: 'Salvo Culverin', upgradeCost: 230, damage: 265, range: 740, cooldown: 2700, damageType: 'explosive', armorPenetration: 0.38, minRange: 135, ability: { shots: 2, label: 'Salvo Pair' }, description: 'Two 265 damage shells every 2.7 s: 196 DPS, 740 px of reach, and a wider dead zone than the branch below.' },
-      apex: { slug: 'battery-3', title: 'Royal Salvo Battery', upgradeCost: 280, damage: 380, range: 760, cooldown: 2500, damageType: 'explosive', armorPenetration: 0.46, minRange: 140, ability: { shots: 2, label: 'Salvo Pair' }, description: '380 damage per shell, two shells a volley: 304 DPS across 760 px. The bombard’s single shell is heavier and pierces more armour; this battery simply fires more of them.' },
+      elite: { slug: 'battery-2', title: 'Salvo Culverin', upgradeCost: 230, damage: 265, range: 740, cooldown: 2700, damageType: 'explosive', armorPenetration: 0.38, ability: { shots: 2, label: 'Salvo Pair' }, description: 'Two 265 damage shells every 2.7 s: 196 DPS, 740 px of reach, twice the bombard rate for less per shell.' },
+      apex: { slug: 'battery-3', title: 'Royal Salvo Battery', upgradeCost: 280, damage: 380, range: 760, cooldown: 2500, damageType: 'explosive', armorPenetration: 0.46, ability: { shots: 2, label: 'Salvo Pair' }, description: '380 damage per shell, two shells a volley: 304 DPS across 760 px. The bombard’s single shell is heavier and pierces more armour; this battery simply fires more of them.' },
     },
   },
   siegeBallista: {
@@ -666,12 +666,12 @@ export const ASCENSION = {
   },
   mortar: {
     greatmortar: {
-      elite: { slug: 'greatmortar-2', title: 'Twin-Vent Mortar', upgradeCost: 240, damage: 135, range: 410, cooldown: 2150, damageType: 'explosive', splash: 130, minRange: 98, targetsGround: true, targetsAir: false, description: '135 damage across a 130 px blast every 2.15 s, ground only. The cluster battery fires two shells; this one covers more road with each.' },
-      apex: { slug: 'greatmortar-3', title: 'Royal Siege Mortar', upgradeCost: 330, damage: 180, range: 430, cooldown: 1950, damageType: 'explosive', splash: 150, minRange: 100, targetsGround: true, targetsAir: false, description: 'A graduated arc, a stone cradle and a 150 px crater.', ability: { label: 'Wide Blast' } },
+      elite: { slug: 'greatmortar-2', title: 'Twin-Vent Mortar', upgradeCost: 240, damage: 135, range: 410, cooldown: 2150, damageType: 'explosive', splash: 130, targetsGround: true, targetsAir: false, description: '135 damage across a 130 px blast every 2.15 s, ground only. The cluster battery fires two shells; this one covers more road with each.' },
+      apex: { slug: 'greatmortar-3', title: 'Royal Siege Mortar', upgradeCost: 330, damage: 180, range: 430, cooldown: 1950, damageType: 'explosive', splash: 150, targetsGround: true, targetsAir: false, description: 'A graduated arc, a stone cradle and a 150 px crater.', ability: { label: 'Wide Blast' } },
     },
     cluster: {
-      elite: { slug: 'cluster-2', title: 'Fanned Mortar', upgradeCost: 230, damage: 62, range: 370, cooldown: 1800, damageType: 'explosive', splash: 65, minRange: 96, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: '62 damage a shell, two shells per salvo, 69 DPS on a single body with a 65 px blast. Wider coverage than the great mortar, weaker per shell.' },
-      apex: { slug: 'cluster-3', title: 'Royal Cluster Battery', upgradeCost: 320, damage: 96, range: 380, cooldown: 1700, damageType: 'explosive', splash: 78, minRange: 98, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: 'Two 96 damage shells on a 78 px blast, 113 DPS into one target. The great mortar still covers more ground per shell.' },
+      elite: { slug: 'cluster-2', title: 'Fanned Mortar', upgradeCost: 230, damage: 62, range: 370, cooldown: 1800, damageType: 'explosive', splash: 65, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: '62 damage a shell, two shells per salvo, 69 DPS on a single body with a 65 px blast. Wider coverage than the great mortar, weaker per shell.' },
+      apex: { slug: 'cluster-3', title: 'Royal Cluster Battery', upgradeCost: 320, damage: 96, range: 380, cooldown: 1700, damageType: 'explosive', splash: 78, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: 'Two 96 damage shells on a 78 px blast, 113 DPS into one target. The great mortar still covers more ground per shell.' },
     },
   },
   rimeTower: {

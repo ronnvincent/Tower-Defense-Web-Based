@@ -66,11 +66,15 @@ branches; levels 3–5 below are branch A. Branch B is in §2b.
 Reach is deliberately enormous on this line and **never shrinks** on the way up:
 620 → 700 → 800 → 820 → 840 px, against a 2 048 px wide board. `battery`
 (counterweight shells) gives up some of that reach for rate: 720 → 740 → 760 px.
-The floor is a dead zone — 100 px at the first tier, 120 px at the top of branch
-A, 130 → 140 px on branch B — so a bombard cannot be parked on the road and
-delete everything that steps out of the gate.
+There is **no dead zone**. Reach is the only gate: a creep inside the ring is
+shootable however close it stands. An earlier pass gave the line a minimum range
+(90–140 px, "a siege gun cannot depress onto its own emplacement"), which looked
+harmless on paper and was not: a tower stands on a tile and a creep on the road
+beside it is one tile away — **64 px** — so the floor was wider than the nearest
+legal walk-by and the piece was silent for every creep that passed it. Req 50
+removed it.
 
-Minimum range 100 → 120 px. Ground **and** air, both filtered by the panel.
+Ground **and** air, both filtered by the panel.
 Titan bonus per tier: +26 % / +30 % / +34 % at levels 3 / 4 / 5.
 
 ### Siege Ballista — `siegeBallista` (150g)
