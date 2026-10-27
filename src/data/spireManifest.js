@@ -3,19 +3,70 @@
  * Do not edit by hand: re-run the script after changing the source sheets.
  *
  * Frame sizes and frame counts measured from the real Foozle "Spire" PNGs.
- * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.
+ * Enemy strips hold 9 rows: three clip groups (idle / walk / death) of
+ * three DIRECTION rows each: 0 faces the camera, 1 faces away, 2 is drawn
+ * in profile. They are not colour variants - see ENEMY_FACING in the
+ * generator for the measurement that proves it.
+ *
+ * `facing` names what row 0 already does ('south' = faces the camera,
+ * 'camera' = single-direction imported art that may only be mirrored), and
+ * `directional` says whether all three rows are usable as headings.
  */
 
 export const ENEMY_SHEETS = {
-  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7 },
-  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11 },
-  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8 },
-  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13 },
-  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12 },
-  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10 },
-  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12 },
-  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14 },
+  'grunt': { file: 'enemy-grunt.png', frameWidth: 64, frameHeight: 64, artWidth: 22, artHeight: 39, idle: 6, move: 8, death: 7, facing: 'south', directional: true, profileFacing: 'east' },
+  'runner': { file: 'enemy-runner.png', frameWidth: 128, frameHeight: 64, artWidth: 64, artHeight: 53, idle: 6, move: 8, death: 11, facing: 'south', directional: true, profileFacing: 'east' },
+  'brute': { file: 'enemy-brute.png', frameWidth: 64, frameHeight: 64, artWidth: 47, artHeight: 58, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'west' },
+  'swarm': { file: 'enemy-swarm.png', frameWidth: 64, frameHeight: 64, artWidth: 50, artHeight: 40, idle: 8, move: 8, death: 13, facing: 'south', directional: true, profileFacing: 'west' },
+  'healer': { file: 'enemy-healer.png', frameWidth: 64, frameHeight: 64, artWidth: 58, artHeight: 48, idle: 6, move: 4, death: 12, facing: 'north', directional: true, profileFacing: 'east' },
+  'shield': { file: 'enemy-shield.png', frameWidth: 64, frameHeight: 64, artWidth: 42, artHeight: 46, idle: 8, move: 8, death: 10, facing: 'south', directional: true, profileFacing: 'west' },
+  'colossus': { file: 'enemy-colossus.png', frameWidth: 96, frameHeight: 96, artWidth: 64, artHeight: 52, idle: 12, move: 8, death: 12, facing: 'south', directional: true, profileFacing: 'east' },
+  'warlord': { file: 'enemy-warlord.png', frameWidth: 64, frameHeight: 64, artWidth: 36, artHeight: 40, idle: 12, move: 8, death: 14, facing: 'south', directional: true, profileFacing: 'east' },
+  'thrall': { file: 'enemy-thrall.png', frameWidth: 70, frameHeight: 70, artWidth: 25, artHeight: 52, idle: 4, move: 8, death: 6, facing: 'south', directional: true, profileFacing: 'east' },
+  'raider': { file: 'enemy-raider.png', frameWidth: 62, frameHeight: 62, artWidth: 27, artHeight: 34, idle: 4, move: 8, death: 6, facing: 'south', directional: true, profileFacing: 'east' },
+  'bonearcher': { file: 'enemy-bonearcher.png', frameWidth: 93, frameHeight: 93, artWidth: 44, artHeight: 60, idle: 4, move: 8, death: 6, facing: 'south', directional: true, profileFacing: 'east' },
+  'ironhorn': { file: 'enemy-ironhorn.png', frameWidth: 112, frameHeight: 112, artWidth: 57, artHeight: 72, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'east' },
+  'ashwing': { file: 'enemy-ashwing.png', frameWidth: 124, frameHeight: 124, artWidth: 70, artHeight: 51, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'east' },
+  'gravesworn': { file: 'enemy-gravesworn.png', frameWidth: 152, frameHeight: 152, artWidth: 68, artHeight: 76, idle: 4, move: 8, death: 6, facing: 'south', directional: true, profileFacing: 'east' },
+  'sandwyrm': { file: 'enemy-sandwyrm.png', frameWidth: 128, frameHeight: 128, artWidth: 94, artHeight: 116, idle: 8, move: 8, death: 8, facing: 'south', directional: true, profileFacing: 'west' },
+  'frostwarden': { file: 'enemy-frostwarden.png', frameWidth: 128, frameHeight: 128, artWidth: 84, artHeight: 92, idle: 8, move: 8, death: 10, facing: 'south', directional: true, profileFacing: 'west' },
+  'magmalord': { file: 'enemy-magmalord.png', frameWidth: 192, frameHeight: 192, artWidth: 128, artHeight: 104, idle: 12, move: 8, death: 12, facing: 'south', directional: true, profileFacing: 'east' },
+  'prismlord': { file: 'enemy-prismlord.png', frameWidth: 192, frameHeight: 192, artWidth: 174, artHeight: 144, idle: 6, move: 4, death: 12, facing: 'north', directional: true, profileFacing: 'east' },
+  'obsidian': { file: 'enemy-obsidian.png', frameWidth: 192, frameHeight: 192, artWidth: 150, artHeight: 120, idle: 8, move: 8, death: 13, facing: 'south', directional: true, profileFacing: 'west' },
+  'voidherald': { file: 'enemy-voidherald.png', frameWidth: 192, frameHeight: 192, artWidth: 108, artHeight: 120, idle: 12, move: 8, death: 14, facing: 'south', directional: true, profileFacing: 'east' },
 };
+
+/**
+ * Texture key per creep, per battlefield, per escalation tier.
+ * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).
+ */
+export const ENEMY_SKINS = {
+  'grunt': { 'grassland': ['enemy-grunt', 'enemy-grunt-e1', 'enemy-grunt-e2'], 'desert': ['enemy-grunt-desert', 'enemy-grunt-desert-e1', 'enemy-grunt-desert-e2'], 'ice': ['enemy-grunt-ice', 'enemy-grunt-ice-e1', 'enemy-grunt-ice-e2'], 'volcanic': ['enemy-grunt-volcanic', 'enemy-grunt-volcanic-e1', 'enemy-grunt-volcanic-e2'], 'crystal': ['enemy-grunt-crystal', 'enemy-grunt-crystal-e1', 'enemy-grunt-crystal-e2'] },
+  'runner': { 'grassland': ['enemy-runner', 'enemy-runner-e1', 'enemy-runner-e2'], 'desert': ['enemy-runner-desert', 'enemy-runner-desert-e1', 'enemy-runner-desert-e2'], 'ice': ['enemy-runner-ice', 'enemy-runner-ice-e1', 'enemy-runner-ice-e2'], 'volcanic': ['enemy-runner-volcanic', 'enemy-runner-volcanic-e1', 'enemy-runner-volcanic-e2'], 'crystal': ['enemy-runner-crystal', 'enemy-runner-crystal-e1', 'enemy-runner-crystal-e2'] },
+  'brute': { 'grassland': ['enemy-brute', 'enemy-brute-e1', 'enemy-brute-e2'], 'desert': ['enemy-brute-desert', 'enemy-brute-desert-e1', 'enemy-brute-desert-e2'], 'ice': ['enemy-brute-ice', 'enemy-brute-ice-e1', 'enemy-brute-ice-e2'], 'volcanic': ['enemy-brute-volcanic', 'enemy-brute-volcanic-e1', 'enemy-brute-volcanic-e2'], 'crystal': ['enemy-brute-crystal', 'enemy-brute-crystal-e1', 'enemy-brute-crystal-e2'] },
+  'swarm': { 'grassland': ['enemy-swarm', 'enemy-swarm-e1', 'enemy-swarm-e2'], 'desert': ['enemy-swarm-desert', 'enemy-swarm-desert-e1', 'enemy-swarm-desert-e2'], 'ice': ['enemy-swarm-ice', 'enemy-swarm-ice-e1', 'enemy-swarm-ice-e2'], 'volcanic': ['enemy-swarm-volcanic', 'enemy-swarm-volcanic-e1', 'enemy-swarm-volcanic-e2'], 'crystal': ['enemy-swarm-crystal', 'enemy-swarm-crystal-e1', 'enemy-swarm-crystal-e2'] },
+  'healer': { 'grassland': ['enemy-healer', 'enemy-healer-e1', 'enemy-healer-e2'], 'desert': ['enemy-healer-desert', 'enemy-healer-desert-e1', 'enemy-healer-desert-e2'], 'ice': ['enemy-healer-ice', 'enemy-healer-ice-e1', 'enemy-healer-ice-e2'], 'volcanic': ['enemy-healer-volcanic', 'enemy-healer-volcanic-e1', 'enemy-healer-volcanic-e2'], 'crystal': ['enemy-healer-crystal', 'enemy-healer-crystal-e1', 'enemy-healer-crystal-e2'] },
+  'shield': { 'grassland': ['enemy-shield', 'enemy-shield-e1', 'enemy-shield-e2'], 'desert': ['enemy-shield-desert', 'enemy-shield-desert-e1', 'enemy-shield-desert-e2'], 'ice': ['enemy-shield-ice', 'enemy-shield-ice-e1', 'enemy-shield-ice-e2'], 'volcanic': ['enemy-shield-volcanic', 'enemy-shield-volcanic-e1', 'enemy-shield-volcanic-e2'], 'crystal': ['enemy-shield-crystal', 'enemy-shield-crystal-e1', 'enemy-shield-crystal-e2'] },
+  'colossus': { 'grassland': ['enemy-colossus', 'enemy-colossus-e1', 'enemy-colossus-e2'], 'desert': ['enemy-colossus-desert', 'enemy-colossus-desert-e1', 'enemy-colossus-desert-e2'], 'ice': ['enemy-colossus-ice', 'enemy-colossus-ice-e1', 'enemy-colossus-ice-e2'], 'volcanic': ['enemy-colossus-volcanic', 'enemy-colossus-volcanic-e1', 'enemy-colossus-volcanic-e2'], 'crystal': ['enemy-colossus-crystal', 'enemy-colossus-crystal-e1', 'enemy-colossus-crystal-e2'] },
+  'warlord': { 'grassland': ['enemy-warlord', 'enemy-warlord-e1', 'enemy-warlord-e2'], 'desert': ['enemy-warlord-desert', 'enemy-warlord-desert-e1', 'enemy-warlord-desert-e2'], 'ice': ['enemy-warlord-ice', 'enemy-warlord-ice-e1', 'enemy-warlord-ice-e2'], 'volcanic': ['enemy-warlord-volcanic', 'enemy-warlord-volcanic-e1', 'enemy-warlord-volcanic-e2'], 'crystal': ['enemy-warlord-crystal', 'enemy-warlord-crystal-e1', 'enemy-warlord-crystal-e2'] },
+  'thrall': { 'grassland': ['enemy-thrall', 'enemy-thrall-e1', 'enemy-thrall-e2'], 'desert': ['enemy-thrall-desert', 'enemy-thrall-desert-e1', 'enemy-thrall-desert-e2'], 'ice': ['enemy-thrall-ice', 'enemy-thrall-ice-e1', 'enemy-thrall-ice-e2'], 'volcanic': ['enemy-thrall-volcanic', 'enemy-thrall-volcanic-e1', 'enemy-thrall-volcanic-e2'], 'crystal': ['enemy-thrall-crystal', 'enemy-thrall-crystal-e1', 'enemy-thrall-crystal-e2'] },
+  'raider': { 'grassland': ['enemy-raider', 'enemy-raider-e1', 'enemy-raider-e2'], 'desert': ['enemy-raider-desert', 'enemy-raider-desert-e1', 'enemy-raider-desert-e2'], 'ice': ['enemy-raider-ice', 'enemy-raider-ice-e1', 'enemy-raider-ice-e2'], 'volcanic': ['enemy-raider-volcanic', 'enemy-raider-volcanic-e1', 'enemy-raider-volcanic-e2'], 'crystal': ['enemy-raider-crystal', 'enemy-raider-crystal-e1', 'enemy-raider-crystal-e2'] },
+  'bonearcher': { 'grassland': ['enemy-bonearcher', 'enemy-bonearcher-e1', 'enemy-bonearcher-e2'], 'desert': ['enemy-bonearcher-desert', 'enemy-bonearcher-desert-e1', 'enemy-bonearcher-desert-e2'], 'ice': ['enemy-bonearcher-ice', 'enemy-bonearcher-ice-e1', 'enemy-bonearcher-ice-e2'], 'volcanic': ['enemy-bonearcher-volcanic', 'enemy-bonearcher-volcanic-e1', 'enemy-bonearcher-volcanic-e2'], 'crystal': ['enemy-bonearcher-crystal', 'enemy-bonearcher-crystal-e1', 'enemy-bonearcher-crystal-e2'] },
+  'ironhorn': { 'grassland': ['enemy-ironhorn', 'enemy-ironhorn-e1', 'enemy-ironhorn-e2'], 'desert': ['enemy-ironhorn-desert', 'enemy-ironhorn-desert-e1', 'enemy-ironhorn-desert-e2'], 'ice': ['enemy-ironhorn-ice', 'enemy-ironhorn-ice-e1', 'enemy-ironhorn-ice-e2'], 'volcanic': ['enemy-ironhorn-volcanic', 'enemy-ironhorn-volcanic-e1', 'enemy-ironhorn-volcanic-e2'], 'crystal': ['enemy-ironhorn-crystal', 'enemy-ironhorn-crystal-e1', 'enemy-ironhorn-crystal-e2'] },
+  'ashwing': { 'grassland': ['enemy-ashwing', 'enemy-ashwing-e1', 'enemy-ashwing-e2'], 'desert': ['enemy-ashwing-desert', 'enemy-ashwing-desert-e1', 'enemy-ashwing-desert-e2'], 'ice': ['enemy-ashwing-ice', 'enemy-ashwing-ice-e1', 'enemy-ashwing-ice-e2'], 'volcanic': ['enemy-ashwing-volcanic', 'enemy-ashwing-volcanic-e1', 'enemy-ashwing-volcanic-e2'], 'crystal': ['enemy-ashwing-crystal', 'enemy-ashwing-crystal-e1', 'enemy-ashwing-crystal-e2'] },
+  'gravesworn': { 'grassland': ['enemy-gravesworn', 'enemy-gravesworn-e1', 'enemy-gravesworn-e2'], 'desert': ['enemy-gravesworn-desert', 'enemy-gravesworn-desert-e1', 'enemy-gravesworn-desert-e2'], 'ice': ['enemy-gravesworn-ice', 'enemy-gravesworn-ice-e1', 'enemy-gravesworn-ice-e2'], 'volcanic': ['enemy-gravesworn-volcanic', 'enemy-gravesworn-volcanic-e1', 'enemy-gravesworn-volcanic-e2'], 'crystal': ['enemy-gravesworn-crystal', 'enemy-gravesworn-crystal-e1', 'enemy-gravesworn-crystal-e2'] },
+};
+
+export const ENEMY_DIRECTIONS = 3;
+/** @deprecated Rows are directions, not palettes. Kept for older imports. */
+export const ENEMY_PALETTES = ENEMY_DIRECTIONS;
+
+/** Per-tier presentation: sprite scale and glow strength (0 = none). */
+export const ENEMY_TIERS = [
+  { scale: 1.0, glow: 0.0 },
+  { scale: 1.08, glow: 0.22 },
+  { scale: 1.16, glow: 0.34 },
+];
 
 export const IMPACT_SHEETS = {
   'impact-arrow': { file: 'impact-arrow.png', frameWidth: 64, frameHeight: 64, frames: 6 },

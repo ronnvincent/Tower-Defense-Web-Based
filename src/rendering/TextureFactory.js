@@ -6,9 +6,30 @@
  * All sprites face RIGHT (angle 0) so they can be rotated toward a target.
  */
 
+/**
+ * True when a loader somewhere in the game is already fetching this key.
+ *
+ * The HTML menu can hand the player a battle before `BootScene` finishes
+ * creating its procedural fallbacks. In that window `GameScene.preload` has
+ * already queued the real fx pack, so a fallback canvas drawn now would collide
+ * with the file when it lands ("Texture key already in use" — Phaser keeps the
+ * canvas and drops the painted art). The pack wins; the fallback stays unused.
+ */
+function queuedElsewhere(scene, key) {
+  try {
+    // Every scene, not just the active ones: a battle in LOADING is precisely
+    // the case this guard exists for, and `isActive()` is false while loading.
+    const scenes = scene?.game?.scene?.scenes || scene?.game?.scene?.getScenes?.(false) || [];
+    return scenes.some((other) => Boolean(other?.load?.list?.[key]));
+  } catch (error) {
+    return false;
+  }
+}
+
 /** Create (or replace) a canvas texture and draw into it. */
 export function canvasTexture(scene, key, width, height, draw) {
   if (scene.textures.exists(key)) return scene.textures.get(key);
+  if (queuedElsewhere(scene, key)) return null;
   const texture = scene.textures.createCanvas(key, width, height);
   const ctx = texture.getContext();
   ctx.save();
@@ -127,6 +148,53 @@ function makeEffects(scene) {
   canvasTexture(scene, 'shard', 10, 10, (ctx) => {
     polygon(ctx, [[5, 0], [10, 5], [5, 10], [0, 5]], '#d8f7ff');
   });
+
+  // Shielding creeps wear this bubble. It was referenced long before it was
+  // drawn, so every shielded enemy used to render Phaser's missing-texture
+  // placeholder — a black square with green diagonals over the monster. Drawn
+  // white so `setTint()` can colour it per shield element.
+  canvasTexture(scene, 'shield-barrier', 96, 96, (ctx) => {
+    ctx.fillStyle = radial(ctx, 48, 48, 0, 48, [
+      [0, 'rgba(255,255,255,0.05)'],
+      [0.62, 'rgba(255,255,255,0.12)'],
+      [1, 'rgba(255,255,255,0)'],
+    ]);
+    ctx.fillRect(0, 0, 96, 96);
+
+    // Hexagonal force field, flat-top, with a bright rim and dim facets.
+    const hex = [];
+    for (let i = 0; i < 6; i += 1) {
+      const a = (Math.PI / 3) * i - Math.PI / 6;
+      hex.push([48 + Math.cos(a) * 42, 48 + Math.sin(a) * 42]);
+    }
+    polygon(ctx, hex, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.85)', 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1.5;
+    for (const [x, y] of hex) {
+      ctx.beginPath();
+      ctx.moveTo(48, 48);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+    // Two specular arcs so the bubble reads as glass rather than a hexagon.
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(48, 48, 37, Math.PI * 1.08, Math.PI * 1.32);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(48, 48, 33, Math.PI * 1.52, Math.PI * 1.66);
+    ctx.stroke();
+  });
+
+  // Rotating ring under an ascended defence: no canvas stand-in here.
+  //
+  // `fx-aura-ring` is a painted 160 px sheet in the fx pack (see
+  // `src/data/fxManifest.js`). Baking a 128 px canvas under the same key meant
+  // that whichever finished first won, and when the pack landed second Phaser
+  // logged "Texture key already in use" and threw the painted ring away. The
+  // pack is always shipped with the build, so the ring comes from there and
+  // `Tower` already guards on `textures.exists`.
 }
 
 /* ------------------------------------------------------------------- towers */
@@ -367,25 +435,200 @@ function makeLandmarks(scene) {
     }
   });
 
-  canvasTexture(scene, 'base-platform', 80, 80, (ctx) => {
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.beginPath();
-    ctx.ellipse(40, 46, 34, 26, 0, 0, TAU);
-    ctx.fill();
-    const pts = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * TAU + Math.PI / 6;
-      pts.push([40 + Math.cos(a) * 32, 40 + Math.sin(a) * 32]);
-    }
-    polygon(ctx, pts, linear(ctx, 0, 8, 0, 72, [[0, '#8790a6'], [1, '#353b4d']]), '#1d2131', 3);
-    const inner = pts.map(([x, y]) => [40 + (x - 40) * 0.7, 40 + (y - 40) * 0.7]);
-    polygon(ctx, inner, '#262b3a', 'rgba(78,225,255,0.8)', 2);
-  });
 
   canvasTexture(scene, 'base-crystal', 48, 72, (ctx) => {
     polygon(ctx, [[24, 2], [42, 26], [24, 70], [6, 26]], linear(ctx, 6, 2, 42, 70, [[0, '#f0fdff'], [0.45, '#4ee1ff'], [1, '#1460a0']]), '#d8f7ff', 2);
     polygon(ctx, [[24, 2], [42, 26], [24, 34]], 'rgba(255,255,255,0.5)');
     polygon(ctx, [[6, 26], [24, 34], [24, 70]], 'rgba(10,40,80,0.35)');
+  });
+}
+
+/* ------------------------------------------------------------------- walls */
+
+/**
+ * The five wall tiers, drawn as 64x64 tiles.
+ *
+ * A wall segment fills the whole tile, edge to edge. That is what makes a run of
+ * segments read as one continuous rampart instead of a row of isolated props —
+ * the pieces touch on every side, so a player-drawn perimeter has no seams.
+ * Each tier is a different material, not a recolour: sharpened stakes, banded
+ * planks, laid stone, crenellated fortification, and finally a gold-trimmed
+ * imperial rampart.
+ *
+ * Damage is drawn on top at runtime (`Tower.drawDamageOverlay`), so one texture
+ * per tier covers every health state without a second art set.
+ */
+function makeWalls(scene) {
+  const rivet = (ctx, x, y, fill = '#cfd6e4', stroke = '#2b3242', r = 1.9) => {
+    circle(ctx, x, y, r, fill, stroke, 1);
+  };
+
+  // Tier 1 — wooden palisade: sharpened stakes, lashed rails, full bleed.
+  canvasTexture(scene, 'wall-t1', 64, 64, (ctx) => {
+    ctx.fillStyle = '#3b2412';
+    ctx.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 6; i += 1) {
+      const x = i * 10.7;
+      polygon(
+        ctx,
+        [[x, 64], [x, 14], [x + 5.3, 3], [x + 10.7, 14], [x + 10.7, 64]],
+        linear(ctx, x, 3, x + 10.7, 64, [[0, '#c99259'], [0.5, '#9c6631'], [1, '#5d3a19']]),
+        '#2f1c0c',
+        1.2
+      );
+      ctx.fillStyle = 'rgba(255,225,180,0.16)';
+      ctx.fillRect(x + 1.6, 18, 1.8, 42);
+    }
+    ctx.fillStyle = '#4d2f16';
+    ctx.fillRect(0, 26, 64, 5.5);
+    ctx.fillRect(0, 46, 64, 5.5);
+    for (let i = 0; i < 6; i += 1) {
+      rivet(ctx, 5.3 + i * 10.7, 28.7, '#b08d5f', '#2f1c0c', 1.7);
+      rivet(ctx, 5.3 + i * 10.7, 48.7, '#b08d5f', '#2f1c0c', 1.7);
+    }
+  });
+
+  // Tier 2 — reinforced wood: heavy planks, iron bands, full bleed.
+  canvasTexture(scene, 'wall-t2', 64, 64, (ctx) => {
+    for (let i = 0; i < 4; i += 1) {
+      const x = i * 16;
+      ctx.fillStyle = linear(ctx, x, 0, x + 16, 64, [[0, '#8a5a2c'], [1, '#42260f']]);
+      ctx.fillRect(x, 0, 16, 64);
+      ctx.strokeStyle = '#1f1104';
+      ctx.lineWidth = 1.6;
+      ctx.strokeRect(x, 0, 16, 64);
+      ctx.fillStyle = 'rgba(255,220,170,0.10)';
+      ctx.fillRect(x + 2, 2, 2.6, 60);
+    }
+    for (const y of [12, 31, 50]) {
+      ctx.fillStyle = linear(ctx, 0, y, 64, y + 6, [[0, '#7d8798'], [0.5, '#cdd7e5'], [1, '#5d6675']]);
+      ctx.fillRect(0, y, 64, 6);
+      ctx.strokeStyle = '#161b23';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(0, y, 64, 6);
+      for (let i = 0; i < 7; i += 1) rivet(ctx, 4.6 + i * 9.2, y + 3);
+    }
+  });
+
+  // Tier 3 — stone wall: three laid courses with offset joints, full bleed.
+  canvasTexture(scene, 'wall-t3', 64, 64, (ctx) => {
+    ctx.fillStyle = '#2f3540';
+    ctx.fillRect(0, 0, 64, 64);
+    const courses = [
+      { y: 0, h: 21, offset: 0 },
+      { y: 21, h: 21, offset: 11 },
+      { y: 42, h: 22, offset: 3 },
+    ];
+    for (const { y, h, offset } of courses) {
+      let x = -offset;
+      while (x < 64) {
+        const w = 22;
+        ctx.fillStyle = linear(ctx, x, y, x + w, y + h, [[0, '#9aa3b1'], [0.55, '#7c8694'], [1, '#59616e']]);
+        ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+        ctx.strokeStyle = '#242a34';
+        ctx.lineWidth = 1.4;
+        ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.13)';
+        ctx.fillRect(x + 3, y + 2.4, w - 6, 1.8);
+        x += w;
+      }
+    }
+  });
+
+  // Tier 4 — fortified stone: crenellated ridge, iron studs, full bleed.
+  canvasTexture(scene, 'wall-t4', 64, 64, (ctx) => {
+    ctx.fillStyle = '#252b36';
+    ctx.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 4; i += 1) {
+      const x = i * 16;
+      ctx.fillStyle = linear(ctx, x, 2, x + 16, 22, [[0, '#b7c1cf'], [1, '#69727f']]);
+      ctx.fillRect(x + 1, 2, 14, 20);
+      ctx.strokeStyle = '#1c222b';
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(x + 1, 2, 14, 20);
+    }
+    ctx.fillStyle = linear(ctx, 0, 22, 0, 64, [[0, '#8f99a8'], [0.6, '#6d7787'], [1, '#454d59']]);
+    ctx.fillRect(0, 22, 64, 42);
+    ctx.strokeStyle = 'rgba(18,23,30,0.9)';
+    ctx.lineWidth = 1.5;
+    for (const y of [32, 44, 56]) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(64, y);
+      ctx.stroke();
+    }
+    for (let row = 0; row < 3; row += 1) {
+      for (let i = 0; i < 3; i += 1) {
+        const x = 8 + i * 20 + (row % 2 ? 10 : 0);
+        ctx.beginPath();
+        ctx.moveTo(x, 22 + row * 14);
+        ctx.lineTo(x, 22 + row * 14 + 14);
+        ctx.stroke();
+      }
+    }
+    for (let i = 0; i < 4; i += 1) rivet(ctx, 9 + i * 15, 26.4, '#dbe3ef', '#1c222b');
+    ctx.fillStyle = linear(ctx, 0, 0, 0, 4, [[0, '#aab4c2'], [1, '#5c6470']]);
+    ctx.fillRect(0, 0, 64, 4);
+  });
+
+  // Tier 5 — imperial fortress: dark stone, gold band, crest, full bleed.
+  canvasTexture(scene, 'wall-t5', 64, 64, (ctx) => {
+    ctx.fillStyle = '#17130d';
+    ctx.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 4; i += 1) {
+      const x = i * 16;
+      ctx.fillStyle = linear(ctx, x, 0, x + 16, 20, [[0, '#8b6f43'], [0.5, '#5c4a2f'], [1, '#3a2f1e']]);
+      ctx.fillRect(x + 0.5, 0, 15, 18);
+      ctx.strokeStyle = '#0f0c08';
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(x + 0.5, 0, 15, 18);
+      ctx.fillStyle = linear(ctx, x, 18, x + 15, 22, [[0, '#ffe8a8'], [0.5, '#dfb257'], [1, '#9a6f1d']]);
+      ctx.fillRect(x + 0.5, 18, 15, 4);
+    }
+    ctx.fillStyle = linear(ctx, 0, 22, 0, 64, [[0, '#6a5a44'], [0.45, '#4b4034'], [1, '#241d15']]);
+    ctx.fillRect(0, 22, 64, 42);
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1.3;
+    for (const y of [33, 45, 57]) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(64, y);
+      ctx.stroke();
+    }
+    for (let row = 0; row < 3; row += 1) {
+      for (let i = 0; i < 3; i += 1) {
+        const x = 9 + i * 20 + (row % 2 ? 10 : 0);
+        ctx.beginPath();
+        ctx.moveTo(x, 22 + row * 12);
+        ctx.lineTo(x, 22 + row * 12 + 12);
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#2b241a';
+    ctx.fillRect(20, 30, 24, 22);
+    ctx.strokeStyle = '#e0b357';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 30, 24, 22);
+    polygon(ctx, [[32, 34], [38, 40], [32, 47], [26, 40]], linear(ctx, 26, 34, 38, 47, [[0, '#ffeeb8'], [1, '#c8952f']]), '#4a3510', 1.1);
+    for (let i = 0; i < 4; i += 1) rivet(ctx, 9 + i * 15, 26, '#ffe7a6', '#3a2c10');
+  });
+
+  // Rubble left behind when a wall falls — one texture, tinted per tier.
+  canvasTexture(scene, 'wall-rubble', 64, 64, (ctx) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(6, 30, 52, 24);
+    const bits = [
+      [12, 44, 11, 7], [24, 50, 13, 6], [38, 45, 10, 7], [50, 49, 9, 6], [30, 36, 9, 6],
+    ];
+    for (const [x, y, w, h] of bits) {
+      ctx.fillStyle = '#6a6257';
+      ctx.fillRect(x - w / 2, y - h / 2, w, h);
+      ctx.strokeStyle = '#241f19';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(x - w / 2 + 1, y - h / 2 + 1, w - 2, 1.4);
+    }
   });
 }
 
@@ -396,4 +639,5 @@ export function generateAllTextures(scene) {
   makeEnemies(scene);
   makeProjectiles(scene);
   makeLandmarks(scene);
+  makeWalls(scene);
 }

@@ -1,24 +1,33 @@
 {
   "name": "tower-defense-dsalgo",
   "version": "1.0.0",
-  "description": "Tower Defense: DSALGO Edition — a Phaser 3 tower defense game demonstrating custom data structures and algorithms (Queue, Graph, BFS, Merge Sort).",
+  "description": "Tower Defense: DSALGO Edition \u2014 a Phaser 3 tower defense game demonstrating custom data structures and algorithms (Queue, Graph, BFS, Merge Sort).",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:cloud": "node scripts/dev-with-cloud.mjs",
+    "pvp:dev": "node scripts/dev-with-relay.mjs",
+    "cloud:dev": "node server/cloud-dev.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "verify:camera": "node scripts/verify-camera-engine.mjs",
+    "check": "npm run test && npm run check:contrast",
+    "pvp:relay": "node server/pvp-relay.mjs"
   },
   "license": "MIT",
   "engines": {
     "node": "22.x"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "^3.90.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
+    "jsdom": "^30.1.3",
     "vite": "^7.3.7",
     "vitest": "^5.0.5"
   }

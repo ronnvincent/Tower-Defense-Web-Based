@@ -1,0 +1,31 @@
+# Render blueprint for the Mirror Arena duel relay.
+#
+# Why this file exists: Vercel (and Pages, and S3) serve static files only —
+# there is no process to hold a WebSocket open, so `wss://<your-game>/pvp` can
+# never answer. The relay is a separate, tiny Node service.
+#
+#   1. Push this repo to GitHub (already done if you deploy from there).
+#   2. Render → New → Blueprint → pick this repo → Apply.
+#   3. Copy the URL Render prints and use it in the game:
+#        wss://mirror-arena-relay.onrender.com/pvp
+#      Paste it in the lobby's CHANGE RELAY field (no rebuild needed), or set
+#      VITE_PVP_RELAY to it for every visitor.
+#
+# Free instances sleep after ~15 minutes idle; the first join of the day takes
+# a few seconds while it wakes, and the lobby shows "DIALING RELAY…" while it
+# does. The relay keeps no state worth losing: rooms live for one duel.
+
+services:
+  - type: web
+    name: mirror-arena-relay
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/pvp-relay.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: PVP_PENDING_MS
+        value: '15000'
