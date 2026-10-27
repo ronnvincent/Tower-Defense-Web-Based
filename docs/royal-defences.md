@@ -14,13 +14,13 @@ all read the same data in `src/data/royalDefences.js`.
 
 | Line | Type key | Cost | Role | Range ceiling | Weakness |
 |---|---|---|---|---|---|
-| Royal Siege Artillery | `royalArtillery` | 260 | Boss/elite single-target burst | 520 | Slow reload, minimum range, no splash |
-| Siege Ballista | `siegeBallista` | 150 | Armour-piercing single target | 310 | Short reach, single target only |
+| Royal Siege Artillery | `royalArtillery` | 260 | Boss/elite single-target burst | **840** | Slow reload, minimum range, no splash |
+| Siege Ballista | `siegeBallista` | 150 | Armour-piercing single target | 340 | Short reach, single target only |
 | Arcane Sniper Tower | `arcaneSniper` | 210 | Long-range magic sniping | 430 | Tiny DPS against groups |
-| Mortar Tower | `mortar` | 200 | Ground area denial | 380 | Ground only, minimum range, poor single target |
+| Mortar Tower | `mortar` | 200 | Ground area denial | 430 | Ground only, minimum range, poor single target |
 | Frost Tower | `rimeTower` | 130 | Slow field | 230 | Lowest damage of the ten |
 | Tesla Tower | `tesla` | 190 | Chained crowd damage | 235 | Short reach, falloff per hop |
-| Skybreaker Tower | `skybreaker` | 170 | Dedicated anti-air | 350 | Air only (no ground branch by default) |
+| Skybreaker Tower | `skybreaker` | 170 | Dedicated anti-air | 360 | Air only (no ground branch by default) |
 | Engineer Workshop | `workshop` | 160 | Support: fire-rate/range aura, repairs | aura 200–300 | Deals no damage at all |
 | Warding Obelisk | `obelisk` | 180 | Armour/resistance debuff field | aura 190–270 | No direct damage |
 | Spike Trap | `spikeTrap` | 70 | Road hazard with a cooldown | trigger 48–60 | Ground only, one trigger per re-arm |
@@ -57,11 +57,18 @@ branches; levels 3–5 below are branch A. Branch B is in §2b.
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Pen |
 |---|---|---|---|---|---|---|---|
-| 1 | Field Bombard | 260 | 430 | 4.20 s | 62 | — | 25 % |
-| 2 | Banded Siege Gun | 360 | 450 | 4.00 s | 90 | 140 g | 30 % |
-| 3 | Bastion Culverin | 480 | 470 | 3.80 s | 126 | 190 g | 40 % |
-| 4 | Counterweight Bombard | 640 | 495 | 3.60 s | 178 | 240 g | 50 % |
-| 5 | Royal Siege Battery | 900 | 520 | 3.40 s | 265 | 290 g | 60 % |
+| 1 | Field Bombard | 260 | 620 | 4.20 s | 62 | — | 25 % |
+| 2 | Banded Siege Gun | 360 | 700 | 4.00 s | 90 | 140 g | 30 % |
+| 3 | Bastion Culverin | 480 | 800 | 3.80 s | 126 | 190 g | 40 % |
+| 4 | Counterweight Bombard | 640 | 820 | 3.60 s | 178 | 240 g | 50 % |
+| 5 | Royal Siege Battery | 900 | 840 | 3.40 s | 265 | 290 g | 60 % |
+
+Reach is deliberately enormous on this line and **never shrinks** on the way up:
+620 → 700 → 800 → 820 → 840 px, against a 2 048 px wide board. `battery`
+(counterweight shells) gives up some of that reach for rate: 720 → 740 → 760 px.
+The floor is a dead zone — 100 px at the first tier, 120 px at the top of branch
+A, 130 → 140 px on branch B — so a bombard cannot be parked on the road and
+delete everything that steps out of the gate.
 
 Minimum range 100 → 120 px. Ground **and** air, both filtered by the panel.
 Titan bonus per tier: +26 % / +30 % / +34 % at levels 3 / 4 / 5.
@@ -70,11 +77,11 @@ Titan bonus per tier: +26 % / +30 % / +34 % at levels 3 / 4 / 5.
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Pen | Boss bonus |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Field Ballista | 70 | 250 | 1.45 s | 48 | — | 55 % | +15 % |
-| 2 | Windlass Ballista | 100 | 265 | 1.38 s | 72 | 90 g | 62 % | +20 % |
-| 3 | Steel-Proof Arbalest | 140 | 280 | 1.30 s | 108 | 140 g | 70 % | +26 % |
-| 4 | Torsion Siege Bow | 225 | 295 | 1.18 s | 191 | 200 g | 78 % | +33 % |
-| 5 | Colossus Ballista | 250 | 310 | 1.05 s | 238 | 280 g | 85 % | +40 % |
+| 1 | Field Ballista | 70 | 270 | 1.45 s | 48 | — | 55 % | +15 % |
+| 2 | Windlass Ballista | 100 | 290 | 1.38 s | 72 | 90 g | 62 % | +20 % |
+| 3 | Steel-Proof Arbalest | 140 | 300 | 1.30 s | 108 | 140 g | 70 % | +26 % |
+| 4 | Torsion Siege Bow | 225 | 320 | 1.18 s | 191 | 200 g | 78 % | +33 % |
+| 5 | Colossus Ballista | 250 | 340 | 1.05 s | 238 | 280 g | 85 % | +40 % |
 
 Armour penetration is applied by `calculateEffectiveArmor`, so 85 % penetration
 against a 40-armour guard leaves 6 armour, not "ignore armour".
@@ -95,11 +102,11 @@ Magic damage, so resistances (not armour) are the mitigation that matters.
 
 | L | Name | DMG | Range | Interval | DPS | Splash | Upgrade |
 |---|---|---|---|---|---|---|---|
-| 1 | Iron Bed Mortar | 55 | 300 | 2.60 s | 21 | 95 px | — |
-| 2 | Banded Bombard | 75 | 320 | 2.50 s | 30 | 105 px | 110 g |
-| 3 | Stone Emplacement | 100 | 340 | 2.35 s | 43 | 115 px | 160 g |
-| 4 | Twin-Vent Mortar | 135 | 360 | 2.15 s | 63 | 130 px | 240 g |
-| 5 | Royal Siege Mortar | 180 | 380 | 1.95 s | 92 | 150 px | 330 g |
+| 1 | Iron Bed Mortar | 55 | 340 | 2.60 s | 21 | 95 px | — |
+| 2 | Banded Bombard | 75 | 360 | 2.50 s | 30 | 105 px | 110 g |
+| 3 | Stone Emplacement | 100 | 390 | 2.35 s | 43 | 115 px | 160 g |
+| 4 | Twin-Vent Mortar | 135 | 410 | 2.15 s | 63 | 130 px | 240 g |
+| 5 | Royal Siege Mortar | 180 | 430 | 1.95 s | 92 | 150 px | 330 g |
 
 Ground only, minimum range 90 → 100 px, and the blast is resolved at the
 **coordinates the shell was aimed at**, not at the tower.
@@ -128,11 +135,11 @@ Ground only, minimum range 90 → 100 px, and the blast is resolved at the
 
 | L | Name | DMG | Range | Interval | DPS | Boss bonus | Upgrade |
 |---|---|---|---|---|---|---|---|
-| 1 | Tracker Mount | 60 | 270 | 1.20 s | 50 | +25 % | — |
-| 2 | Twin Harpoon Mount | 85 | 285 | 1.15 s | 74 | +25 % | 100 g |
-| 3 | Quad Tracker | 115 | 305 | 1.08 s | 106 | +30 % | 150 g |
-| 4 | Radar Battery | 155 | 330 | 1.00 s | 155 | +35 % | 220 g |
-| 5 | Sky Citadel | 205 | 350 | 0.92 s | 223 | +40 % | 310 g |
+| 1 | Tracker Mount | 60 | 300 | 1.20 s | 50 | +25 % | — |
+| 2 | Twin Harpoon Mount | 85 | 315 | 1.15 s | 74 | +25 % | 100 g |
+| 3 | Quad Tracker | 115 | 330 | 1.08 s | 106 | +30 % | 150 g |
+| 4 | Radar Battery | 155 | 345 | 1.00 s | 155 | +35 % | 220 g |
+| 5 | Sky Citadel | 205 | 360 | 0.92 s | 223 | +40 % | 310 g |
 
 Air only by data (`targetsGround: false`), which the shared target filter
 enforces for direct hits, splash and chain alike.
@@ -186,33 +193,33 @@ shot art and its own hit effect (`proj-royal-<line>-b*`,
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
 |---|---|---|---|---|---|---|---|
-| 3 | Twin-Bore Battery | 210 | 400 | 2.90 s | 145 | 180 g | min range 130 px |
-| 4 | Salvo Culverin | 265 | 420 | 2.70 s | 196 | 230 g | min range 135 px |
-| 5 | Royal Salvo Battery | 380 | 440 | 2.50 s | 304 | 280 g | min range 140 px |
+| 3 | Twin-Bore Battery | 210 | 720 | 2.90 s | 145 | 180 g | min range 130 px |
+| 4 | Salvo Culverin | 265 | 740 | 2.70 s | 196 | 230 g | min range 135 px |
+| 5 | Royal Salvo Battery | 380 | 760 | 2.50 s | 304 | 280 g | min range 140 px |
 
 ### Siege Ballista → Repeater Ballista — branch B (`repeater`)
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
 |---|---|---|---|---|---|---|---|
-| 3 | Repeater Ballista | 95 | 250 | 0.70 s | 136 | 130 g | — |
-| 4 | Windlass Repeater | 110 | 260 | 0.90 s | 244 | 190 g | — |
-| 5 | Hailstorm Ballista | 120 | 272 | 0.80 s | 300 | 270 g | — |
+| 3 | Repeater Ballista | 95 | 290 | 0.70 s | 136 | 130 g | — |
+| 4 | Windlass Repeater | 110 | 300 | 0.90 s | 244 | 190 g | — |
+| 5 | Hailstorm Ballista | 120 | 310 | 0.80 s | 300 | 270 g | — |
 
 ### Arcane Sniper Tower → Hex Weaver — branch B (`hexweaver`)
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
 |---|---|---|---|---|---|---|---|
-| 3 | Hex Weaver | 120 | 330 | 1.60 s | 75 | 170 g | splash 60 px; slow 18 % for 900 ms |
-| 4 | Curse Lattice | 155 | 345 | 1.50 s | 103 | 240 g | splash 70 px; slow 22 % for 1000 ms |
-| 5 | Hex Spire | 200 | 360 | 1.40 s | 143 | 330 g | splash 85 px; slow 26 % for 1100 ms |
+| 3 | Hex Weaver | 120 | 365 | 1.60 s | 75 | 170 g | splash 60 px; slow 18 % for 900 ms |
+| 4 | Curse Lattice | 155 | 375 | 1.50 s | 103 | 240 g | splash 70 px; slow 22 % for 1000 ms |
+| 5 | Hex Spire | 200 | 385 | 1.40 s | 143 | 330 g | splash 85 px; slow 26 % for 1100 ms |
 
 ### Mortar Tower → Cluster Battery — branch B (`cluster`)
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
 |---|---|---|---|---|---|---|---|
-| 3 | Cluster Battery | 52 | 320 | 1.90 s | 55 | 150 g | splash 55 px; min range 95 px; ground only |
-| 4 | Fanned Mortar | 62 | 340 | 1.80 s | 69 | 230 g | splash 65 px; min range 96 px; ground only |
-| 5 | Royal Cluster Battery | 96 | 355 | 1.70 s | 113 | 320 g | splash 78 px; min range 98 px; ground only |
+| 3 | Cluster Battery | 52 | 360 | 1.90 s | 55 | 150 g | splash 55 px; min range 95 px; ground only |
+| 4 | Fanned Mortar | 62 | 370 | 1.80 s | 69 | 230 g | splash 65 px; min range 96 px; ground only |
+| 5 | Royal Cluster Battery | 96 | 380 | 1.70 s | 113 | 320 g | splash 78 px; min range 98 px; ground only |
 
 ### Frost Tower → Frost Tempest — branch B (`tempest`)
 
@@ -234,9 +241,9 @@ shot art and its own hit effect (`proj-royal-<line>-b*`,
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
 |---|---|---|---|---|---|---|---|
-| 3 | Flak Battery | 40 | 285 | 0.76 s | 105 | 140 g | splash 55 px; +15 % vs titans |
-| 4 | Burst Battery | 50 | 300 | 0.70 s | 143 | 210 g | splash 65 px; +18 % vs titans |
-| 5 | Royal Flak Battery | 55 | 310 | 0.64 s | 172 | 300 g | splash 78 px; +20 % vs titans |
+| 3 | Flak Battery | 40 | 315 | 0.76 s | 105 | 140 g | splash 55 px; +15 % vs titans |
+| 4 | Burst Battery | 50 | 325 | 0.70 s | 143 | 210 g | splash 65 px; +18 % vs titans |
+| 5 | Royal Flak Battery | 55 | 335 | 0.64 s | 172 | 300 g | splash 78 px; +20 % vs titans |
 
 ### Engineer Workshop → Field Engineer — branch B (`engineer`)
 

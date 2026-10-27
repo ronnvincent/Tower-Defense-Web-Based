@@ -10,6 +10,8 @@ import {
   MUZZLE_OFFSET,
 } from '../data/towerVisuals.js';
 import { DECOR_ART, DECOR_CROWN } from '../data/towerDecor.js';
+import { PRESENCE_ART } from '../data/towerPresenceArt.js';
+import { presenceParts, styleFor } from '../data/towerPresence.js';
 import { ENGINEER_LINES } from '../data/engineerDefenses.js';
 import { projectileArtFor } from '../data/projectileArt.js';
 import { royalProjectileArt } from '../data/royalProjectiles.js';
@@ -476,6 +478,10 @@ export class Tower {
     this.container.add(this.decorFront);
     this.decorParts = [];
     this.decorFlameTimer = null;
+    // Presence sprites live in their own list so the tier decorations and the
+    // family silhouette can be rebuilt independently (and torn down cleanly).
+    this.presenceParts = [];
+    this.presenceTweens = [];
     this.refreshDecorations();
   }
 
@@ -486,6 +492,10 @@ export class Tower {
 
   /** Tear down every decoration sprite and the flame timer. */
   clearDecorations() {
+    for (const tween of this.presenceTweens || []) tween?.remove?.();
+    this.presenceTweens = [];
+    for (const part of this.presenceParts || []) part?.destroy?.();
+    this.presenceParts = [];
     if (this.decorFlameTimer) {
       this.decorFlameTimer.remove?.(false);
       this.decorFlameTimer = null;
@@ -507,6 +517,12 @@ export class Tower {
     this.clearDecorations();
 
     const level = this.level;
+
+    // Presence comes first and does not depend on the tier decorations: even a
+    // level-1 tower gets its family's ambient fleck, which is what stops a
+    // fresh build from looking like a dead prop.
+    this.refreshPresence(animate);
+
     if (level < 2) return;
 
     const ground = TILE_SIZE / 2;
@@ -889,9 +905,114 @@ export class Tower {
         yoyo: true,
       });
     }
-    this.scene.vfx?.levelUp?.(this.x, this.y - 10);
+    // A new tier gets its own beat: ring, light column and sparks sized to the
+    // level, in the branch colour once one has been chosen. The old generic
+    // levelUp burst stays for the barricade (it has no branch and no weapon).
+    this.scene.vfx?.tierUp?.(this.x, this.y, {
+      tier: this.level,
+      branch: this.specialization
+        ? this.def?.specializations?.[this.specialization]?.branch || 'spec-a'
+        : null,
+      height: this.artHeight,
+    });
     if (this.level >= MAX_LEVEL) this.createAscensionAura();
     return true;
+  }
+
+  /**
+   * Attach this tower's family silhouette for its current tier.
+   *
+   * The pieces and their geometry come from `data/towerPresence.js` (pure and
+   * testable); this method only turns them into sprites and gives three of them
+   * a slow, cheap motion. Everything is additive and low-alpha on purpose: the
+   * board already carries creeps, projectiles and damage numbers, and a second
+   * set of loud sprites is what makes art tiring to look at.
+   */
+  refreshPresence(animate = false) {
+    for (const tween of this.presenceTweens || []) tween?.remove?.();
+    this.presenceTweens = [];
+    for (const part of this.presenceParts || []) part?.destroy?.();
+    this.presenceParts = [];
+    if (this.isBarricade || !this.scene?.add?.image || !this.decorBack) return;
+
+    const spec = presenceParts({
+      style: styleFor(this.typeKey),
+      level: this.level,
+      branch: this.specialization
+        ? this.def?.specializations?.[this.specialization]?.branch || 'spec-a'
+        : null,
+      artHeight: this.artHeight,
+    });
+
+    for (const piece of spec) {
+      if (!PRESENCE_ART[piece.key] || !this.scene.textures?.exists?.(piece.key)) continue;
+      const image = this.scene.add
+        .image(piece.x, piece.y, piece.key)
+        .setOrigin(0.5, piece.originY ?? 0.5)
+        .setScale(piece.scale ?? 1)
+        .setAlpha(piece.alpha ?? 1);
+      if (piece.blend === 'ADD') image.setBlendMode?.('ADD');
+      // Flanking pieces are mirrored, so the crest pair points outward and the
+      // halo wings sweep away from the keep instead of both leaning one way.
+      if (piece.flipX) image.setFlipX?.(true);
+      const host = piece.layer === 'front' ? this.decorFront : this.decorBack;
+      host.add(image);
+      this.presenceParts.push(image);
+
+      // Motion: slow enough to read as "alive", cheap enough for sixty keeps.
+      const tween = (config) => {
+        const handle = this.scene.tweens?.add?.(config);
+        if (handle) this.presenceTweens.push(handle);
+      };
+      if (piece.anim === 'spin') {
+        tween({
+          targets: image,
+          angle: 360,
+          duration: 12000 + (this.id % 5) * 600,
+          repeat: -1,
+        });
+      } else if (piece.anim === 'float') {
+        tween({
+          targets: image,
+          y: piece.y - 4,
+          duration: 2200 + (this.id % 4) * 180,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      } else if (piece.anim === 'breathe') {
+        tween({
+          targets: image,
+          alpha: { from: (piece.alpha ?? 1) * 0.6, to: piece.alpha ?? 1 },
+          duration: 2600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      } else if (piece.anim === 'glint') {
+        tween({
+          targets: image,
+          alpha: { from: 0.35, to: (piece.alpha ?? 0.6) + 0.15 },
+          scale: { from: 0.93, to: 1.06 },
+          duration: 1400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+
+      // A fresh tier's pieces arrive rather than pop: one short scale spring.
+      if (animate) {
+        const target = piece.scale ?? 1;
+        image.setScale(target * 0.6);
+        this.scene.tweens?.add?.({
+          targets: image,
+          scale: target,
+          duration: 260,
+          ease: 'Back.easeOut',
+        });
+      }
+    }
   }
 
   /**
@@ -1138,7 +1259,11 @@ export class Tower {
 
     // Element-coloured flash at the barrel tip — the single cheapest change
     // that makes a tower feel like it is *firing* rather than emitting.
-    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.artLine);
+    // The flash grows with the tier: a maxed keep hits harder and should look
+    // like it, without a bigger flash turning the lane into a light show.
+    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.artLine, {
+      scale: 0.52 + (this.level - 1) * 0.07,
+    });
 
     const shots = Math.max(1, s.ability?.shots || 1);
     // The shot carries the *instance's* categories, not just the line's: a

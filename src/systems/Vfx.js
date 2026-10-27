@@ -163,7 +163,7 @@ export class Vfx {
    * muzzle sprite centred on the tower would cover the art the player paid to
    * upgrade.
    */
-  muzzle(x, y, angle, element = 'physical', line = null) {
+  muzzle(x, y, angle, element = 'physical', line = null, { scale = 0.6 } = {}) {
     if (!this.enabled) return;
     const tints = ELEMENT_TINT[element] || ELEMENT_TINT.physical;
     const lineTexture = line ? `fx-line-${line}-muzzle` : null;
@@ -178,12 +178,14 @@ export class Vfx {
         .setDepth(47)
         .setRotation(angle + Math.PI / 2)
         .setAlpha(0.85)
-        .setScale(0.6)
+        .setScale(scale)
         .setBlendMode('ADD');
       this.scene.tweens?.add?.({
         targets: flash,
         alpha: 0,
-        scale: 0.9,
+        // Grows by a fixed share of its own size, so a level-5 keep's flash is
+        // noticeably bigger than a fresh one without ever becoming a blob.
+        scale: scale * 1.5,
         duration: 130,
         ease: 'Quad.easeOut',
         onComplete: () => flash.destroy(),
@@ -318,6 +320,73 @@ export class Vfx {
       depth: 49,
     });
     sparks?.explode(14, x, y - 14);
+  }
+
+  /**
+   * The moment a defence reaches a new tier.
+   *
+   * Read it as three beats: a ground ring that expands and fades, a short
+   * column of light standing in the keep, and a small spray of sparks. There is
+   * no screen flash and no camera shake below the last tier — an upgrade is a
+   * reward, not a jumpscare, and a player upgrading eight towers in a row does
+   * not want the screen pulsing eight times.
+   *
+   * @param {number} x world px
+   * @param {number} y world px (tower centre)
+   * @param {{ tier?: number, branch?: 'spec-a'|'spec-b'|null, height?: number }} [opts]
+   */
+  tierUp(x, y, { tier = 2, branch = null, height = 96 } = {}) {
+    if (!this.enabled) return;
+
+    // 1. Ground ring — widens past the tile so the upgrade is visible even at
+    //    the pulled-back camera the phone shell uses.
+    if (this.scene.textures?.exists?.('fx-aura-ring')) {
+      const ring = this.scene.add.image(x, y + 18, 'fx-aura-ring');
+      ring.setDepth(47).setBlendMode('ADD').setScale(0.35).setAlpha(0.85);
+      ring.setTint(branch === 'spec-b' ? 0xa8e8ff : branch === 'spec-a' ? 0xffd79a : 0xffe9c4);
+      this.scene.tweens?.add?.({
+        targets: ring,
+        scale: 1.25,
+        alpha: 0,
+        duration: 620,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+    }
+
+    // 2. Light column — thin and short, so it marks the tower without washing
+    //    out the lane behind it.
+    if (this.scene.textures?.exists?.('fx-glow')) {
+      const column = this.scene.add.image(x, y - height * 0.35, 'fx-glow');
+      column.setDepth(46).setBlendMode('ADD').setAlpha(0.5);
+      column.setScale(0.55, Math.max(0.8, height / 110));
+      column.setTint(branch === 'spec-b' ? 0x9fdcff : 0xffe0aa);
+      this.scene.tweens?.add?.({
+        targets: column,
+        alpha: 0,
+        scaleY: Math.max(1.4, height / 70),
+        duration: 520,
+        ease: 'Quad.easeOut',
+        onComplete: () => column.destroy(),
+      });
+    }
+
+    // 3. Sparks, scaled with the tier: a level-2 keep gets a puff, a level-5
+    //    one gets a proper shower.
+    const count = 8 + tier * 4;
+    const sparks = this.emitter(`tier-sparks-${tier}`, 'fx-star', {
+      lifespan: { min: 300, max: 700 },
+      speed: { min: 60, max: 200 + tier * 20 },
+      scale: { start: 0.4, end: 0 },
+      alpha: { start: 0.95, end: 0 },
+      blendMode: 'ADD',
+      tint: branch === 'spec-b' ? 0xbfe8ff : 0xffe1a8,
+      depth: 49,
+    });
+    sparks?.explode(count, x, y - height * 0.45);
+
+    // Only the final tier is allowed a nudge — and a very small one.
+    if (tier >= 5) this.scene.cameras?.main?.shake?.(110, 0.0025);
   }
 
   /** Persistent aura under a maxed tower: a slow breathing ring. */

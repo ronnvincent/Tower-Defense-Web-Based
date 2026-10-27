@@ -3,6 +3,7 @@ import { TOWER_VISUALS, BARRICADE_VISUALS } from '../data/towerVisuals.js';
 import { ROYAL_TOWER_TYPES } from '../data/royalDefences.js';
 import { ROYAL_PROJECTILES } from '../data/royalProjectiles.js';
 import { DECOR_ART } from '../data/towerDecor.js';
+import { PRESENCE_ART } from '../data/towerPresenceArt.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
 import { ARENA_ART, PORTAL_ANIM } from '../data/arenaArt.js';
@@ -112,6 +113,12 @@ export class BootScene extends Phaser.Scene {
     // 3b. Tower decorations — the per-tier parts that grow the silhouette.
     for (const [key, file] of Object.entries(DECOR_ART)) {
       this.load.image(key, `assets/towers/deco/${file}`);
+    }
+
+    // 3c. Presence pieces — the per-family crest / sigil / ring / halo that
+    // gives each defence line its own silhouette (see data/towerPresence.js).
+    for (const [key, file] of Object.entries(PRESENCE_ART)) {
+      this.load.image(key, `assets/towers/deco/presence/${file}`);
     }
 
     // 4. Enemies are *not* loaded here. A battle queues only the creatures its
