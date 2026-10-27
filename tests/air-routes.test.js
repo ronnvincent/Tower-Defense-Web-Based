@@ -33,10 +33,13 @@ describe('sky lanes on every campaign board', () => {
   it('never repeats a mouth column on the same board', () => {
     for (const { map } of boards) {
       const mouths = airMouths(map);
-      expect(new Set(mouths).size).toBe(mouths.length);
-      for (const col of mouths) {
-        expect(col).toBeGreaterThanOrEqual(0);
-        expect(col).toBeLessThan(map.cols);
+      // Mouths are cells now — two sky gates in the side walls plus the
+      // central portal's airspace — and no two of them may share a column.
+      expect(new Set(mouths.map((mouth) => mouth.col)).size).toBe(mouths.length);
+      for (const mouth of mouths) {
+        expect(mouth.col).toBeGreaterThanOrEqual(0);
+        expect(mouth.col).toBeLessThan(map.cols);
+        expect(mouth.row).toBeGreaterThanOrEqual(0);
       }
     }
   });

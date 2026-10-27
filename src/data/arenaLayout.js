@@ -1,113 +1,136 @@
 /**
- * Arena template — one battlefield grammar for every map in the game.
+ * Bastion field — one battlefield grammar for every map in the game.
  *
  * THE BOARD
  * ---------
- * The battlefield is landscape and split **horizontally**, the way a player
- * already reads an arena-defence board — thirty-two columns wide, twelve rows
- * tall. The width is set by the battle band, not by taste: the camera fits the
- * board into the strip between the top bar and the forge, and that strip is
- * close to 2.7:1 on a landscape phone. At 26 columns the board was 2.17:1, so
- * the fit came out **height-bound** and left ~110 px of empty world down each
- * side — the field read as small because a fifth of the frame was not field.
- * 32 x 12 is 2.67:1, which fills the band at both ends instead of one:
+ * 32 columns x 12 rows of 64 px tiles. The layout is a **base-defence field**,
+ * not a corridor: the horde comes at the bastion from three ground portals
+ * along the top and two sky gates cut into the side walls, and every road winds
+ * down into the one gate the bastion owns, off the middle of the bottom row.
  *
  *     ┌──────────────────────────────────────────────────┐
- *     │ 0  rim  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    │
- *     │ 1        S  portal (enemy musters here)          │  enemy ground: 5 rows
- *     │ 2   lane corridors fan out to the crossings      │
- *     │ 3   the last approach before the water           │
- *     │ 4   landing, staggered so no road is a ruler     │
- *     │ 5  ~~~~~~~~~~~~ RIVER ~~~~~~~~~~~~ (flowing)     │  ← the split line
- *     │ 6   bridge landings                              │
- *     │ 7   the courtyard — where the keeps stand        │  our ground: 7 rows
- *     │ 8   the gate road                                │
- *     │ 9        B  bastion (bottom, with margin)        │
- *     │ 10  grass margin                                 │
- *     │ 11 rim  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx    │
+ *     │ 0  xxxxxxxxxxxxxxxx rim xxxxxxxxxxxxxxxxxxxxxx   │
+ *     │ 1     S            S             S               │ ground portals
+ *     │ 2  a                                          a  │ sky gates (side walls)
+ *     │ 3     ##           ##           ##               │
+ *     │ 4     ##           ##           ##               │ enemy ground
+ *     ├──────────────────────────────────────────────────┤ ← the build line
+ *     │ 5   ##            ##            ##    free field │
+ *     │ 6   ##      free build field       ##            │
+ *     │ 7   ##        around the bastion    ##           │
+ *     │ 8    ##          ##           ##                 │
+ *     │ 9      ##        B gate     ##                   │
+ *     │ 10                B  bastion                      │
+ *     │ 11 xxxxxxxxxxxxxxxx rim xxxxxxxxxxxxxxxxxxxxxx   │
  *     └──────────────────────────────────────────────────┘
  *
- * Five rows above the river and seven below it is the 40 / 60 cut in whole
- * rows, and the river *is* the line. The bastion owns row 9 with two rows of
- * margin under it; the portal owns row 2 with two rows of margin over it.
+ * WHY THIS SHAPE
+ * --------------
+ *   · **The bastion is bottom-centre on every map.** One column (`axisCol`),
+ *     one row (`baseRow`), one bottom rim under it. A stage never moves the
+ *     keep again, so the player's eye learns one place to defend.
+ *   · **Three ground portals** spread across the top, so a wave can arrive
+ *     from the left, the middle or the right, and the roads that leave them
+ *     wind before they converge.
+ *   · **Two sky gates** in the side walls, where no road can reach: flyers
+ *     come in over the wall and cross the field diagonally.
+ *   · **Five open rows around the bastion.** No props, no pads, no invisible
+ *     rules — every one of those tiles is a legal tower square, and the roads
+ *     run through it.
  *
- * WHY A RIVER
- * -----------
- * A hard seam between two halves reads as a crop. A river reads as a border
- * that belongs to the place: it is animated (see `createRiverFlow`), it is
- * impassable, and every lane has to cross it at a bridge — which is exactly
- * where a defence wants to stand. The number of crossings is per map (two or
- * three), so the board does not look reused.
- *
- * LANES
- * -----
- * A lane is authored as **waypoints** and compiled into orthogonal road cells
- * by `compileLane`. That keeps every map's route readable as data, while
- * `PathfindingSystem.computeLanes` still derives the real routes from the ASCII
- * and the tests still re-derive every rule from the board itself.
- *
- * Every map is authored as a *spread from the centre axis*, never as absolute
- * columns, so the arena width lives in exactly one place.
+ * WHAT REPLACED WHAT
+ * ------------------
+ * The old grammar was a river across the middle with two or three bridges and
+ * a single portal: one direction of attack, and a hard seam that halved the
+ * buildable ground. The river is gone (the ponds that survived are scenery
+ * outside the field), the bridge count no longer decides how many lanes exist,
+ * and the lane rule is now "one lane per portal" — see `fieldLanes`.
  *
  * ASCII legend (parsed by `parseMap` in mapData.js):
- *   S portal   B bastion   # road   . grass   ~ water   x rock
+ *   S portal   a sky gate (air only)   B bastion   # road   . grass
+ *   ~ pond     x rock / rim
  */
 
-/** Fixed arena geometry. Cols is even so the axis column sits between two rim margins. */
+/** Fixed arena geometry. Cols is even so the axis column sits between two rims. */
 export const ARENA = Object.freeze({
   cols: 32,
   rows: 12,
-  /** Rim row above the portal — the visible margin at the top of the field. */
+  /** Rim row above the portals — the visible margin at the top of the field. */
   rimRow: 0,
-  /** Portal row, two rows below the rim: a full row of enemy ground above it. */
-  portalRow: 2,
+  /** Ground portals stand on this row, one row under the rim. */
+  portalRow: 1,
+  /** Sky gates are cut into the side walls on this row. */
+  airRow: 2,
   /**
-   * The river: the horizontal split line. Five of twelve rows are the enemy's
-   * (41.7 %) and seven are ours (58.3 %) — the 40 / 60 cut, in whole rows.
+   * First row of the free build field. Above it is the enemy's ground; from
+   * here down to the bastion is the player's — five rows of it, plus the gate.
    */
-  riverRow: 5,
-  /** First row of our side — the only rows a defence may be built on. */
-  playerRow: 6,
+  buildRow: 5,
   /**
-   * Bastion row. One rim row below it (row 11) and the whole player half above
-   * it; the bastion's centre sits at 87.5 % of the world height, which is the
-   * 85-90 % band a keep should own. The board is fitted into the camera band
-   * (see `camera/battleFrame.js`), so the last playable row is never behind the
-   * forge: the row of margin that used to be spent on the dock is now spent on
-   * the enemy, and the keep sits where a keep belongs.
+   * Bastion row. One rim row below it (row 11) and the whole field above it:
+   * the keep's centre sits at 87.5 % of the world height, with a margin under
+   * it so it never touches the edge.
    */
   baseRow: 10,
   /** Bottom rim — the margin that keeps the bastion off the edge. */
   rimRowBottom: 11,
-  /** Centre column: portal and bastion are always on it. */
+  /** Centre column: the bastion always stands on it. */
   axisCol: 15,
+  /** Columns of rock kept along each side wall, inside the rim. */
+  buildInset: 2,
 });
 
 /**
  * A column authored as an offset from the centre axis.
  *
- * Every battlefield is written this way (`colAt(-8)`, not `col 4`) so widening
- * the arena moves every map at once instead of leaving twelve hand-tuned boards
- * hugging the left edge of a wider field.
+ * Every battlefield is written this way (`colAt(-9)`, not `col 6`) so widening
+ * the arena moves every map at once instead of leaving a dozen hand-tuned
+ * boards hugging the left edge of a wider field.
  */
 export const colAt = (offset) => ARENA.axisCol + Math.round(offset);
 
-/**
- * Tiles around the bastion kept free of scattered scenery (Chebyshev).
- *
- * Two tiles, because the keep art is roughly two tiles wide and the gates need
- * a clear approach lane either side; pads outside the apron still ring the
- * bastion on every side.
- */
-export const BASTION_APRON = 2;
-
+/** Columns of rock around the rim — one cell of visible margin on every side. */
 const GRASS = '.';
 const ROAD = '#';
 const WATER = '~';
 const ROCK = 'x';
+const AIR = 'a';
 
 /** Characters a compiled lane may write over. */
 const PAINTABLE = new Set([GRASS, ROAD]);
+
+/** The default three ground portals, written as offsets from the axis. */
+export const DEFAULT_SPAWN_OFFSETS = Object.freeze([-10, 0, 10]);
+
+/** Clamp a column inside the rock rim. */
+export function clampCol(col) {
+  return Math.max(2, Math.min(ARENA.cols - 3, Math.round(col)));
+}
+
+/**
+ * The rows and columns a defence may be raised on.
+ *
+ * Derived from the board itself rather than hand-listed, so a layout change can
+ * never leave the build rule pointing at ground the player cannot see:
+ *   rows  `buildRow` … `baseRow`      (the field around the keep, gate included)
+ *   cols  `buildInset` … `cols-1-buildInset`
+ */
+export function buildField() {
+  return {
+    rowMin: ARENA.buildRow,
+    rowMax: ARENA.baseRow,
+    colMin: ARENA.buildInset,
+    colMax: ARENA.cols - 1 - ARENA.buildInset,
+  };
+}
+
+/** Is this cell inside the free-build field? (Terrain rules still apply.) */
+export function inBuildField(row, col) {
+  const field = buildField();
+  return (
+    row >= field.rowMin && row <= field.rowMax && col >= field.colMin && col <= field.colMax
+  );
+}
 
 /**
  * Fill an orthogonal path between two cells, horizontal first.
@@ -159,22 +182,98 @@ export function compileLane(waypoints) {
 }
 
 /**
- * Build one arena from its lane waypoints and props.
+ * One lane per ground portal.
+ *
+ * Each lane leaves its own portal, drops one row, and then **staircases** across
+ * the field toward the keep: two columns sideways, one row down, twice over,
+ * until it is a couple of columns off the gate. From there it runs straight
+ * down and turns into the bastion on the gate row. The middle lane has no
+ * staircase to walk — it is the straight avenue — so the board reads as three
+ * approaches: one from each flank and one down the middle, all meeting at the
+ * same gate.
+ *
+ * The shapes are deterministic on purpose — a replay, a duel seat and a test
+ * must see the same battlefield — and per-map variety comes from `spawnCols`
+ * and `wiggle`, never from a random number.
  *
  * @param {object} [spec]
- * @param {[number, number][][]} [spec.lanes]  waypoint lists, one per lane; the
- *   first cell of each must be the portal and the last the bastion
- * @param {[number, number][]} [spec.rocks]    explicit rock cells
- * @param {[number, number][]} [spec.ponds]    explicit water cells on our side
- * @param {boolean} [spec.frame]               draw the rocky rim (default true)
+ * @param {number[]} [spec.spawnCols] portal columns (default: three, ±10)
+ * @param {number}   [spec.baseCol]   where the keep stands (default: the axis)
+ * @param {number}   [spec.wiggle]    0-2, shifts the staircase so maps differ
+ * @param {number}   [spec.approach]  columns between a flank lane and the gate
+ * @returns {[number,number][][]} waypoint lists, one per portal
+ */
+export function fieldLanes({
+  spawnCols = null,
+  baseCol = ARENA.axisCol,
+  wiggle = 0,
+  approach = 2,
+} = {}) {
+  const { portalRow, baseRow } = ARENA;
+  const base = clampCol(baseCol);
+  const portals = (spawnCols?.length
+    ? spawnCols
+    : DEFAULT_SPAWN_OFFSETS.map((offset) => ARENA.axisCol + offset)
+  ).map(clampCol);
+  const gateRow = baseRow - 1; // the row every road turns in on
+  const endRow = gateRow - 1; // where the staircase stops and runs straight
+  const middle = (portals.length - 1) / 2;
+
+  return portals.map((portal, index) => {
+    // The column this lane comes down: the gate itself for the middle lane, a
+    // couple of columns to the side for the flanks, so three roads arrive at the
+    // keep from three directions instead of stacking on one line.
+    const offset = (index - middle) * approach;
+    const target = clampCol(base + Math.sign(offset) * Math.min(Math.abs(offset), approach));
+    // Two columns per stair: one is a long shallow diagonal that crowds the
+    // lane beside it, three is a jump the eye reads as a break in the road.
+    const stepSize = 2;
+    // `wiggle` only delays the first stair by a row, which is enough to make
+    // two maps with the same portal spread look different.
+    const stairStart = portalRow + 1 + (wiggle % 2);
+
+    const points = [
+      [portalRow, portal],
+      [stairStart, portal],
+    ];
+    let row = stairStart;
+    let col = portal;
+    while (col !== target && row < endRow) {
+      col += Math.sign(target - col) * Math.min(stepSize, Math.abs(target - col));
+      row += 1;
+      points.push([row, col]);
+    }
+    if (col !== target) points.push([endRow, target]);
+    points.push([endRow, col === target ? target : col]);
+    points.push([gateRow, target]);
+    if (target !== base) points.push([gateRow, base]);
+    points.push([baseRow, base]);
+    return points;
+  });
+}
+
+/**
+ * Build one battlefield from its spec.
+ *
+ * @param {object} [spec]
+ * @param {number[]} [spec.spawnCols] ground portal columns (three by default)
+ * @param {number}   [spec.baseCol]   where the keep stands (default: the axis)
+ * @param {number}   [spec.wiggle]    per-map road swing (0-2)
+ * @param {number}   [spec.approach]  spacing of the three approach roads
+ * @param {[number,number][][]} [spec.lanes] explicit waypoints, for a one-off board
+ * @param {[number,number][]} [spec.rocks]   explicit rock cells (enemy ground only)
+ * @param {[number,number][]} [spec.ponds]   explicit pond cells (enemy ground only)
+ * @param {number[]} [spec.airCols]   side columns that get a sky gate
+ * @param {boolean}  [spec.frame]     draw the rocky rim (default true)
  * @returns {string[]} rows of map characters
  */
 export function buildArena(spec = {}) {
-  const { cols, rows, portalRow, riverRow, baseRow, axisCol } = ARENA;
-  // The two gates may sit on different columns: a board where the horde enters
-  // on one flank and the keep stands on the other is what makes three crossings
-  // *equally* long (see `arenaLanes`). Centred is the default.
-  const portalCol = clampCol(spec.portalCol ?? axisCol);
+  const { cols, rows, portalRow, airRow, baseRow, rimRow, rimRowBottom, axisCol, buildRow } = ARENA;
+  const spawnCols = (
+    spec.spawnCols?.length
+      ? spec.spawnCols
+      : DEFAULT_SPAWN_OFFSETS.map((offset) => axisCol + offset)
+  ).map(clampCol);
   const baseCol = clampCol(spec.baseCol ?? axisCol);
   const grid = Array.from({ length: rows }, () => Array(cols).fill(GRASS));
   const set = (row, col, ch) => {
@@ -183,22 +282,11 @@ export function buildArena(spec = {}) {
   };
   const at = (row, col) => (row >= 0 && row < rows && col >= 0 && col < cols ? grid[row][col] : ROCK);
 
-  const lanes = (spec.lanes || []).map(compileLane);
-
-  // 1. Every lane crossing the river keeps its bridge; the rest of the line is
-  //    open water. Crossings are derived from the lanes themselves, so a map
-  //    can never advertise a bridge nobody walks over.
-  const crossings = new Set();
-  for (const lane of lanes) {
-    for (const cell of lane) if (cell.row === riverRow) crossings.add(cell.col);
-  }
-
-  // 2. Rim first, so a lane can still be painted over it (it never is — the
-  //    lanes stay inside the rim by construction, see tests/map-margin).
+  // 1. The rim first, so the lanes below can still be painted over grass.
   if (spec.frame !== false) {
     for (let c = 0; c < cols; c += 1) {
-      set(ARENA.rimRow, c, ROCK);
-      set(ARENA.rimRowBottom, c, ROCK);
+      set(rimRow, c, ROCK);
+      set(rimRowBottom, c, ROCK);
     }
     for (let r = 0; r < rows; r += 1) {
       set(r, 0, ROCK);
@@ -206,161 +294,51 @@ export function buildArena(spec = {}) {
     }
   }
 
-  // 3. The river: one full row of water, broken only by the crossings.
-  for (let c = 0; c < cols; c += 1) {
-    set(riverRow, c, crossings.has(c) ? ROAD : WATER);
+  // 2. Sky gates: an opening in each side wall, on the air row. They are not
+  //    road — a ground creep cannot use them — they are where the flyers enter.
+  for (const col of spec.airCols?.length ? spec.airCols : [0, cols - 1]) {
+    if (col === 0 || col === cols - 1) set(airRow, col, AIR);
   }
 
-  // 4. Gates.
-  set(portalRow, portalCol, 'S');
+  // 3. The gates themselves.
   set(baseRow, baseCol, 'B');
+  for (const col of spawnCols) set(portalRow, col, 'S');
 
-  // 5. Roads.
+  // 4. Roads, one per portal.
+  const lanes = (spec.lanes || fieldLanes({ ...spec, spawnCols, baseCol })).map(compileLane);
   for (const lane of lanes) {
     for (const { row, col } of lane) {
-      if (at(row, col) === 'S' || at(row, col) === 'B') continue;
+      if (at(row, col) === 'S' || at(row, col) === 'B' || at(row, col) === AIR) continue;
       if (PAINTABLE.has(grid[row][col])) set(row, col, ROAD);
     }
   }
 
-  // 6. Props. Rocks and ponds are decoration *and* the honest answer to "why
-  //    can't I build there" — they are terrain, not an invisible rule.
-  //
-  //    They are kept out of the bastion apron, though. A boulder two tiles from
-  //    the gate used to eat the best pads on the board while looking like
-  //    scenery, which is the one thing an obstacle must never do: the field has
-  //    to explain itself. A prop that would land in the apron is *moved* to the
-  //    nearest free grass outside it, not deleted — the scenery stays, it just
-  //    stops arguing with the gate.
-  const apron = (r, c) =>
-    Math.max(Math.abs(r - baseRow), Math.abs(c - baseCol)) <= BASTION_APRON;
-  const relocate = (r, c, ch) => {
-    for (let radius = 1; radius <= BASTION_APRON + 3; radius += 1) {
-      for (let dr = -radius; dr <= radius; dr += 1) {
-        for (let dc = -radius; dc <= radius; dc += 1) {
-          if (Math.max(Math.abs(dr), Math.abs(dc)) !== radius) continue;
-          const nr = baseRow + dr;
-          const nc = baseCol + dc;
-          if (nr < 1 || nr > rows - 2 || nc < 1 || nc >= cols - 1) continue;
-          if (grid[nr][nc] !== GRASS) continue;
-          if (apron(nr, nc)) continue;
-          set(nr, nc, ch);
-          return true;
-        }
-      }
+  // 5. Scenery, and only where it cannot argue with the player: the enemy's
+  //    ground, never the build field, never a gate's own row, never a road.
+  //    The five rows around the bastion stay deliberately empty — an obstacle
+  //    in the field is a tile the player cannot use, and the brief for the
+  //    redesign is an open field.
+  const sceneryRow = (row) => row < buildRow;
+  const clear = (row, col) => {
+    if (row < 1 || row > rows - 2) return false;
+    if (col < 2 || col > cols - 3) return false;
+    if (!sceneryRow(row)) return false;
+    if (at(row, col) !== GRASS) return false;
+    if (Math.abs(row - portalRow) === 0 && spawnCols.includes(col)) return false;
+    for (const spawnCol of spawnCols) {
+      if (Math.abs(row - portalRow) <= 1 && Math.abs(col - spawnCol) <= 1) return false;
     }
-    return false;
+    if (row === airRow && (col === 1 || col === cols - 2)) return false;
+    return true;
   };
   for (const [r, c] of spec.rocks || []) {
-    if (grid[r]?.[c] !== GRASS) continue;
-    if (apron(r, c) && relocate(r, c, ROCK)) continue;
-    if (apron(r, c)) continue;
-    set(r, c, ROCK);
+    if (clear(r, c)) set(r, c, ROCK);
   }
   for (const [r, c] of spec.ponds || []) {
-    if (grid[r]?.[c] !== GRASS) continue;
-    if (apron(r, c) && relocate(r, c, WATER)) continue;
-    if (apron(r, c)) continue;
-    set(r, c, WATER);
+    if (clear(r, c)) set(r, c, WATER);
   }
 
   return grid.map((row) => row.join(''));
-}
-
-/** Clamp a gate/bridge column inside the rock rim. */
-function clampCol(col) {
-  return Math.max(2, Math.min(ARENA.cols - 3, Math.round(col)));
-}
-
-/**
- * The routes of one battlefield, compiled from waypoints.
- *
- * ONE RULE FOR EVERY MAP
- * ----------------------
- * The horde enters at `portalCol` on the top row of the enemy half, runs down
- * to a corridor row, crosses the river at each bridge in `bridges`, lands on our
- * side, runs along a courtyard row, and turns in at `baseCol` to reach the keep.
- *
- * WHY THE GATES CAN SIT OFF-CENTRE
- * --------------------------------
- * A lane's length is its horizontal travel plus its vertical travel. Every
- * crossing that lies **between the portal column and the gate column** has the
- * same horizontal travel — `|b − portalCol| + |baseCol − b| = |baseCol −
- * portalCol|` — and the same vertical travel, so the routes come out *exactly*
- * the same length and `PathfindingSystem.computeLanes` keeps all of them.
- *
- * That is the whole reason a map may run from a corner of the enemy half to the
- * opposite corner of ours: it is not decoration, it is what makes three lanes
- * genuinely equal. On a centred board the outermost bridge is always ~2·|Δ|
- * cells longer than the middle one, and a third lane collapses into a shortcut.
- *
- * @param {object} [spec]
- * @param {number} [spec.portalCol] where the horde enters (default: the axis)
- * @param {number} [spec.baseCol]   where the keep stands (default: the axis)
- * @param {number[]} [spec.bridges] crossing columns, 2 or 3 per map
- * @param {number} [spec.corridorRow] row the horde runs along in its own half
- * @param {number} [spec.turnRow]   courtyard row the lane turns in on
- * @param {'both'|'enemy'|'court'|false} [spec.stair] which half gets the
- *   two-cell stagger that keeps a road from reading as a ruler
- * @returns {[number,number][][]}
- */
-export function arenaLanes({
-  portalCol = ARENA.axisCol,
-  baseCol = ARENA.axisCol,
-  bridges = null,
-  corridorRow: argCorridorRow = 3,
-  turnRow: argTurnRow = 7,
-  stair = 'both',
-} = {}) {
-  const { portalRow, riverRow, playerRow, baseRow } = ARENA;
-  const corridorRow = argCorridorRow;
-  const turnRow = argTurnRow;
-  const p = clampCol(portalCol);
-  const g = clampCol(baseCol);
-  const crossings = (bridges ?? [p, g]).map(clampCol);
-  // `corridorRow` / `turnRow` may be a single row or a list, one per lane. A
-  // list fans the roads out (two parallel courtyard runs instead of one) which
-  // is what stops a wide board from reading as a single rectangular circuit.
-  // Vertical travel is identical either way, so the lanes stay equal length.
-  const rowFor = (value, index) =>
-    Array.isArray(value) ? value[index % value.length] : value;
-
-  const route = (bridge, index) => {
-    // The corridor can never occupy the portal's own row: a road running
-    // sideways out of the portal mouth would swallow the spawn cell's
-    // neighbours and read as a wall of stone across the top of the board.
-    const corridorRow = Math.min(
-      riverRow - 1,
-      Math.max(portalRow + 1, rowFor(argCorridorRow, index))
-    );
-    // Every lane turns in on the SAME courtyard row: the routes converge on one
-    // approach road to the keep instead of running two or three parallel roads
-    // down our half. Three parallel runs plus their stairs enclosed grass
-    // pockets and read as a paved plaza with holes in it — the fork that matters
-    // is the one in the enemy half, where the horde actually picks a crossing.
-    const turnRow = Math.min(baseRow - 1, Math.max(playerRow, rowFor(argTurnRow, 0)));
-    const enemyStair = (stair === 'enemy' || stair === 'both') && corridorRow + 1 < riverRow;
-    const courtStair = false;
-    const corridorEnd = enemyStair ? corridorRow + 1 : corridorRow;
-    const points = [[portalRow, p]];
-    if (corridorRow !== portalRow) points.push([corridorRow, p]);
-    if (enemyStair) {
-      const mid = Math.round((p + bridge) / 2);
-      if (mid !== p && mid !== bridge) points.push([corridorRow, mid], [corridorRow + 1, mid]);
-    }
-    points.push([corridorEnd, bridge]);
-    points.push([riverRow, bridge]); // the crossing
-    points.push([playerRow, bridge]); // landing on our bank
-    points.push([turnRow, bridge]);
-    if (courtStair) {
-      const mid = Math.round((bridge + g) / 2);
-      if (mid !== bridge && mid !== g) points.push([turnRow, mid], [turnRow + 1, mid]);
-    }
-    points.push([turnRow + (courtStair ? 1 : 0), g]);
-    points.push([baseRow, g]);
-    return points;
-  };
-  return crossings.map(route);
 }
 
 /**
@@ -372,7 +350,7 @@ export function arenaLanes({
  * @param {{count?:number, fromRow?:number, toRow?:number, cols?:number}} [options]
  * @returns {[number, number][]}
  */
-export function scatterProps(seed, { count = 10, fromRow = 0, toRow = ARENA.rows - 1, cols = ARENA.cols } = {}) {
+export function scatterProps(seed, { count = 10, fromRow = 0, toRow = ARENA.buildRow - 1, cols = ARENA.cols } = {}) {
   let hash = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
     hash ^= seed.charCodeAt(i);

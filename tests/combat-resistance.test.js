@@ -393,8 +393,8 @@ describe('palisades are still un-dodgeable', () => {
     const hits = [];
     const { enemy } = spawn('hex', {
       callbacks: {
-        getBarricadeAt: () => wall,
-        onBarricadeHit: (target, damage, attacker) => hits.push({ target, damage, attacker }),
+        getStructureAt: () => wall,
+        onStructureHit: (target, damage, attacker) => hits.push({ target, damage, attacker }),
       },
     });
     // The wall sits on the creep's own tile, so contact is immediate.
@@ -417,8 +417,8 @@ describe('palisades are still un-dodgeable', () => {
     const wall = { x: enemy.x, y: enemy.y, health: 420, isDestroyed: false };
     const scene = makeCombatScene();
     const hits = [];
-    enemy.callbacks.getBarricadeAt = () => wall;
-    enemy.callbacks.onBarricadeHit = (...args) => hits.push(args);
+    enemy.callbacks.getStructureAt = () => wall;
+    enemy.callbacks.onStructureHit = (...args) => hits.push(args);
     enemy.scene = scene;
     expect(enemy.updateSiege(SIEGE_INTERVAL_MS)).toBe(false);
     expect(enemy.isSieging).toBe(false);

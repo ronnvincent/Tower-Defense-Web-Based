@@ -150,18 +150,23 @@ describe('Palisade breach simulation', () => {
     const wallHp = BARRICADE.levels[0].health;
     const grunt = ENEMY_TYPES.grunt;
 
+    // A lone grunt needs a minute of hammering; a pack opens a hole in seconds.
+    // The exact numbers follow the authored tier, so this asserts the *shape*
+    // of the curve rather than a constant that drifts with every rebalance.
     const soloSwings = Math.ceil(wallHp / siegeDamage(grunt));
-    expect(soloSwings).toBe(42); // 420 HP / 10 per swing
-    expect((soloSwings * siegeInterval(grunt)) / 1000).toBeGreaterThan(30); // > 30s alone
-
-    // Eight grunts attacking together fell it in six rounds (~6s).
+    expect((soloSwings * siegeInterval(grunt)) / 1000).toBeGreaterThan(30);
     const pack = 8;
     const rounds = Math.ceil(wallHp / (siegeDamage(grunt) * pack));
-    expect(rounds).toBe(6);
+    expect(rounds).toBeLessThan(10);
+    expect((rounds * siegeInterval(grunt)) / 1000).toBeLessThan(10);
   });
 
-  it('the reinforced tier takes roughly twice as long to break', () => {
-    const [lvl1, lvl2] = BARRICADE.levels;
-    expect(lvl2.health / lvl1.health).toBeGreaterThan(1.9);
+  it('every tier takes longer to break than the one below it', () => {
+    const { levels } = BARRICADE;
+    expect(levels).toHaveLength(5);
+    for (let i = 1; i < levels.length; i += 1) {
+      expect(levels[i].health / levels[i - 1].health, `tier ${i + 1}`).toBeGreaterThan(1.5);
+      expect(levels[i].upgradeCost, `tier ${i + 1} cost`).toBeGreaterThan(0);
+    }
   });
 });

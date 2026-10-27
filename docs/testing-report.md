@@ -2590,3 +2590,201 @@ opening Verdant enables it.
 | Duplicate reward claims | **Covered by automated tests only** (replay stipend, no gems, no re-unlock) |
 | Stale state across stages | **Covered by automated tests only** (`init()` reset) |
 | PvP, modes, touch hardware, 4K | **Not tested** (out of scope) |
+## 31. Request 42 — base-defence overhaul and the five-tier wall
+
+Nothing was committed, pushed, merged or deployed. No third-party art was
+downloaded; no licences changed. The wall art in this pass is drawn in code, in
+the same procedural kit as the rest of the board.
+
+### 31.1 What was inspected first
+
+Coverage that already answered part of the brief, so it was **not** rewritten:
+`forge-defenses` (the wall is a five-tier structure with rising HP, thorns and
+costs), `barricade-siege` (stop distance, contact range, swing cadence and the
+queue-offset regression), `target-categories` (a wall is ground-only and its
+"attack" can never be aimed at air), `build-points` / `systems` (placement zones
+and reasons), `hud-dom` / `inspector-sheet` (the inspector contract) and
+`graph-bfs` (a blocked cell really closes a route).
+
+Two assertions *did* need updating because the wall moved from
+`engineerDefenses.js` into the shared `towerData.js` roster, and because
+`hud-dom` was still asserting the old 30-gold palisade. Neither test was
+weakened: `target-categories` now imports the real `BARRICADE` (it had been
+importing an undefined symbol and silently skipped the wall in the ground-only
+list), and `hud-dom` asserts the new 40-gold price.
+
+### 31.2 The wall as a real structure
+
+| Tier | Name | Max HP | Upgrade cost | Thorns | Texture |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Wooden Palisade | 500 | build 40 | 0 | `wall-t1` |
+| 2 | Reinforced Wood Wall | 1 000 | +60 | 15 / s | `wall-t2` |
+| 3 | Stone Wall | 2 000 | +100 | 30 / s | `wall-t3` |
+| 4 | Fortified Stone Wall | 3 600 | +170 | 50 / s | `wall-t4` |
+| 5 | Imperial Fortress Wall | 6 000 | +260 | 80 / s | `wall-t5` |
+
+- **The infographic's numbers are not copied.** It asks for 1 000 → 12 500 HP.
+  At the top of the ladder a single archer does 16 damage every 0.62 s, so
+  12 500 HP would take several minutes of focused fire per segment and make the
+  wall the only structure worth buying. The shipped ladder keeps roughly the
+  infographic's *shape* (5 × 1 → 5 × 12 of the base) but scales it to the
+  board's real damage numbers: 500 → 6 000 is 12× the tier-1 pool, and a
+  tier-5 wall survives about a minute of a mid-game horde.
+- **Damage is real and shared.** `Tower.takeDamage` is the single entry point for
+  every structure; `health`, `maxHealth`, `isDestroyed` live on the same object
+  the towers and walls already used, so the inspector, the badges and the
+  selection ring read one number.
+- **Upgrades keep the damage taken.** `upgrade()` recomputes the new pool and
+  scales the current HP by the old ratio (`newMax * old / oldMax`, floor 1).
+  A wall at 50 % stays at 50 %; there is no silent full heal. `upgradeLock`
+  (260 ms) makes a double-click charge once. At tier 5 `nextUpgrades` is empty,
+  so the dock has no button to press.
+- **Destruction happens once.** `GameScene.destroyStructure` frees the cell,
+  clears the selection, bumps `barricadesDestroyed` / `towersDestroyed`, shakes
+  the camera, emits particles, drops a rubble decal and re-runs the lane BFS.
+  A structure that is already destroyed is removed from `activeTowers` before
+  any of that, so a second hit cannot replay the effect.
+
+### 31.3 The art, and why it is procedural
+
+The existing `barricade.png` / `barricade_lvl2.png` are flat fences — thin
+boards with visible gaps — so a run of them reads as a row of props, not a
+rampart. They are unused after this pass and nothing loads them.
+
+The five tiers are drawn by `TextureFactory.makeWalls()` into 64 × 64 canvases,
+full-bleed edge to edge (verified: adjacent sprites share an edge with a gap of
+`0.000` px and a vertical overlap equal to the tile height of `64` px, at the
+display width of `64` px):
+
+| Tier | Material drawn | How it differs |
+| --- | --- | --- |
+| 1 | Six sharpened stakes, lashed rails | warmest wood, pointed silhouette |
+| 2 | Four heavy planks, three iron bands, rivets | metal bands catch the light |
+| 3 | Three offset stone courses | cool grey, mortar joints |
+| 4 | Stone body, crenellated merlon row, iron studs | tallest, hardest silhouette |
+| 5 | Dark stone, gold band, central crest, gold caps | gold trim, imperial crest |
+
+Damage is a runtime overlay driven by real HP (`drawDamageOverlay`): hairline
+cracks at 75 %, a knocked-out chunk and two cracks at 50 %, a third crack and a
+−2.5° lean at 25 %. Full health draws nothing. A destroyed wall leaves
+`wall-rubble`, tinted per tier, which fades out after 1.1 s.
+
+No spritesheet animation exists for the wall and none is claimed: requirement 6
+allows the "level sprites + damage-state system" fallback when no licensed
+sheet covers the subject, and the fallback is what shipped. The textures are
+generated deterministically at boot, so there is no external asset to license,
+no download to fail and no alpha channel to lose; the canvas is transparent
+outside the wall body by construction.
+
+### 31.4 Placement and navigation rules
+
+- A wall may stand on grass **or** on a road tile; it may not overlap a keep,
+  the bastion, another wall or a cell occupied by anything else. The reason
+  strings a player can see are unchanged (`road-tile` for keeps, `occupied` for
+  a second structure on the same cell).
+- **A wall on the road is not a detour, it is a barrier.** It is deliberately
+  excluded from `blockedBuildCells()`, so the lane BFS keeps the original route
+  and the horde walks into it and stops. A wall on grass *is* a blocker, so the
+  pre-flight that refuses a build which would seal every route applies to it.
+- Destroying either kind calls `refreshLanes()`, so the blocked set is rebuilt
+  from `activeTowers` and the freed cell is walkable on the same frame.
+- Walls never fire and never acquire: the combat tick returns early for a
+  barricade, so `currentTarget` stays `null` and no projectile is ever created
+  with a wall as its owner.
+
+### 31.5 Browser evidence (real scene, real waves)
+
+Method: dev server on `:4300`, production bundle served by `vite preview` on
+`:4320`, both at `?probe=1&hud=desktop`, 1366 × 768, real Phaser scene, real
+enemies and real tower fire. Gold was topped up on purpose so the checks could
+build repeatedly; every damage, death and route change below came from the
+simulation, not from a mock.
+
+| Probe | What it exercised | Result |
+| --- | --- | --- |
+| `req42.mjs` (`:4300`, `:4320`) | horizontal / vertical / diagonal wall shapes, 40 g each; L1→L5 (levels 1,2,3,4,5,5), max 500/1000/2000/3600/6000, textures `wall-t1..t5`, costs 60/100/170/260, tier-5 press refused with 0 spent, double-click charged once | **ALL PASS** on both servers |
+| `req42.mjs` damage | wall at 250/500 upgraded to 500/1000 — ratio preserved | **PASS** |
+| `req42.mjs` siege | lane wall (row 5, col 15) attacked: 500 → 20 HP, destroyed at ≈29 s, cell freed, horde reached 79 px from the bastion, `barricadesDestroyed: 1` | **PASS** |
+| `req42.mjs` keep siege | keep beside the lane 500 → 380 (one 120-damage swing), bar drawn, destroyed → removed, `towersDestroyed: 1` | **PASS** |
+| `req42b.mjs` placement | reason histogram over the whole board: 90 `blocked-tile`, 78 `enemy-half`, 30 `spawn-zone`, 46 `road-tile`, 2 `base-zone`, **138 `ok`**, 0 `not-a-slot`, 0 outside the build bounds | **PASS** |
+| `req42b.mjs` cost | rim build refused (0 gold), grass wall −40, second build on the same cell `occupied` with no further charge | **PASS** |
+| `req42b.mjs` wall combat | wall in the road: 0 projectiles fired, 0 targeting frames, 93 frames of siege, 500 → 430 HP | **PASS** |
+| `req42b.mjs` flyers | a wraith used an air mouth, moved, never sieged, never blocked | **PASS** |
+| `req42b.mjs` destroyed state | 40 % wall drew a bar; after destruction the sprite, the bar and the cell were released | **PASS** |
+| `req42b.mjs` other boards | level-3 and level-5: 141 open cells each, a wall built on a lane cell and blocked it | **PASS** |
+| `air42.mjs` | a keep out in the field, a flyer held inside its range (controlled positioning): the archer acquired it on all 40 samples and took 142 → 110 HP — anti-air still works next to the new wall code | **PASS** |
+| `ghost42.mjs` | the build preview at a legal cell (green box, `validateBuild.ok = true`) and at a blocked rim cell (red box, `ok = false`), driven by a real pointer move after pressing the wall hotkey `4`; no console error from the wall's missing range ring | **PASS** |
+| `wallart.mjs` | five-tier horizontal run, adjacency geometry, vertical run from the corner, rubble on breach | **ALL PASS** |
+| `wallshot.mjs` | five tiers side by side, keep beside the lane sieged 500 → 450 with a drawn bar | **PASS** |
+| `mobilewall.mjs` (844 × 390, prod) | inspector 832 × 273 inside the viewport, upgrade button 794 × 44, four real taps climb 1→5 (gold 3 260 → 2 670 = 60 + 100 + 170 + 260), tier 5 removes the button, HP 6 000/6 000 | **ALL PASS** |
+| `victoryresult.mjs` (native result flow) | VICTORY card 3★ / +150 g / +5 gems with unlock notices → REPLAY resets the board → second VICTORY pays +30 only → NEXT LEVEL opens level-2 at 25 HP | **PASS** |
+
+Screenshots: `shots/req42-wallcrop.png` (the five materials at 1.9× with a
+damaged tier-2 segment), `shots/req42-wallart.png` (a five-tier rampart plus a
+corner and rubble), `shots/req42-towersiege.png`, `shots/req42-mobile-wall.png`
+(the phone inspector at tier 5), `shots/req42-ghost-valid.png` /
+`shots/req42-ghost-invalid.png` (the green and red placement previews) and
+`shots/req42-natural-victory.png` (the real victory card).
+
+### 31.6 Automated suite and production build
+
+- `npx vitest run` → **118 files, 1 450 tests passed** (72.3 s).
+- `npm run check:contrast` → **68/68 pairs pass**.
+- `npm run build` → clean; `dist/assets/index-BiBomom2.js` 627.53 kB
+  (gzip 180.87 kB), `phaser-DFK5Ua9d.js` 1 208.06 kB, `index-CIKq2dGO.css`
+  204.13 kB. The same probes were then re-run against that bundle on `:4320`
+  (see the table above).
+
+### 31.7 Natural play, not just controlled probes
+
+Two battles were played end to end on the shipped bundle (`:4320`) with no
+scripted damage and no forced result:
+
+| Run | Setup | Outcome |
+| --- | --- | --- |
+| Natural victory | Waves allowed to auto-start on their own timers, eight real keeps (L4) built on legal grass cells beside the bastion, gold topped up to 4 000 so the build could be finished in one pass | **VICTORY** at wave 8/8, 300.7 s, **20/20 HP**, score 9 899, 3★, +150 gold, +5 gems, `SUNSCORCH MESA UNLOCKED` + `ENDLESS SIEGE UNLOCKED`, result buttons NEXT LEVEL / REPLAY / WORLD MAP / LEADERBOARD / MAIN MENU |
+| Natural defeat | No structures, nothing pressed; the horde walks in and assaults the bastion | **DEFEAT** in wave 1 at 54.7 s, 0/20 HP, score 86, card offers RETRY / WORLD MAP / LEADERBOARD / MAIN MENU and **no NEXT LEVEL**; MAIN MENU returns to `MenuScene` with the HUD hidden |
+
+The natural victory is what proves the wall work did not break the campaign:
+waves start themselves, towers fire, the boss wave resolves and the terminal
+state is a real victory rather than a handler call. The natural defeat is what
+proves the opposite terminal state still fires on the new board.
+
+Honest labels:
+
+- **Natural gameplay** — the eight-wave victory and the wave-1 defeat above.
+  The only injected value is the starting gold in the victory run.
+- **Controlled browser tests** — `req42`, `req42b`, `wallart`, `wallshot`,
+  `mobilewall`, `victoryresult`. These drive the real scene but set up
+  situations on purpose (spawned enemies, topped-up gold, a chosen wall cell).
+- **Automated tests** — the 1 450 vitest assertions, none of which touch a
+  browser.
+
+### 31.8 Known limitations
+
+1. **No corner or end-cap wall pieces.** Every tier is one square, full-bleed
+   tile: horizontal and vertical runs meet cleanly at a right angle (verified:
+   zero gap, full-height overlap), but an outside corner shows the same square
+   edge as a straight run. There is no dedicated elbow art.
+2. **No wall spritesheet.** Requirement 6's fallback is what shipped — five
+   level textures plus a runtime damage-state overlay. There is no idle,
+   walk-cycle-style animation for a static wall, and none is claimed.
+3. **The HP ladder is deliberately below the infographic** (500 → 6 000 instead
+   of 1 000 → 12 500) for the reason in §31.2. Costs and thorns follow suit.
+4. **Phone inspector sheet.** At 844 × 390 the sheet is 832 × 273 and its lower
+   edge sits behind the dock bar; the body scrolls and the upgrade button is
+   inside the visible area (measured 794 × 44 at y 118), but the last stat rows
+   need a scroll before they clear the dock.
+5. **Untested here:** towers on the four non-campaign boards (Realm, War Room,
+   duel arenas) were checked structurally by the suite, but only levels 1, 3 and
+   5 plus Endless were exercised in a browser with walls; the PvP arenas were
+   not replayed with walls in this pass. Frame rate was not measured again — no
+   performance claim is made for the added rubble decals and damage overlays.
+6. **The rubble decal is decoration only.** It is spawned at the destroyed
+   structure's position, fades after 1.1 s and has no collider; a rebuild on the
+   same cell immediately is allowed and will render on top of it.
+7. **Probe-path console noise.** Calling `spawnEnemy()` directly from a probe
+   (instead of letting a wave spawn it) makes Phaser log "Texture key already in
+   use: enemy-grunt" and friends. The natural wave path logs nothing — the
+   eight-wave victory run finished with an empty console — so this is the probe's
+   shortcut, not player-facing. It was left alone rather than papered over.

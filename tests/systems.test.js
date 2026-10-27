@@ -108,8 +108,9 @@ describe('WaveManager', () => {
 });
 
 describe('PlacementSystem', () => {
-  // The arena grammar (src/data/arenaLayout.js): 26 columns, portal on row 2,
-  // river on row 5, bastion on row 9, roads where the two lanes run.
+  // The field grammar (src/data/arenaLayout.js): 32 columns, three portals on
+  // row 1, the bastion on the bottom-centre column of row 10, and a free-build
+  // field of five rows around it.
   const map = parseMap();
   const pf = new PathfindingSystem(map);
   pf.computeMainPath();
@@ -117,7 +118,7 @@ describe('PlacementSystem', () => {
   const route = new Set(pf.mainPath);
   // A grass cell on our side of the river that no lane uses.
   const freeGrass = (() => {
-    for (let row = map.riverRow + 1; row < map.base.row; row += 1) {
+    for (let row = map.buildRow; row < map.base.row; row += 1) {
       for (let col = 1; col < map.cols - 1; col += 1) {
         const cell = { row, col };
         if (map.tiles[row][col] === 'grass' && zoneBlock(cell, map) === null) return cell;
@@ -128,9 +129,10 @@ describe('PlacementSystem', () => {
   const laneCell = (() => {
     for (const key of route) {
       const [row, col] = key.split(',').map(Number);
-      if (map.tiles[row][col] === 'road' && row > map.riverRow) return { row, col };
+      const inField = row >= map.buildRow && row <= map.base.row;
+      if (map.tiles[row][col] === 'road' && inField) return { row, col };
     }
-    throw new Error('no road cell on our side');
+    throw new Error('no road cell inside the build field');
   })();
 
   it('accepts a tower on free grass with enough coins', () => {
@@ -152,17 +154,36 @@ describe('PlacementSystem', () => {
 
   it('refuses a tower anywhere in the enemy half, road or not', () => {
     const ps = new PlacementSystem(map);
-    // Row 1 is empty grass above the river: the horde's own ground.
-    expect(ps.validate(TOWER_TYPES.archer, 1, 4, 999).reason).toBe('enemy-half');
+    // A grass cell above the build line is the horde's own ground — and it is
+    // grass, so the half rule (not the terrain) is what refuses it.
+    const enemyGrass = (() => {
+      for (let row = 2; row < map.buildRow; row += 1) {
+        for (let col = 3; col < map.cols - 3; col += 1) {
+          // Away from the portal rings, so the half rule is what refuses it.
+          if (map.tiles[row][col] === 'grass' && zoneBlock({ row, col }, map) === 'enemy-half') {
+            return { row, col };
+          }
+        }
+      }
+      throw new Error('no enemy-half grass');
+    })();
+    expect(ps.validate(TOWER_TYPES.archer, enemyGrass.row, enemyGrass.col, 999).reason).toBe('enemy-half');
     // Row 0 is the rock rim — terrain is refused before the half rule.
     expect(ps.validate(TOWER_TYPES.archer, 0, 0, 999).reason).toBe('blocked-tile');
   });
 
   it('rejects rocks, water, the two no-build zones, occupied tiles and low gold', () => {
     const ps = new PlacementSystem(map);
-    expect(ps.validate(TOWER_TYPES.archer, 0, 0, 999).reason).toBe('blocked-tile'); // rock corner
-    const waterCol = map.tiles[map.riverRow].indexOf('water');
-    expect(ps.validate(TOWER_TYPES.archer, map.riverRow, waterCol, 999).reason).toBe('blocked-tile'); // rift water
+    expect(ps.validate(TOWER_TYPES.archer, 0, 0, 999).reason).toBe('blocked-tile'); // rock rim
+    // A pond is scenery the player can see, so it is refused as terrain.
+    const pond = [];
+    for (let row = 0; row < map.rows && !pond.length; row += 1) {
+      const col = map.tiles[row].indexOf('water');
+      if (col >= 0) pond.push({ row, col });
+    }
+    if (pond.length) {
+      expect(ps.validate(TOWER_TYPES.archer, pond[0].row, pond[0].col, 999).reason).toBe('blocked-tile');
+    }
     expect(ps.validate(TOWER_TYPES.archer, map.spawn.row, map.spawn.col - 1, 999).reason).toBe('spawn-zone'); // beside the portal
     expect(ps.validate(TOWER_TYPES.archer, map.base.row, map.base.col - 1, 999).reason).toBe('base-zone'); // bastion plaza
     expect(ps.validate(TOWER_TYPES.archer, -1, 3, 999).reason).toBe('out-of-bounds');
@@ -172,30 +193,50 @@ describe('PlacementSystem', () => {
     expect(ps.validate(TOWER_TYPES.cannon, freeGrass.row, freeGrass.col, 50).reason).toBe('no-coins');
   });
 
-  it('barricades must go on road tiles, never on spawn or base', () => {
+  it('walls stand on grass or across the lane, but never on a gate', () => {
     const ps = new PlacementSystem(map);
-    expect(ps.validate(BARRICADE, laneCell.row, laneCell.col, 999).ok).toBe(true); // a real lane cell
-    expect(ps.validate(BARRICADE, freeGrass.row, freeGrass.col, 999).reason).toBe('needs-road'); // grass
-    expect(ps.validate(BARRICADE, map.spawn.row, map.spawn.col, 999).reason).toBe('endpoint'); // the portal
-    expect(ps.validate(BARRICADE, map.base.row, map.base.col, 999).reason).toBe('endpoint'); // the bastion
+    // Request 42: a wall is a structure, not a road-only prop. Both a lane cell
+    // (a deliberate roadblock) and open grass (a perimeter) are legal.
+    expect(ps.validate(BARRICADE, laneCell.row, laneCell.col, 999).ok).toBe(true);
+    expect(ps.validate(BARRICADE, freeGrass.row, freeGrass.col, 999).ok).toBe(true);
+    expect(ps.validate(BARRICADE, map.spawn.row, map.spawn.col, 999).reason).toBe('endpoint');
+    expect(ps.validate(BARRICADE, map.base.row, map.base.col, 999).reason).toBe('endpoint');
+    // Rock and water are still terrain.
+    expect(ps.validate(BARRICADE, 0, 0, 999).reason).toBe('blocked-tile');
+    // …and the horde's own ground is still off limits.
+    const enemyCell = { row: map.spawn.row + 1, col: 3 };
+    expect(ps.validate(BARRICADE, enemyCell.row, enemyCell.col, 999).reason).toBe('spawn-zone');
   });
 
-  it('refuses palisades off the lane the horde walks', () => {
+  it('never charges a wall for standing where a keep could stand', () => {
+    // A wall on grass used to be refused as `needs-road`; the free-placement
+    // redesign makes it a legal perimeter segment. What must still hold is that
+    // the horde's ground and the gate rings refuse it for their own reasons.
     const ps = new PlacementSystem(map);
-    const walk = new Set(pf.lanes[1] ? pf.lanes[0] : pf.mainPath);
-    // A cell of the second lane that the first never walks, on our bank (an
-    // enemy-half cell would be refused for that reason first).
+    const walk = new Set(pf.lanes[0] || pf.mainPath);
+    // A cell of a second lane that the first never walks, inside the field (an
+    // enemy-ground cell would be refused for that reason first).
     const other =
-      pf.lanes[1]?.filter((key) => !walk.has(key) && Number(key.split(',')[0]) > map.riverRow) ?? [];
+      pf.lanes
+        .slice(1)
+        .flat()
+        .filter((key) => {
+          const [row] = key.split(',').map(Number);
+          return !walk.has(key) && row >= map.buildRow && row <= map.base.row;
+        }) ?? [];
     expect(other.length).toBeGreaterThan(0);
-    // The second lane is a real road, but this wave walks the first one.
+    // A wall does not care which lane the current wave walks: it is a structure
+    // the horde meets or ignores, not a lane-bound consumable.
     const [oRow, oCol] = other[0].split(',').map(Number);
-    expect(ps.validate(BARRICADE, oRow, oCol, 999, { route: walk }).reason).toBe('off-route');
+    expect(ps.validate(BARRICADE, oRow, oCol, 999, { route: walk }).ok).toBe(true);
     // Every cell of the actual route stays buildable, so a wall can always be
     // planted where the monsters are guaranteed to meet it.
     for (const key of walk) {
       const [row, col] = key.split(',').map(Number);
-      if (map.tiles[row][col] !== 'road' || row <= map.riverRow) continue;
+      const inField = row >= map.buildRow && row <= map.base.row;
+      if (map.tiles[row][col] !== 'road' || !inField) continue;
+      // The gate ring stays clear for every defence, wall included.
+      if (zoneBlock({ row, col }, map) !== null) continue;
       expect(ps.validate(BARRICADE, row, col, 999, { route: walk }).ok).toBe(true);
     }
   });

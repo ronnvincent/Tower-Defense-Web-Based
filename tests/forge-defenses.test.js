@@ -201,15 +201,18 @@ describe('Difficulty rebalance (the campaign is meant to be gentler)', () => {
 });
 
 describe('Palisade: a wall the horde has to break', () => {
-  it('is cheap, tanky and upgrades into thorns', () => {
-    expect(BARRICADE.cost).toBe(30);
-    expect(BARRICADE.placement).toBe('road');
-    const [lvl1, lvl2] = BARRICADE.levels;
-    expect(lvl1.health).toBeGreaterThan(0);
-    expect(lvl2.health).toBeGreaterThan(lvl1.health);
-    expect(lvl1.thornsDamage).toBe(0);
-    expect(lvl2.thornsDamage).toBeGreaterThan(0);
-    expect(lvl2.upgradeCost).toBeGreaterThan(0);
+  it('is a five-tier wall that gets tankier and spikier', () => {
+    expect(BARRICADE.cost).toBeGreaterThan(0);
+    expect(BARRICADE.placement).toBe('wall');
+    const tiers = BARRICADE.levels;
+    expect(tiers).toHaveLength(5);
+    expect(tiers[0].thornsDamage).toBe(0);
+    for (let i = 1; i < tiers.length; i += 1) {
+      expect(tiers[i].health, `tier ${i + 1} hp`).toBeGreaterThan(tiers[i - 1].health);
+      expect(tiers[i].thornsDamage, `tier ${i + 1} thorns`).toBeGreaterThan(tiers[i - 1].thornsDamage);
+      expect(tiers[i].upgradeCost, `tier ${i + 1} cost`).toBeGreaterThan(0);
+      expect(tiers[i].title).toBeTruthy();
+    }
   });
 
   it('gives every ground enemy a siege attack so no archetype can be walled off forever', () => {

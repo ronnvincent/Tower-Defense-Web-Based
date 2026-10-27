@@ -90,9 +90,10 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    // 3. Barricade — two visual tiers
+    // 3. Walls — the five tiers are drawn procedurally at boot (see
+    //    `TextureFactory.makeWalls`), so only tiers with a `file` are loaded.
     for (const tier of Object.values(BARRICADE_VISUALS)) {
-      this.load.image(tier.key, `assets/towers/${tier.file}`);
+      if (tier.file) this.load.image(tier.key, `assets/towers/${tier.file}`);
     }
 
     // 3b. Tower decorations — the per-tier parts that grow the silhouette.

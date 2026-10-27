@@ -214,8 +214,8 @@ describe('HUD markup', () => {
 
     const hint = document.getElementById('placement-hint');
     expect(hint.classList.contains('hidden')).toBe(false);
-    expect(document.getElementById('placement-hint-text').textContent).toContain('PALISADE');
-    expect(document.getElementById('placement-hint-text').textContent).toContain('30');
+    expect(document.getElementById('placement-hint-text').textContent).toContain('WALL');
+    expect(document.getElementById('placement-hint-text').textContent).toContain('40');
 
     hud.update({ ...STATE, coins: 5 });
     expect(hint.classList.contains('unaffordable')).toBe(true);

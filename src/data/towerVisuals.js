@@ -235,9 +235,20 @@ for (const [line, slots] of Object.entries(ENGINEER_VISUALS)) {
 }
 
 /** Barricade art (level 1 fence bay, level 2 palisade gate). */
+/**
+ * One procedural texture per wall tier (`TextureFactory.makeWalls`).
+ *
+ * `file` is deliberately absent: these are drawn at boot rather than loaded, so
+ * a wall can never fall back to a missing PNG. The art is a different material
+ * at every tier — stakes, banded planks, stone, fortification, imperial gold —
+ * not the same sprite recoloured five times.
+ */
 export const BARRICADE_VISUALS = {
-  1: { key: 'barricade', file: 'barricade.png', w: 60, h: 72, offsetY: 2 },
-  2: { key: 'barricade-lvl2', file: 'barricade_lvl2.png', w: 60, h: 72, offsetY: 2 },
+  1: { key: 'wall-t1', w: 64, h: 64, offsetY: 0 },
+  2: { key: 'wall-t2', w: 64, h: 64, offsetY: 0 },
+  3: { key: 'wall-t3', w: 64, h: 64, offsetY: 0 },
+  4: { key: 'wall-t4', w: 64, h: 64, offsetY: 0 },
+  5: { key: 'wall-t5', w: 64, h: 64, offsetY: 0 },
 };
 
 /** Projectile texture per projectile type used in `towerData.js`. */

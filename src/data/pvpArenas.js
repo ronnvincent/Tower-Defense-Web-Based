@@ -1,11 +1,11 @@
 /**
  * pvpArenas.js — the three duel arenas.
  *
- * Every arena is built on the **same grammar as the campaign boards**: 26 x 12
- * tiles, a rock rim all round, the horde entering at the top row, a river across
- * the middle and the keep at the bottom with two rows of margin under it. A duel
- * is not a different game with a different map language — it is the same game
- * with both seats on the same board.
+ * Every arena is built on the **same grammar as the campaign boards**: 32 x 12
+ * tiles, a rock rim all round, three ground portals along the top, two sky gates
+ * in the side walls, and the keep on the bottom-centre column with a rim row
+ * under it. A duel is not a different game with a different map language — it is
+ * the same game with both seats on the same board.
  *
  * FAIRNESS
  * --------
@@ -15,15 +15,16 @@
  * What must stay equal is the board, the wave script, the gold and the boss —
  * and those are equal by construction.
  *
- * The three arenas differ in what the crossings cost you: Cinder Crown runs
- * corner to corner and splits three ways, Frostspine is a centred two-bridge
- * board, Dust Meridian sends the horde the other way across a pair of ponds.
+ * The three arenas differ in what the approaches cost you: Cinder Crown spreads
+ * its portals to the walls and swings the roads hard, Frostspine is the plain
+ * three-lane board, and Dust Meridian crowds the left two portals so the right
+ * approach arrives late.
  *
  *   S  spawn   B  base   #  road   .  buildable   x  rock   ~  water
  */
 
 import { THEMES } from './levelData.js';
-import { ARENA, arenaLanes, buildArena, colAt, scatterProps } from './arenaLayout.js';
+import { ARENA, buildArena, scatterProps } from './arenaLayout.js';
 
 /** Shared rules. No relics, no blessings, no powerups: the arena equalises. */
 /**
@@ -46,39 +47,31 @@ export const PVP_RULES = Object.freeze({
   waves: 10,
 });
 
-/** Column by offset from the axis, exactly like a campaign map. */
-const A = colAt;
-
 /** One board from its spec, exactly like a campaign map. */
-const arenaBoard = (spec) => buildArena({ ...spec, lanes: arenaLanes(spec) });
+const arenaBoard = (spec) => buildArena(spec);
 
+/** Scenery is confined to the enemy's ground — the field around the keep is empty. */
+const rock = (seed, count) => scatterProps(seed, { count, fromRow: 2, toRow: ARENA.buildRow - 1 });
+
+// The three arenas differ in the spread of their portals and how hard the roads
+// swing, never in the rules: same three approaches, same bottom-centre keep,
+// same open field. A duel is not a different game with a different map language.
 const CINDER_CROWN = arenaBoard({
-  portalCol: A(-7),
-  baseCol: A(8),
-  bridges: [A(-6), A(-1), A(4)],
-  corridorRow: [4, 3, 4],
-  turnRow: 7,
-  rocks: scatterProps('cinder-crown', { count: 9, fromRow: 6, toRow: 9 }),
-  ponds: [[9, A(-10)], [9, A(11)]],
+  spawnCols: [4, 15, 27],
+  wiggle: 2,
+  rocks: rock('cinder-crown', 8),
 });
 
 const FROSTSPINE = arenaBoard({
-  portalCol: ARENA.axisCol,
-  baseCol: ARENA.axisCol,
-  bridges: [A(-6), A(6)],
-  corridorRow: [3, 4],
-  turnRow: 8,
-  rocks: scatterProps('frostspine', { count: 12, fromRow: 6, toRow: 9 }),
+  spawnCols: [5, 15, 25],
+  wiggle: 0,
+  rocks: rock('frostspine', 10),
 });
 
 const DUST_MERIDIAN = arenaBoard({
-  portalCol: A(8),
-  baseCol: A(-7),
-  bridges: [A(-5), A(1)],
-  corridorRow: [3, 4],
-  turnRow: 7,
-  ponds: [[9, A(-1)], [9, A(5)]],
-  rocks: scatterProps('dust-meridian', { count: 8, fromRow: 6, toRow: 9 }),
+  spawnCols: [6, 14, 26],
+  wiggle: 1,
+  rocks: rock('dust-meridian', 7),
 });
 
 /**

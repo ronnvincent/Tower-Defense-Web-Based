@@ -60,8 +60,8 @@ export class Enemy {
    * @param {(enemy:Enemy) => void} [callbacks.onBossSpawn]
    * @param {(enemy:Enemy) => void} [callbacks.onBossDefeated]
    * @param {(type:string, count:number) => void} [callbacks.onSummonMinions]
-   * @param {(cellKey:string) => object|null} [callbacks.getBarricadeAt] palisade standing on a cell
-   * @param {(wall:object, damage:number, enemy:Enemy) => void} [callbacks.onBarricadeHit] siege swing landed
+   * @param {(cellKey:string) => object|null} [callbacks.getStructureAt] the defence the horde must break on a cell
+   * @param {(structure:object, damage:number, enemy:Enemy) => void} [callbacks.onStructureHit] siege swing landed
    * @param {(boss:Enemy, radius:number, multiplier:number, durationMs:number) => void} [callbacks.onSpeedAura] boss haste pulse
    * @param {(boss:Enemy, radius:number, durationMs:number) => void} [callbacks.onDisableTowers] boss freeze pulse
    * @param {{ healthScale?: number }} [options] level difficulty multiplier
@@ -341,13 +341,16 @@ export class Enemy {
     return this.path[this.pathIndex] || this.getCurrentCellKey();
   }
 
-  /** Wall standing on the next waypoint, if the horde has to break through. */
-  getBarricadeAhead() {
+  /**
+   * Defence the horde has to break through next: a wall across the waypoint, a
+   * keep thrown in the road, or a structure hugging the cell being stepped into.
+   */
+  getStructureAhead() {
     const key = this.path?.[this.pathIndex];
-    if (!key || !this.callbacks.getBarricadeAt) return null;
-    const wall = this.callbacks.getBarricadeAt(key);
-    if (!wall || wall.isDestroyed || wall.health <= 0) return null;
-    return wall;
+    if (!key || !this.callbacks.getStructureAt) return null;
+    const structure = this.callbacks.getStructureAt(key);
+    if (!structure || structure.isDestroyed || structure.health <= 0) return null;
+    return structure;
   }
 
   /**
@@ -372,7 +375,7 @@ export class Enemy {
       this.siegeTimer = 0;
       return false;
     }
-    const wall = this.getBarricadeAhead();
+    const wall = this.getStructureAhead();
     if (!wall) {
       this.isSieging = false;
       this.siegeTarget = null;
@@ -402,7 +405,7 @@ export class Enemy {
       const interval = siegeInterval(this.def);
       if (this.siegeTimer >= interval) {
         this.siegeTimer -= interval;
-        this.callbacks.onBarricadeHit?.(wall, siegeDamage(this.def), this);
+        this.callbacks.onStructureHit?.(wall, siegeDamage(this.def), this);
       }
     }
 

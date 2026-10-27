@@ -23,7 +23,7 @@ import {
 import { drawCards } from '../data/draftCards.js';
 import { rollAnomaly } from '../data/anomalies.js';
 import { getBuildDefinition } from '../data/towerData.js';
-import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
+import { PathfindingSystem, gateIndexForSpawn, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { buildAirRoutes } from '../systems/AirRoutes.js';
 import { paintLaneHint, laneLabel, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
@@ -39,7 +39,7 @@ import {
   waveComboPayout,
 } from '../systems/ComboMeter.js';
 import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js';
-import { deriveBuildSlots, resolveSlotConfig, slotAt } from '../systems/BuildSlots.js';
+import { buildBounds } from '../systems/BuildZone.js';
 import { BASTION_STATE, bastionState, isBastionCritical, leakIntensity } from '../systems/Bastion.js';
 import {
   PREP_PHASE,
@@ -316,19 +316,15 @@ export class GameScene extends Phaser.Scene {
     // next wave chooses another one.
     this.waveLaneIndex = 0;
     this.laneHintDrawn = false;
-    // The pads the bastion is held from — derived from the battlefield, never
-    // hand-listed (see `systems/BuildSlots.js`). A stage that does not opt in
-    // gets `null` here and keeps the older free placement.
-    this.slotConfig = resolveSlotConfig(this.level);
-    const slotResult = this.slotConfig
-      ? deriveBuildSlots(
-          this.map,
-          this.pathfinding.lanes.length ? this.pathfinding.lanes : [this.pathfinding.mainPath],
-          this.slotConfig
-        )
-      : null;
-    this.buildSlots = slotResult ? slotResult.slots : [];
-    this.buildSlotKeys = slotResult ? slotResult.keys : null;
+    // The free-build field, straight off the board: five rows around the keep,
+    // every grass tile in them a legal tower square. There are no designated
+    // pads any more (see `systems/BuildZone.js`) — the rectangle is the rule,
+    // and it is the same rectangle the overlay draws.
+    this.buildBounds = buildBounds(this.map);
+    // Round-robin across the ground portals: each enemy of a wave takes the next
+    // gate, so a wave arrives from all three directions instead of one. Reset on
+    // every `init` so a replay starts the rotation from the first portal again.
+    this.spawnRotation = 0;
     this.duelReported = false;
     // The Vanguard stands one road cell short of the core, so it starts inside
     // the fight instead of behind it. Created here — after the lane graph, before
@@ -1015,73 +1011,122 @@ export class GameScene extends Phaser.Scene {
   createPortalAndBase() {
     const { spawn, base } = this.map;
 
-    /* ---------------------------------------------------------- the portal */
-    // The old portal was a canvas spiral, which is why it read as a placeholder.
-    // It is now a composed set piece: a carved gate arch, an animated vortex
-    // sheet playing inside it (`portal-vortex`, generated from the CC0 Kenney
-    // particle art — see `docs/arena-redesign.md`), a ground sigil that turns
-    // under the arch, and a light pool on the tiles.
-    const spawnX = spawn.col * TILE_SIZE + TILE_SIZE / 2;
-    const spawnY = spawn.row * TILE_SIZE + TILE_SIZE / 2;
+    /* ---------------------------------------------------------- the portals */
+    // Every ground portal is its own set piece: a carved gate arch, an animated
+    // vortex sheet playing inside it (`portal-vortex`, generated from the CC0
+    // Kenney particle art), a ground sigil that turns under the arch, and a
+    // light pool on the tiles. A base-defence board has three of them, and the
+    // player has to see all three at once — being attacked from three
+    // directions is the layout, not a detail of it.
+    const spawns = Array.isArray(this.map.spawns) && this.map.spawns.length
+      ? this.map.spawns
+      : [spawn];
+    const middleIndex = Math.floor((spawns.length - 1) / 2);
+    this.portalSprites = [];
+    this.portalGlows = [];
+    spawns.forEach((mouth, index) => {
+      const spawnX = mouth.col * TILE_SIZE + TILE_SIZE / 2;
+      const spawnY = mouth.row * TILE_SIZE + TILE_SIZE / 2;
+      // The middle gate is the tallest; the flanking ones sit a little smaller,
+      // so the field reads as one main approach with two side ones.
+      const scale = index === middleIndex ? 1 : 0.86;
 
-    this.portalFloor = this.add
-      .image(spawnX, spawnY + 6, 'fx-rune')
-      .setDepth(6)
-      .setScale(1.5)
-      .setAlpha(0.5)
-      .setTint(this.theme?.portalTint ?? 0xb07bff)
-      .setBlendMode('ADD');
-    this.tweens.add({ targets: this.portalFloor, angle: 360, duration: 24000, repeat: -1 });
-    this.tweens.add({
-      targets: this.portalFloor,
-      alpha: { from: 0.35, to: 0.6 },
-      duration: 2200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
+      const floor = this.add
+        .image(spawnX, spawnY + 6, 'fx-rune')
+        .setDepth(6)
+        .setScale(1.5 * scale)
+        .setAlpha(0.5)
+        .setTint(this.theme?.portalTint ?? 0xb07bff)
+        .setBlendMode('ADD');
+      this.tweens.add({ targets: floor, angle: 360, duration: 24000, repeat: -1 });
+      this.tweens.add({
+        targets: floor,
+        alpha: { from: 0.35, to: 0.6 },
+        duration: 2200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      // The stone keeps its own warm colour — only the magic inside it is
+      // tinted, which is what makes a purple gate in a green field read as an
+      // intruder.
+      const arch = this.add
+        .image(spawnX, spawnY + 35 * scale, 'portal-arch')
+        .setOrigin(0.5, 0.8)
+        .setDepth(10)
+        .setScale(0.48 * scale);
+
+      let vortex;
+      if (this.anims?.exists?.(PORTAL_ANIM)) {
+        vortex = this.add
+          .sprite(spawnX, spawnY - 4, 'portal-vortex')
+          .setDepth(11)
+          .setScale(0.52 * scale)
+          .setBlendMode('ADD')
+          .play(PORTAL_ANIM);
+      } else {
+        // Fallback: the old procedural texture, so a failed atlas load is a
+        // smaller portal, never a missing one.
+        vortex = this.add.image(spawnX, spawnY, 'portal').setDepth(11);
+      }
+
+      const glow = this.add
+        .image(spawnX, spawnY + 14, 'fx-glow')
+        .setDepth(9)
+        .setScale(1.5 * scale)
+        .setAlpha(0.28)
+        .setTint(this.theme?.portalTint ?? 0xb07bff)
+        .setBlendMode('ADD');
+      this.tweens.add({
+        targets: glow,
+        scale: { from: 1.35 * scale, to: 1.65 * scale },
+        alpha: { from: 0.22, to: 0.36 },
+        duration: 1900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+
+      this.portalSprites.push(vortex);
+      this.portalGlows.push(glow);
+      if (index === 0) {
+        this.portalFloor = floor;
+        this.portalArch = arch;
+        this.portalVortex = vortex;
+        this.portalSprite = vortex;
+        this.portalGlow = glow;
+      }
     });
 
-    // The arch sits just under the top bar (measured: the bar ends at 104 px on
-    // a 1366×768 window) and its base straddles the spawn tile. The stone keeps
-    // its own warm colour — only the magic inside it is tinted, which is what
-    // makes a purple gate in a green field read as an intruder.
-    this.portalArch = this.add
-      .image(spawnX, spawnY + 35, 'portal-arch')
-      .setOrigin(0.5, 0.8)
-      .setDepth(10)
-      .setScale(0.48);
-
-    if (this.anims?.exists?.(PORTAL_ANIM)) {
-      this.portalVortex = this.add
-        .sprite(spawnX, spawnY - 4, 'portal-vortex')
-        .setDepth(11)
-        .setScale(0.52)
+    // Sky gates: the openings cut into the side walls. Colder and smaller than
+    // a ground portal, because nothing walks out of them — the flyers do.
+    this.skyGates = (this.map.airGates || []).map((gate) => {
+      const gx = gate.col <= 0 ? TILE_SIZE * 0.55 : this.map.cols * TILE_SIZE - TILE_SIZE * 0.55;
+      const gy = gate.row * TILE_SIZE + TILE_SIZE / 2;
+      const arch = this.add
+        .image(gx, gy, 'portal-arch')
+        .setOrigin(0.5, 0.8)
+        .setDepth(10)
+        .setScale(0.3)
+        .setTint(0x9fc7ff)
+        .setAlpha(0.95);
+      const glow = this.add
+        .image(gx, gy + 8, 'fx-glow')
+        .setDepth(9)
+        .setScale(0.9)
+        .setAlpha(0.22)
         .setBlendMode('ADD')
-        .play(PORTAL_ANIM);
-    } else {
-      // Fallback: the old procedural texture, so a failed atlas load is a
-      // smaller portal, never a missing one.
-      this.portalVortex = this.add.image(spawnX, spawnY, 'portal').setDepth(11);
-    }
-    this.portalSprite = this.portalVortex;
-
-    // Spawn gate light: a soft pool that breathes, so the mouth of the portal
-    // stays readable under the top bar in every biome.
-    this.portalGlow = this.add
-      .image(spawnX, spawnY + 14, 'fx-glow')
-      .setDepth(9)
-      .setScale(1.5)
-      .setAlpha(0.28)
-      .setTint(this.theme?.portalTint ?? 0xb07bff)
-      .setBlendMode('ADD');
-    this.tweens.add({
-      targets: this.portalGlow,
-      scale: { from: 1.35, to: 1.65 },
-      alpha: { from: 0.22, to: 0.36 },
-      duration: 1900,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
+        .setTint(0xa9d6ff);
+      this.tweens.add({
+        targets: glow,
+        alpha: { from: 0.16, to: 0.3 },
+        duration: 2100,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      return { arch, glow };
     });
 
     /* --------------------------------------------------------- the bastion */
@@ -1379,7 +1424,16 @@ export class GameScene extends Phaser.Scene {
     // is *not* using and a dock of ground-only guns cannot cover both by
     // accident.
     const flies = Boolean(ENEMY_TYPES[typeKey]?.flying);
-    const slot = this.laneIndexForWave(waveNumber);
+    // A wave is **not** one road any more. Each enemy takes the next gate in a
+    // fixed rotation, so a single wave arrives from all three directions at
+    // once — which is the whole point of a board with three portals. The
+    // rotation is deterministic (a running counter plus the wave ordinal), so
+    // both duel seats and a replay produce byte-identical spawns.
+    const gateCount = flies
+      ? Math.max(1, this.airRoutes?.laneCount || 0)
+      : Math.max(1, this.pathfinding?.laneCount || 0);
+    const slot = gateIndexForSpawn(this.spawnRotation || 0, waveNumber, gateCount);
+    this.spawnRotation = (this.spawnRotation || 0) + 1;
     const lane = flies
       ? (this.airRoutes?.laneAt(slot)?.length ? this.airRoutes.laneAt(slot) : this.pathfinding.laneAt(slot))
       : this.pathfinding.laneAt(slot);
@@ -1430,8 +1484,8 @@ export class GameScene extends Phaser.Scene {
         this.hud?.showToast(`🏆 BOSS DEFEATED: ${e.def.name}!`, 'success');
         this.shockwave(e.x, e.y, { from: 0.5, to: 3.0, tint: 0xffe2a8, duration: 700 });
       },
-      getBarricadeAt: (cellKey) => this.getBarricadeAt(cellKey),
-      onBarricadeHit: (wall, damage) => this.damageBarricade(wall, damage),
+      getStructureAt: (cellKey) => this.getSiegeTarget(cellKey),
+      onStructureHit: (structure, damage) => this.damageStructure(structure, damage),
       onSpeedAura: (boss, radius, multiplier, durationMs) =>
         this.handleBossSpeedAura(boss, radius, multiplier, durationMs),
       onDisableTowers: (boss, radius, durationMs) =>
@@ -2208,7 +2262,7 @@ export class GameScene extends Phaser.Scene {
       (((base >> 16 & 255) + (accent >> 16 & 255)) >> 1) << 16 |
       (((base >> 8 & 255) + (accent >> 8 & 255)) >> 1) << 8 |
       (((base & 255) + (accent & 255)) >> 1);
-    this.portalSprite?.setTint(mixed);
+    for (const sprite of this.portalSprites || [this.portalSprite]) sprite?.setTint?.(mixed);
     this.spawnAccent = accent;
   }
 
@@ -2884,10 +2938,10 @@ export class GameScene extends Phaser.Scene {
       return { ok: false, reason: 'enemy-on-tile' };
     }
 
-    // Palisades are consumables, not keeps: they do not eat a build point.
+    // Walls are consumables, not keeps: they do not eat a build point.
     // Counting them would let a wall-only opening lock the player out of the
     // towers the same gold was meant to buy.
-    if (def.placement !== 'road') {
+    if (def.placement !== 'wall') {
       if (this.usedBuildPoints() >= this.maxTowers) {
         return { ok: false, reason: 'max-towers' };
       }
@@ -2912,55 +2966,138 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
-  /** Palisade occupying a cell key, or null. O(1) via the placement hash map. */
-  getBarricadeAt(cellKey) {
+  /** Any standing defence on a cell, or null. O(1) via the placement hash map. */
+  getStructureAt(cellKey) {
     const [row, col] = cellKey.split(',').map(Number);
     const occupant = this.placement.getOccupant(row, col);
-    return occupant?.isBarricade ? occupant : null;
+    if (!occupant || occupant.isDestroyed || occupant.health <= 0) return null;
+    return occupant.isStructure ? occupant : null;
   }
 
   /**
-   * A horde member swung at a palisade. Applies the damage and, when the wall
-   * finally gives, runs the collapse flow.
+   * The structure a ground creep should attack next, given the cell it is about
+   * to step into.
+   *
+   * Priority is the rule the request asks for, in order:
+   *   1. anything physically standing on the next waypoint — a wall across the
+   *      lane, or a keep somebody dropped in the road;
+   *   2. a structure hugging that waypoint (one cell, including diagonals), so
+   *      a keep built right against the lane is in the horde's reach.
+   * Anything further away is ignored: the horde is not a magnet for the whole
+   * defence line, and a keep in the back of the field stays safe.
    */
-  damageBarricade(wall, amount) {
-    if (!wall || wall.isDestroyed) return;
-    // Harder presets swing harder at the palisades too; the falloff tables for
-    // a swing itself stay in BarricadeCombat.
-    const swing = resolveSiegeSwing(wall, amount * (this.difficulty?.damageScale ?? 1));
-    if (swing.dealt <= 0) return;
-    wall.takeDamage(swing.dealt);
-
-    if (this.particleEmitter) {
-      this.particleEmitter.explode(3, wall.x, wall.y - TILE_SIZE * 0.5);
+  getSiegeTarget(cellKey) {
+    const direct = this.getStructureAt(cellKey);
+    if (direct) return direct;
+    const [row, col] = cellKey.split(',').map(Number);
+    let best = null;
+    let bestDistance = Infinity;
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        if (!dr && !dc) continue;
+        const neighbour = this.getStructureAt(`${row + dr},${col + dc}`);
+        if (!neighbour) continue;
+        // A wall in reach outranks a keep: it is the thing in the way.
+        const distance = Math.hypot(dr, dc) - (neighbour.isBarricade ? 0.5 : 0);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = neighbour;
+        }
+      }
     }
-    if (swing.destroyed) this.destroyBarricade(wall);
+    return best;
   }
 
-  /** Collapse: free the tile, remove the wall and let the horde walk on. */
-  destroyBarricade(wall) {
-    const idx = this.activeTowers.indexOf(wall);
+  /**
+   * A horde member swung at a defence. Applies the damage and, when the
+   * structure finally gives, runs the collapse flow.
+   *
+   * Walls go through the siege falloff table (`BarricadeCombat`); keeps take the
+   * swing directly, because a keep is a smaller target than a wall section and
+   * the table exists to stop a wall evaporating under a boss.
+   */
+  damageStructure(structure, amount) {
+    if (!structure || structure.isDestroyed) return;
+    const scaled = amount * (this.difficulty?.damageScale ?? 1);
+    if (structure.isBarricade) {
+      const swing = resolveSiegeSwing(structure, scaled);
+      if (swing.dealt <= 0) return;
+      structure.takeDamage(swing.dealt);
+      if (this.particleEmitter) {
+        this.particleEmitter.explode(3, structure.x, structure.y - TILE_SIZE * 0.5);
+      }
+      if (swing.destroyed) this.destroyStructure(structure);
+      return;
+    }
+    const dealt = structure.takeDamage(scaled);
+    if (dealt <= 0) return;
+    if (this.particleEmitter) this.particleEmitter.explode(2, structure.x, structure.y - TILE_SIZE * 0.4);
+    if (structure.isDestroyed) this.destroyStructure(structure);
+  }
+
+  /** Collapse: free the tile, remove the structure and let the horde walk on. */
+  destroyStructure(structure) {
+    const idx = this.activeTowers.indexOf(structure);
     if (idx !== -1) this.activeTowers.splice(idx, 1);
-    this.placement.release(wall.row, wall.col);
-    if (this.selectedTower === wall) {
+    this.placement.release(structure.row, structure.col);
+    if (this.selectedTower === structure) {
       this.selectedTower = null;
       this.badges?.setSelected(null);
       this.hud?.closeInspector();
     }
-    this.gameState.counters.barricadesDestroyed =
-      (this.gameState.counters.barricadesDestroyed || 0) + 1;
+    const isWall = Boolean(structure.isBarricade);
+    if (isWall) {
+      this.gameState.counters.barricadesDestroyed =
+        (this.gameState.counters.barricadesDestroyed || 0) + 1;
+    } else {
+      this.gameState.counters.towersDestroyed = (this.gameState.counters.towersDestroyed || 0) + 1;
+    }
 
     audio.playExplosion?.();
     this.cameras.main.shake(180, 0.006);
     if (this.particleEmitter) {
-      this.particleEmitter.explode(14, wall.x, wall.y - TILE_SIZE * 0.4);
+      this.particleEmitter.explode(14, structure.x, structure.y - TILE_SIZE * 0.4);
     }
-    this.hud?.showToast('Palisade breached! The horde pushes through.', 'warning');
-    wall.destroy();
+    this.hud?.showToast(
+      isWall ? 'Wall breached! The horde pushes through.' : `${structure.def?.name || 'Defence'} destroyed!`,
+      'warning'
+    );
+    // A fallen wall leaves a patch of rubble for a moment. The tile is already
+    // free, so this is decoration only — it never blocks and never collides.
+    if (isWall) this.spawnWallRubble(structure);
+    // A fallen wall or keep stops blocking the lane immediately.
+    this.refreshLanes();
+    structure.destroy();
 
     this.syncHUD();
     this.drawBuildSlots();
     this.updateGhostGraphics();
+  }
+
+  /** Rubble left behind by a breached wall. Fades out; purely decorative. */
+  spawnWallRubble(structure) {
+    if (!this.textures?.exists?.('wall-rubble') || !this.add?.image) return null;
+    const tierTints = [0xd8ae7a, 0xa9764a, 0xaab3c0, 0xc3ccda, 0xe6c07a];
+    try {
+      const rubble = this.add
+        .image(structure.x, structure.y + TILE_SIZE * 0.12, 'wall-rubble')
+        .setDepth(2)
+        .setAlpha(0.95);
+      if (typeof rubble.setTint === 'function') {
+        rubble.setTint(tierTints[(structure.level || 1) - 1] ?? tierTints[0]);
+      }
+      this.tweens.add({
+        targets: rubble,
+        alpha: 0,
+        delay: 1100,
+        duration: 900,
+        onComplete: () => rubble.destroy(),
+      });
+      return rubble;
+    } catch (error) {
+      this.reportRuntimeError?.(error);
+      return null;
+    }
   }
 
   attemptBuild(typeKey, row, col) {
@@ -2975,10 +3112,15 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Pre-flight: if this keep would wall the horde out of the bastion, refuse
+    // Pre-flight: if this build would wall the horde out of the bastion, refuse
     // it now — before spending gold, before the tower exists. The check is one
-    // BFS over a 26×12 grid (~0.3 ms), so it can run on every click.
-    if (def.placement !== 'road') {
+    // BFS over the board (~0.3 ms), so it can run on every click.
+    //
+    // A wall *on the lane* is exempt on purpose: it does not reroute the horde,
+    // it stops the horde, and breaking it is the point of the structure. A wall
+    // on grass is a real blocker, so it is checked like a keep.
+    const wallOnRoad = def.placement === 'wall' && this.map?.tiles?.[row]?.[col] === 'road';
+    if (!wallOnRoad) {
       const blocked = this.blockedBuildCells();
       blocked.push(`${row},${col}`);
       this.pathfinding.setBlocked(blocked);
@@ -3003,15 +3145,22 @@ export class GameScene extends Phaser.Scene {
     this.placement.occupy(row, col, tower);
     this.activeTowers.push(tower);
 
-    // A keep on a lane is a wall the horde walks around: re-run BFS with the
-    // new footprint (pre-flighted above, so this always succeeds) and hand any
-    // already-marching creep a detour from the cell it is standing on.
-    if (!tower.isBarricade) this.refreshLanes();
+    // A structure on the horde's ground is a wall it walks around: re-run BFS
+    // with the new footprint (pre-flighted above, so this always succeeds) and
+    // hand any already-marching creep a detour from the cell it is standing on.
+    // A wall on the lane is excluded — that one is meant to be broken, not
+    // avoided.
+    if (!tower.isBarricade || !wallOnRoad) this.refreshLanes();
 
     if (tower.isBarricade) {
       this.gameState.counters.barricadesPlaced++;
       this.trackStats({ palisadesBuilt: 1 });
-      this.hud?.showToast('Palisade raised! Enemies must break it down.', 'info');
+      this.hud?.showToast(
+        wallOnRoad
+          ? 'Wall raised across the lane — enemies must break through.'
+          : 'Wall raised. Enemies in reach will attack it.',
+        'info'
+      );
     } else {
       this.gameState.counters.towersPlaced++;
       const standing = this.activeTowers.filter((t) => !t.isBarricade).length;
@@ -3105,7 +3254,9 @@ export class GameScene extends Phaser.Scene {
     this.ghostGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
 
     // Attack Range circle preview
-    if (def.levels && def.levels[0]) {
+    // A wall has no range, so an undefined radius would hand Phaser a NaN
+    // circle. Ask for a real number, not just for a levels array.
+    if (def.levels?.[0]?.range > 0) {
       const centerX = x + TILE_SIZE / 2;
       const centerY = y + TILE_SIZE / 2;
       const range = def.levels[0].range;
@@ -3124,80 +3275,53 @@ export class GameScene extends Phaser.Scene {
    * changes — never per frame.
    */
   /**
-   * Paint the build pads under the keeps.
+   * Draw the build field as a boundary, not as a set of pads.
    *
-   * A pad is terrain, so it is drawn once per board edit (build, sell, a breach
-   * tearing a palisade down) instead of every frame. FREE pads get a ring and a
-   * centre pip in the stage's own accent colour; an occupied pad draws nothing,
-   * because the keep standing on it is the marker. That keeps the field legible
-   * in a big wave: eight rings, not thirty.
+   * There are no designated build slots any more: **any** grass tile inside
+   * this rectangle is a legal tower square (see `systems/BuildZone.js`). What
+   * the overlay has to do, then, is answer the one question a player asks
+   * before the first click — *where does my field start?* — so it draws the
+   * edge: a line along the build row and a bracket down each flank. Nothing is
+   * drawn inside, because inside everything is allowed.
    *
-   * @returns {number} how many pads are still free
+   * Only while a defence is armed: on a bare board the line would read as
+   * scenery, and the field is meant to look like open ground. Drawn once per
+   * board edit (build, sell, a breach), never per frame.
+   *
+   * @returns {number} cells the boundary encloses (0 when nothing is armed)
    */
   drawBuildSlots() {
     const graphics = this.slotGraphics;
     if (!graphics?.clear) return 0;
     graphics.clear();
-    if (!this.buildSlots?.length) return 0;
-    // Pads are a suggestion, so they only appear while a defence is armed:
-    // on the open field they read as "you may only build here", which is no
-    // longer true.
     if (!this.selectedBuildKey) return 0;
-    // Parchment gold, not the biome accent: the accent is a *green* on the
-    // grassland board, and a green ring on green grass is invisible (that is
-    // exactly how the pads looked in the 1366x768 screenshot this pass started
-    // from). Gold reads on green, sand, ice and ash, and matches the dock cards
-    // the player has just pressed.
-    const accent = 0xf6e2ac;
-    const halo = 0x0b1220;
-    const radius = TILE_SIZE * 0.33;
-    let free = 0;
-    for (const slot of this.buildSlots) {
-      if (this.placement?.isOccupied?.(slot.row, slot.col)) continue;
-      free += 1;
-      const cx = slot.col * TILE_SIZE + TILE_SIZE / 2;
-      const cy = slot.row * TILE_SIZE + TILE_SIZE / 2;
-      graphics.fillStyle(halo, 0.22);
-      graphics.fillCircle(cx, cy, radius);
-      // Two strokes: a dark halo first so the ring survives a bright biome, then
-      // the gold line on top.
-      graphics.lineStyle(4, halo, 0.42);
-      graphics.strokeCircle(cx, cy, radius);
-      graphics.lineStyle(2, accent, 0.68);
-      graphics.strokeCircle(cx, cy, radius);
-      // Corner brackets at the pad's own tile edge: a ring alone reads as a
-      // decorative rune, the brackets read as "something fits here". Drawn
-      // inside the tile so two neighbouring pads never form one blob.
-      const half = TILE_SIZE * 0.42;
-      const arm = TILE_SIZE * 0.16;
-      graphics.lineStyle(3, halo, 0.42);
-      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        graphics.beginPath();
-        graphics.moveTo(cx + sx * half, cy + sy * (half - arm));
-        graphics.lineTo(cx + sx * half, cy + sy * half);
-        graphics.lineTo(cx + sx * (half - arm), cy + sy * half);
-        graphics.strokePath();
-      }
-      graphics.lineStyle(2, accent, 0.62);
-      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        graphics.beginPath();
-        graphics.moveTo(cx + sx * half, cy + sy * (half - arm));
-        graphics.lineTo(cx + sx * half, cy + sy * half);
-        graphics.lineTo(cx + sx * (half - arm), cy + sy * half);
-        graphics.strokePath();
-      }
-      graphics.fillStyle(accent, 0.6);
-      graphics.fillCircle(cx, cy, 2.5);
-    }
-    return free;
-  }
+    const bounds = this.buildBounds || buildBounds(this.map);
+    const left = bounds.colMin * TILE_SIZE;
+    const right = (bounds.colMax + 1) * TILE_SIZE;
+    const top = bounds.rowMin * TILE_SIZE;
+    const bottom = (bounds.rowMax + 1) * TILE_SIZE;
 
-  /** Is this cell one of the designated pads? (Stages without pads always say yes.) */
-  isBuildSlot(row, col) {
-    // Kept for the HUD's "is this a suggested pad" hint only. Placement no
-    // longer consults it — every solid tile outside the gates is buildable.
-    if (!this.buildSlotKeys) return false;
-    return Boolean(slotAt(this.buildSlots, row, col));
+    // Two strokes: a dark halo so the line survives bright sand and pale ice,
+    // then the parchment gold of the dock cards the player has just pressed.
+    for (const [width, colour, alpha] of [[5, 0x0b1220, 0.34], [2, 0xf6e2ac, 0.7]]) {
+      graphics.lineStyle(width, colour, alpha);
+      graphics.beginPath();
+      graphics.moveTo(left, top);
+      graphics.lineTo(right, top);
+      graphics.strokePath();
+      // Flank brackets, not a closed box: the field is open toward the keep,
+      // and the keep is the thing the field exists to protect.
+      graphics.beginPath();
+      graphics.moveTo(left, top);
+      graphics.lineTo(left, bottom);
+      graphics.strokePath();
+      graphics.beginPath();
+      graphics.moveTo(right, top);
+      graphics.lineTo(right, bottom);
+      graphics.strokePath();
+    }
+
+    return (bounds.colMax - bounds.colMin + 1) * (bounds.rowMax - bounds.rowMin + 1);
   }
 
   /**
@@ -3209,11 +3333,24 @@ export class GameScene extends Phaser.Scene {
    * blocked are re-routed from the cell they are standing on, so a tower that
    * lands in front of a marching wave makes it walk around instead of through.
    */
-  /** Cells occupied by keeps — the horde routes around these. */
+  /**
+   * Cells the horde must route around.
+   *
+   * Every standing keep counts. A wall counts **only when it stands on grass**:
+   * a wall dropped on the lane is a deliberate roadblock, and the horde is meant
+   * to stop and break it rather than take a detour — routing around that wall
+   * would make the whole tier system pointless.
+   */
   blockedBuildCells() {
     const blocked = [];
     for (const tower of this.activeTowers || []) {
-      if (!tower.isBarricade && !tower.isDestroyed) blocked.push(`${tower.row},${tower.col}`);
+      if (!tower || tower.isDestroyed) continue;
+      if (tower.isBarricade) {
+        if (this.map?.tiles?.[tower.row]?.[tower.col] === 'road') continue;
+        blocked.push(`${tower.row},${tower.col}`);
+        continue;
+      }
+      blocked.push(`${tower.row},${tower.col}`);
     }
     return blocked;
   }
@@ -3247,10 +3384,17 @@ export class GameScene extends Phaser.Scene {
     const graphics = this.laneHintGraphics;
     if (!graphics?.clear) return 0;
     graphics.clear();
-    const lanes = this.pathfinding?.lanes || [];
-    const lane = lanes[this.waveLaneIndex] || this.pathfinding?.mainPath;
-    if (!lane?.length) return 0;
-    return paintLaneHint(graphics, lane, TILE_SIZE);
+    // A base-defence board is attacked from every portal at once, so the hint
+    // marks **every** entrance: one beacon ring and a short run of chevrons per
+    // road, pointing the way each push will walk. Marking a single lane would
+    // now be a lie — the horde is dealt out across all three.
+    const lanes = (this.pathfinding?.lanes || []).filter((lane) => lane?.length);
+    if (!lanes.length) {
+      return paintLaneHint(graphics, this.pathfinding?.mainPath || [], TILE_SIZE);
+    }
+    let painted = 0;
+    for (const lane of lanes) painted += paintLaneHint(graphics, lane, TILE_SIZE);
+    return painted;
   }
 
   /** Move the entrance hint onto the lane `waveNumber` will walk. */

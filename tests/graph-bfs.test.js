@@ -120,21 +120,23 @@ describe('BFS shortest path', () => {
 
 describe('Game map + PathfindingSystem', () => {
   const map = parseMap(MAP_LAYOUT);
-  // The arena grammar is generated (see src/data/arenaLayout.js): 26 columns so
-  // the two gates and three crossings have room, portal on row 2, bastion on
-  // row 9 and the river on row 5 between them. Every cell below is derived from
-  // the board itself — a hand-typed coordinate would rot the moment a map moved.
-  const SPAWN = `${ARENA.portalRow},${ARENA.axisCol}`;
+  // The field grammar is generated (see src/data/arenaLayout.js): 32 columns,
+  // three ground portals on row 1 and one bastion on the bottom-centre column
+  // of row 10. Every cell below is derived from the board itself — a hand-typed
+  // coordinate would rot the moment a map moved.
+  const SPAWN = `${map.spawn.row},${map.spawn.col}`;
   const BASE = `${ARENA.baseRow},${ARENA.axisCol}`;
 
-  it('parses the generated arena with one spawn and one base', () => {
+  it('parses the generated field with three portals and one base', () => {
     expect(map.cols).toBe(ARENA.cols);
     expect(map.rows).toBe(ARENA.rows);
-    expect(map.spawn).toEqual({ row: ARENA.portalRow, col: ARENA.axisCol });
+    // The board is attacked from three directions, so it ships three portals.
+    expect(map.spawns).toHaveLength(3);
+    for (const spawn of map.spawns) expect(spawn.row).toBe(ARENA.portalRow);
+    expect(map.spawn).toEqual(map.spawns[0]);
     expect(map.base).toEqual({ row: ARENA.baseRow, col: ARENA.axisCol });
-    // Both gates keep a full row of terrain between them and the frame — see
-    // tests/map-margin.test.js.
-    expect(map.spawn.row).toBeGreaterThan(1);
+    // The portals keep a rim row above them and the bastion keeps one below it.
+    expect(map.spawn.row).toBeGreaterThan(0);
     expect(map.base.row).toBeLessThan(map.rows - 1);
   });
 
@@ -144,50 +146,49 @@ describe('Game map + PathfindingSystem', () => {
     expect(() => parseMap(['.##B'])).toThrow(/spawn/);
   });
 
-  it('finds a short route from the portal to the bastion on the real map', () => {
+  it('finds a short route from every portal to the bastion on the real map', () => {
     const pf = new PathfindingSystem(map);
     const res = pf.computeMainPath();
     expect(res.found).toBe(true);
     expect(res.path[0]).toBe(SPAWN);
     expect(res.path[res.path.length - 1]).toBe(BASE);
-    // A lane crosses the river exactly once and walks the length of the board.
-    expect(res.stats.pathNodes).toBeGreaterThanOrEqual(15);
-    expect(res.path.filter((key) => key.startsWith(`${ARENA.riverRow},`)).length).toBe(1);
+    // A lane walks from the top row of the field to the bastion row.
+    expect(res.stats.pathNodes).toBeGreaterThanOrEqual(10);
     for (const key of res.path) {
       const [r, c] = key.split(',').map(Number);
       expect(isWalkableTile(map.tiles[r][c])).toBe(true);
     }
+    // ...and every other portal has its own way in, too.
+    const lanes = pf.computeLanes();
+    expect(lanes).toHaveLength(map.spawns.length);
+    for (const lane of lanes) expect(lane[lane.length - 1]).toBe(BASE);
   });
 
   it('keeps the palisade out of the graph so the horde can never dodge it', () => {
     const pf = new PathfindingSystem(map);
-    pf.computeMainPath();
-    // The road directly under the portal is the tile a player walls off.
-    const underPortal = `${ARENA.portalRow + 1},${ARENA.axisCol}`;
+    const lanes = pf.computeLanes();
+    // The road directly under a portal is the tile a player walls off.
+    const underPortal = `${ARENA.portalRow + 1},${map.spawn.col}`;
     expect(pf.isRoad(underPortal)).toBe(true);
     const nodes = pf.graph.nodeCount();
-    pf.computeMainPath();
+    pf.computeLanes();
     expect(pf.graph.nodeCount()).toBe(nodes);
-    expect(pf.mainPath).toContain(underPortal);
+    expect(lanes.some((lane) => lane.includes(underPortal))).toBe(true);
   });
 
-  it('routes through the other bridge when one is blocked', () => {
+  it('reports every portal unreachable the moment a road is cut', () => {
     const pf = new PathfindingSystem(map);
-    const direct = pf.computeMainPath();
-    const bridgeOf = (path) => path.find((key) => key.startsWith(`${ARENA.riverRow},`));
-    const firstBridge = bridgeOf(direct.path);
-    const [bRow, bCol] = firstBridge.split(',').map(Number);
-    // A keep dropped on the landing short of that bridge closes it; the horde
-    // takes the other crossing rather than walking through the keep.
-    pf.setBlocked([`${bRow - 1},${bCol}`]);
-    const detour = pf.computeMainPath();
-    expect(detour.found).toBe(true);
-    expect(detour.path).not.toContain(`${bRow - 1},${bCol}`);
-    expect(bridgeOf(detour.path)).not.toBe(firstBridge);
-    expect(detour.path.length).toBeGreaterThanOrEqual(direct.path.length);
+    const lanes = pf.computeLanes();
     expect(pf.hasRoute()).toBe(true);
+    // The roads are single-cell staircases, so a block anywhere on one of them
+    // cuts that approach — which is exactly why a defence may never stand on a
+    // road tile (`PlacementSystem` refuses it before the check can happen).
+    const blocked = lanes[0][3];
+    pf.setBlocked([blocked]);
+    expect(pf.computeMainPath().found).toBe(false);
+    expect(pf.hasRoute()).toBe(false);
     pf.setBlocked([]);
-    expect(pf.computeMainPath().path).toContain(`${bRow - 1},${bCol}`);
+    expect(pf.hasRoute()).toBe(true);
   });
 
   it('reports no route when the bastion is walled in', () => {

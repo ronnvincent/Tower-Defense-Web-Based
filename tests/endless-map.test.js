@@ -10,6 +10,7 @@ import {
 } from '../src/data/mapData.js';
 import { ARENA } from '../src/data/arenaLayout.js';
 import { TILE_SIZE } from '../src/config/gameConfig.js';
+import { PathfindingSystem } from '../src/systems/PathfindingSystem.js';
 import { THEMES } from '../src/data/levelData.js';
 
 /**
@@ -73,20 +74,22 @@ describe('The Convergence layout', () => {
     const campaign = parseMap(MAP_LAYOUT);
     expect(map.cols).toBe(campaign.cols);
     expect(map.rows).toBe(campaign.rows);
-    // Portal above, bastion below, a river between them — the endless field
-    // reads as the same board as the campaign, only repainted.
+    // Three portals above, bastion below — the endless field reads as the same
+    // board as the campaign, only repainted.
+    expect(map.spawns).toHaveLength(3);
+    expect(map.airGates).toHaveLength(2);
     expect(map.spawn.row).toBeLessThan(map.base.row);
     expect(map.rows).toBe(ARENA.rows);
     expect(map.cols).toBe(ARENA.cols);
-    // 26x12 at 64 px still frames inside the camera's 0.45x floor.
+    // 32x12 at 64 px still frames inside the camera's 0.45x floor.
     const fit = Math.min(1280 / (map.cols * TILE_SIZE), 768 / (map.rows * TILE_SIZE));
     expect(fit).toBeGreaterThan(0.45);
   });
 
   it('runs a road long enough to matter', () => {
     const route = shortestPath(map);
-    // Two mirrored lane roads, 19 cells each: ~19 s at 62 px/s, long enough for
-    // the defence to work and short enough that wave 1 is not a waiting game.
+    // The three portal roads, 10-21 cells each: long enough for the defence to
+    // work and short enough that wave 1 is not a waiting game.
     expect(route.length).toBeGreaterThanOrEqual(15);
     // …but a creep must not take a minute and a half to reach the core at base
     // speed (62 px/s), or wave 1 would be a waiting game.
@@ -94,35 +97,33 @@ describe('The Convergence layout', () => {
     expect(seconds).toBeLessThan(75);
   });
 
-  it('puts water on the map and lets the road cross it', () => {
-    // The rift fills one full row except for the three bridges.
-    const water = map.tiles.flat().filter((tile) => tile === TILE.WATER).length;
-    expect(water).toBeGreaterThanOrEqual(12);
-    expect(map.tiles[ARENA.riverRow].filter((t) => t === TILE.WATER).length).toBeGreaterThan(12);
-
-    // The rift is the row holding the most water. Its walkable cells must form
-    // exactly two contiguous crossings — the two bridges — and nothing else
-    // (a grass gap in the rift would read as a third, unmarked crossing).
-    const isLane = (r, c) => {
-      const tile = map.tiles[r]?.[c];
-      return tile === TILE.ROAD || tile === TILE.SPAWN || tile === TILE.BASE;
-    };
-    const waterIn = map.tiles.map((row) => row.filter((tile) => tile === TILE.WATER).length);
-    const riftRow = waterIn.indexOf(Math.max(...waterIn));
-    expect(waterIn[riftRow]).toBeGreaterThan(0);
-    const crossings = [];
-    let run = 0;
-    for (let c = 0; c < map.cols; c += 1) {
-      if (isLane(riftRow, c)) run += 1;
-      else if (map.tiles[riftRow][c] !== TILE.WATER) throw new Error(`rift row ${riftRow} has a ${map.tiles[riftRow][c]} at col ${c}`);
-      else if (run) {
-        crossings.push(run);
-        run = 0;
+  it('keeps its scenery out of the build field and off the road', () => {
+    // The endless field follows the same rule as the campaign boards: the five
+    // rows around the bastion are open ground, and every rock or pond lives in
+    // the horde's muster ground above them.
+    const bounds = { rowMin: map.buildRow, rowMax: map.base.row, colMin: 2, colMax: map.cols - 3 };
+    const scenery = [];
+    for (let row = 0; row < map.rows; row += 1) {
+      for (let col = 0; col < map.cols; col += 1) {
+        const tile = map.tiles[row][col];
+        if (tile === TILE.ROCK || tile === TILE.WATER) scenery.push({ row, col, tile });
       }
     }
-    if (run) crossings.push(run);
-    // Three bridges on the endless field, one cell wide each.
-    expect(crossings).toEqual([1, 1, 1]);
+    expect(scenery.length, 'the board lost all of its scenery').toBeGreaterThan(40);
+    for (const cell of scenery) {
+      const inField =
+        cell.row >= bounds.rowMin &&
+        cell.row <= bounds.rowMax &&
+        cell.col >= bounds.colMin &&
+        cell.col <= bounds.colMax;
+      expect(inField, `${cell.row},${cell.col} blocks the build field`).toBe(false);
+    }
+    // …and none of it stands on a lane, so every approach stays walkable.
+    const lanes = new PathfindingSystem(map).computeLanes().flat();
+    const road = new Set(lanes);
+    for (const cell of scenery) {
+      expect(road.has(`${cell.row},${cell.col}`), `${cell.row},${cell.col} is on a road`).toBe(false);
+    }
   });
 });
 
@@ -145,16 +146,18 @@ describe('three biomes on one battlefield', () => {
     }
     // Three bands, not four: the crystal strip that used to sit under the keep
     // turned the whole player half lilac and made the bastion look dropped on a
-    // different map. The river is the seam, so the warm half starts there.
+    // different map. The bands are cut on the field grammar — the horde's
+    // muster ground is snow, the field line starts the dunes, and the caldera
+    // owns the rows around the bastion.
     expect(themes.has('crystal')).toBe(false);
     expect(grid[0][0]).toBe('ice');
     expect(grid[map.rows - 1][0]).toBe('volcanic');
     expect(grid[map.spawn.row][map.spawn.col]).toBe('ice');
     expect(grid[map.base.row][map.base.col]).toBe('volcanic');
-    // The water row itself stays desert-themed so the divider reads as water
-    // rather than as a lava flow.
-    expect(grid[ARENA.riverRow][0]).toBe('desert');
-    expect(grid[ARENA.riverRow + 1][0]).toBe('volcanic');
+    expect(grid[ARENA.buildRow - 1][0]).toBe('ice');
+    expect(grid[ARENA.buildRow][0]).toBe('desert');
+    expect(grid[ARENA.baseRow - 2][0]).toBe('desert');
+    expect(grid[ARENA.baseRow - 1][0]).toBe('volcanic');
   });
 
   it('makes the road travel from the snowfield into the caldera', () => {

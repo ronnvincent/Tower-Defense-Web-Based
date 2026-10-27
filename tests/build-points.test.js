@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { parseMap, getMapLayout, TILE } from '../src/data/mapData.js';
 import { cellKey } from '../src/dsa/Graph.js';
 import { PlacementSystem } from '../src/systems/PlacementSystem.js';
+import { zoneBlock } from '../src/systems/BuildZone.js';
 import { getLevel, LEVELS, ENDLESS_LEVEL, ALL_LEVELS } from '../src/data/levelData.js';
 import { getBuildDefinition } from '../src/data/towerData.js';
 
@@ -65,17 +66,16 @@ function sceneFor({ levelId = 'level-1', coins = 5000, towers = 0, maxTowers } =
 }
 
 /**
- * The first tile of `type` that is a legal build site on our side of the river.
- * Grass above the river is enemy ground since Request 22, and a road is never a
- * build site for a keep — so a blind top-left scan would return a cell that is
- * refused for a reason this file is not testing.
+ * The first tile of `type` that is a legal site inside the defence field.
+ * Anything above `buildRow` is the horde's muster ground and the rim is rock, so
+ * a blind top-left scan would return a cell refused for a reason this file is
+ * not testing.
  */
-function firstTile(map, type, { after = 0 } = {}) {
-  for (let row = Math.max(after, 0); row < map.rows; row += 1) {
-    for (let col = 0; col < map.cols; col += 1) {
+function firstTile(map, type) {
+  for (let row = map.buildRow; row <= map.base.row; row += 1) {
+    for (let col = 2; col <= map.cols - 3; col += 1) {
       if (map.tiles[row][col] !== type) continue;
-      // Keeps and palisades are both player-half objects.
-      if (row <= (map.riverRow ?? 0)) continue;
+      if (zoneBlock({ row, col }, map) !== null) continue;
       return { row, col };
     }
   }
@@ -140,8 +140,8 @@ describe('the cap is enforced where the ghost reads it', () => {
     // A capped, broke player is told about the tile first: the ghost must not
     // paint a rock green just because a build point is free.
     const scene = sceneFor({ towers: 0, coins: 0 });
-    const rock = firstTile(scene.map, TILE.ROCK);
-    expect(scene.validateBuild('archer', rock.row, rock.col).reason).toBe('blocked-tile');
+    // The rim is rock on every board — terrain answers before the budget does.
+    expect(scene.validateBuild('archer', 0, 0).reason).toBe('blocked-tile');
     // The portal landing ring outranks the gold check too (the portal tile
     // itself is not buildable ground, so the ring is probed one cell over).
     expect(scene.validateBuild('archer', scene.map.spawn.row, scene.map.spawn.col - 1).reason).toBe(
@@ -155,7 +155,7 @@ describe('the cap is enforced where the ghost reads it', () => {
   });
 
   it('counts the defence the player is about to buy, not the palisade', () => {
-    expect(getBuildDefinition('barricade').placement).toBe('road');
+    expect(getBuildDefinition('barricade').placement).toBe('wall');
     expect(getBuildDefinition('archer').placement).toBe('grass');
     const scene = sceneFor({ towers: 0 });
     scene.activeTowers.push({ isBarricade: true }, { isBarricade: false });

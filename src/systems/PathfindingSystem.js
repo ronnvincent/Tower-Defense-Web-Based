@@ -21,6 +21,27 @@ export function laneIndexForWave(waveNumber, laneCount) {
 }
 
 /**
+ * Which gate the next enemy of a wave walks out of.
+ *
+ * A base-defence board is attacked from **every** portal, so the horde is dealt
+ * out across them: the first enemy takes the first gate, the second the next,
+ * and so on, offset by the wave ordinal so two waves in a row do not open on the
+ * same gate. Deterministic, never random — a duel seat and a replay must produce
+ * byte-identical spawns.
+ *
+ * @param {number} spawnCounter how many enemies have already spawned this battle
+ * @param {number} waveNumber 1-based wave
+ * @param {number} gateCount portals the field offers (0 = no gates)
+ */
+export function gateIndexForSpawn(spawnCounter, waveNumber, gateCount) {
+  const count = Math.max(0, Math.floor(Number(gateCount) || 0));
+  if (!count) return 0;
+  const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
+  const tick = Math.max(0, Math.floor(Number(spawnCounter) || 0));
+  return (tick + wave - 1) % count;
+}
+
+/**
  * PathfindingSystem — connects the map, the Graph and BFS to gameplay.
  *
  * Responsibilities:
@@ -46,7 +67,12 @@ export class PathfindingSystem {
   constructor(map) {
     this.map = map;
     this.graph = buildGridGraph(map.rows, map.cols, (r, c) => isWalkableTile(map.tiles[r][c]));
-    this.spawnKey = cellKey(map.spawn.row, map.spawn.col);
+    // A base-defence board attacks from several portals at once. Every one of
+    // them is a start node the scene may spawn a wave from, and every one of
+    // them has to be able to reach the keep.
+    const spawns = Array.isArray(map.spawns) && map.spawns.length ? map.spawns : [map.spawn];
+    this.spawnKeys = spawns.map((s) => cellKey(s.row, s.col));
+    this.spawnKey = this.spawnKeys[0];
     this.baseKey = cellKey(map.base.row, map.base.col);
 
     this.mainPath = [];
@@ -124,63 +150,34 @@ export class PathfindingSystem {
    *   that has to be its own (0.2 = a fifth of it, at least 4 cells).
    * @returns {string[][]} lanes, shortest first
    */
-  computeLanes({ max = 3, tolerance = 0.35, minDifference = 0.2 } = {}) {
-    const shortest = this.computeMainPath();
-    if (!shortest.found) {
+  computeLanes({ max = 3 } = {}) {
+    if (!this.spawnKeys.length) {
       this.lanes = [];
       this.laneCells = new Set();
       return [];
     }
 
-    const limit = Math.ceil(this.mainPath.length * (1 + Math.max(0, tolerance)));
-    const accepted = [this.mainPath];
-    const pool = [];
-    const samePath = (a, b) => a.length === b.length && a.every((cell, i) => cell === b[i]);
-    const startsWith = (path, prefix) => prefix.every((cell, i) => path[i] === cell);
-    // How many of `candidate`'s cells are its own, given `other`.
-    const ownCells = (candidate, other) => {
-      const seen = new Set(other);
-      return candidate.reduce((count, cell) => count + (seen.has(cell) ? 0 : 1), 0);
-    };
-    const distinctEnough = (candidate) => {
-      const floor = Math.max(4, Math.round(candidate.length * Math.min(0.8, Math.max(0, minDifference))));
-      return accepted.every((path) => ownCells(candidate, path) >= floor);
-    };
-
-    while (accepted.length < Math.max(1, max)) {
-      const last = accepted[accepted.length - 1];
-      for (let i = 0; i < last.length - 1; i += 1) {
-        const spurNode = last[i];
-        const root = last.slice(0, i + 1);
-        // Yen's rule: no candidate may re-use an edge another accepted lane
-        // already left this root by, or it would just be that lane again.
-        const blockedEdges = new Set();
-        for (const path of accepted) {
-          if (path.length > i + 1 && startsWith(path, root)) {
-            blockedEdges.add(edgeKey(path[i], path[i + 1]));
-          }
-        }
-        const blocked = new Set(root.slice(0, -1));
-        const spur = this.#search(spurNode, this.baseKey, { blocked, blockedEdges }, `lane ${accepted.length + 1}`);
-        if (!spur.found) continue;
-        const total = root.slice(0, -1).concat(spur.path);
-        if (total.length > limit) continue;
-        if (accepted.some((path) => samePath(path, total))) continue;
-        if (pool.some((path) => samePath(path, total))) continue;
-        pool.push(total);
-      }
-      if (!pool.length) break;
-      pool.sort((a, b) => a.length - b.length);
-      // Take the shortest candidate that is genuinely a different road; if every
-      // one left is a corner-cut twin, this map simply has fewer lanes.
-      const index = pool.findIndex(distinctEnough);
-      if (index < 0) break;
-      accepted.push(pool.splice(index, 1)[0]);
+    // One lane per portal. Before the base-defence layout the variety came from
+    // Yen's k-shortest routes through a single spawn; now the board itself
+    // offers the variety — three portals, three roads — and each lane is simply
+    // the shortest road from its own gate. That keeps the rule the player can
+    // see ("the road from that portal goes there") and removes the corner-cut
+    // twins Yen used to have to filter out.
+    const lanes = [];
+    const seen = new Set();
+    for (const key of this.spawnKeys) {
+      const result = this.#search(key, this.baseKey, {}, `spawn ${key} → base`);
+      if (!result.found) continue;
+      const signature = result.path.join('>');
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+      lanes.push(result.path);
     }
 
-    this.lanes = accepted;
-    this.laneCells = new Set(accepted.flat());
-    return accepted;
+    this.lanes = lanes.slice(0, Math.max(1, max));
+    this.mainPath = this.lanes[0] || [];
+    this.laneCells = new Set(this.lanes.flat());
+    return this.lanes;
   }
 
   /** The lane an enemy should walk, clamped to the lanes that exist. */
@@ -195,10 +192,17 @@ export class PathfindingSystem {
     return this.#search(startKey, this.baseKey, {}, purpose);
   }
 
-  /** Can the horde still reach the bastion with the current obstacles? */
+  /** Can the horde still reach the bastion from **every** portal? */
   hasRoute() {
-    if (!this.extraBlocked.size) return this.mainPath.length > 0;
-    return this.#search(this.spawnKey, this.baseKey, {}, 'route check').found;
+    if (!this.spawnKeys.length) return false;
+    // With nothing blocked, the lanes computed at load are the answer. Reading
+    // `mainPath` here would be reading whatever the *last* search left behind —
+    // a blocked run that failed leaves it empty, and the road would look cut
+    // long after the block was lifted.
+    if (!this.extraBlocked.size) return this.lanes.length === this.spawnKeys.length || this.mainPath.length > 0;
+    return this.spawnKeys.every(
+      (key) => this.#search(key, this.baseKey, {}, 'route check').found
+    );
   }
 
   /** True when a cell belongs to the walkable road network. */

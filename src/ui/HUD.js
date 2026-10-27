@@ -1356,9 +1356,7 @@ export class HUD {
         ? `★${tower.level} · MAX`
         : `★${tower.level}`
       : tower.isBarricade
-        ? tower.level > 1
-          ? `★${tower.level} · REINFORCED`
-          : `★${tower.level}`
+        ? `★${tower.level} · ${String(tower.def?.levels?.[tower.level - 1]?.title || 'WALL').toUpperCase()}`
         : `★ Level ${tower.level}`;
 
     document.getElementById('inspect-name').textContent = tower.stats?.title || tower.def.name;
@@ -1382,22 +1380,26 @@ export class HUD {
       const hp = Math.max(0, Math.round(tower.health ?? tower.stats?.health ?? 0));
       const maxHp = Math.max(1, Math.round(tower.maxHealth ?? tower.stats?.health ?? 1));
       const pct = Math.round((hp / maxHp) * 100);
+      const tierName = tower.def?.levels?.[tower.level - 1]?.title || 'Wall';
+      const nextTier = tower.nextUpgrades?.[0] || null;
       statsGrid.innerHTML = `
-        <div class="stat-cell full-width">
-          <span class="lbl">ROLE</span>
-          <span class="val">Solid wall — enemies stop and break it down</span>
-        </div>
+        <div class="stat-cell"><span class="lbl">TIER</span><span class="val">${tower.level} / ${tower.def?.levels?.length || 5}</span></div>
+        <div class="stat-cell"><span class="lbl">MATERIAL</span><span class="val">${tierName}</span></div>
         <div class="stat-cell full-width">
           <span class="lbl">STRUCTURE</span>
-          <span class="val">${hp} / ${maxHp} HP (${pct}%)</span>
+          <span class="val" id="inspect-structure-hp">${hp} / ${maxHp} HP (${pct}%)</span>
         </div>
         <div class="stat-cell full-width">
           <span class="lbl">THORNS RETALIATION</span>
           <span class="val">${thorns > 0 ? `${thorns} damage per second to attackers` : 'None at level 1'}</span>
         </div>
         <div class="stat-cell full-width">
-          <span class="lbl">TARGETS</span>
-          <span class="val">GROUND ONLY — spikes are set in the road</span>
+          <span class="lbl">BLOCKS</span>
+          <span class="val">Ground creeps must break it — flyers pass over</span>
+        </div>
+        <div class="stat-cell full-width">
+          <span class="lbl">NEXT TIER</span>
+          <span class="val">${nextTier ? `${nextTier.title} · ${nextTier.health} HP · ${nextTier.upgradeCost} gold` : 'Fully upgraded'}</span>
         </div>
       `;
     } else {
@@ -1414,6 +1416,7 @@ export class HUD {
         <div class="stat-cell"><span class="lbl">TARGETS</span><span class="val targets-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}">${targetLabel(tower.def)}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SIGNATURE</span><span class="val">${this.describeAbility(s)}</span></div>
+        <div class="stat-cell full-width"><span class="lbl">STRUCTURE</span><span class="val" id="inspect-structure-hp">${Math.max(0, Math.round(tower.health ?? 0))} / ${Math.max(1, Math.round(tower.maxHealth ?? 1))} HP</span></div>
       `;
     }
 
@@ -2131,6 +2134,16 @@ export class HUD {
       this.updateActionAffordability(this.inspectedTower);
       const refund = document.getElementById('inspect-sell-refund');
       if (refund) refund.textContent = this.inspectedTower.sellRefund;
+      // Live structure HP: the panel must read the same number as the bar over
+      // the wall, or a player watching a wall crumble sees two different truths.
+      const hpCell = document.getElementById('inspect-structure-hp');
+      if (hpCell) {
+        const tower = this.inspectedTower;
+        const hp = Math.max(0, Math.round(tower.health ?? 0));
+        const maxHp = Math.max(1, Math.round(tower.maxHealth ?? 1));
+        const pct = Math.round((hp / maxHp) * 100);
+        hpCell.textContent = tower.isBarricade ? `${hp} / ${maxHp} HP (${pct}%)` : `${hp} / ${maxHp} HP`;
+      }
     }
     if (this.selectedBuildKey) this.setPlacementHint(this.selectedBuildKey);
   }

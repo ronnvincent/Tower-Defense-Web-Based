@@ -57,58 +57,58 @@ function dedupe(cells) {
 }
 
 /**
- * The three mouths a flyer can enter from.
+ * The mouths a flyer can enter from.
  *
- * Spread wide on purpose: the bastion column, the portal column and the middle
- * of the board. A single-column sky would make every anti-air tower a clone of
- * the one next to it, because the same three cells would cover every wave.
+ * A base-defence board has **two sky gates** cut into the side walls — the one
+ * place a road cannot reach — plus the central portal's own airspace, so a wave
+ * of flyers can come in from the left, the middle or the right. Boards without
+ * gates (older layouts, and the synthetic maps the tests build) fall back to
+ * three spread columns across the top.
  */
 export function airMouths(map) {
   const cols = map.cols || map.tiles?.[0]?.length || 0;
   if (!cols) return [];
+  const gates = (Array.isArray(map.airGates) ? map.airGates : []).map((gate) => ({
+    row: gate.row,
+    col: gate.col,
+  }));
+  const axis = map.base?.col ?? Math.floor(cols / 2);
+  const mouths = gates.slice(0, 2);
+  // The central lane: a flyer can also come straight over the main portal.
+  const centreRow = Number.isFinite(map.spawns?.[0]?.row) ? map.spawns[0].row : 1;
+  mouths.push({ row: Math.max(0, centreRow), col: clampCol(axis, cols) });
+  if (mouths.length >= 3) return mouths;
+  // Fallback spread for a board with no gates at all.
   const portal = map.spawn?.col ?? Math.floor(cols / 2);
-  const bastion = map.base?.col ?? Math.floor(cols / 2);
-  const middle = Math.floor((portal + bastion) / 2);
-  // A board whose portal and bastion share a column (level 2 runs straight down
-  // the middle) would otherwise get a single sky lane, and one lane means one
-  // anti-air tower covers every flyer in the run. The offsets below guarantee a
-  // left / middle / right choice on every board.
-  const candidates = [portal, middle, bastion, portal - 5, portal + 5, middle - 8, middle + 8];
-  const seen = new Set();
-  const mouths = [];
-  for (const col of candidates) {
+  const middle = Math.floor((portal + axis) / 2);
+  for (const col of [portal, middle, portal - 6, portal + 6]) {
     if (mouths.length >= 3) break;
     const c = clampCol(col, cols);
-    if (seen.has(c)) continue;
-    seen.add(c);
-    mouths.push(c);
+    if (mouths.some((mouth) => mouth.col === c)) continue;
+    mouths.push({ row: 1, col: c });
   }
-  return mouths;
+  return mouths.slice(0, 3);
 }
 
 /**
  * Build the sky lanes for one board.
  *
- * @param {{rows:number, cols:number, spawn:{row,col}, base:{row,col}}} map
- * @param {{mouthRow?:number, bendRow?:number}} [options]
+ * @param {{rows:number, cols:number, spawns?:Array, spawn:{row,col}, airGates?:Array, base:{row,col}}} map
+ * @param {{bendRow?:number}} [options]
  * @returns {{ lanes: string[][], mouths: number[], laneAt: (index:number)=>string[] }}
  */
 export function buildAirRoutes(map, options = {}) {
   const rows = map.rows || map.tiles?.length || 0;
   const cols = map.cols || map.tiles?.[0]?.length || 0;
   const base = { row: map.base?.row ?? rows - 3, col: map.base?.col ?? Math.floor(cols / 2) };
-  // Flyers cross the top rim: one row above the portal, which is where the
-  // spawner's own ground lanes begin, so both arrive "from the north".
-  const mouthRow = Math.max(0, Math.min(rows - 2, options.mouthRow ?? 1));
-  // The bend is the row where the sky lane turns toward the bastion. Halfway
-  // down is late enough to stay wide over the river and early enough to give a
-  // ground player time to swing a tower around.
-  const bendRow = Math.max(mouthRow + 1, Math.min(base.row - 1, options.bendRow ?? Math.round((mouthRow + base.row) / 2)));
+  // The bend is the row where the sky lane turns onto the bastion column.
+  // Halfway down is late enough to stay wide over the field and early enough to
+  // give a ground player time to swing a tower around.
+  const bendRow = Math.max(2, Math.min(base.row - 1, options.bendRow ?? Math.round((1 + base.row) / 2)));
 
   const mouths = airMouths(map);
-  const lanes = mouths.map((col) => {
-    const mouth = { row: mouthRow, col };
-    const bend = { row: bendRow, col };
+  const lanes = mouths.map((mouth) => {
+    const bend = { row: bendRow, col: base.col };
     const approach = { row: Math.max(bend.row, base.row - 1), col: base.col };
     if (approach.row === base.row) return dedupe([...flightCells(mouth, bend), ...flightCells(bend, base)]);
     return dedupe([...flightCells(mouth, bend), ...flightCells(bend, approach), ...flightCells(approach, base)]);
@@ -116,9 +116,9 @@ export function buildAirRoutes(map, options = {}) {
 
   return {
     lanes,
-    mouths,
+    mouths: mouths.map((mouth) => mouth.col),
     laneCount: lanes.length,
-    /** Same rotation rule as the ground lanes: the wave ordinal picks the lane. */
+    /** Same rotation rule as the ground lanes: the spawn ordinal picks the lane. */
     laneAt(index) {
       if (!lanes.length) return [];
       const safe = ((Math.floor(Number(index) || 0) % lanes.length) + lanes.length) % lanes.length;

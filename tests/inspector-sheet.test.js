@@ -238,11 +238,18 @@ describe('what the upgrade bar promises', () => {
       makeTower({
         isBarricade: true,
         level: 2,
-        stats: { title: 'Reinforced Palisade', health: 900, thornsDamage: 20 },
+        stats: { title: 'Reinforced Palisade', health: 1000, thornsDamage: 15 },
+        def: {
+          name: 'Wall',
+          levels: [
+            { title: 'Wooden Palisade', health: 500 },
+            { title: 'Reinforced Wood Wall', health: 1000 },
+          ],
+        },
         nextUpgrades: [],
       })
     );
-    expect(document.getElementById('inspect-level').textContent).toBe('★2 · REINFORCED');
+    expect(document.getElementById('inspect-level').textContent).toBe('★2 · REINFORCED WOOD WALL');
     expect(document.getElementById('inspect-name').textContent).toBe('Reinforced Palisade');
   });
 });

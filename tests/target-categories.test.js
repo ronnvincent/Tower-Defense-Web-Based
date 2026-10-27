@@ -10,7 +10,8 @@ import {
   targetLabel,
 } from '../src/systems/TargetCategories.js';
 import { TOWER_TYPES } from '../src/data/towerData.js';
-import { ENGINEER_TOWER_TYPES, BARRICADE } from '../src/data/engineerDefenses.js';
+import { ENGINEER_TOWER_TYPES } from '../src/data/engineerDefenses.js';
+import { BARRICADE } from '../src/data/towerData.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { Enemy } from '../src/entities/Enemy.js';
 import { Projectile } from '../src/entities/Projectile.js';
@@ -97,7 +98,7 @@ describe('the roster declares what it can hit', () => {
     // A wall is ground-only by construction (spikes in the road). The engineer
     // roster is deliberately narrow: gunpowder, acid and a harpoon are all
     // things you point at the ground.
-    expect(groundOnly).toEqual(['cannon', 'forge', 'harpoon', 'venom']);
+    expect(groundOnly).toEqual(['barricade', 'cannon', 'forge', 'harpoon', 'venom']);
   });
 
   it('keeps an anti-air answer in the starter roster', () => {

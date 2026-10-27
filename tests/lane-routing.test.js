@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { MAPS, parseMap, isWalkableTile } from '../src/data/mapData.js';
 import { PVP_ARENAS } from '../src/data/pvpArenas.js';
-import { PathfindingSystem, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
+import { PathfindingSystem, gateIndexForSpawn, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
 import {
   LANE_ARROW_DEPTH,
   LANE_HINT_STEPS,
@@ -57,10 +57,13 @@ describe('multi-lane routing', () => {
   it('runs every lane from the gate to the core, without repeating a cell', () => {
     for (const [name, layout] of BATTLEFIELDS) {
       const { map, lanes } = build(layout);
-      const spawn = `${map.spawn.row},${map.spawn.col}`;
+      // One lane per portal: each lane starts at *a* gate, and every gate owns
+      // exactly one lane.
+      const gates = map.spawns.map((spawn) => `${spawn.row},${spawn.col}`);
       const base = `${map.base.row},${map.base.col}`;
+      expect(lanes.map((lane) => lane[0]).sort()).toEqual([...gates].sort());
       lanes.forEach((lane, index) => {
-        expect(lane[0], `${name} lane ${index + 1} does not start at the gate`).toBe(spawn);
+        expect(gates, `${name} lane ${index + 1} does not start at a gate`).toContain(lane[0]);
         expect(lane[lane.length - 1], `${name} lane ${index + 1} does not end at the core`).toBe(base);
         expect(new Set(lane).size, `${name} lane ${index + 1} loops`).toBe(lane.length);
       });
@@ -80,15 +83,17 @@ describe('multi-lane routing', () => {
     }
   });
 
-  it('keeps the routes comparable in length', () => {
-    // Yen's tolerance is 35 %; a lane that took half a map longer would simply
-    // never be used, so the length spread is the proof the fork is real.
+  it('gives every route a real march, none of them a shortcut', () => {
+    // The three portals are not equidistant any more — a flank starts further
+    // from the keep than the middle gate does — but no approach may be so short
+    // that the wave is on the bastion before the player has built anything.
     for (const [name, layout] of BATTLEFIELDS) {
       const { lanes } = build(layout);
       const shortest = Math.min(...lanes.map((lane) => lane.length));
       const longest = Math.max(...lanes.map((lane) => lane.length));
+      expect(shortest, `${name} has a ${shortest}-cell lane`).toBeGreaterThanOrEqual(9);
       expect(longest, `${name} lanes are ${shortest} vs ${longest} cells`).toBeLessThanOrEqual(
-        Math.ceil(shortest * 1.35)
+        shortest * 2 + 4
       );
     }
   });
@@ -156,15 +161,17 @@ describe('one lane per wave', () => {
     expect(laneIndexForWave(9, 0)).toBe(0);
   });
 
-  it('deals every enemy of a wave — boss included — onto the same lane', () => {
-    // This is the rule GameScene.spawnEnemy applies: the lane never varies
-    // inside a wave, whatever the spawn order is.
-    const laneOf = (wave) => laneIndexForWave(wave, 3);
+  it('deals a wave out across every gate instead of one road', () => {
+    // This is the rule GameScene.spawnEnemy applies: consecutive enemies take
+    // the next portal, so one wave arrives from all three directions at once.
     const wave = 2;
-    const spawns = [0, 1, 2, 3, 4, 5, 6, 7];
-    expect(new Set(spawns.map(() => laneOf(wave)))).toEqual(new Set([1]));
-    // …and the next wave really is a different road.
-    expect(laneOf(wave + 1)).not.toBe(laneOf(wave));
+    const gates = Array.from({ length: 9 }, (_, tick) => gateIndexForSpawn(tick, wave, 3));
+    expect(gates).toEqual([1, 2, 0, 1, 2, 0, 1, 2, 0]);
+    expect(new Set(gates).size).toBe(3);
+    // The wave ordinal shifts the rotation, so two waves never open alike.
+    expect(gateIndexForSpawn(0, wave, 3)).not.toBe(gateIndexForSpawn(0, wave + 1, 3));
+    // A board with no gates cannot divide by zero.
+    expect(gateIndexForSpawn(4, 3, 0)).toBe(0);
   });
 
   it('reaches every lane of every battlefield over a run', () => {
@@ -179,10 +186,10 @@ describe('one lane per wave', () => {
   it('wraps in both directions and never returns undefined', () => {
     const pf = new PathfindingSystem(parseMap(MAPS.grassland));
     pf.computeLanes();
-    // The arena grammar gives every map the same two mirrored lanes, so the
-    // wrap is checked against the live lane count instead of a fixed three.
+    // The field grammar gives every map three lanes (one per portal), and the
+    // wrap is checked against the live count rather than a fixed number.
     const n = pf.lanes.length;
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     expect(pf.laneAt(0)).toEqual(pf.lanes[0]);
     expect(pf.laneAt(n)).toEqual(pf.lanes[0]);
     expect(pf.laneAt(n + 1)).toEqual(pf.lanes[1]);
@@ -313,9 +320,10 @@ describe('lane entrance hint', () => {
     expect(ice).toHaveLength(3);
     expect([...labels].sort()).toEqual(['CENTRE', 'LEFT', 'RIGHT']);
     expect(new Set(labels).size).toBe(3);
-    // Two-lane boards get the two flanks, never a centre for a flank road.
-    const two = lanesOf(MAPS.grassland).map((_, index, all) => laneLabel(all, index));
-    expect([...two].sort()).toEqual(['LEFT', 'RIGHT']);
+    // The plain field has three lanes — one per portal — so it gets the left,
+    // the centre and the right, one label each.
+    const three = lanesOf(MAPS.grassland).map((_, index, all) => laneLabel(all, index));
+    expect([...three].sort()).toEqual(['CENTRE', 'LEFT', 'RIGHT']);
     for (const [name, layout] of BATTLEFIELDS) {
       const lanes = lanesOf(layout);
       lanes.forEach((_, index) => {

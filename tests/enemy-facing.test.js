@@ -277,8 +277,8 @@ describe('Enemy facing: the head points down the lane', () => {
       {
         onReachedBase: () => {},
         onDefeated: () => {},
-        getBarricadeAt: () => wall,
-        onBarricadeHit: () => {},
+        getStructureAt: () => wall,
+        onStructureHit: () => {},
       },
       {}
     );

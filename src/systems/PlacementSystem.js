@@ -14,15 +14,15 @@ export const PLACEMENT_ERRORS = {
   'out-of-bounds': 'Outside the battlefield',
   'blocked-tile': 'Rocks and water cannot be built on',
   'road-tile': 'Towers cannot be built on the road',
-  'needs-road': 'Barricades must be placed on the road',
+  'needs-road': 'Walls need open ground — grass or the road',
   endpoint: 'Cannot block the spawn portal or the base',
   occupied: 'This tile is already occupied',
   'no-coins': 'Not enough coins',
   'max-towers': 'Every build point is taken — sell a keep to raise another',
   'enemy-on-tile': 'An enemy is on this tile',
   'off-route': 'No enemies march through this tile',
-  'not-a-slot': 'Keeps stand on the marked pads — pick a ring',
-  'enemy-half': 'The far bank is the horde’s ground — build on our side of the river',
+  'not-a-slot': 'That spot is not free ground',
+  'enemy-half': 'That ground belongs to the horde — build below the road line',
   'spawn-zone': 'That is the portal landing ground — the horde spawns here',
   'base-zone': 'That is the bastion plaza — leave the gate room',
   'no-route': 'That keep would seal the only road to the bastion',
@@ -80,14 +80,16 @@ export class PlacementSystem {
     if (!this.inBounds(row, col)) return fail('out-of-bounds');
     const type = this.map.tiles[row][col];
 
-    if (definition.placement === 'road') {
-      // A palisade is a road object: it is dropped on the lane the horde walks,
-      // and only on our side of the river — a wall on the far bank would be met
-      // before the horde has even crossed, which is not what the card promises.
+    if (definition.placement === 'wall') {
+      // A wall is a real structure: it may stand on the grass as part of a
+      // perimeter, or across the road as a deliberate roadblock. What it may
+      // never do is sit on a gate, in the horde's muster ground, or in the
+      // bastion plaza — the same map rules a keep obeys.
       if (type === TILE.SPAWN || type === TILE.BASE) return fail('endpoint');
-      if (type !== TILE.ROAD) return fail('needs-road');
+      if (type !== TILE.GRASS && type !== TILE.ROAD) return fail('blocked-tile');
+      const zone = zoneBlock({ row, col }, this.map);
+      if (zone) return fail(zone);
       if (!onPlayerGround({ row, col }, this.map)) return fail('enemy-half');
-      if (options.route && !options.route.has(cellKey(row, col))) return fail('off-route');
     } else {
       // Keeps stand on the grass **beside** the lane. Not on the lane: the road
       // is the path the horde walks, and a tower dropped on it either rerouted

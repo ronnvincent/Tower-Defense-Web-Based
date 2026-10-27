@@ -424,44 +424,81 @@ const CORE_TOWER_TYPES = {
 };
 
 /**
- * Palisade: a solid wall placed on a ROAD tile.
+ * Wall: the defensive structure that makes a base-defence layout work.
  *
- * Enemies do NOT path around it — the BFS route is the shortest road route and
- * the horde follows it. When the next waypoint holds a palisade the enemy stops
- * and hammers the stakes until the wall breaks (see `Enemy.update`). That makes
- * the palisade a real time-buying wall instead of a detour generator, and it
- * gives the reinforced tier a reason to exist: contact thorns punish attackers.
+ * A wall can be raised on **any** buildable ground inside the field — grass for a
+ * perimeter, road for a deliberate roadblock. Enemies do not path around it: the
+ * lane keeps its route and the first creep to reach a wall segment stops and
+ * hammers it until it falls (see `Enemy.updateSiege`). That makes walls real
+ * time-buying obstacles, and it makes the five tiers matter, because every tier
+ * buys more seconds and punishes the attackers harder.
  *
- *   health       – structure hit points; the wall is destroyed at 0
- *   thornsDamage – damage per second dealt to enemies attacking/passing it
+ *   cost         – gold to raise a level-1 segment
+ *   health       – structure hit points at that tier; the wall falls at 0
+ *   thornsDamage – damage per second dealt to anything attacking it
+ *   upgradeCost  – gold to raise the previous tier to this one
+ *
+ * Health climbs 500 → 1000 → 2000 → 3600 → 6000: each tier roughly doubles the
+ * time a wall buys, without letting a level-5 wall make the horde irrelevant.
+ * Upgrade cost climbs with it (60/100/170/260), so a full perimeter of maxed
+ * walls is a late-game investment, not an opening move.
  */
 export const BARRICADE = {
   key: 'barricade',
-  name: 'Palisade',
+  name: 'Wall',
   hotkey: '4',
-  cost: 30,
-  description: 'A solid wall on the road. Enemies must break it down — it buys time and blocks them in your kill zone.',
-  placement: 'road',
+  cost: 40,
+  description: 'A wall segment for your perimeter. Enemies must break through it — raise it on grass or across the road.',
+  placement: 'wall',
   // A wall is not a weapon. Its only damage is contact thorns, set in the road,
   // so it must not claim the sky: the dock badge said BOTH for a pile of stakes.
   targetsAir: false,
+  structure: true,
   levels: [
     {
       level: 1,
       title: 'Wooden Palisade',
-      health: 420,
+      health: 500,
       thornsDamage: 0,
+      description: 'A line of sharpened stakes. Cheap, quick, and it buys a few seconds.',
     },
     {
       level: 2,
-      title: 'Reinforced Palisade',
-      upgradeCost: 35,
-      health: 900,
-      thornsDamage: 20,
-      description: 'Iron-sheathed stakes with 900 HP that deal 20 damage per second to everything clawing at it.',
+      title: 'Reinforced Wood Wall',
+      upgradeCost: 60,
+      health: 1000,
+      thornsDamage: 15,
+      description: 'Iron-banded planks with 1000 HP that deal 15 damage per second to everything clawing at them.',
+    },
+    {
+      level: 3,
+      title: 'Stone Wall',
+      upgradeCost: 100,
+      health: 2000,
+      thornsDamage: 30,
+      description: 'Laid stone, 2000 HP. The first tier that holds a lane on its own.',
+    },
+    {
+      level: 4,
+      title: 'Fortified Stone Wall',
+      upgradeCost: 170,
+      health: 3600,
+      thornsDamage: 50,
+      description: 'Crenellated stone with iron studs, 3600 HP and 50 thorns.',
+    },
+    {
+      level: 5,
+      title: 'Imperial Fortress Wall',
+      upgradeCost: 260,
+      health: 6000,
+      thornsDamage: 80,
+      description: 'Gold-trimmed rampart, 6000 HP. The last tier — and the horde knows it.',
     },
   ],
 };
+
+/** Maximum wall tier; the upgrade button is disabled above it. */
+export const WALL_MAX_LEVEL = BARRICADE.levels.length;
 
 /** Order of build buttons in the dock (also the keyboard 1–7 order). */
 /**

@@ -177,11 +177,9 @@ export const LEVELS = [
     // The bastion is held from marked pads, not from any patch of grass: the
     // battlefield derives sixteen of them in the lower defence zone (rows 4-7,
     // between the top bar and the forge dock), at least two tiles apart and
-    // within artillery reach of the roads (see `systems/BuildSlots.js`). A stage
     // without this field keeps free placement.
     // Pads are hints, not a rule: they mark good overwatch on free ground. The
     // row band now covers both halves of the arena for the same reason.
-    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     // Waves open themselves: 20 s to make the opening build, 10 s to spend each
     // clear bonus. The button still calls a wave in early for the bounty.
     wavePrep: { firstMs: 20000, betweenMs: 10000 },
@@ -202,8 +200,6 @@ export const LEVELS = [
     baseHealth: 25,
     // The bastion is held from marked pads on every campaign stage, not just the
     // opening one: sixteen pads derived from that battlefield's own roads, in the
-    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
-    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.15,
     reward: { gold: 200, gems: 6 },
     stars: { two: 0.5, three: 0.85 },
@@ -283,8 +279,6 @@ export const LEVELS = [
     baseHealth: 25,
     // The bastion is held from marked pads on every campaign stage, not just the
     // opening one: sixteen pads derived from that battlefield's own roads, in the
-    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
-    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.3,
     reward: { gold: 260, gems: 8 },
     stars: { two: 0.5, three: 0.85 },
@@ -369,8 +363,6 @@ export const LEVELS = [
     baseHealth: 25,
     // The bastion is held from marked pads on every campaign stage, not just the
     // opening one: sixteen pads derived from that battlefield's own roads, in the
-    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
-    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.45,
     reward: { gold: 320, gems: 10 },
     stars: { two: 0.5, three: 0.85 },
@@ -468,8 +460,6 @@ export const LEVELS = [
     baseHealth: 25,
     // The bastion is held from marked pads on every campaign stage, not just the
     // opening one: sixteen pads derived from that battlefield's own roads, in the
-    // band between the top bar and the forge dock (see `systems/BuildSlots.js`).
-    buildSlots: { max: 16, reach: 2, spacing: 2, minRow: 2, maxRow: 9 },
     enemyHealthScale: 1.6,
     reward: { gold: 380, gems: 14 },
     stars: { two: 0.5, three: 0.85 },

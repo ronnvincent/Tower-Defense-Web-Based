@@ -48,7 +48,7 @@ export const PUZZLES = Object.freeze([
     baseHealth: 20,
     preplaced: [
       { key: 'cannon', row: 6, col: 7 },
-      { key: 'archer', row: 6, col: 17 },
+      { key: 'archer', row: 5, col: 16 },
     ],
     waves: [
       {
@@ -76,8 +76,8 @@ export const PUZZLES = Object.freeze([
     startingCoins: 140,
     baseHealth: 22,
     preplaced: [
-      { key: 'frost', row: 6, col: 12 },
-      { key: 'frost', row: 6, col: 17 },
+      { key: 'frost', row: 7, col: 11 },
+      { key: 'frost', row: 5, col: 16 },
     ],
     waves: [
       { name: 'Sprint', groups: [{ type: 'runner', count: 14, interval: 380 }] },
@@ -107,7 +107,7 @@ export const PUZZLES = Object.freeze([
     baseHealth: 20,
     preplaced: [
       { key: 'forge', row: 6, col: 6 },
-      { key: 'archer', row: 6, col: 17 },
+      { key: 'archer', row: 5, col: 16 },
     ],
     waves: [
       {
@@ -142,7 +142,7 @@ export const PUZZLES = Object.freeze([
     blurb: 'One mortar on the east wall and 90 gold. Hold the line anyway.',
     startingCoins: 90,
     baseHealth: 18,
-    preplaced: [{ key: 'cannon', row: 6, col: 12 }],
+    preplaced: [{ key: 'cannon', row: 7, col: 11 }],
     waves: [
       {
         name: 'Probe',
@@ -178,7 +178,7 @@ export const PUZZLES = Object.freeze([
     baseHealth: 22,
     preplaced: [
       { key: 'frost', row: 7, col: 7 },
-      { key: 'frost', row: 7, col: 13 },
+      { key: 'frost', row: 7, col: 12 },
     ],
     waves: [
       {

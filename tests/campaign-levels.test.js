@@ -69,16 +69,23 @@ describe('campaign level wiring', () => {
     expect(initOf('level-9').level).toBe(getLevel('level-1'));
   });
 
-  it('gives every level a playable map with a spawn, a base and a BFS route', () => {
+  it('gives every level three portals, one base and a road from each portal', () => {
     for (const level of ALL_LEVELS) {
       const map = mapOf(level.id);
       const cells = map.tiles.flat();
-      expect(cells.filter((t) => t === TILE.SPAWN).length, `${level.id} spawn`).toBe(1);
+      // A base-defence stage attacks from three directions: three portals, one
+      // bastion, and two sky gates the flyers come in through.
+      expect(cells.filter((t) => t === TILE.SPAWN).length, `${level.id} spawns`).toBe(3);
       expect(cells.filter((t) => t === TILE.BASE).length, `${level.id} base`).toBe(1);
+      expect(cells.filter((t) => t === TILE.AIR).length, `${level.id} sky gates`).toBe(2);
 
       const pathfinding = new PathfindingSystem(map);
-      pathfinding.computeMainPath();
-      expect(pathfinding.mainPath.length, `${level.id} has no route`).toBeGreaterThan(6);
+      const lanes = pathfinding.computeLanes();
+      expect(lanes.length, `${level.id} has ${lanes.length} lanes`).toBe(3);
+      for (const lane of lanes) {
+        expect(lane.length, `${level.id} has a stub lane`).toBeGreaterThan(6);
+        expect(lane[lane.length - 1]).toBe(`${map.base.row},${map.base.col}`);
+      }
       expect(pathfinding.routeLength).toBe(pathfinding.mainPath.length);
     }
   });

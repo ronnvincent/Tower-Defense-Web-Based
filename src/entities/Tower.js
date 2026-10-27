@@ -71,20 +71,10 @@ export class Tower {
 
     if (this.isBarricade) {
       const tier = BARRICADE_VISUALS[1];
-      // Palisade art is bottom-anchored on the tile's ground line, nudged down
-      // by the art's own skirt so the stakes stand *on* the road.
-      this.sprite = scene.add
-        .image(0, TILE_SIZE / 2 + tier.offsetY * 0.25, tier.key)
-        .setOrigin(0.5, 1);
+      // Wall art fills its tile edge to edge, so two segments laid side by side
+      // read as one continuous rampart instead of two separate props.
+      this.sprite = scene.add.image(0, 4, tier.key);
       this.container.add(this.sprite);
-
-      // Palisades are attackable: track their structure HP and draw a bar.
-      this.maxHealth = this.def.levels[this.level - 1].health;
-      this.health = this.maxHealth;
-      this.isDestroyed = false;
-      this.healthBar = scene.add.graphics();
-      this.container.add(this.healthBar);
-      this.updateHealthBar();
     } else {
       // Static structure (steps, keep, plinth) anchored to the tile's ground line.
       this.baseSprite = scene.add
@@ -116,6 +106,20 @@ export class Tower {
       this.updateLevelIndicator();
     }
 
+    // Every defence is a structure now, not only the wall: a keep has hit
+    // points, a health bar and a destroyed state, because the horde attacks
+    // whatever stands in its reach (Request 42 §3).
+    this.isStructure = true;
+    this.isDestroyed = false;
+    this.upgradeLock = false;
+    this.maxHealth = this.computeMaxHealth();
+    this.health = this.maxHealth;
+    this.healthBar = scene.add.graphics();
+    this.container.add(this.healthBar);
+    this.damageOverlay = scene.add.graphics();
+    this.container.add(this.damageOverlay);
+    this.updateHealthBar();
+
     // Decoration layers: `decorBack` sits behind the masonry so the parapet and
     // pennants grow out of the silhouette, `decorFront` sits over it for the
     // braziers and the orbiting crystals. Both are rebuilt on every upgrade.
@@ -134,7 +138,8 @@ export class Tower {
    */
   get artHeight() {
     const art = this.isBarricade ? this.sprite : this.baseSprite;
-    return art && art.height ? art.height : TILE_SIZE;
+    const scale = this.isBarricade ? art?.scaleY ?? 1 : 1;
+    return art && art.height ? art.height * scale : TILE_SIZE;
   }
 
   /**
@@ -236,11 +241,25 @@ export class Tower {
   }
 
   /**
-   * Structure damage (palisades only). Returns the points actually removed.
-   * The scene owns the "wall fell down" flow — see GameScene.damageBarricade.
+   * Structure HP for a defence.
+   *
+   * A wall's pool is authored per tier (500 → 6000). A keep's pool is derived
+   * from what it cost to raise — an expensive battery is a bigger, sturdier
+   * building — and grows 25 % per upgrade, so a maxed keep is worth defending.
+   */
+  computeMaxHealth() {
+    if (this.isBarricade) return this.def.levels[this.level - 1].health;
+    const base = 380 + (this.def.cost || 60) * 2;
+    return Math.round(base * (1 + 0.25 * (this.level - 1)));
+  }
+
+  /**
+   * Structure damage. Returns the points actually removed.
+   *
+   * The scene owns the "it fell down" flow — see GameScene.destroyStructure.
    */
   takeDamage(amount) {
-    if (!this.isBarricade || this.isDestroyed) return 0;
+    if (this.isDestroyed) return 0;
     const dealt = Math.max(0, Math.round(amount));
     if (dealt <= 0) return 0;
     this.health = Math.max(0, this.health - dealt);
@@ -250,22 +269,68 @@ export class Tower {
     return dealt;
   }
 
-  /** Red bar / green bar above the stakes; only shown once damaged. */
+  /** Red bar / green bar above the structure; only shown once damaged. */
   updateHealthBar() {
     if (!this.healthBar) return;
     this.healthBar.clear();
+    this.drawDamageOverlay();
+    if (this.isDestroyed) return;
     if (this.health >= this.maxHealth) return;
 
     const pct = this.maxHealth > 0 ? this.health / this.maxHealth : 0;
-    const width = 42;
+    const width = this.isBarricade ? 46 : 38;
     const height = 5;
-    const top = TILE_SIZE / 2 - this.artHeight - 10;
+    const top = -TILE_SIZE / 2 - 8;
     const color = pct > 0.5 ? 0x5cf2a6 : pct > 0.25 ? 0xf5c451 : 0xff5470;
 
     this.healthBar.fillStyle(0x11131a, 0.9);
     this.healthBar.fillRect(-width / 2 - 1, top - 1, width + 2, height + 2);
     this.healthBar.fillStyle(color, 1);
     this.healthBar.fillRect(-width / 2, top, width * pct, height);
+  }
+
+  /**
+   * Visible damage on the structure itself.
+   *
+   * The wall tiers ship one texture each, so the state is drawn on top: hairline
+   * cracks at 75 %, a broken chunk at 50 %, and a scarred, leaning silhouette at
+   * 25 %. It is driven by real HP — a wall at full health has no overlay at all.
+   */
+  drawDamageOverlay() {
+    const g = this.damageOverlay;
+    if (!g) return;
+    g.clear();
+    if (this.isDestroyed) return;
+    const pct = this.maxHealth > 0 ? this.health / this.maxHealth : 1;
+    if (pct >= 0.995) {
+      if (this.sprite) this.sprite.setAngle(0);
+      return;
+    }
+    const stage = pct > 0.5 ? 1 : pct > 0.25 ? 2 : 3;
+    g.lineStyle(2, 0x14100c, 0.85);
+    // Deterministic cracks: the same wall always cracks the same way.
+    const cracks = [
+      [[-16, -20], [-8, -8], [-12, 2], [-4, 12]],
+      [[10, -22], [6, -12], [14, -4]],
+      [[-2, -18], [4, -6], [0, 6], [8, 14]],
+    ].slice(0, stage);
+    for (const crack of cracks) {
+      g.beginPath();
+      g.moveTo(crack[0][0], crack[0][1]);
+      for (let i = 1; i < crack.length; i += 1) g.lineTo(crack[i][0], crack[i][1]);
+      g.strokePath();
+    }
+    if (stage >= 2) {
+      // A chunk knocked out of the top edge.
+      g.fillStyle(0x0b0d12, 0.55);
+      g.fillTriangle(-20, -30, -6, -30, -14, -18);
+      g.fillTriangle(12, -30, 24, -30, 18, -20);
+    }
+    if (stage === 3 && this.sprite) {
+      this.sprite.setAngle(this.isBarricade ? -2.5 : 0);
+    } else if (this.sprite) {
+      this.sprite.setAngle(0);
+    }
   }
 
   /** Brief red flash so hits on the wall read at a glance. */
@@ -288,8 +353,10 @@ export class Tower {
    */
   get nextUpgrades() {
     if (this.isBarricade) {
+      // Five authored tiers: level N offers the entry at index N (levels are
+      // 1-based), and level 5 offers nothing — the UI disables the button.
       if (this.level < this.def.levels.length) {
-        return [{ key: 'lvl2', ...this.def.levels[this.level] }];
+        return [{ key: `tier-${this.level + 1}`, ...this.def.levels[this.level] }];
       }
       return [];
     }
@@ -608,6 +675,9 @@ export class Tower {
   upgrade(choiceKey = null) {
     const opts = this.nextUpgrades;
     if (opts.length === 0) return false;
+    // One upgrade per press. A double-click lands on a stale panel otherwise and
+    // would charge twice for one visible change.
+    if (this.upgradeLock) return false;
 
     let targetOpt = opts[0];
     if (choiceKey) {
@@ -615,24 +685,32 @@ export class Tower {
     }
 
     const cost = targetOpt.upgradeCost;
-    if (!this.context.economy.spend(cost)) return false;
+    if (!Number.isFinite(cost) || !this.context.economy.spend(cost)) return false;
+
+    this.upgradeLock = true;
+    this.scene?.time?.delayedCall?.(260, () => {
+      this.upgradeLock = false;
+    });
 
     this.totalInvested += cost;
     this.context.gameState.counters.towerUpgrades++;
     audio.playPlace();
 
     if (this.isBarricade) {
-      this.level = 2;
-      const tier = BARRICADE_VISUALS[2];
-      if (this.sprite && this.scene.textures.exists(tier.key)) {
+      // Keep the damage ratio: reinforcing a battered wall raises its ceiling
+      // without hand-waving the holes away. A wall at 50 % stays at 50 %.
+      const previousMax = this.maxHealth;
+      const previousRatio = previousMax > 0 ? this.health / previousMax : 1;
+      this.level += 1;
+      const tier = BARRICADE_VISUALS[this.level];
+      if (this.sprite && tier && this.scene.textures.exists(tier.key)) {
         this.sprite.setTexture(tier.key);
-        this.sprite.y = TILE_SIZE / 2 + tier.offsetY * 0.25;
       }
-      // Rebuilding the wall also repairs it — the upgrade is a fresh
-      // reinforcement, not a patch over the holes.
       this.maxHealth = this.stats.health;
-      this.health = this.maxHealth;
+      this.health = Math.max(1, Math.round(this.maxHealth * previousRatio));
       this.updateHealthBar();
+      this.scene?.vfx?.levelUp?.(this.x, this.y - 10);
+      this.refreshDecorations(true);
       return true;
     }
 

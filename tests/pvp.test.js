@@ -31,7 +31,6 @@ import {
 } from '../src/systems/PvpMatch.js';
 
 /** The road cells that sit in the river row — one per crossing. */
-const crossingsOf = (layout) => (layout[ARENA.riverRow].match(/#/g) || []).length;
 
 const statsOf = (arena) => {
   const map = parseMap(arena.layout);
@@ -59,24 +58,35 @@ describe('duel arenas', () => {
       expect(arena.layout[0]).toBe('x'.repeat(ARENA.cols));
       expect(arena.layout[ARENA.rows - 1]).toBe('x'.repeat(ARENA.cols));
       for (let r = 0; r < ARENA.rows; r += 1) {
-        // The river runs off both edges of the board on purpose: it is a river,
-        // not a moat, so it is the one row allowed to break the side rim.
-        if (r === ARENA.riverRow) continue;
         const row = arena.layout[r];
-        expect(row[0], `${arena.id} row ${r} has an open west edge`).toBe('x');
-        expect(row[ARENA.cols - 1], `${arena.id} row ${r} has an open east edge`).toBe('x');
+        // The sky-gate row is the one row allowed to break the side rim: those
+        // tiles *are* the flyers' entrance, cut into the wall.
+        const west = row[0];
+        const east = row[ARENA.cols - 1];
+        if (r === ARENA.airRow) {
+          expect(west, `${arena.id} row ${r} lost its west sky gate`).toBe('a');
+          expect(east, `${arena.id} row ${r} lost its east sky gate`).toBe('a');
+          continue;
+        }
+        expect(west, `${arena.id} row ${r} has an open west edge`).toBe('x');
+        expect(east, `${arena.id} row ${r} has an open east edge`).toBe('x');
       }
     }
   });
 
-  it('splits the board with one river and two or three crossings', () => {
+  it('attacks the keep from three portals and two sky gates, with no river to hide behind', () => {
     for (const arena of PVP_ARENAS) {
-      const river = arena.layout[ARENA.riverRow];
-      // The river is the whole row: water, broken only where a lane crosses.
-      expect(river.replace(/[~#]/g, ''), `${arena.id} river is not continuous`).toBe('');
-      const crossings = crossingsOf(arena.layout);
-      expect(crossings, `${arena.id} offers ${crossings} crossing(s)`).toBeGreaterThanOrEqual(2);
-      expect(crossings, `${arena.id} offers ${crossings} crossing(s)`).toBeLessThanOrEqual(3);
+      const { map } = statsOf(arena);
+      // A duel board is a base-defence field now: the horde marches down the
+      // whole board instead of filing over a bridge.
+      expect(map.spawns, `${arena.id} portals`).toHaveLength(3);
+      expect(map.airGates, `${arena.id} sky gates`).toHaveLength(2);
+      expect(new Set(map.spawns.map((spawn) => spawn.col)).size).toBe(3);
+      // No water strip splitting the arena any more.
+      expect(map.tiles.flat().filter((tile) => tile === TILE.WATER)).toHaveLength(0);
+      // The sky gates are in the walls, above the enemy's road line.
+      expect(Math.min(...map.airGates.map((gate) => gate.row))).toBe(ARENA.airRow);
+      expect(Math.max(...map.airGates.map((gate) => gate.row))).toBe(ARENA.airRow);
     }
   });
 
@@ -100,9 +110,10 @@ describe('duel arenas', () => {
       const lens = pf.lanes.map((lane) => lane.length);
       expect(lens.length, `${arena.id} lane count`).toBeGreaterThanOrEqual(2);
       expect(lens.length, `${arena.id} lane count`).toBeLessThanOrEqual(3);
-      expect(Math.max(...lens), `${arena.id} lanes ${lens}`).toBeLessThanOrEqual(
-        Math.ceil(Math.min(...lens) * 1.35)
-      );
+      // The three portals are not equidistant — a flank starts further out —
+      // but no approach may be a stroll.
+      expect(Math.min(...lens), `${arena.id} lanes ${lens}`).toBeGreaterThanOrEqual(9);
+      expect(Math.max(...lens), `${arena.id} lanes ${lens}`).toBeLessThanOrEqual(Math.min(...lens) * 2 + 4);
     }
   });
 
