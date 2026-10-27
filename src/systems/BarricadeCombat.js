@@ -202,3 +202,76 @@ export function assaultRing(id, radius = ASSAULT_RANGE, approachAngle = -Math.PI
   const fan = (slot / 8 - 0.5) * ASSAULT_FAN;
   return { angle: bearing + fan, radius };
 }
+
+/* --------------------------------------------------------------------------
+ * Defence hunting
+ *
+ * A wall across the lane is unmissable: the creep is walking into it. A keep
+ * standing one tile off the road is not — the first version only looked at the
+ * cell the creep was stepping into, so a tower that covered the lane was
+ * something the horde walked past while it plinked them. Worse, the bastion
+ * assault runs when the creep is ~90 px from the core, and every defence a
+ * player builds late game stands right there — so the horde ignored the whole
+ * line and hammered the gate with the towers intact.
+ *
+ * The rule now is the one the report asks for: **defences first, the gate
+ * last.** Two radii, both measured from the attacker:
+ *
+ *   DEFENCE_HUNT_RADIUS  a defence this close is in the horde's way, whether
+ *                        or not it sits on the next waypoint. 1.25 tiles, so a
+ *                        keep hugging the road is reachable and a keep out in
+ *                        the field is not.
+ *   GATE_GUARD_RADIUS    inside this ring around the bastion, everything the
+ *                        player raised to defend the gate is a target before
+ *                        the gate itself. The core cannot be touched while a
+ *                        guard stands.
+ * -------------------------------------------------------------------------- */
+
+/** A defence within this distance of an attacker is engaged on the way past. */
+export const DEFENCE_HUNT_RADIUS = Math.round(TILE_SIZE * 1.25);
+
+/** Inside this ring around the bastion, the guards are cleared before the gate. */
+export const GATE_GUARD_RADIUS = Math.round(TILE_SIZE * 3);
+
+/**
+ * Which radius applies to an attacker standing at `(x, y)`.
+ *
+ * @param {{x:number,y:number}} from attacker position
+ * @param {{x:number,y:number}|null} base bastion centre, if the scene has one
+ * @returns {number} hunt radius in px
+ */
+export function huntRadiusFor(from, base) {
+  if (!base) return DEFENCE_HUNT_RADIUS;
+  const toBase = Math.hypot(base.x - from.x, base.y - from.y);
+  return toBase <= GATE_GUARD_RADIUS ? GATE_GUARD_RADIUS : DEFENCE_HUNT_RADIUS;
+}
+
+/**
+ * The defence an attacker should break next, or null.
+ *
+ * Pure: the caller owns the structure objects and applies the damage. Ties are
+ * broken toward a palisade (it is the thing physically in the way) and then
+ * toward the closest, so a pack does not spend the wave deciding.
+ *
+ * @param {{x:number,y:number}} from attacker position
+ * @param {Array<{x:number,y:number,isBarricade?:boolean,isDestroyed?:boolean,health?:number}>} structures
+ * @param {number} radius
+ * @returns {object|null}
+ */
+export function pickDefenceInReach(from, structures, radius) {
+  if (!Array.isArray(structures) || !(radius > 0)) return null;
+  let best = null;
+  let bestScore = Infinity;
+  for (const structure of structures) {
+    if (!structure || structure.isDestroyed) continue;
+    if (typeof structure.health === 'number' && structure.health <= 0) continue;
+    const distance = Math.hypot(structure.x - from.x, structure.y - from.y);
+    if (distance > radius) continue;
+    const score = distance - (structure.isBarricade ? 8 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      best = structure;
+    }
+  }
+  return best;
+}

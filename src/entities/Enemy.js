@@ -359,6 +359,21 @@ export class Enemy {
   }
 
   /**
+   * A standing defence inside this attacker's reach, whether or not it sits on
+   * the next waypoint.
+   *
+   * The scene owns the geometry (which radius applies, where the bastion is),
+   * so the rule itself stays in one place — see `BarricadeCombat.huntRadiusFor`.
+   * A flyer never hunts: it is not on the road the defence stands beside.
+   */
+  getDefenceInReach() {
+    if (this.flying || !this.callbacks.getDefenceInReach) return null;
+    const structure = this.callbacks.getDefenceInReach(this);
+    if (!structure || structure.isDestroyed || structure.health <= 0) return null;
+    return structure;
+  }
+
+  /**
    * Palisade interaction. Returns true when the enemy spent this frame laying
    * siege to a wall (so the caller skips normal waypoint movement).
    *
@@ -372,7 +387,7 @@ export class Enemy {
    * a precise pixel left offset lanes hovering 0.1 px outside their target and
    * attacking nothing at all.
    */
-  updateSiege(deltaMs) {
+  updateSiege(deltaMs, target = null) {
     // A wall on the road cannot stop a unit that is not on the road.
     if (this.flying) {
       this.isSieging = false;
@@ -380,7 +395,7 @@ export class Enemy {
       this.siegeTimer = 0;
       return false;
     }
-    const wall = this.getStructureAhead();
+    const wall = target || this.getStructureAhead();
     if (!wall) {
       this.isSieging = false;
       this.siegeTarget = null;
@@ -987,12 +1002,17 @@ export class Enemy {
       }
     }
 
-    // 5. The bastion is the target, not a doorway: an attacker that reaches it
-    //    stops at the wall and lays siege instead of walking through.
-    if (this.updateBaseAssault(deltaMs)) return;
+    // 5. Defences come first. Whatever the horde can reach — the wall across
+    //    its next waypoint, or any standing defence inside its hunt radius —
+    //    is broken before anything else happens. The bastion is never touched
+    //    while a guard stands (see BarricadeCombat.huntRadiusFor and
+    //    GameScene.getDefenceInReach).
+    const guard = this.getStructureAhead() || this.getDefenceInReach();
+    if (guard && this.updateSiege(deltaMs, guard)) return;
 
-    // 5b. A palisade on the next waypoint stops the march: break it down.
-    if (this.updateSiege(deltaMs)) return;
+    // 5b. The bastion is the target, not a doorway: an attacker that reaches it
+    //     stops at the wall and lays siege instead of walking through.
+    if (this.updateBaseAssault(deltaMs)) return;
 
     // 6. Waypoint Movement
     if (this.pathIndex >= this.path.length) {

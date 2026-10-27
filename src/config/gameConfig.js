@@ -42,6 +42,27 @@ export const STARTING_BASE_HEALTH = 25;
 // inspector and the tests cannot drift apart.
 export const SELL_REFUND_RATIO = 0.6;
 
+/**
+ * Structure health for a keep (walls carry their own per-tier pool in
+ * `data/towerData.js`).
+ *
+ * A defence is a building, not a soldier. The first version derived its pool
+ * from cost alone (380 + cost × 2 — 500 HP for an archer) while the horde's
+ * swing table runs from 10 (grunt) to 160 (void herald) damage per second: a
+ * single boss deleted a keep in three swings, and a brute took one down in
+ * fifteen. Losing a building is supposed to be a decision the player made, not
+ * a rounding error, so the pool is doubled here — in one place, so the shop,
+ * the inspector, the probes and the tests all read the same number.
+ */
+export const DEFENCE_HEALTH = {
+  /** A keep's pool is `base + cost × perCost`, scaled by `scale`. */
+  base: 380,
+  perCost: 2,
+  scale: 2,
+  /** Each upgrade level adds this share of the level-1 pool (compounding). */
+  perLevel: 0.25,
+};
+
 /** Largest simulation step in ms (prevents huge jumps after a tab switch). */
 export const MAX_FRAME_DELTA = 50;
 

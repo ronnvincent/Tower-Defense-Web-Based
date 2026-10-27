@@ -3227,3 +3227,87 @@ wave's own lane at `7,12`, real waves, probe-granted gold.
   `cooldownTimer` and `disabledTimer` — those three cover every early return in
   `Tower.update`.
 * **Still not verified** — real mobile touch input, and a natural 8-wave win.
+
+## 36. Request 46b — defences first, the gate last; sturdier defences
+
+Scope: "the monsters and bosses ignore our defences — they should attack those
+first, and only hit the base when there is no defence left; also the defences
+die too easily."
+
+### 36.1 What the investigation found (executed, in this pass)
+
+A probe placed four keeps around the keep's lane and seeded grunts, brutes and
+the Ironhorn boss:
+
+| Observation | Evidence |
+| --- | --- |
+| A brute walked up to the archer at `7,14`, parked at `(816, 478)` with `isSieging: true` and `siegeTarget: archer@7,14` — and the archer never lost a point | `dmg0` on all four keeps across 55 polls; its health stayed 500/500 |
+| The siege target was resolved from **the cell being stepped into** (±1 tile) | `GameScene.getSiegeTarget(cellKey)`, called from `Enemy.getStructureAhead()` with `path[pathIndex]` |
+| The bastion assault runs at ~90 px from the core, where every late-game defence stands | `updateBaseAssault` cut in before `updateSiege` in `Enemy.update` |
+| A keep was 500 HP against a swing table of 10–160 | `computeMaxHealth()` = `380 + cost × 2`; bosses swing 55–160 |
+
+The two defects compound: the horde could not reach the towers it was walking
+past, and the tower it did reach took damage from a source the probe could not
+attribute (the brute's `siege` 34 landed 60 points in one poll later in the run,
+so the damage path itself was live — the *reach* was the bug).
+
+### 36.2 The rule
+
+* **`BarricadeCombat.huntRadiusFor`** — two radii from the attacker:
+  `DEFENCE_HUNT_RADIUS = 80` px (1.25 tiles) out on the road, and
+  `GATE_GUARD_RADIUS = 192` px (3 tiles) inside the ring that guards the bastion.
+  `pickDefenceInReach` picks the nearest standing structure in that radius,
+  breaking ties toward a palisade.
+* **`Enemy.update` order** — defences are now step 5 and the bastion assault is
+  step 5b. A creep engages `getStructureAhead() || getDefenceInReach()` before
+  `updateBaseAssault` is ever consulted, so **the core cannot be touched while a
+  guard stands**.
+* **`Enemy.updateSiege(deltaMs, target)`** — takes the target explicitly; the old
+  implicit `getStructureAhead()` lookup is still the default.
+* Flyers never hunt (they are not on the road the keep stands beside).
+
+### 36.3 Health
+
+| | before | after |
+| --- | --- | --- |
+| Keep (`380 + cost × 2`) | 500 (archer) | **1000** (`DEFENCE_HEALTH.scale = 2`) |
+| Wall L1–L5 | 500 / 1000 / 2000 / 3600 / 6000 | **750 / 1500 / 3000 / 5400 / 9000** (×1.5) |
+
+Both live in config/data (`DEFENCE_HEALTH` in `gameConfig.js`, `BARRICADE.levels`),
+and the tier descriptions that quote HP were updated with them — a shop that
+lies about a number fails `description-truth.test.js`.
+
+A ×1.5 wall was chosen over ×2 deliberately: the palisade exists to be broken,
+and at ×2 a six-grunt pack needed 17 s against it. The pack tests in
+`barricade-siege.test.js` were **updated honestly** (not deleted, not loosened
+to `>=`) to the new curve: six grunts now breach in ~13 s, eight grunts need ten
+swings, and both bounds still fail if a wall becomes unbreakable or free.
+
+### 36.4 Automated (executed)
+
+| Suite | Result |
+| --- | --- |
+| Full run — `npx vitest run` | **122 files / 1 517 tests passed** |
+| `tests/defence-hunt.test.js` (new) | 10 passed — hunt radius tight on the road and wide at the gate; nearest standing defence only; a ruin is not a target; palisade breaks a tie; a creep walking past a keep one tile off the lane attacks it; a keep two tiles out is not a magnet; a flyer never stops; a guard at the gate dies before the core takes a point; an empty gate is assaulted immediately; keep and wall pools hold the new numbers |
+| `npm run build` | ✓ 6.83 s |
+
+### 36.5 Browser (executed, controlled)
+
+`docs/req46/defences-first.png` — four keeps around the lane, seeds of grunts,
+brutes and one **Ironhorn Minotaur** (3000 HP, phase bar live):
+
+| Check | Result |
+| --- | --- |
+| Base | **20 / 20 for the whole 70-poll run** |
+| Brutes | switched from walking to `SIEGE:archer@8,14` at `(829, 498)`, then to `archer@9,12` when the first guard fell |
+| Boss | `SIEGE:archer@9,12` — 360 damage landed on that guard while the core stayed untouched |
+| Towers | 1000 / 1200 / 1000 / 1100 HP (was 500 / 600 / 500 / 550) |
+| Console | 0 page errors |
+
+### 36.6 Labelled honestly
+
+* **Automated** — every row in 36.4, executed.
+* **Controlled** — 36.5: real browser on the real build, real waves, but the
+  probe granted gold and placed its own line. Not a natural playthrough.
+* **Not yet verified** — a natural 8-wave run with a full perimeter, and real
+  mobile touch input. Neither is claimed.

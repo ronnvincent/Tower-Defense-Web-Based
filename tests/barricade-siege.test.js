@@ -143,7 +143,12 @@ describe('Palisade breach simulation', () => {
     }
 
     expect(hp).toBe(0);
-    expect(elapsed).toBeLessThan(10000); // six grunts breach 420 HP in a few seconds
+    // Six grunts against the authored tier. The palisade ladder was raised
+    // 1.5× when defences were made sturdier (500 → 750 at level 1), so the
+    // pack now needs ~13 s including the walk in, not ~8. The bound still
+    // fails loudly if a wall ever becomes unbreakable or free to fell.
+    expect(elapsed).toBeLessThan(20000);
+    expect(elapsed).toBeGreaterThan(8000);
   });
 
   it('a lone grunt cannot chew through a palisade in seconds, a pack can', () => {
@@ -157,8 +162,10 @@ describe('Palisade breach simulation', () => {
     expect((soloSwings * siegeInterval(grunt)) / 1000).toBeGreaterThan(30);
     const pack = 8;
     const rounds = Math.ceil(wallHp / (siegeDamage(grunt) * pack));
-    expect(rounds).toBeLessThan(10);
-    expect((rounds * siegeInterval(grunt)) / 1000).toBeLessThan(10);
+    // Same 1.5× ladder: a pack of eight opens the hole in ten swings (~10 s),
+    // where it took seven before. Still "seconds", and still bounded.
+    expect(rounds).toBeLessThan(15);
+    expect((rounds * siegeInterval(grunt)) / 1000).toBeLessThan(15);
   });
 
   it('every tier takes longer to break than the one below it', () => {

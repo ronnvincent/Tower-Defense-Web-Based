@@ -62,7 +62,7 @@ import { queueUnitSheets, registerUnitAnims, UNIT_SHEETS } from '../data/unitArt
 import { HERO_SKILLS, heroRank, skillStats } from '../data/heroData.js';
 import { MAX_LEVEL } from '../data/towerAscension.js';
 import { Tower } from '../entities/Tower.js';
-import { resolveSiegeSwing } from '../systems/BarricadeCombat.js';
+import { resolveSiegeSwing, huntRadiusFor, pickDefenceInReach } from '../systems/BarricadeCombat.js';
 import { BUILD_OPTIONS } from '../data/towerData.js';
 import { compactInPlace } from '../utils/arrayUtils.js';
 import { BossTracker } from '../systems/BossTracker.js';
@@ -1566,6 +1566,9 @@ export class GameScene extends Phaser.Scene {
         this.shockwave(e.x, e.y, { from: 0.5, to: 3.0, tint: 0xffe2a8, duration: 700 });
       },
       getStructureAt: (cellKey) => this.getSiegeTarget(cellKey),
+      // Defences first: the horde breaks what it can reach before it
+      // touches the gate (see getDefenceInReach).
+      getDefenceInReach: (enemy) => this.getDefenceInReach(enemy),
       onStructureHit: (structure, damage) => this.damageStructure(structure, damage),
       onSpeedAura: (boss, radius, multiplier, durationMs) =>
         this.handleBossSpeedAura(boss, radius, multiplier, durationMs),
@@ -3094,6 +3097,23 @@ export class GameScene extends Phaser.Scene {
       }
     }
     return best;
+  }
+
+  /**
+   * The defence an attacker should break before anything else, or null.
+   *
+   * Defences first, the gate last: a creep never walks past a standing defence
+   * to hit the core. Two radii decide how far "in the way" reaches — a tight
+   * one on the road, a wide one inside the ring that guards the bastion (see
+   * `BarricadeCombat.huntRadiusFor`). Flyers are excluded by the caller.
+   *
+   * @param {{x:number, y:number}} enemy
+   * @returns {object|null} standing structure
+   */
+  getDefenceInReach(enemy) {
+    if (!enemy || !this.activeTowers?.length) return null;
+    const radius = huntRadiusFor(enemy, this.bastionPoint());
+    return pickDefenceInReach(enemy, this.activeTowers, radius);
   }
 
   /**

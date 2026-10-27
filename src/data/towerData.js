@@ -439,7 +439,7 @@ const CORE_TOWER_TYPES = {
  *   thornsDamage – damage per second dealt to anything attacking it
  *   upgradeCost  – gold to raise the previous tier to this one
  *
- * Health climbs 500 → 1000 → 2000 → 3600 → 6000: each tier roughly doubles the
+ * Health climbs 750 → 1500 → 3000 → 5400 → 9000: each tier roughly doubles the
  * time a wall buys, without letting a level-5 wall make the horde irrelevant.
  * Upgrade cost climbs with it (60/100/170/260), so a full perimeter of maxed
  * walls is a late-game investment, not an opening move.
@@ -459,7 +459,7 @@ export const BARRICADE = {
     {
       level: 1,
       title: 'Wooden Palisade',
-      health: 500,
+      health: 750,
       thornsDamage: 0,
       description: 'A line of sharpened stakes. Cheap, quick, and it buys a few seconds.',
     },
@@ -467,33 +467,33 @@ export const BARRICADE = {
       level: 2,
       title: 'Reinforced Wood Wall',
       upgradeCost: 60,
-      health: 1000,
+      health: 1500,
       thornsDamage: 15,
-      description: 'Iron-banded planks with 1000 HP that deal 15 damage per second to everything clawing at them.',
+      description: 'Iron-banded planks with 1500 HP that deal 15 damage per second to everything clawing at them.',
     },
     {
       level: 3,
       title: 'Stone Wall',
       upgradeCost: 100,
-      health: 2000,
+      health: 3000,
       thornsDamage: 30,
-      description: 'Laid stone, 2000 HP. The first tier that holds a lane on its own.',
+      description: 'Laid stone, 3000 HP. The first tier that holds a lane on its own.',
     },
     {
       level: 4,
       title: 'Fortified Stone Wall',
       upgradeCost: 170,
-      health: 3600,
+      health: 5400,
       thornsDamage: 50,
-      description: 'Crenellated stone with iron studs, 3600 HP and 50 thorns.',
+      description: 'Crenellated stone with iron studs, 5400 HP and 50 thorns.',
     },
     {
       level: 5,
       title: 'Imperial Fortress Wall',
       upgradeCost: 260,
-      health: 6000,
+      health: 9000,
       thornsDamage: 80,
-      description: 'Gold-trimmed rampart, 6000 HP. The last tier — and the horde knows it.',
+      description: 'Gold-trimmed rampart, 9000 HP. The last tier — and the horde knows it.',
     },
   ],
 };

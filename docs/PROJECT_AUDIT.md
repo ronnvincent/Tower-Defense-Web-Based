@@ -104,3 +104,19 @@ combat rule has been added since and belongs on the record:
   live BOTH/GROUND/AIR filter still applies, `supportOnly` still never fires.
 * `Tower.update` floors the cooldown at zero instead of leaving it negative.
 * Regression: `tests/gate-coverage.test.js`. Full record: `docs/testing-report.md` §35.
+
+## Addendum — defences first (Request 46b)
+
+* The horde engages **defences before the bastion**: `Enemy.update` resolves
+  `getStructureAhead() || getDefenceInReach()` and breaks it before
+  `updateBaseAssault` is consulted. A creep never walks past a standing defence
+  to hit the core, and the core takes no damage while a guard stands inside the
+  gate ring.
+* Reach is two radii (`BarricadeCombat.huntRadiusFor`): 80 px on the road,
+  192 px inside the ring that guards the keep. The old rule only looked at the
+  cell being stepped into (±1 tile), so keeps beside the lane were ignored.
+* Structure pools were raised: keeps `×2` (500 → 1000 for an archer), walls
+  `×1.5` (500 → 750 … 6000 → 9000). Both live in config/data, and the keep
+  formula is `DEFENCE_HEALTH` in `gameConfig.js`.
+* Regression: `tests/defence-hunt.test.js`; the pack-speed bounds in
+  `barricade-siege.test.js` were updated to the new wall tier, not removed.

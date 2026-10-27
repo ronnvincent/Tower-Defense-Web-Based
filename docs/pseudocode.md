@@ -311,3 +311,41 @@ ALGORITHM UpdateCooldown(tower, deltaMs)
   END IF
 END ALGORITHM
 ```
+---
+
+## 6. Defence Hunting: what a creep attacks, and in what order
+
+```text
+ALGORITHM HuntRadiusFor(attacker, bastion)
+  IF bastion is null THEN RETURN DEFENCE_HUNT_RADIUS END IF
+  toBase <- distance(attacker, bastion)
+  IF toBase <= GATE_GUARD_RADIUS THEN RETURN GATE_GUARD_RADIUS END IF
+  RETURN DEFENCE_HUNT_RADIUS                 // tight radius out on the road
+END ALGORITHM
+
+ALGORITHM PickDefenceInReach(attacker, structures, radius)
+  best <- null ; bestScore <- INFINITY
+  FOR each structure IN structures DO
+    IF structure.isDestroyed OR structure.health <= 0 THEN CONTINUE
+    d <- distance(attacker, structure)
+    IF d > radius THEN CONTINUE
+    // A palisade is literally in the road, so it wins a near-tie.
+    score <- d - (structure.isBarricade ? 8 : 0)
+    IF score < bestScore THEN best <- structure ; bestScore <- score
+  END FOR
+  RETURN best
+END ALGORITHM
+
+ALGORITHM EnemyUpdate(deltaMs)          // the relevant slice
+  IF flying THEN skip hunting END IF
+  guard <- GetStructureAhead()          // a wall on the next waypoint
+           OR GetDefenceInReach()       // or any standing defence in reach
+  IF guard is not null AND UpdateSiege(deltaMs, guard) THEN
+    RETURN                              // defences come first
+  END IF
+  IF UpdateBaseAssault(deltaMs) THEN
+    RETURN                              // the gate is the last thing touched
+  END IF
+  MoveAlongWaypoints(deltaMs)
+END ALGORITHM
+```

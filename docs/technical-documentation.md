@@ -1417,3 +1417,57 @@ east-slot attacker that is beyond its own range but inside its gate coverage;
 the same creep walking past is ignored; a tower four tiles up the lane is
 unaffected; a ground gun still refuses a flyer; and a real projectile lands
 damage on the ring attacker.
+
+## 15. Who gets attacked: defences first, the gate last
+
+Two rules decide what a ground creep fights, and both live in
+`systems/BarricadeCombat.js` so the entity and the scene cannot disagree.
+
+### 15.1 Reach
+
+```text
+huntRadiusFor(attacker, bastion)
+  toBase = distance(attacker, bastion)
+  return toBase <= GATE_GUARD_RADIUS ? GATE_GUARD_RADIUS : DEFENCE_HUNT_RADIUS
+```
+
+* `DEFENCE_HUNT_RADIUS = 80` px (1.25 tiles) out on the road — a keep hugging
+  the lane is in the way, a keep two tiles out in the field is not.
+* `GATE_GUARD_RADIUS = 192` px (3 tiles) inside the ring that guards the
+  bastion: whatever the player raised to hold the gate is a target before the
+  gate itself.
+
+`pickDefenceInReach` then takes the nearest standing structure in that radius;
+a palisade wins a near-tie because it is the thing physically blocking the road.
+Ruined and destroyed structures are skipped.
+
+### 15.2 Order
+
+`Enemy.update` step 5 is now *defences*, step 5b is *the bastion*:
+
+```text
+guard <- getStructureAhead() or getDefenceInReach()
+if guard and updateSiege(deltaMs, guard): return     // swing until it falls
+if updateBaseAssault(deltaMs): return                // only then the gate
+```
+
+The core therefore cannot take a single point while a guard stands within the
+gate radius. Flyers never hunt — they are not on the road a keep stands beside —
+so an air wave still goes straight for the gate.
+
+### 15.3 How much punishment a defence takes
+
+| Structure | Pool |
+| --- | --- |
+| Keep, level 1 | `(380 + cost × 2) × 2` (1000 for an archer, 1200 for a cannon) |
+| Keep, per level | ×(1 + 0.25 × (level − 1)) |
+| Wall L1 → L5 | 750 / 1500 / 3000 / 5400 / 9000 |
+
+`DEFENCE_HEALTH` in `gameConfig.js` owns the keep formula; the walls carry their
+own per-tier pool in `towerData.js`, and their descriptions quote the same
+numbers (`description-truth.test.js` enforces that). For scale: the horde's
+swing table runs 10 (grunt) → 34 (brute) → 55–160 (bosses) per second, so a
+lone grunt needs 1 min 15 s to fell a fresh palisade and ~100 s to fell an
+archer keep, while the Void Herald still needs six hits on a keep.
+
+Regression: `tests/defence-hunt.test.js`.

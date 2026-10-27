@@ -1,4 +1,4 @@
-import { TILE_SIZE, SELL_REFUND_RATIO } from '../config/gameConfig.js';
+import { TILE_SIZE, SELL_REFUND_RATIO, DEFENCE_HEALTH } from '../config/gameConfig.js';
 import { TOWER_TYPES, BARRICADE } from '../data/towerData.js';
 import { MAX_LEVEL, ascensionTier, nextAscension } from '../data/towerAscension.js';
 import { canTarget, defenceTargets, isFlying } from '../systems/TargetCategories.js';
@@ -306,8 +306,9 @@ export class Tower {
    */
   computeMaxHealth() {
     if (this.isBarricade) return this.def.levels[this.level - 1].health;
-    const base = 380 + (this.def.cost || 60) * 2;
-    return Math.round(base * (1 + 0.25 * (this.level - 1)));
+    const { base, perCost, scale, perLevel } = DEFENCE_HEALTH;
+    const pool = (base + (this.def.cost || 60) * perCost) * scale;
+    return Math.round(pool * (1 + perLevel * (this.level - 1)));
   }
 
   /**
