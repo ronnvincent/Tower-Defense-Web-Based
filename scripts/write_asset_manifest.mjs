@@ -214,9 +214,10 @@ const lines = [
     ['pack', 'official page', 'licence', 'what it adds', 'manual step']
   ),
   '',
-  'Recorded documentation gap: the seven CC0 foley clips in `public/assets/audio/`',
-  'have no upstream page recorded in the repository (licence only). Everything else',
-  'above names its source.',
+  'Recorded documentation gap: the seven **legacy** CC0 foley clips in',
+  '`public/assets/audio/` still have no upstream page recorded (licence only).',
+  'Everything added by Request 44 — 60 recordings — names its exact upstream file in',
+  '`docs/audio-credits.md`, and everything else above names its source.',
   '',
 ];
 

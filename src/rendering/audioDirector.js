@@ -18,6 +18,7 @@
 import { audio } from './AudioSynth.js';
 import { MusicDirector } from './MusicDirector.js';
 import { AmbienceDirector } from './AmbienceDirector.js';
+import { TrackDirector } from './TrackDirector.js';
 
 /**
  * Places that own their own music. The screen still decides the base scene —
@@ -35,6 +36,10 @@ export class AudioDirector {
     this.synth = synth;
     this.music = new MusicDirector(synth);
     this.ambience = new AmbienceDirector(synth);
+    // Request 44: the recorded soundtrack. `music` above is not dead — it is
+    // the bed that plays while a track decodes, and the fallback for a state
+    // whose file is missing.
+    this.tracks = new TrackDirector(synth);
     this.scene = 'menu';
     this.location = null;
     this.armed = false;
@@ -63,7 +68,7 @@ export class AudioDirector {
     if (ctx && typeof ctx.addEventListener === 'function') {
       ctx.addEventListener('statechange', () => this.#onStateChange());
     }
-    this.music.play(this.theme);
+    this.#playTheme();
     this.ambience.play(this.location);
     // `resume()` is asynchronous on most browsers; if the context was still
     // suspended above, this picks the requests up again once it is running.
@@ -74,6 +79,7 @@ export class AudioDirector {
     const ctx = this.synth.ctx;
     if (!ctx || ctx.state !== 'running') return;
     this.music.resume();
+    this.tracks.resume();
     this.ambience.resume();
   }
 
@@ -105,8 +111,41 @@ export class AudioDirector {
    */
   sync() {
     if (!this.started) return;
-    this.music.play(this.theme);
+    this.#playTheme();
     this.ambience.play(this.location);
+  }
+
+  /**
+   * Music for the current theme: a recording if one is ready, the oscillator
+   * bed otherwise.
+   *
+   * The order matters. Asking `tracks` first means a cached track starts at
+   * once and the procedural bed is never heard at all; a track that still has
+   * to load returns `pending`, so the bed covers the gap and is then faded out
+   * by `MusicDirector.play()` seeing the track take over. The oscillator bed
+   * also stays exactly as it was for any state with no track (`missing`), which
+   * is what keeps the forge and the war room sounding like themselves.
+   */
+  #playTheme() {
+    const theme = this.theme;
+    const result = this.tracks.play(theme);
+    if (result === 'playing') {
+      // The recording owns the scene; silence the oscillator bed so the two do
+      // not double the harmony in different keys.
+      this.music.stop();
+      return;
+    }
+    this.music.play(theme);
+    if (result === 'pending') {
+      this.tracks.onStarted = (state) => {
+        if (state === this.theme) this.music.stop();
+      };
+    }
+  }
+
+  /** True when a recorded track (not the oscillator bed) is sounding. */
+  get usingRecordedMusic() {
+    return Boolean(this.tracks.playing);
   }
 
   /** Read-only snapshot for the settings panel, the HUD and the tests. */

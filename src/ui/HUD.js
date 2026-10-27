@@ -1102,7 +1102,7 @@ export class HUD {
     });
 
     document.getElementById('btn-start-wave')?.addEventListener('click', () => {
-      audio.playClick();
+      audio.playConfirm();
       if (this.earlyCallAvailable) this.callbacks.onCallWaveEarly?.();
       else this.callbacks.onStartWave?.();
     });

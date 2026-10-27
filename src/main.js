@@ -276,7 +276,10 @@ function quitToMap() {
  */
 function startLevel(levelId = 'level-1', options = {}) {
   navReturn = 'menu';
-  audioDirector.setScene('battle');
+  // Request 44: the board opens on the preparation bed. GameScene moves the
+  // score to `battle` the moment the first wave is called, so the build phase
+  // sounds like planning instead of a fight that has not started.
+  audioDirector.setScene('prep');
   audioDirector.setLocation('battle');
   window.gameResultScreen?.hide?.();
   window.gameWorldMap?.hide?.();

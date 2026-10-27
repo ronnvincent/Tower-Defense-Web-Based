@@ -18,6 +18,15 @@
  *             tempo:number, padGain:number, bellGain:number, bassGain:number,
  *             pulse:boolean}} MusicScene */
 
+/**
+ * States with no scene of their own, rendered by the scene they borrow.
+ * @type {Readonly<Record<string, string>>}
+ */
+export const MUSIC_ALIASES = Object.freeze({
+  intense: 'battle',
+  boss: 'battle',
+});
+
 /** @type {Object<string, MusicScene>} */
 export const MUSIC_SCENES = Object.freeze({
   // Calm, low, unresolved — the keep at dusk.
@@ -113,6 +122,13 @@ export const MUSIC_SCENE_IDS = Object.freeze(Object.keys(MUSIC_SCENES));
  * @returns {MusicScene}
  */
 export function musicScene(id) {
+  // Request 44 added two combat states that are played from recorded tracks
+  // (`intense`, `boss`). They deliberately have **no scene of their own**: the
+  // oscillator bed's rules — one pulsing scene, the battle the fastest — are
+  // what keep the fallback sounding like a battle rather than a second
+  // soundtrack, so both states borrow it when a file is unavailable.
+  const alias = MUSIC_ALIASES[id];
+  if (alias) return MUSIC_SCENES[alias];
   return MUSIC_SCENES[id] || MUSIC_SCENES.realm;
 }
 

@@ -19,7 +19,9 @@ art that actually ships.
 | Kenney Particle Pack | Kenney | CC0-1.0 | no | <https://kenney.nl/assets/particle-pack> |  |
 | Fortress (OpenGameArt) | OpenGameArt “Fortress” submission | CC0-1.0 | no | <https://opengameart.org/content/fortress> | Shipped as a vector (`art-source/arena/fortress.svg`) and rasterised at 420 px — no download needed at runtime. |
 | Tiny Swords (vanguard + pet sheets) | Pixel Frog | CC0-1.0 | no | <https://pixelfrog-assets.itch.io/tiny-swords> |  |
-| CC0 foley clips (click / toggle / coin / place / impacts) | not recorded in-repo | CC0-1.0 | no | — | Provenance gap: docs/audio.md records the licence but not the upstream pack page. Every other sound is synthesised at runtime. |
+| CC0 foley clips (click / toggle / coin / place / impacts) | not recorded in-repo | CC0-1.0 | no | — | Legacy clips that predate Request 44, kept as the fallback path. Provenance gap: no upstream pack page is recorded for these seven — the only audio in the tree with that gap. |
+| Kenney audio packs (Impact Sounds, RPG Audio, Digital Audio, Music Jingles, Interface Sounds, UI Audio) | Kenney | CC0-1.0 | no | <https://kenney.nl/assets/impact-sounds> | 54 recordings added by Request 44, fetched from licence-checked GitHub mirrors because the official host is unreachable from the build sandbox. Every file, pack and exact upstream path is listed in docs/audio-credits.md. |
+| Royalty Free Music Pack (Efface Studios) | Efface Studios | CC0-1.0 | no | <https://github.com/effacestudios/Royalty-Free-Music-Pack> | Six music loops (menu, preparation, battle, intense, boss, victory). The pack contains no defeat theme, so defeat stops the recorded bed and plays its sting. |
 | Project-original art (UI, world map, key art, fonts) | generated for this project | Project-owned | no | — | AI-generated and hand-assembled for this repository; see docs/interface-kit.md §5. |
 
 All packs are CC0 1.0 or project-owned. No pirated, ripped or paywalled art is
@@ -113,6 +115,86 @@ shot, so the muzzle flash and the damage are one event.
 | banner | banner-spec-a3 | 96×96 | 6 | base_banner-spec-a3.png | weapon_banner-spec-a3.png (6 fire frames, rest = static base) |
 | banner | banner-spec-b2 | 96×96 | 6 | base_banner-spec-b2.png | weapon_banner-spec-b2.png (6 fire frames, rest = static base) |
 | banner | banner-spec-b3 | 96×96 | 6 | base_banner-spec-b3.png | weapon_banner-spec-b3.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-l1 | 128×128 | 6 | base_royalArtillery-l1.png | weapon_royalArtillery-l1.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-l2 | 128×128 | 6 | base_royalArtillery-l2.png | weapon_royalArtillery-l2.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-l3 | 128×128 | 6 | base_royalArtillery-l3.png | weapon_royalArtillery-l3.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-l4 | 128×128 | 6 | base_royalArtillery-l4.png | weapon_royalArtillery-l4.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-l5 | 128×128 | 6 | base_royalArtillery-l5.png | weapon_royalArtillery-l5.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-b1 | 128×128 | 6 | base_royalArtillery-b1.png | weapon_royalArtillery-b1.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-b2 | 128×128 | 6 | base_royalArtillery-b2.png | weapon_royalArtillery-b2.png (6 fire frames, rest = static base) |
+| royalArtillery | royalArtillery-b3 | 128×128 | 6 | base_royalArtillery-b3.png | weapon_royalArtillery-b3.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-l1 | 128×128 | 6 | base_siegeBallista-l1.png | weapon_siegeBallista-l1.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-l2 | 128×128 | 6 | base_siegeBallista-l2.png | weapon_siegeBallista-l2.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-l3 | 128×128 | 6 | base_siegeBallista-l3.png | weapon_siegeBallista-l3.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-l4 | 128×128 | 6 | base_siegeBallista-l4.png | weapon_siegeBallista-l4.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-l5 | 128×128 | 6 | base_siegeBallista-l5.png | weapon_siegeBallista-l5.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-b1 | 128×128 | 6 | base_siegeBallista-b1.png | weapon_siegeBallista-b1.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-b2 | 128×128 | 6 | base_siegeBallista-b2.png | weapon_siegeBallista-b2.png (6 fire frames, rest = static base) |
+| siegeBallista | siegeBallista-b3 | 128×128 | 6 | base_siegeBallista-b3.png | weapon_siegeBallista-b3.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-l1 | 128×128 | 6 | base_arcaneSniper-l1.png | weapon_arcaneSniper-l1.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-l2 | 128×128 | 6 | base_arcaneSniper-l2.png | weapon_arcaneSniper-l2.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-l3 | 128×128 | 6 | base_arcaneSniper-l3.png | weapon_arcaneSniper-l3.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-l4 | 128×128 | 6 | base_arcaneSniper-l4.png | weapon_arcaneSniper-l4.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-l5 | 128×128 | 6 | base_arcaneSniper-l5.png | weapon_arcaneSniper-l5.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-b1 | 128×128 | 6 | base_arcaneSniper-b1.png | weapon_arcaneSniper-b1.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-b2 | 128×128 | 6 | base_arcaneSniper-b2.png | weapon_arcaneSniper-b2.png (6 fire frames, rest = static base) |
+| arcaneSniper | arcaneSniper-b3 | 128×128 | 6 | base_arcaneSniper-b3.png | weapon_arcaneSniper-b3.png (6 fire frames, rest = static base) |
+| mortar | mortar-l1 | 128×128 | 6 | base_mortar-l1.png | weapon_mortar-l1.png (6 fire frames, rest = static base) |
+| mortar | mortar-l2 | 128×128 | 6 | base_mortar-l2.png | weapon_mortar-l2.png (6 fire frames, rest = static base) |
+| mortar | mortar-l3 | 128×128 | 6 | base_mortar-l3.png | weapon_mortar-l3.png (6 fire frames, rest = static base) |
+| mortar | mortar-l4 | 128×128 | 6 | base_mortar-l4.png | weapon_mortar-l4.png (6 fire frames, rest = static base) |
+| mortar | mortar-l5 | 128×128 | 6 | base_mortar-l5.png | weapon_mortar-l5.png (6 fire frames, rest = static base) |
+| mortar | mortar-b1 | 128×128 | 6 | base_mortar-b1.png | weapon_mortar-b1.png (6 fire frames, rest = static base) |
+| mortar | mortar-b2 | 128×128 | 6 | base_mortar-b2.png | weapon_mortar-b2.png (6 fire frames, rest = static base) |
+| mortar | mortar-b3 | 128×128 | 6 | base_mortar-b3.png | weapon_mortar-b3.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-l1 | 128×128 | 6 | base_rimeTower-l1.png | weapon_rimeTower-l1.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-l2 | 128×128 | 6 | base_rimeTower-l2.png | weapon_rimeTower-l2.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-l3 | 128×128 | 6 | base_rimeTower-l3.png | weapon_rimeTower-l3.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-l4 | 128×128 | 6 | base_rimeTower-l4.png | weapon_rimeTower-l4.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-l5 | 128×128 | 6 | base_rimeTower-l5.png | weapon_rimeTower-l5.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-b1 | 128×128 | 6 | base_rimeTower-b1.png | weapon_rimeTower-b1.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-b2 | 128×128 | 6 | base_rimeTower-b2.png | weapon_rimeTower-b2.png (6 fire frames, rest = static base) |
+| rimeTower | rimeTower-b3 | 128×128 | 6 | base_rimeTower-b3.png | weapon_rimeTower-b3.png (6 fire frames, rest = static base) |
+| tesla | tesla-l1 | 128×128 | 6 | base_tesla-l1.png | weapon_tesla-l1.png (6 fire frames, rest = static base) |
+| tesla | tesla-l2 | 128×128 | 6 | base_tesla-l2.png | weapon_tesla-l2.png (6 fire frames, rest = static base) |
+| tesla | tesla-l3 | 128×128 | 6 | base_tesla-l3.png | weapon_tesla-l3.png (6 fire frames, rest = static base) |
+| tesla | tesla-l4 | 128×128 | 6 | base_tesla-l4.png | weapon_tesla-l4.png (6 fire frames, rest = static base) |
+| tesla | tesla-l5 | 128×128 | 6 | base_tesla-l5.png | weapon_tesla-l5.png (6 fire frames, rest = static base) |
+| tesla | tesla-b1 | 128×128 | 6 | base_tesla-b1.png | weapon_tesla-b1.png (6 fire frames, rest = static base) |
+| tesla | tesla-b2 | 128×128 | 6 | base_tesla-b2.png | weapon_tesla-b2.png (6 fire frames, rest = static base) |
+| tesla | tesla-b3 | 128×128 | 6 | base_tesla-b3.png | weapon_tesla-b3.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-l1 | 128×128 | 6 | base_skybreaker-l1.png | weapon_skybreaker-l1.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-l2 | 128×128 | 6 | base_skybreaker-l2.png | weapon_skybreaker-l2.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-l3 | 128×128 | 6 | base_skybreaker-l3.png | weapon_skybreaker-l3.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-l4 | 128×128 | 6 | base_skybreaker-l4.png | weapon_skybreaker-l4.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-l5 | 128×128 | 6 | base_skybreaker-l5.png | weapon_skybreaker-l5.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-b1 | 128×128 | 6 | base_skybreaker-b1.png | weapon_skybreaker-b1.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-b2 | 128×128 | 6 | base_skybreaker-b2.png | weapon_skybreaker-b2.png (6 fire frames, rest = static base) |
+| skybreaker | skybreaker-b3 | 128×128 | 6 | base_skybreaker-b3.png | weapon_skybreaker-b3.png (6 fire frames, rest = static base) |
+| workshop | workshop-l1 | 128×128 | 6 | base_workshop-l1.png | weapon_workshop-l1.png (6 fire frames, rest = static base) |
+| workshop | workshop-l2 | 128×128 | 6 | base_workshop-l2.png | weapon_workshop-l2.png (6 fire frames, rest = static base) |
+| workshop | workshop-l3 | 128×128 | 6 | base_workshop-l3.png | weapon_workshop-l3.png (6 fire frames, rest = static base) |
+| workshop | workshop-l4 | 128×128 | 6 | base_workshop-l4.png | weapon_workshop-l4.png (6 fire frames, rest = static base) |
+| workshop | workshop-l5 | 128×128 | 6 | base_workshop-l5.png | weapon_workshop-l5.png (6 fire frames, rest = static base) |
+| workshop | workshop-b1 | 128×128 | 6 | base_workshop-b1.png | weapon_workshop-b1.png (6 fire frames, rest = static base) |
+| workshop | workshop-b2 | 128×128 | 6 | base_workshop-b2.png | weapon_workshop-b2.png (6 fire frames, rest = static base) |
+| workshop | workshop-b3 | 128×128 | 6 | base_workshop-b3.png | weapon_workshop-b3.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-l1 | 128×128 | 6 | base_obelisk-l1.png | weapon_obelisk-l1.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-l2 | 128×128 | 6 | base_obelisk-l2.png | weapon_obelisk-l2.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-l3 | 128×128 | 6 | base_obelisk-l3.png | weapon_obelisk-l3.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-l4 | 128×128 | 6 | base_obelisk-l4.png | weapon_obelisk-l4.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-l5 | 128×128 | 6 | base_obelisk-l5.png | weapon_obelisk-l5.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-b1 | 128×128 | 6 | base_obelisk-b1.png | weapon_obelisk-b1.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-b2 | 128×128 | 6 | base_obelisk-b2.png | weapon_obelisk-b2.png (6 fire frames, rest = static base) |
+| obelisk | obelisk-b3 | 128×128 | 6 | base_obelisk-b3.png | weapon_obelisk-b3.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-l1 | 128×128 | 6 | base_spikeTrap-l1.png | weapon_spikeTrap-l1.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-l2 | 128×128 | 6 | base_spikeTrap-l2.png | weapon_spikeTrap-l2.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-l3 | 128×128 | 6 | base_spikeTrap-l3.png | weapon_spikeTrap-l3.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-l4 | 128×128 | 6 | base_spikeTrap-l4.png | weapon_spikeTrap-l4.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-l5 | 128×128 | 6 | base_spikeTrap-l5.png | weapon_spikeTrap-l5.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-b1 | 128×128 | 6 | base_spikeTrap-b1.png | weapon_spikeTrap-b1.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-b2 | 128×128 | 6 | base_spikeTrap-b2.png | weapon_spikeTrap-b2.png (6 fire frames, rest = static base) |
+| spikeTrap | spikeTrap-b3 | 128×128 | 6 | base_spikeTrap-b3.png | weapon_spikeTrap-b3.png (6 fire frames, rest = static base) |
 | crossbow | crossbow | 128×128 | 6 | base_crossbow.png | weapon_crossbow.png (6 fire frames, rest = static base) |
 | crossbow | crossbow-lvl2 | 128×128 | 6 | base_crossbow-lvl2.png | weapon_crossbow-lvl2.png (6 fire frames, rest = static base) |
 | crossbow | crossbow-spec-a | 128×128 | 6 | base_crossbow-spec-a.png | weapon_crossbow-spec-a.png (6 fire frames, rest = static base) |
@@ -172,6 +254,13 @@ shot, so the muzzle flash and the damage are one event.
 | projectile | flame | proj-flame.png | 1 |
 | projectile | acid | proj-acid.png | 1 |
 | projectile | harpoon | proj-harpoon.png | 1 |
+| projectile | royalShell | proj-royal-royalArtillery.png | 1 |
+| projectile | royalBolt | proj-royal-siegeBallista.png | 1 |
+| projectile | arcaneLance | proj-royal-arcaneSniper.png | 1 |
+| projectile | mortarShell | proj-royal-mortar.png | 1 |
+| projectile | frostShard | proj-royal-rimeTower.png | 1 |
+| projectile | teslaArc | proj-royal-tesla.png | 1 |
+| projectile | skybreakerBolt | proj-royal-skybreaker.png | 1 |
 | impact | arrow | impact-arrow.png | 1 |
 | impact | rapid | impact-rapid.png | 1 |
 | impact | sniper | impact-arrow.png | 1 |
@@ -186,6 +275,13 @@ shot, so the muzzle flash and the damage are one event.
 | impact | flame | impact-cannon.png | 1 |
 | impact | acid | impact-frost.png | 1 |
 | impact | harpoon | impact-cannon.png | 1 |
+| impact | royalShell | impact-cannon-2.png | 1 |
+| impact | royalBolt | impact-arrow.png | 1 |
+| impact | arcaneLance | impact-lightning.png | 1 |
+| impact | mortarShell | impact-cannon-2.png | 1 |
+| impact | frostShard | impact-frost-3.png | 1 |
+| impact | teslaArc | impact-lightning.png | 1 |
+| impact | skybreakerBolt | impact-arrow.png | 1 |
 | fx strip | fx-impact-physical | fx-impact-physical.png | 8 |
 | fx strip | fx-impact-explosive | fx-impact-explosive.png | 8 |
 | fx strip | fx-impact-fire | fx-impact-fire.png | 8 |
@@ -223,6 +319,60 @@ shot, so the muzzle flash and the damage are one event.
 | fx strip | fx-line-venom-muzzle | fx-line-venom-muzzle.png | 1 |
 | fx strip | fx-line-harpoon-impact | fx-line-harpoon-impact.png | 10 |
 | fx strip | fx-line-harpoon-muzzle | fx-line-harpoon-muzzle.png | 1 |
+| fx strip | fx-line-royalArtillery-impact | fx-line-royalArtillery-impact.png | 10 |
+| fx strip | fx-line-royalArtillery-muzzle | fx-line-royalArtillery-muzzle.png | 1 |
+| fx strip | fx-line-royalArtillery-trail | fx-line-royalArtillery-trail.png | 1 |
+| fx strip | fx-line-royalArtillery-b-impact | fx-line-royalArtillery-b-impact.png | 10 |
+| fx strip | fx-line-royalArtillery-b-muzzle | fx-line-royalArtillery-b-muzzle.png | 1 |
+| fx strip | fx-line-royalArtillery-b-trail | fx-line-royalArtillery-b-trail.png | 1 |
+| fx strip | fx-line-siegeBallista-impact | fx-line-siegeBallista-impact.png | 10 |
+| fx strip | fx-line-siegeBallista-muzzle | fx-line-siegeBallista-muzzle.png | 1 |
+| fx strip | fx-line-siegeBallista-trail | fx-line-siegeBallista-trail.png | 1 |
+| fx strip | fx-line-siegeBallista-b-impact | fx-line-siegeBallista-b-impact.png | 10 |
+| fx strip | fx-line-siegeBallista-b-muzzle | fx-line-siegeBallista-b-muzzle.png | 1 |
+| fx strip | fx-line-siegeBallista-b-trail | fx-line-siegeBallista-b-trail.png | 1 |
+| fx strip | fx-line-arcaneSniper-impact | fx-line-arcaneSniper-impact.png | 10 |
+| fx strip | fx-line-arcaneSniper-muzzle | fx-line-arcaneSniper-muzzle.png | 1 |
+| fx strip | fx-line-arcaneSniper-trail | fx-line-arcaneSniper-trail.png | 1 |
+| fx strip | fx-line-arcaneSniper-b-impact | fx-line-arcaneSniper-b-impact.png | 10 |
+| fx strip | fx-line-arcaneSniper-b-muzzle | fx-line-arcaneSniper-b-muzzle.png | 1 |
+| fx strip | fx-line-arcaneSniper-b-trail | fx-line-arcaneSniper-b-trail.png | 1 |
+| fx strip | fx-line-mortar-impact | fx-line-mortar-impact.png | 10 |
+| fx strip | fx-line-mortar-muzzle | fx-line-mortar-muzzle.png | 1 |
+| fx strip | fx-line-mortar-trail | fx-line-mortar-trail.png | 1 |
+| fx strip | fx-line-mortar-b-impact | fx-line-mortar-b-impact.png | 10 |
+| fx strip | fx-line-mortar-b-muzzle | fx-line-mortar-b-muzzle.png | 1 |
+| fx strip | fx-line-mortar-b-trail | fx-line-mortar-b-trail.png | 1 |
+| fx strip | fx-line-rimeTower-impact | fx-line-rimeTower-impact.png | 10 |
+| fx strip | fx-line-rimeTower-muzzle | fx-line-rimeTower-muzzle.png | 1 |
+| fx strip | fx-line-rimeTower-trail | fx-line-rimeTower-trail.png | 1 |
+| fx strip | fx-line-rimeTower-b-impact | fx-line-rimeTower-b-impact.png | 10 |
+| fx strip | fx-line-rimeTower-b-muzzle | fx-line-rimeTower-b-muzzle.png | 1 |
+| fx strip | fx-line-rimeTower-b-trail | fx-line-rimeTower-b-trail.png | 1 |
+| fx strip | fx-line-tesla-impact | fx-line-tesla-impact.png | 10 |
+| fx strip | fx-line-tesla-muzzle | fx-line-tesla-muzzle.png | 1 |
+| fx strip | fx-line-tesla-trail | fx-line-tesla-trail.png | 1 |
+| fx strip | fx-line-tesla-b-impact | fx-line-tesla-b-impact.png | 10 |
+| fx strip | fx-line-tesla-b-muzzle | fx-line-tesla-b-muzzle.png | 1 |
+| fx strip | fx-line-tesla-b-trail | fx-line-tesla-b-trail.png | 1 |
+| fx strip | fx-line-skybreaker-impact | fx-line-skybreaker-impact.png | 10 |
+| fx strip | fx-line-skybreaker-muzzle | fx-line-skybreaker-muzzle.png | 1 |
+| fx strip | fx-line-skybreaker-trail | fx-line-skybreaker-trail.png | 1 |
+| fx strip | fx-line-skybreaker-b-impact | fx-line-skybreaker-b-impact.png | 10 |
+| fx strip | fx-line-skybreaker-b-muzzle | fx-line-skybreaker-b-muzzle.png | 1 |
+| fx strip | fx-line-skybreaker-b-trail | fx-line-skybreaker-b-trail.png | 1 |
+| fx strip | fx-line-workshop-impact | fx-line-workshop-impact.png | 10 |
+| fx strip | fx-line-workshop-muzzle | fx-line-workshop-muzzle.png | 1 |
+| fx strip | fx-line-workshop-b-impact | fx-line-workshop-b-impact.png | 10 |
+| fx strip | fx-line-workshop-b-muzzle | fx-line-workshop-b-muzzle.png | 1 |
+| fx strip | fx-line-obelisk-impact | fx-line-obelisk-impact.png | 10 |
+| fx strip | fx-line-obelisk-muzzle | fx-line-obelisk-muzzle.png | 1 |
+| fx strip | fx-line-obelisk-b-impact | fx-line-obelisk-b-impact.png | 10 |
+| fx strip | fx-line-obelisk-b-muzzle | fx-line-obelisk-b-muzzle.png | 1 |
+| fx strip | fx-line-spikeTrap-impact | fx-line-spikeTrap-impact.png | 10 |
+| fx strip | fx-line-spikeTrap-muzzle | fx-line-spikeTrap-muzzle.png | 1 |
+| fx strip | fx-line-spikeTrap-b-impact | fx-line-spikeTrap-b-impact.png | 10 |
+| fx strip | fx-line-spikeTrap-b-muzzle | fx-line-spikeTrap-b-muzzle.png | 1 |
 
 ## 5. Gaps and manual downloads
 
@@ -238,7 +388,8 @@ and the step a human has to take:
 | Tiny Swords (Pixel Frog) | <https://pixelfrog-assets.itch.io/tiny-swords> | CC0 | vanguard units with idle / run / attack rows (already used for the Vanguard) | Already vendored in `art-source/units/`; no download needed. |
 | Tower Defense (Top-Down) (Kenney) | <https://kenney.nl/assets/tower-defense-top-down> | CC0 | 300 tiles/props/towers — static art, no animation rows | Optional: `npm run` fetch is not wired; download manually and keep the licence file next to it. |
 
-Recorded documentation gap: the seven CC0 foley clips in `public/assets/audio/`
-have no upstream page recorded in the repository (licence only). Everything else
-above names its source.
+Recorded documentation gap: the seven **legacy** CC0 foley clips in
+`public/assets/audio/` still have no upstream page recorded (licence only).
+Everything added by Request 44 — 60 recordings — names its exact upstream file in
+`docs/audio-credits.md`, and everything else above names its source.
 

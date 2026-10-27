@@ -15,6 +15,9 @@ import {
 } from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
 
+/** World px a creep walks between footstep samples (~1.1 tiles). */
+const FOOTSTEP_STRIDE = 54;
+
 let enemyIdCounter = 1;
 
 /**
@@ -555,6 +558,12 @@ export class Enemy {
 
     this.updateHealthBar();
 
+    // Request 44: a boss that is being chewed through answers with its own
+    // heavier hit. Only while it lives, and only when damage actually landed.
+    if (this.isBoss && res.damageDealtToHealth > 0 && this.health > 0) {
+      audio.playBossHit?.();
+    }
+
     // Check boss phase transition thresholds
     if (this.isBoss && this.health > 0) {
       this.checkBossPhaseThresholds();
@@ -1045,6 +1054,15 @@ export class Enemy {
       this.faceTravel(dx, dy);
     }
 
+    // Request 44: a footstep per stride of ground covered, never per frame.
+    // `step` is the distance actually walked this tick, so a slowed creep goes
+    // quiet in step with its pace instead of ticking at a fixed rate.
+    this.footstepClock = (this.footstepClock || 0) + step;
+    if (this.footstepClock >= FOOTSTEP_STRIDE) {
+      this.footstepClock = 0;
+      this.playFootstep();
+    }
+
     // Walking wobble animation
     this.wobbleTimer += deltaMs * 0.012;
     const scaleY = this.baseScale * (1 + Math.sin(this.wobbleTimer) * 0.08);
@@ -1184,4 +1202,24 @@ export class Enemy {
       this.container = null;
     }
   }
+  /**
+   * One footstep for this creep, attenuated by how far it is from the camera.
+   *
+   * Airborne creeps have no dedicated wing recording; the same stride sample is
+   * played faster and quieter so a flyer reads as a flutter rather than boots.
+   */
+  playFootstep() {
+    if (this.isDead || this.reachedBase) return;
+    const cam = this.scene?.cameras?.main;
+    let gain = 1;
+    if (cam) {
+      const cx = cam.scrollX + cam.width / 2;
+      const cy = cam.scrollY + cam.height / 2;
+      const far = Math.hypot(this.x - cx, this.y - cy);
+      gain = Math.max(0.22, Math.min(1, 1 - far / 780));
+    }
+    if (this.flying) audio.playEnemyStep?.({ gain: gain * 0.6, rate: 1.9 });
+    else audio.playEnemyStep?.({ gain });
+  }
+
 }

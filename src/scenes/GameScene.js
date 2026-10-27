@@ -1541,6 +1541,10 @@ export class GameScene extends Phaser.Scene {
         this.activeBoss = this.bossRoster.add(e);
         this.syncBossPanel();
         audio.playWarning();
+        // Request 44: a recorded boss horn under the warning, and the score
+        // switches to the boss theme for as long as the boss is on the board.
+        audio.playBossEnter();
+        this.updateBattleMusic();
         this.hud?.showToast(`⚠️ BOSS APPROACHING: ${e.def.name}!`, 'warning');
         this.bossEntranceCinematic();
         this.shockwave(e.x, e.y, { from: 0.35, to: 2.2, tint: 0xff9d6b, duration: 620 });
@@ -1766,6 +1770,10 @@ export class GameScene extends Phaser.Scene {
     if (this.gameState.isOver()) return;
     const damage = Math.max(1, Math.round((Number(amount) || 1) * (this.difficulty?.damageScale ?? 1)));
     const destroyed = this.gameState.damageBase(damage);
+    // The bastion just lost health: re-read the danger threshold. This is the
+    // only event that can cross it downward, so it is the only place the
+    // intense bed needs to be considered.
+    this.updateBattleMusic();
     this.gameState.counters.baseHits = (this.gameState.counters.baseHits || 0) + 1;
     this.leaksThisWave = (this.leaksThisWave || 0) + 1;
 
@@ -1816,7 +1824,50 @@ export class GameScene extends Phaser.Scene {
     this.syncHUD();
   }
 
+  /**
+   * Pick the music state from the battle that is actually happening.
+   *
+   * Request 44 asks for a score that reacts to real conditions, and the three
+   * conditions that matter are already in the scene: whether a boss is on the
+   * board, how much of the bastion is left, and whether the wave clock has
+   * started. No new counters — `gameState.baseHealth` and `bossRoster` are the
+   * same numbers the HUD and the boss strip read, so music can never disagree
+   * with the health bar.
+   *
+   * Idempotent: `setScene` is a no-op for the state already playing, so calling
+   * this on every hit costs nothing and never restarts the track.
+   */
+  updateBattleMusic() {
+    if (this.gameState?.isOver?.()) return;
+    if (this.lastResult) return;
+    const maxBase = Math.max(1, this.gameState?.maxBaseHealth || 1);
+    const ratio = (this.gameState?.baseHealth ?? maxBase) / maxBase;
+    const bossAlive =
+      (this.activeEnemies || []).some((enemy) => enemy?.isBoss && !enemy.isDead && !enemy.reachedBase) ||
+      Boolean(this.activeBoss && !this.activeBoss.isDead);
+
+    // A cleared wave on a level that waits for the player is a build phase, so
+    // the calm bed comes back. With auto-waves the gap is only ~2.5 s and the
+    // next wave starts by itself: crossfading out and straight back in would be
+    // worse than letting the battle bed run, so that case stays on 'battle'.
+    const waiting =
+      (this.waveManager?.state === 'idle' || this.waveManager?.state === 'finished') &&
+      (this.activeEnemies?.length || 0) === 0 &&
+      !(this.autoWavesEnabled?.() ?? false);
+
+    let mood;
+    if (bossAlive) mood = 'boss';
+    else if (ratio <= 0.35) mood = 'intense';
+    else if ((this.waveManager?.waveNumber || 0) === 0 || waiting) mood = 'prep';
+    else mood = 'battle';
+
+    if (mood === this.battleMood) return;
+    this.battleMood = mood;
+    audioDirector.setScene(mood);
+  }
+
   handleEnemyDefeated(enemy) {
+    if (enemy?.isBoss) this.updateBattleMusic();
     // Kill chain: each kill inside the window raises the payout multiplier.
     const kill = registerKill(this.combo, this.time?.now || 0);
     // Kill bounty first, then the relic / blessing gold multipliers, then the
@@ -1832,6 +1883,7 @@ export class GameScene extends Phaser.Scene {
     const comboScore = comboBonus(enemy.score, kill.multiplier);
 
     audio.playCoin();
+    audio.playEnemyDeath();
     if (kill.tier > 0) audio.playCombo(kill.tier);
     this.economy.earn(bounty + comboGold + this.rewardKillAuraBonus(enemy));
     this.addScore(enemy.score + comboScore);
@@ -1946,6 +1998,10 @@ export class GameScene extends Phaser.Scene {
     audio.playWaveStart();
     const started = this.waveManager.startNextWave();
     if (started) {
+      // Leaving the build phase: the restrained bed gives way to the battle one.
+      // This has to run *after* the counter moves — reading it before the call
+      // reported wave 0 and left the whole first wave on the preparation bed.
+      this.updateBattleMusic();
       // The window is spent. Cancelling here (rather than when it closes) means
       // a manual early call and the clock can never both open the same wave.
       cancelWavePrep(this.wavePrep);
@@ -2050,7 +2106,11 @@ export class GameScene extends Phaser.Scene {
   /** Wave cleared: pay the run's per-wave effects, then offer the next choice. */
   afterWaveCleared(event) {
     const heal = Number(this.runMods?.healPerWave) || 0;
-    if (heal > 0) this.gameState.healBase(heal);
+    if (heal > 0) {
+      this.gameState.healBase(heal);
+      // Repairs can lift the bastion back over the danger line.
+      this.updateBattleMusic();
+    }
     this.activeAnomaly = null;
     this.refreshRunMods();
     this.syncContracts();
@@ -2443,8 +2503,10 @@ export class GameScene extends Phaser.Scene {
     if (this.gameState.isOver()) return this.gameState.isPaused();
     if (this.gameState.isPaused()) {
       this.gameState.resume();
+      audio.playToggle?.();
     } else {
       this.gameState.pause();
+      audio.playToggle?.();
     }
     const isPaused = this.gameState.isPaused();
     this.hud?.setPausedUI?.(isPaused);
@@ -2486,6 +2548,9 @@ export class GameScene extends Phaser.Scene {
 
   handleUpgradeTower(tower, choiceKey = null) {
     if (tower.upgrade(choiceKey)) {
+      // Request 44: only on the branch that actually spent the gold — a refused
+      // upgrade already played the error tone. A palisade latches; a tower sings.
+      audio.playUpgrade(tower.isBarricade ? 'wall' : 'tower');
       this.trackStats({ upgradesBought: 1 });
       // Tower Master fires on the upgrade that tops the line out, not on the
       // first purchase: the stat is the finished tower, not the habit.
@@ -3127,10 +3192,16 @@ export class GameScene extends Phaser.Scene {
   damageStructure(structure, amount) {
     if (!structure || structure.isDestroyed) return;
     const scaled = amount * (this.difficulty?.damageScale ?? 1);
+    // Request 44. The material decides the sample: the palisade is timber and
+    // every stronger structure is stonework. Played inside the branch that
+    // actually applied damage, so a swing that dealt nothing is silent.
+    const material = structure.isBarricade ? 'wood' : 'stone';
     if (structure.isBarricade) {
       const swing = resolveSiegeSwing(structure, scaled);
       if (swing.dealt <= 0) return;
       structure.takeDamage(swing.dealt);
+      if (swing.destroyed) audio.playWallBreak(material);
+      else audio.playWallHit(material);
       if (this.particleEmitter) {
         this.particleEmitter.explode(3, structure.x, structure.y - TILE_SIZE * 0.5);
       }
@@ -3140,6 +3211,8 @@ export class GameScene extends Phaser.Scene {
     const dealt = structure.takeDamage(scaled);
     if (dealt <= 0) return;
     if (this.particleEmitter) this.particleEmitter.explode(2, structure.x, structure.y - TILE_SIZE * 0.4);
+    if (structure.isDestroyed) audio.playWallBreak(material);
+    else audio.playWallHit(material);
     if (structure.isDestroyed) this.destroyStructure(structure);
   }
 
@@ -3313,7 +3386,9 @@ export class GameScene extends Phaser.Scene {
       const standing = this.activeTowers.filter((t) => !t.isBarricade).length;
       this.trackStats({ towersBuilt: 1, maxTowersAtOnce: standing }, { max: ['maxTowersAtOnce'] });
     }
-    audio.playPlace();
+    // Request 44: a palisade going up gets the timber sound, a tower the place tone.
+    if (tower.isBarricade) audio.playWallBuild();
+    else audio.playPlace();
 
     this.refreshTowerAuras();
     this.syncHUD();
@@ -3874,6 +3949,7 @@ export class GameScene extends Phaser.Scene {
     this.blessingsBought[id] = (this.blessingsBought[id] || 0) + 1;
     this.blessingBonuses = blessingBonuses(this.blessingsBought);
     const healed = def.heal ? this.gameState.healBase(def.heal) : 0;
+    if (healed) this.updateBattleMusic();
     this.refreshTowerAuras();
     audio.playVictory();
     this.hud?.showToast(
@@ -4357,7 +4433,9 @@ export class GameScene extends Phaser.Scene {
     // 1. Wave Manager Update
     const waveEvent = this.waveManager.update(clampedDelta, this.activeEnemies.length);
     if (waveEvent && waveEvent.type === 'waveComplete') {
-      audio.playWaveStart();
+      // A cleared wave gets its own short flourish, not the wave-start bong.
+      audio.playWaveClear();
+      this.updateBattleMusic();
       const bonusCoins = WAVE_CLEAR_COINS.base + WAVE_CLEAR_COINS.perWave * waveEvent.waveNumber;
       const bonusScore = SCORE.waveClearBase * waveEvent.waveNumber;
       const comboPayout = waveComboPayout(this.combo.best);

@@ -135,9 +135,18 @@ export class SettingsUI {
     el.addEventListener('click', (event) => {
       if (event.target === el) this.hide(); // click on the dimmed field
     });
-    el.querySelector('#set-close')?.addEventListener('click', () => this.hide());
+    el.querySelector('#set-close')?.addEventListener('click', () => {
+      this.audio?.playCancel?.();
+      this.hide();
+    });
     el.querySelector('#set-mute')?.addEventListener('click', () => {
+      // The flip is a physical sound, and it has to land on the audible side of
+      // the switch: muting plays it first (you hear the click that silences the
+      // game), unmuting plays it after (the game is loud again by then).
+      const wasMuted = Boolean(this.audio.muted);
+      if (!wasMuted) this.audio.playToggle?.();
       this.audio.toggleMute();
+      if (wasMuted) this.audio.playToggle?.();
       this.refresh();
       this.#emit();
     });

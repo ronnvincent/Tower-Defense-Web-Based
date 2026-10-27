@@ -25,6 +25,8 @@
  * A save from before the mixer stored a single `volume`; it is read as the
  * master level, so an old profile keeps the loudness it had.
  */
+import { AudioSamples, PRELOAD_IDS } from './AudioSamples.js';
+import { TOWER_SAMPLES } from './audioLibrary.js';
 import { STORAGE_KEYS } from '../config/gameConfig.js';
 import { readJSON, writeJSON, getDefaultStorage } from '../utils/storage.js';
 
@@ -78,6 +80,10 @@ export class AudioSynth {
     this.ambient = null;
     this.unlocked = false;
     this.buffers = new Map();
+    // Request 44: the recorded library. `buffers` above stays for the seven
+    // legacy foley clips; everything new goes through the bank, which adds
+    // cooldowns, variants and a voice cap the raw buffer path never had.
+    this.samples = new AudioSamples(this);
     this.loadingBuffers = false;
   }
 
@@ -213,6 +219,13 @@ export class AudioSynth {
         this.applyGains();
       });
     }
+    // Warm the library once, after the gesture. The first click should not be
+    // the one that has to wait for a network round trip, and doing this before
+    // the gesture would only queue raw bytes with no context to decode them in.
+    if (this.ctx && !this.samplesPreloaded) {
+      this.samplesPreloaded = true;
+      this.samples.preload(PRELOAD_IDS);
+    }
   }
 
   setMuted(muted) {
@@ -264,6 +277,7 @@ export class AudioSynth {
 
   playClick() {
     this.unlock();
+    if (this.samples.play('ui.click')) return;
     if (this.playBuffer('click', 0.45)) return;
     const g = this.#gain(0.2);
     if (!g) return;
@@ -281,6 +295,7 @@ export class AudioSynth {
 
   playError() {
     this.unlock();
+    if (this.samples.play('ui.error')) return;
     const g = this.#gain(0.25);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -297,6 +312,7 @@ export class AudioSynth {
 
   playPlace() {
     this.unlock();
+    if (this.samples.play('ui.place')) return;
     if (this.playBuffer('place', 0.7)) return;
     const g = this.#gain(0.4);
     if (!g) return;
@@ -319,14 +335,37 @@ export class AudioSynth {
    * transient the Forge simply "becomes" loud, which reads as a bug.
    */
   playPanelOpen() {
+    if (this.samples.play('ui.panelOpen')) return;
     this.unlock();
     this.#panelCue(240, 150, 1400, 0.26);
   }
 
   /** The same tap, lower and shorter: the panel is being put away. */
   playPanelClose() {
+    if (this.samples.play('ui.panelClose')) return;
     this.unlock();
     this.#panelCue(150, 96, 700, 0.2);
+  }
+
+  /** A committing press: the button that calls the next wave. */
+  playConfirm() {
+    if (this.samples.play('ui.confirm')) return;
+    this.playClick();
+  }
+
+  /**
+   * A switch that changes state: mute, pause, resume. Recorded as a physical
+   * flip, so the player hears that they changed something, not just clicked.
+   */
+  playToggle() {
+    if (this.samples.play('ui.toggle')) return;
+    this.playClick();
+  }
+
+  /** Backing out of a panel. Lower and softer than a confirm. */
+  playCancel() {
+    if (this.samples.play('ui.cancel')) return;
+    this.playPanelClose();
   }
 
   /**
@@ -335,6 +374,7 @@ export class AudioSynth {
    * nothing to play and nothing to beep.
    */
   playHover() {
+    if (this.samples.play('ui.hover')) return;
     if (!this.ctx || this.ctx.state !== 'running' || this.muted) return;
     const g = this.#gain(0.05);
     if (!g) return;
@@ -378,6 +418,12 @@ export class AudioSynth {
 
   playShoot(type) {
     this.unlock();
+    // Request 44: every line owns a recording of its own weapon. The legacy
+    // foley chain below stays as the fallback for a tower whose sample has not
+    // decoded yet, and the oscillator at the end of this method is the last
+    // resort — so a missing file costs texture, never silence.
+    const sample = TOWER_SAMPLES[type];
+    if (sample && this.samples.play(sample)) return;
     if (type === 'archer' && this.playBuffer('wood', 0.5, 1.6)) return;
     if (type === 'cannon' && this.playBuffer('wood', 0.75, 0.6)) return;
     if (type === 'frost' && this.playBuffer('glass', 0.5, 1.3)) return;
@@ -469,6 +515,7 @@ export class AudioSynth {
 
   playCoin() {
     this.unlock();
+    if (this.samples.play('ui.coins')) return;
     if (this.playBuffer('coin', 0.65)) return;
     const g = this.#gain(0.3);
     if (!g) return;
@@ -491,6 +538,7 @@ export class AudioSynth {
 
   playEnemyHit() {
     this.unlock();
+    if (this.samples.play('enemy.hit')) return;
     if (this.playBuffer('metal', 0.4, 1.25)) return;
     const g = this.#gain(0.18);
     if (!g) return;
@@ -547,6 +595,7 @@ export class AudioSynth {
   }
 
   playWaveStart() {
+    if (this.samples.play('ui.waveStart')) return;
     this.unlock();
     const g = this.#gain(0.35);
     if (!g) return;
@@ -567,6 +616,7 @@ export class AudioSynth {
 
   playVictory() {
     this.unlock();
+    if (this.samples.play('cue.victory')) return;
     const g = this.#gain(0.4);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -586,6 +636,7 @@ export class AudioSynth {
 
   playDefeat() {
     this.unlock();
+    if (this.samples.play('cue.defeat')) return;
     const g = this.#gain(0.45);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -605,6 +656,7 @@ export class AudioSynth {
 
   playWarning() {
     this.unlock();
+    if (this.samples.play('ui.warning')) return;
     const g = this.#gain(0.4);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -620,6 +672,84 @@ export class AudioSynth {
     g.gain.setValueAtTime(0.4, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
   }
+
+  /* ------------------------------------------------------------------ */
+  /** A tower or wall was successfully upgraded. */
+  /**
+   * An upgrade landed.
+   * @param {'tower'|'wall'} [kind] a palisade latches, a tower chimes
+   */
+  playUpgrade(kind = 'tower') {
+    this.unlock();
+    if (kind === 'wall' && this.samples.play('wall.upgrade')) return;
+    if (this.samples.play('ui.upgrade')) return;
+    this.playCoin();
+  }
+
+  /* Request 44: events that had no recorded voice before.               */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * A wall or barricade took a hit.
+   * @param {'wood'|'stone'|'metal'} material which structure was struck
+   */
+  playWallHit(material = 'wood') {
+    this.unlock();
+    const id =
+      material === 'metal' ? 'wall.metalHit' : material === 'stone' ? 'wall.stoneHit' : 'wall.woodHit';
+    if (this.samples.play(id)) return;
+    this.playBuffer('wood', 0.5, material === 'stone' ? 0.7 : 1);
+  }
+
+  /** A structure was destroyed: the break, not the hit. */
+  playWallBreak(material = 'wood') {
+    this.unlock();
+    const id = material === 'stone' ? 'wall.stoneBreak' : 'wall.woodBreak';
+    if (this.samples.play(id)) return;
+    this.playBuffer('wood', 0.8, 0.55);
+  }
+
+  /** A wall or tower was raised. */
+  playWallBuild() {
+    this.unlock();
+    if (this.samples.play('wall.build')) return;
+    this.playPlace();
+  }
+
+  /** A creep died. */
+  playEnemyDeath() {
+    this.unlock();
+    if (this.samples.play('enemy.death')) return;
+    this.playEnemyHit();
+  }
+
+  /** A boss walked onto the board. */
+  playBossEnter() {
+    this.unlock();
+    if (this.samples.play('boss.enter')) return;
+    this.playWarning();
+  }
+
+  /** A boss took damage. */
+  playBossHit() {
+    this.unlock();
+    if (this.samples.play('boss.hit')) return;
+    this.playEnemyHit();
+  }
+
+  /** A wave was cleared. */
+  playWaveClear() {
+    this.unlock();
+    if (this.samples.play('cue.waveClear')) return;
+    this.playCoin();
+  }
+
+  /** A footstep, throttled hard by the bank so a crowd is not a stampede. */
+  playEnemyStep(options = {}) {
+    if (!this.ctx || this.muted) return;
+    this.samples.play('enemy.step', options);
+  }
 }
+
 
 export const audio = new AudioSynth();
