@@ -1296,6 +1296,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Where the keep is, in world pixels.
+   *
+   * One definition, used by the creeps' assault ring, by every defence that
+   * guards the gate, and by the leak effects — so the art, the hitbox and the
+   * range check can never drift apart.
+   *
+   * @returns {{x: number, y: number}}
+   */
+  bastionPoint() {
+    // Built once per scene: every defence asks for this on every frame, and the
+    // keep does not move. Callers only read it.
+    if (!this.bastionPointCache) {
+      this.bastionPointCache = {
+        x: this.map.base.col * TILE_SIZE + TILE_SIZE / 2,
+        y: this.map.base.row * TILE_SIZE + TILE_SIZE / 2,
+      };
+    }
+    return this.bastionPointCache;
+  }
+
+  /**
    * A creep reached the gates: the crystal takes the hit *visibly*.
    *
    * The camera shake that already existed stays, but its strength now follows
@@ -1553,10 +1574,7 @@ export class GameScene extends Phaser.Scene {
       // The bastion is a target, not a doorway: creeps stop on a ring around it
       // and lay siege (see Enemy.updateBaseAssault). The scene owns the point,
       // so the art and the hitbox can never disagree.
-      getBasePoint: () => ({
-        x: this.map.base.col * TILE_SIZE + TILE_SIZE / 2,
-        y: this.map.base.row * TILE_SIZE + TILE_SIZE / 2,
-      }),
+      getBasePoint: () => this.bastionPoint(),
       onHitBase: (e, damage) => this.handleEnemyHitBase(e, damage),
       onSummonMinions: (typeKey, count, summoner) => {
         // The boss's own gate, so its brood files out behind it instead of
@@ -2271,6 +2289,7 @@ export class GameScene extends Phaser.Scene {
         activeEnemies: this.activeEnemies,
         activeProjectiles: this.activeProjectiles,
         powerups: this.powerups,
+        getBasePoint: () => this.bastionPoint(),
       });
       this.placement.occupy(entry.row, entry.col, tower);
       this.activeTowers.push(tower);
@@ -3247,6 +3266,8 @@ export class GameScene extends Phaser.Scene {
       activeProjectiles: this.activeProjectiles,
       // Overcharge is a global cooldown multiplier read by Tower.attackCooldown.
       powerups: this.powerups,
+      // A defence that covers the gate answers the creeps hitting the gate.
+      getBasePoint: () => this.bastionPoint(),
     });
     this.placement.occupy(row, col, tower);
     this.activeTowers.push(tower);

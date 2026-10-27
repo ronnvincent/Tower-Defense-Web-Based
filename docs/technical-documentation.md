@@ -1354,3 +1354,66 @@ The shop is `src/ui/PetShopUI.js`, opened from **MUSTER HALL** in the world map'
 top bar (`#wm-pets`). It is deliberately *not* in the battle HUD: gold spent in a
 run buys towers, gold banked between runs buys the roster, and the two wallets
 can never be confused for one another.
+
+## 14. The gate rule: what happens when the line breaks
+
+The bastion is not a doorway. A creep that reaches it does not walk inside and
+vanish — it stops on a **ring** around the keep and lays siege
+(`Enemy.updateBaseAssault`, `systems/BarricadeCombat.js` → `assaultRing`):
+
+* the ring radius is `ASSAULT_RANGE = 72` px, and each attacker takes the slot
+  on the **bearing it arrived on**, inside an `ASSAULT_FAN` of 80°, so a horde
+  surrounds the gate from the side it broke through instead of overlapping one
+  pixel and never crossing the keep;
+* a swing costs `assaultDamage(def) = round(baseDamage / 3)` of the core, once
+  every `assaultInterval(def)` (1.5 s / 1.7 s / 2 s by weight), through the one
+  door base damage is allowed to pass: `GameScene.handleEnemyHitBase`.
+
+That ring lives inside the **no-build moat** (`BuildZone`, `BASE_CLEARANCE = 1`
+tile), which is exactly where the player may not raise a defence. On a 64 px
+grid the closest legal tower centre is 128 px from the keep, while the ring is
+72 px from it — so an attacker on the far side of the keep stands up to ~200 px
+away, further than every weapon's range in the game. The line goes silent with
+the towers intact and the core bleeds out: the reported bug.
+
+### 14.1 The rule
+
+`Tower.acquireTarget` measures range to the creep, with one exception:
+
+> A defence whose own range reaches the **bastion** answers the creeps that are
+> **hitting the bastion**, wherever on the ring they stand.
+
+Implementation: both tower construction sites (`attemptBuild`, `placePreplacedTowers`)
+put `getBasePoint: () => this.bastionPoint()` on the tower context — the same
+closure `spawnEnemy` already hands the creeps, so the art, the hitbox and the
+range check cannot disagree. `acquireTarget` computes `coversBastion` once per
+frame, then accepts an out-of-range creep only when
+`coversBastion && enemy.assaulting === true`.
+
+What the rule deliberately does **not** do:
+
+* it does not widen a weapon's range generally — a defence that cannot see the
+  gate still ignores the fight at the gate, and a creep crossing the courtyard
+  is only a target inside the normal range;
+* it does not bypass `canEngage`, so the ground / air rule, the live BOTH /
+  GROUND / AIR filter and `supportOnly` all still apply — a cannon never
+  acquires a flyer, a banner still never shoots;
+* it does not change damage, cadence or the core's hit points.
+
+### 14.2 The clock
+
+`Tower.update` now clamps the cooldown instead of leaving it negative:
+`cooldownTimer = max(0, cooldownTimer - deltaMs)`. Before, a frame longer than
+the time left on the timer parked it at a permanent `-30` (visible on every idle
+tower in the probes, and in the inspector), where it looked exactly like a
+broken clock. Firing behaviour is unchanged — a non-positive timer is already
+"ready" — but the state is now honest.
+
+### 14.3 Regression
+
+`tests/gate-coverage.test.js` runs the real `Tower` and the real `Enemy` over
+the stub scene from `tests/helpers/combat.js`: a west tower acquires an
+east-slot attacker that is beyond its own range but inside its gate coverage;
+the same creep walking past is ignored; a tower four tiles up the lane is
+unaffected; a ground gun still refuses a flyer; and a real projectile lands
+damage on the ring attacker.

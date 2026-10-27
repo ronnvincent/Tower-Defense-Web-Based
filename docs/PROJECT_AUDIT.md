@@ -85,3 +85,22 @@ Decision: draw both in-repo with Pillow in the existing generated-art pipeline (
 - No GPU: all frame times come from a software rasteriser; no FPS claim can be made for real devices.
 - Portrait is gated by the rotate overlay (by design); mobile verification uses 844×390.
 - The PvP relay is external (`mirror-arena-relay.onrender.com`); PvP cannot be exercised offline. Single-device flows are verified locally.
+
+## Addendum — the gate rule (Request 46)
+
+The bullets above are the audit as of `64ffe29` and are left as written. One
+combat rule has been added since and belongs on the record:
+
+* **Defences answer the gate.** `Tower.acquireTarget` measures range to the
+  creep, except for a creep that is `assaulting` the bastion: a defence whose
+  range reaches the bastion may engage it wherever it stands on the 72 px
+  assault ring. The ring sits inside the no-build moat
+  (`BuildZone.BASE_CLEARANCE = 1`), where no defence may be raised, so attackers
+  on the far side of the keep used to stand outside every range in the game and
+  the core could be destroyed with the line intact.
+* `GameScene.bastionPoint()` is the single definition of the keep's position,
+  shared by creeps (`Enemy.callbacks.getBasePoint`, `assaultRing`) and defences.
+* `canEngage` still gates everything: ground-only guns still refuse flyers, the
+  live BOTH/GROUND/AIR filter still applies, `supportOnly` still never fires.
+* `Tower.update` floors the cooldown at zero instead of leaving it negative.
+* Regression: `tests/gate-coverage.test.js`. Full record: `docs/testing-report.md` §35.

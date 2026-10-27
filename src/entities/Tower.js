@@ -27,6 +27,22 @@ let towerIdCounter = 1;
  */
 export { TARGETING_MODE };
 
+/**
+ * The point the bastion assault is aimed at, if this defence can see it.
+ *
+ * The scene owns the keep, so it passes the same closure the creeps get
+ * (`Enemy.callbacks.getBasePoint`): one source of truth for "where the gate
+ * is", and a headless harness simply omits it.
+ *
+ * @param {object} tower
+ * @returns {{x: number, y: number}|null}
+ */
+function bastionPointFor(tower) {
+  const point = tower.context?.getBasePoint?.() || tower.scene?.getBasePoint?.() || null;
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  return point;
+}
+
 export class Tower {
   /**
    * @param {Phaser.Scene} scene
@@ -963,9 +979,13 @@ export class Tower {
       return;
     }
 
-    // Cooldown progression
+    // Cooldown progression. Clamped at zero: subtracting a whole frame from a
+    // timer that was already nearly spent used to leave a permanent negative
+    // value behind (every probe that watched a tower idle reported `cd-30`),
+    // and a stale negative is indistinguishable from a broken clock to
+    // anything that reads the timer — the inspector, the tests, a replay.
     if (this.cooldownTimer > 0) {
-      this.cooldownTimer -= deltaMs;
+      this.cooldownTimer = Math.max(0, this.cooldownTimer - deltaMs);
     }
 
     // Frost spire bobbing animation
@@ -1018,6 +1038,20 @@ export class Tower {
     const minRange = this.minRange;
     const enemies = this.context.activeEnemies;
 
+    // The last line of the battle is the gate. A creep that has broken through
+    // does not walk into the keep — it parks on a ring around it, inside the
+    // no-build moat, on whichever side it arrived from (see
+    // `Enemy.updateBaseAssault` / `assaultRing`). A defence can only ever be
+    // raised a tile or more from the keep, so on the far side of that ring the
+    // attacker stands outside every range in the game: the line goes silent
+    // with the towers intact while the core bleeds out. That is the one case
+    // where range is measured to the gate instead of to the creep — a defence
+    // that covers the bastion answers the creeps hitting the bastion.
+    const bastion = bastionPointFor(this);
+    const coversBastion = bastion
+      ? Math.hypot(bastion.x - this.x, bastion.y - this.y) <= range
+      : false;
+
     // Filter enemies currently within the weapon's arc. Airborne creeps are
     // invisible to a ground-locked gun, and a siege piece cannot depress far
     // enough to shoot something standing on its own emplacement — both rules
@@ -1027,7 +1061,8 @@ export class Tower {
       const e = enemies[i];
       if (!this.canEngage(e)) continue;
       const dist = Math.hypot(e.x - this.x, e.y - this.y);
-      if (dist > range) continue;
+      const assaultingTheGate = coversBastion && e.assaulting === true;
+      if (dist > range && !assaultingTheGate) continue;
       if (minRange > 0 && dist < minRange) continue;
       inRange.push({ enemy: e, dist });
     }

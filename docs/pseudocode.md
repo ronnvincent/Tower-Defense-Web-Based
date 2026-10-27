@@ -262,3 +262,52 @@ END ALGORITHM
 > wall doing nothing. The graph now describes the road network only; walls are
 > physical hit-point objects resolved by `UpdateSiege` above.
 
+---
+
+## 5. Gate Coverage: who may answer an assault
+
+```text
+ALGORITHM AcquireTarget(tower)
+  range      <- tower.attackRange
+  minRange   <- tower.minRange
+  bastion    <- tower.context.getBasePoint()          // GameScene.bastionPoint(), one definition
+  coversGate <- bastion != null
+                AND distance(tower, bastion) <= range
+  candidates <- []
+
+  FOR each enemy IN tower.context.activeEnemies DO
+    IF NOT CanEngage(tower, enemy) THEN CONTINUE        // categories, live filter, supportOnly
+    d <- distance(tower, enemy)
+
+    // The gate rule: a defence that covers the bastion answers the creeps
+    // hitting the bastion, even from the far side of the assault ring
+    // (radius 72 px, inside the no-build moat, out of range for most of the line).
+    hitsTheGate <- coversGate AND enemy.assaulting == true
+
+    IF d > range AND NOT hitsTheGate THEN CONTINUE
+    IF minRange > 0 AND d < minRange THEN CONTINUE
+    candidates.push({ enemy, d })
+  END FOR
+
+  IF candidates is empty THEN
+    tower.currentTarget <- null
+    RETURN
+  END IF
+
+  IF focusTarget is marked AND legal AND inside candidates THEN
+    tower.currentTarget <- focusTarget
+    RETURN
+  END IF
+
+  SortTargets(candidates, tower.targetingMode)          // FIRST / LAST / STRONG / NEAR / ...
+  tower.currentTarget <- candidates[0].enemy
+END ALGORITHM
+
+ALGORITHM UpdateCooldown(tower, deltaMs)
+  // A frame longer than the time left used to park the timer at a permanent
+  // negative (-30 was visible on every idle tower); it is floored at zero.
+  IF tower.cooldownTimer > 0 THEN
+    tower.cooldownTimer <- max(0, tower.cooldownTimer - deltaMs)
+  END IF
+END ALGORITHM
+```

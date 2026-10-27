@@ -3154,3 +3154,76 @@ through `Tower.upgrade()`, including the level-3 branch choice.
 * **Still not verified** — real mobile touch input, a full 8-wave campaign won
   with royal towers only, and a single frame containing trails, muzzle flash and
   ruins together. None of these is claimed.
+
+## 35. Request 46 — the line breaks, the gate answers
+
+Scope: a barricade is destroyed and the horde walks through the hole; the
+report was that every defence then stops attacking and lets the core be
+demolished, "even when it is still intact".
+
+### 35.1 What the investigation actually found (executed, in this pass)
+
+Nine probes ran against the real build in Chromium. The finding is not a
+disabled attack loop — no frame was ever produced in which a live, in-range
+tower had a legal creep and stayed silent. What the probes did reproduce, every
+time, is the *outcome* the report describes:
+
+| Observation | Evidence |
+| --- | --- |
+| Creeps that break through stop on a 72 px ring around the keep, inside the no-build moat (`BASE_CLEARANCE = 1`) | 21 attackers parked at `(976…1001, 600)` — `assaulting: true` — around the keep at `(992, 672)` |
+| A defence can never be raised closer than 128 px from the keep, so the ring is a dead zone for most of the line | `cannon@10,13` is 128 px from the keep with 150 range; an attacker on the far slot reads 188 px — out of range |
+| That is what "my defences do nothing" looks like from the chair | with no defences at all the core went 20 → 0 in wave 2; with five towers ringing the keep, three fired continuously and the core still went 20 → 0 in 3 s |
+| Towers that *were* in range kept firing through and after the break | `ring4`/`base1`: fire 1 → 22 → 30 → 36 across the break; 0 page errors |
+| A separate, real defect: the cooldown can settle at a permanent negative | `cd-30` printed for idle towers in every run — `cooldownTimer -= deltaMs` with no floor |
+
+The base's own math compounded it: `assaultDamage` is 1–3 against a 20-point
+core, so sixteen attackers kill it in one swing round. No change was made to
+those numbers — the fix is about who may answer the attack, not about inflating
+damage.
+
+### 35.2 The fix
+
+* **Gate rule** (`Tower.acquireTarget`): a defence whose range reaches the
+  **bastion** may engage creeps that are `assaulting` it, wherever on the ring
+  they stand. One shared path, so every defence type inherits it; `canEngage`
+  is still consulted first, so ground-only guns still refuse flyers, the live
+  target filter still applies, and support buildings still never fire.
+  `GameScene.bastionPoint()` is now the single definition of where the keep is,
+  handed to towers, creeps and effects alike.
+* **Cooldown clamp** (`Tower.update`): `max(0, cooldownTimer - deltaMs)`.
+
+Nothing else changed: no range, damage, cadence, cost or map rule was touched.
+
+### 35.3 Automated (executed)
+
+| Suite | Result |
+| --- | --- |
+| Full run — `npx vitest run` | **121 files / 1 507 tests passed** |
+| `tests/gate-coverage.test.js` (new) | 7 passed — far-slot attacker acquired by the opposite tower; a creep walking past ignored; a tower four tiles up the lane unaffected; a cannon refuses a flyer at the gate; a real projectile lands damage on the ring attacker; the cooldown clamps to 0 instead of freezing at −30 |
+| `npm run build` | `✓ built in 7.49 s` |
+
+### 35.4 Browser (executed, controlled)
+
+Same scene each time: four defences around the keep, a `barricade` on the
+wave's own lane at `7,12`, real waves, probe-granted gold.
+
+| Check | Result |
+| --- | --- |
+| Before the gate rule | `cannon@10,13` (150 range) never acquired an attacker standing 188 px away on the far slot; it went silent while the core was hit |
+| After the gate rule | `cannon@10,13` fires on a target at **155 px with 150 range** (`FAR155`), flagged live by the probe, because that creep is `assaulting`; the core went **20 → 17 over waves 2–3** instead of 20 → 0 |
+| Screenshot | `docs/req46/gate-answered.png` — keep at 19/20, three towers answering at the gate, palisade still standing on the lane, HUD intact |
+| Console | 0 page errors |
+
+### 35.5 Labelled honestly
+
+* **Automated** — every row in 35.3, executed.
+* **Controlled** — 35.4: real browser, real build, real waves, but the probe
+  granted gold and placed its own defence line. It is not presented as a natural
+  playthrough.
+* **Not reproduced** — a total attack freeze. Nine probes (siege, no-siege,
+  seeded, natural waves, three wall positions, five defence lines) all showed
+  towers firing whenever a legal creep was in range. If a player still sees a
+  tower go permanently silent, the thing to capture is that tower's `currentTarget`,
+  `cooldownTimer` and `disabledTimer` — those three cover every early return in
+  `Tower.update`.
+* **Still not verified** — real mobile touch input, and a natural 8-wave win.
