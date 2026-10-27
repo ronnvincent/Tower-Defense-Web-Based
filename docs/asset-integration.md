@@ -27,7 +27,43 @@ The original archives stay outside the repository. Only the files below are
 committed, all under `src/assets/spire/` (unmodified sources) and
 `public/assets/` (cropped/derived runtime art).
 
+### Effect packs (Kenney, CC0)
+
+The Spire packs ship nine small impact puffs and nothing else, so every hit in
+the game looked the same. Two more packs fill that gap — both CC0, fetched from
+the `shorepine/kenney` mirror at a pinned commit:
+
+| Pack | What we use | Runtime |
+| --- | --- | --- |
+| [Explosion Pack](https://kenney.nl/assets/explosion-pack) | Regular, Simple, Sonic, Pixel and Ground explosion (9 frames each) | `fx-impact-<element>.png`, `fx-ground-blast.png`, `fx-shockwave.png` |
+| [Particle Pack](https://kenney.nl/assets/particle-pack) | muzzle, fire, flame, spark, star, circle, light, magic, smoke, trace, twirl, dirt, scorch, symbol | 18 `fx-*` particle textures for the emitters |
+
+Raw frames live in `src/assets/kenney/fx/` (1.4 MB, provenance in
+`PROVENANCE.json`, licence in `LICENSE-CC0.txt`). `scripts/build_fx_assets.py`
+downsamples the 512 px particle singles, lays each explosion set into one strip
+on a uniform frame box, and re-grades every strip through an element ramp. The
+result is `public/assets/fx/` plus the generated `src/data/fxManifest.js`.
+
+| Element | Source set | Frame | Why this ramp |
+| --- | --- | --- | --- |
+| `physical` | Pixel explosion | 96 px | crisp, tiny — an arrow should not explode |
+| `explosive` | Regular explosion | 192 px | gold/orange star burst sized to a splash radius |
+| `fire` | Simple explosion | 160 px | ember ring, reads as molten stone |
+| `frost` | Regular explosion | 176 px | ice blue, keeps the star silhouette |
+| `lightning` | Simple explosion | 160 px | white-yellow, snappier frame rate |
+| `arcane` | Simple explosion | 176 px | violet, slower playback |
+| `true` | Regular explosion | 176 px | magenta — the "ignores armour" colour |
+
+`fx-shockwave` and `fx-implosion` are the same Sonic sheet forward and reversed;
+`fx-nova` (ice shards) and `fx-levelup` (gold ring + glyph) are generated
+procedurally in the build script.
+
 ![Asset preview](asset-integration/asset-preview.png)
+
+That sheet is generated, not hand-assembled: `python3 scripts/make_asset_preview.py`
+reads the slot geometry from `src/data/towerVisuals.js`, composites every tower
+the way the game does and re-renders the enemy strips straight from
+`src/data/spireManifest.js`, so it can never drift from the shipped art.
 
 The composed battlefield (terrain autotiles, towers, palisade and props, drawn
 by a canvas port of the in-game placement rules):
@@ -45,11 +81,107 @@ Game slots are `lvl1 → lvl2 → spec-a / spec-b`. Art data lives in
 | **Ballista Tower** (`archer`) | Tower 01 (L1, L2, L3), Tower 06 (L3) | `t01_l01`, `t01_l02`, `t06_l03`, `t01_l03` | Stone platform + rotating ballista with bolt arms |
 | **Boulder Sling** (`cannon`) | Tower 03 (L1, L2, L3), Tower 04 (L3) | `t03_l01`, `t03_l02`, `t03_l03`, `t04_l03` | Timber platform + counterweight sling; the level-3 branch becomes a wall-mounted swivel gun |
 | **Frost Bastion** (`frost`) | Tower 02 (L1, L2, L3), Tower 05 (L3) | `t02_l01`, `t02_l02`, `t02_l03`, `t05_l03` | Shrine bowl + levitating ice crystal; the level-3 branch is a rune obelisk with a conductor orb |
+| **Hammerforge** (`forge`) | Tower 04 (L1, L2, L3) | `t04_l01` → `t04_l02` → `t04_l03` / `t04_l03` + storm remap | Stone keep with a counterweight hammer; the Thunderforge branch swaps the green gems for electric blue |
+| **Runestone** (`runes`) | Tower 05 (L1, L2, L3) | `t05_l01` → `t05_l02` → `t05_l03` / `t05_l03` + arcane remap | Obsidian rune keep with a levitating orb; the Arcane Nova branch shifts the crimson runes to violet |
+| **Banner Keep** (`banner`) | Tower 06 (L1, L2, L3) | `t06_l01` → `t06_l02` → `t06_l03` / `t06_l03` + gold remap | Limestone keep flying a banner; the Muster Camp branch recolours the blue pennant to royal gold |
 | **Palisade** (`barricade`) | Tileset 1 walkway planks + stone coping | one sprite per tier | Vertical stakes with a stone cap, standing on the road |
 
-Mechanics are untouched: ranges, damage, cooldowns, upgrades, targeting,
-hitboxes and the DSALGO pathfinding all use the same numbers as before the
-restyle. Only presentation changed.
+### The five engineer lines (authored, not imported)
+
+The Spire packs stop at six keeps, so the engineer roster is drawn from scratch
+by [`scripts/build_engineer_towers.py`](../scripts/build_engineer_towers.py) in
+the same 64 px side-view idiom: one shared brick shaft (the family resemblance)
+with a **different building on top of it for every line**. Nothing is recoloured
+and nothing is shared above the masonry — the five used to be one generic keep
+with five pennants, which is the bug this table replaces.
+
+| Line | Building | Level 1 | Level 3 (a / b) | Level 5 (a3 / b3) | Signature machinery |
+| --- | --- | --- | --- | --- | --- |
+| **Iron Crossbow** | tall arbalest tower | 44 × 84 px | 50 × 97 / 52 × 95 | 62 × 119 / 62 × 113 | full-width prod, V-string on a brass nut, loaded bolt; two winches and a counterweight at the top tiers |
+| **Clockwork Repeater** | squat iron bunker | 42 × 80 | 48 × 93 / 50 × 91 | 58 × 115 / 60 × 108 | flat riveted roof, six-mouth drum, smokestack, meshed cogs; a second drum on the flank at 5 |
+| **Pitchfire Siphon** | round fuel boiler | 44 × 85 | 48 × 99 / 50 × 97 | 58 × 122 / 60 × 116 | domed copper tank, banded belly, chimney with a fire mouth, lit firebox grate; priming tank at 5 |
+| **Venom Still** | alchemist's works | 42 × 90 | 46 × 105 / 48 × 103 | 56 × 129 / 58 × 123 | glass flask half full of distillate, copper neck and stand, condenser coil, drip tap; sigil at 5 |
+| **Harpoon Winch** | dockyard crane | 50 × 84 | 56 × 97 / 58 × 95 | 68 × 119 / 70 × 113 | king post and jib, pulley and hook, rope reel, harpoon rack, water barrel; lantern at 5 |
+
+![The five engineer lines, level 1 to level 5](asset-integration/engineer-buildings.png)
+
+The footprint is derived from each line's own proportions (`PROPORTIONS` +
+`geometry()`), not hand-written per slot, and it is capped: 42–72 px wide by
+80–129 px tall, against 60–118 × 94–152 before. That cap is what stops a level-5
+tower from colliding with its neighbour's upgrade badge on the board.
+
+Weapons are six-frame horizontal strips in a 128 × 128 frame with the pivot at
+`(64, 100)`; the art is scaled per slot (0.52 → 0.68, following the smaller
+canvases) and the pivot is placed on the drawing's own deck at ~47 % of its
+height, so the barrel sits on the crown instead of floating above it. The generator writes
+`src/data/engineerTowerArt.js`, and `towerVisuals.js` folds it into
+`TOWER_VISUALS` plus an exact `MUZZLE_OFFSET` per slot (`muzzleY` is measured
+from the drawn tip, never guessed).
+
+Shots and effects come from
+[`scripts/build_engineer_fx.py`](../scripts/build_engineer_fx.py):
+
+| Line | Projectile | Impact strip | Muzzle |
+| --- | --- | --- | --- |
+| crossbow | `proj-bolt`, `proj-bolt-heavy` | `fx-line-crossbow-impact` (needle burst) | triangular flash |
+| gatling | `proj-bullet` | `fx-line-gatling-impact` (casings + cone) | brass cone |
+| flamer | `proj-flame` | `fx-line-flamer-impact` (tongues + scorch) | ember spout |
+| venom | `proj-acid` | `fx-line-venom-impact` (bubbles + pool) | green glob |
+| harpoon | `proj-harpoon` | `fx-line-harpoon-impact` (spear + splinters) | teal diamond |
+
+The impact strips re-tint the shipped Kenney CC0 bursts (`blast`, `ember`,
+`arcane`, `ground`) with frame 0 skipped and alpha capped below white, so a
+burst can never strobe — the same rule the element strips follow.
+
+Tower 04, 05 and 06 each ship a single level-3 sheet, so the two branches of
+those lines share it and are told apart by a palette remap (`STORM_REMAP`,
+`ARCANE_REMAP`, `GOLD_REMAP` in the generator). Remaps are keyed by *output
+stem*, not slot index, so only the second branch is recoloured — `banner-spec-a`
+keeps the stock blue pennant. Mechanics are untouched: ranges, damage,
+cooldowns, upgrades, targeting, hitboxes and the DSALGO pathfinding all use the
+same numbers as before the restyle. Only presentation changed.
+
+### Ascended tiers (levels 4–5)
+
+Levels 4 and 5 keep their branch's silhouette but ship their own textures:
+`base_<line>-spec-a2.png`, `-spec-a3.png` and the matching weapons. The script
+re-grades the level-3 art through the line's element ramp, adds a rim light and,
+at level 5, paints a power ring on the plinth.
+
+**Tier geometry.** A re-grade on its own was rejected by playtesting: the result
+read as "same tower, warmer", never as an upgrade. Every tier above 1 therefore
+also gains parts, drawn by `scripts/build_tower_decor.py` (24 sprites, generated
+metadata in `src/data/towerDecor.js`) and attached at runtime by
+`Tower.refreshDecorations()`:
+
+| Tier | Sprite | Anchor |
+| --- | --- | --- |
+| 2 | `parapet.png` (keeps) / `rail.png` (engineer) + `pennant-<line>.png` ×2 | crown behind the keep's top, flags on its edges |
+| 3 | `plinth.png` + `cloth-<line>.png` | footing at the ground line, standard hung under the crown |
+| 4 | `brazier.png` + `flame-0..2.png` ×2 | base corners, ADD blend, 120 ms frame cycle |
+| 5 | `crystal-<line>.png` ×2 | hovering above the crown, opposite-phase bob |
+
+**Eleven lines, two crowns.** All eleven lines ship their own pennant, standard
+and tier-5 sprit (`DECOR_ART`). The six Spire keeps fly a plain cloth under a
+stone merlon crown; the five engineer lines fly a **larger, stamped** cloth
+(18 × 36 vs 14 × 30) under an **iron gun rail** (`rail.png`) with a barrel
+cradle, because a repeater under castle battlements looked wrong. Each engineer
+mark is a real silhouette — bolt, cog, flame, bubble cluster, barbed hook — and
+each tier-5 sprit is a matching shape (lance tip, gear, jagged ember, bubble
+cluster, barbed shard) drawn on a taller canvas than the keep shard.
+`tests/tower-decor.test.js` decodes the alpha channel of the five sprits and
+fails if any two share a silhouette, so "recolour and call it different" cannot
+sneak back in.
+
+Rebuilding the keeps from the source packs was still rejected: every pivot,
+mount height and muzzle offset in `towerVisuals.js` is calibrated to the
+level-3 sheet (`fw`/`fh`/`px`/`py`/`mount`), and a new canvas size would mean
+re-measuring 48 sprites by hand. Decoration layers change the silhouette without
+touching a single measured value.
+
+`TOWER_VISUALS` derives the four ascended slots from `spec-a`/`spec-b`, so
+`SLOTS` is eight entries per line and `BootScene` loads them without a special
+case.
 
 ### Placement contract
 
@@ -75,6 +207,18 @@ centre. Frost crystals never rotate (`NON_ROTATING_TYPES`) and simply bob.
 | `cannonball` | `proj-cannonball` (Tower 03) | `impact-cannon` |
 | `frost` | `proj-frost`, `-2`, `-3` per tier (Tower 02) | `impact-frost`, `-2`, `-3` |
 | `lightning` | `proj-lightning` (Tower 05) | `impact-lightning` |
+| `banner` | `proj-banner` (golden standard bolt) | `fx-line-banner-impact` |
+| any line, L4 | `proj-line-<line>-4` | `fx-line-<line>-impact` |
+| any line, L5 | `proj-line-<line>-5` | `fx-line-<line>-impact` |
+
+The tiered keys come from the generated `src/data/projectileArt.js`
+(`projectileArtFor(line, level)`), so `Tower` never hard-codes a file name; if a
+texture is missing the shot falls back to the branch's `slotTexture`.
+
+The Spire impact strips are the fallback. The shipped effects come from the
+Kenney library above (`src/systems/Vfx.js`), which picks a strip by *damage
+type* rather than by projectile art, so a repainted tower still lands with the
+right element.
 
 ## 3. Enemies
 
@@ -91,26 +235,289 @@ size plus the frame count of each animation band.
 | `shield` | Magma Crab | `enemy-shield.png` | 8 / 8 / 10 |
 | `boss-colossus` | Firewasp | `enemy-colossus.png` (96×96 frames) | 12 / 8 / 12 |
 | `boss-warlord` | Flying Locust | `enemy-warlord.png` | 12 / 8 / 14 |
+| `boss-sandwyrm` | Scorpion, **2×** | `enemy-sandwyrm.png` (128×128 frames) | 8 / 8 / 8 |
+| `boss-frostwarden` | Magma Crab, **2×** | `enemy-frostwarden.png` (128×128 frames) | 8 / 8 / 10 |
+| `boss-magmalord` | Firewasp, **2×** | `enemy-magmalord.png` (192×192 frames) | 12 / 8 / 12 |
+| `boss-prismlord` | Void Butterfly, **3×** | `enemy-prismlord.png` (192×192 frames) | 6 / 4 / 12 |
+| `boss-obsidian` | Clampbeetle, **3×** | `enemy-obsidian.png` (192×192 frames) | 8 / 8 / 13 |
+| `boss-voidherald` | Flying Locust, **3×** | `enemy-voidherald.png` (192×192 frames) | 12 / 8 / 14 |
 
-Each strip holds nine rows: idle, walk and death, each in three colour
-variants. The game plays variant 0. Frame size differs per creature (the
-Firebug sheet is 128×64 per frame, the Firewasp 96×96), so the manifest also
-records the drawn width/height of the art. Sprites are scaled by that drawn
-width to match the existing collision radius, and rotated +90° because the art
-faces up.
+### How a Spire strip is laid out
+
+Nine rows, and the row is a **direction**, not a colour variant:
+
+| Rows | Clip | Row order |
+| --- | --- | --- |
+| 0–2 | `idle` | 0 = south (towards the camera), 1 = north (away), 2 = profile |
+| 3–5 | `move` | same three directions |
+| 6–8 | `death` | same three directions |
+
+Frame counts are uniform inside each clip across all three directions, and they
+are read from the manifest — never assumed. `BootScene.createEnemyClips()` turns
+row *d* into `<texture>-d<d>-<clip>`; the bare `<texture>-<clip>` keys alias the
+south row.
+
+`Enemy.faceTravel()` therefore picks a **row**, and the sprite's `rotation` stays
+`0` in every lane. That is the whole fix for "the monster walks on its side":
+rotating top-down art by 90° maps its front-to-back axis onto the screen's
+left-to-right axis, so a northbound creep ends up lying flat while still
+technically "aimed" at the lane. The sprite also never has to un-rotate on a
+corner, so the pose change is a single frame cut.
+
+The profile row is the one place the artist was not consistent: some creatures
+are drawn looking **east**, some looking **west**. Rotating cannot fix that and
+neither can a single global constant, so the direction is declared per sheet in
+`scripts/build_spire_assets.py` and travels into the manifest as
+`profileFacing`. Mirroring is then decided against the art rather than against
+the screen: `flipX = (travelX < 0) ≠ (profileFacing === 'west')`.
+
+| Art faces east | Art faces west |
+| --- | --- |
+| grunt, runner, healer, colossus, warlord, magmalord, prismlord, voidherald | brute, swarm, shield, sandwyrm, frostwarden, obsidian |
+
+![The horde walking east, north and south](asset-integration/walk-orientation.png)
+
+*Real render, headless Chromium. Top: crossing a horizontal lane on the profile
+row — the scorpion and the clam beetle are mirrored because their art is inked
+looking west. Middle: walking away from the camera. Bottom: walking towards it.
+Every cell reports `rotation = 0`.*
+
+Bosses are scaled and re-graded from those same strips, so they carry the source
+creature's facing instead of being re-measured: `sandwyrm`/`obsidian` look west
+with `brute`/`swarm`, `frostwarden` with `shield`, and `magmalord`/`prismlord`/
+`voidherald` look east with `colossus`/`healer`/`warlord`. `ENEMY_PROFILE_INHERITS`
+in the generator is the single place that mapping lives.
+
+### Flare monsters (CC-BY-SA 3.0)
+The Spire set is all insects, so a second pack supplies the bodies that are not
+bugs. Six creatures come from [FLARE](https://github.com/clintbellanger/flare-game)
+(© Clint Bellanger and contributors, CC-BY-SA 3.0 — full text in
+`src/assets/flare/LICENSE.txt`, provenance and modifications in
+`src/assets/flare/README.md`).
+
+Flare ships packed atlases with an `.txt` naming a rectangle and a foot offset
+for every frame of eight facings. `scripts/extract_flare_enemies.py` lifts a
+single facing, drops the baked ground shadow, and recomposites the clips into
+the same 9-row idle/move/death strip the Spire sheets use — which means biomes,
+tiers and the manifest apply with no special case in the game.
+
+One field cannot be shared with the Spire set. A Spire strip is **three clips ×
+three directions** (see above), so a creep has a drawing for every way it can
+travel. Flare's creatures stand on the ground and face the camera; they ship one
+pose, so all six declare `directional: false` and are mirrored left/right
+instead. Eight real facings exist in the source and would fix the north/south
+case, but copying them into every biome × tier sheet multiplies the creature
+sheets fourfold — about 17 MB per direction set in `public/assets/enemies` — for
+a difference the player only sees walking away from the camera. The front-on
+contract buys the readable half for free.
+
+
+| Game archetype | Flare creature | Sheet (frame) | Frames (idle / move / death) |
+| --- | --- | --- | --- |
+| `thrall` | Zombie | `enemy-thrall.png` (65×65) | 4 / 8 / 6 |
+| `raider` | Goblin | `enemy-raider.png` (62×62) | 4 / 8 / 6 |
+| `bonearcher` | Skeleton archer | `enemy-bonearcher.png` (80×80) | 4 / 8 / 6 |
+| `boss-ironhorn` | Minotaur | `enemy-ironhorn.png` (103×103) | 8 / 8 / 8 |
+| `boss-ashwing` | Wyvern | `enemy-ashwing.png` (122×122) | 8 / 8 / 8 |
+| `boss-gravesworn` | Skeleton knight | `enemy-gravesworn.png` (114×114) | 4 / 8 / 6 |
+
+The generator measures each sheet's ink to size it on screen. Spire sheets hold
+one silhouette across every frame, so frame 0 is exact; Flare's creatures change
+pose far more (the wyvern folds its wings to 68×40 and spreads them to 108×65),
+so `AVERAGE_MEASURE` takes the mean box over the idle and move rows instead.
+Measuring the folded frame made the whole animation 1.8× too large and clipped
+the wings off-screen.
+
+Bosses take a *partial* grade (50–55 % toward their element ramp) rather than
+the full duotone the Spire giants get: the Flare sheets are painted with armour
+detail, and mapping them onto four flat stops turns a minotaur into a silhouette.
+Creeps get the same per-biome re-grade as every other creep, so a thrall is
+frozen blue on the ice map and charred on the Caldera.
+
+### Boss sheets
+The campaign bosses reuse the elite silhouettes, upscaled 2–3× with
+nearest-neighbour (so the pixel grid survives) and **duotoned** onto a
+per-boss ramp — `duotone()` in the generator maps every pixel's luminance
+through four stops:
+
+| Boss | Source silhouette | Ramp (dark → light) |
+|---|---|---|
+| Dune Tyrant | Scorpion ×2 | `#2A1A0C → #8A5A2A → #FFD98A → #FFF3D0` |
+| Frost Warden | Magma Crab ×2 | `#10202E → #33607F → #9FD4EF → #F2FBFF` |
+| Magma Regent | Firewasp ×2 | `#1E0806 → #8C2A0E → #FFA23C → #FFE9B0` |
+| Prism Warden | Void Butterfly ×3 | `#140A2A → #4A2E8C → #B892F0 → #F4ECFF` |
+| Void Herald | Flying Locust ×3 | `#05070F → #123B45 → #2FB6A8 → #B9FFF2` |
+| Obsidian Behemoth | Clampbeetle ×3 | `#090A14 → #2A2350 → #6F5BD6 → #C9BEFF` |
+
+A hue rotation alone was not enough: the source sheets carry several hue
+families (carapace, eyes, highlights), so rotating them kept the original
+identity. Dropping to one ramp makes a boss read as its own creature at a
+glance while keeping the pack's shape language.
+
+### Biome re-grade × wave tier × palette
+
+Each strip holds nine rows: idle, walk and death, each in the three directions
+above. Frame size differs per creature (the Firebug sheet is 128×64 per frame,
+the Firewasp 96×96), so the manifest also records the drawn width/height of the
+art, and sprites are scaled by that drawn width to match the collision radius.
+No rotation is applied — the direction row supplies the pose.
+
+One strip on its own was not enough on screen. Two things were measured and
+fixed at the root:
+
+1. **The three row variants are nearly identical.** Comparing frame 0 of row 0
+   with rows 1 and 2 shows only ~186 of ~3,576 inked pixels differ (≈5 %). That
+   measurement was originally read as "three palette variants" — it is in fact
+   three *directions* of the same pose, which is why swapping rows per wave was
+   both invisible and, later, the reason half the horde walked sideways.
+2. **A single re-grade per biome cannot express escalation.** Waves 1 and 6
+   looked the same shade.
+
+So the generator now bakes a sheet per **(creature × battlefield × tier)** and
+`spireManifest.js` exports the texture keys as `ENEMY_SKINS`:
+
+| Tier | Waves | Extra work on top of the biome re-grade | Scale | Glow |
+|:-:|:-:|---|:-:|:-:|
+| 0 base | 1–2 | none (pure biome re-grade) | 1.00 | — |
+| 1 elite | 3–4 | saturation ×1.38, lightness ×1.16, gold contour | 1.08 | 0.22 |
+| 2 champion | 5+ | ember ramp under the biome hue, saturation ×1.55, ember contour **grown one pixel outwards** | 1.16 | 0.34 |
+
+The contour is structural, not a tint: `rim_light()` recolours every silhouette
+pixel that touches empty space and, for champions, paints the ring of pixels just
+outside the silhouette, so a champion's body is literally larger. `Enemy` then
+multiplies `baseScale` by the tier scale and, from tier 1 up, adds an additive
+brood-coloured glow ellipse behind the sprite (`createBroodGlow`, pulsing on a
+760 ms tween for champions, 1200 ms for elites). `ENEMY_TIERS` in the manifest
+carries the scale/glow numbers so the renderer holds no magic values.
+
+Bosses keep their single heroic sheet — escalation is a creep feature, and an
+ember contour on the Frost Warden would fight its element. `textureFor()` returns
+`enemy-<boss>` for any key without a `ENEMY_SKINS` entry.
+
+Per-wave palette rows are still used on top of this (rows 0–2 / 3–5 / 6–8 in two-
+wave blocks), so the horde keeps changing inside a tier.
 
 Display names in `src/data/enemyData.js` stay thematic; the insect artwork is
 accepted as part of the "Spire" look.
 
 ## 4. Terrain
 
-Every tile is 64×64 and derived from `tileset/grass.png` / `water.png`:
+Every tile is 64×64, **painted procedurally** by `scripts/terrain.py` from the
+biome's own palette rather than re-graded from one pack tile. A colour LUT over
+`grass.png` was the first attempt and it could not make a desert read as sand:
+it kept the pack's leaf detail and only moved the hue. `build_tiles()` in
+`build_spire_assets.py` is now a thin wrapper that writes what `terrain.py`
+returns:
 
-- `grass.png` — base ground for the whole board
-- `road_0.png` … `road_15.png` — road autotiles indexed by a 4-bit neighbour
-  mask (N=1, E=2, S=4, W=8); the ragged grass border comes from the pack art
-- `rock.png`, `water.png` — obstacles and hazards
-- `foliage.png` — scattered decoration on grass tiles
+| Base key | Painter | Notes |
+|---|---|---|
+| `grass`, `grass_2`, `grass_3` | `build_ground` | flat base + 14 % single-pixel dither + hand-placed blade clumps; three variants share one macro pattern so the board never shows a grid |
+| `road_0` … `road_15` | `build_road` | 4-bit autotile (N=1, E=2, S=4, W=8), wobbled fringe, **alpha-composited** — the lane is drawn on top of the ground, nothing is painted into the fringe |
+| `water_0` … `water_15`, `water` | `build_water` | same autotile contract; depth by distance from the shoreline (3 bands), light foam rim, rounded corners on single-cell ponds |
+| `rock`, `rock_2` | `build_rock` | polar-blob boulder clusters with top-left lighting, hairline cracks and grass/gravel tufts at the base |
+| `decor_tuft` / `decor_bloom` / `decor_shard` | `build_decor` | 32×32 scatter props (blade clumps, flowers, stone shards), different per biome |
+| `foliage` | `build_foliage` | one landmark per battlefield: the Spire oak in the grassland, saguaro cacti in the desert, snow-laden firs on the ice, ember-lit charred deadwood on the volcano |
+
+Two fixes are worth recording because both were visible on screen:
+
+- **Seams between connected tiles.** `_fringe().inside()` probed past the tile
+  edge by wrapping (`x % size`), which answered "masked" for open ground and
+  painted a false rim on every internal seam. Out-of-range probes now answer from
+  the autotile mask instead.
+- **Painting ground colour into the fringe** desynced from the biome ground
+  (bluish seams on ice) and forced a per-neighbour recomputation. The fringe is
+  transparent and `GameScene.renderBattlefieldMap()` layers ground → lane/water →
+  decor, which is the root-cause fix.
+
+### Biome identity
+`RAMPS`, `ROAD_RAMPS`, `WATER_RAMPS` and `ROCK_RAMPS` in `terrain.py` hold the
+palettes; `suffix()` maps a theme to its file suffix and `seed_for()` (crc32, not
+`hash()`, which is randomised per process) keeps every build byte-identical.
+
+| Theme | Ground | Lane | Water | Landmark |
+|---|---|---|---|---|
+| grassland | green dither, blade clumps, flowers | warm clay | dark teal pond | Spire oak |
+| desert | ochre sand, cracked shadows | trodden dark earth | deep oasis aqua | saguaro cactus |
+| ice | slate blue, wind streaks, frost needles | dark slate | frozen navy | snowy fir |
+| volcanic | near-black ash, ember flecks, magma cracks | ashen basalt + ember seams | bright magma | charred deadwood |
+| crystal | indigo basalt, amethyst veins, glitter | polished pale quartz | teal mana pool | crystal prism cluster |
+
+### Readability audit
+`scripts/terrain.py --contrast` prints a JSON table of surface-vs-ground
+separation. The metric is a YCbCr distance with area weights (55/30/10/5 % across
+the ramp), because a saturated teal pond on green grass can sit at the same luma
+and still be perfectly readable — a pure brightness delta rejects good palettes
+and accepts grey mud. `tests/terrain-contrast.test.js` enforces the floor
+(≥ 26) and also fails if two biomes end up with the same lane or water value.
+
+### Maps
+Every battlefield is compiled from one grammar — `src/data/arenaLayout.js`
+(`arenaLanes` + `buildArena`) — into a 26×12 arena:
+
+* the **portal** stands on row 2, one full row of enemy ground under the top rim;
+* the **river** is row 5, the horizontal split: five rows of enemy ground above
+  it, seven rows of ours below (the 40 / 60 cut, in whole rows);
+* the **bastion** stands on row 9 with two rows of margin under it (row 10 grass,
+  row 11 rock rim), so neither gate ever touches the edge;
+* **two or three crossings** per map, never one shared arena;
+* the two gates may sit on **different columns** — a map that runs corner to
+  corner makes every crossing between them exactly the same length, which is
+  what gives a three-lane board three genuinely equal routes
+  (`PathfindingSystem.computeLanes` keeps them all).
+
+Each map is one entry in `ARENA_VARIANTS` (gate columns, bridge columns, corridor
+and courtyard rows, stagger, props); `MAPS` is the compiled result and every
+layout is verified pathable by the BFS graph. The campaign uses `grassland`,
+`desert`, `ice`, `crystal` and `volcanic`; the War Room modes use the rest;
+Endless Siege marches the volcanic arena with a four-band biome overlay
+(`MAP_BIOMES`), its bands cut on the arena's own rows.
+
+### UI art
+- `star_gold.png` / `star_empty.png` / `lock.png` — Kenney *Game Icons* white
+  silhouettes, tinted (`tint_pixels`) gold, slate and parchment.
+- `icon_gem.png` — the Kenney top-down gem prop (`towerDefense_tile183`),
+  hue-shifted to violet and centred on a 64 px canvas.
+### Bastion arena art
+`public/assets/arena/` carries the board's landmarks. The keep is vector-sourced
+art, rasterised by `scripts/svg-to-png.mjs` and composed with a contact shadow by
+`scripts/build_arena_art.sh`, so it is reproducible from the CC0 sources in
+`art-source/arena/`:
+
+| File | Size | Use | Source |
+|---|---|---|---|
+| `bastion-fortress.png` | 490×466 | the player's keep, bottom-anchored on the bastion tile | OpenGameArt *Fortress*, CC0 (`art-source/arena/fortress.svg`) |
+| `portal-arch.png` | 220×224 | the gate frame at the spawn tile, origin 0.5 / 0.8 | this project's art pass |
+| `portal-vortex.png` | 1152×576 | 32 frames of 144 px (8×4), the animated portal core | Kenney particle art, CC0 |
+| `river-flow.png` | 512×512 | seamless ripple layer scrolled across the river row | Kenney water caustics, CC0 |
+
+`bastion-keep.png` (the painted castle) and `bastion-city.png` (the walled city
+tried after it) stay on disk as recoverable originals; neither is loaded by the
+game. `bastion-city.svg` is still in `art-source/arena/` with `fortress.svg`.
+
+The sheet is the fortress plus a tenth of its height of transparent padding on
+every side, which is what the contact shadow is blurred into. `KEEP_PAD_RATIO`
+in `src/data/arenaArt.js` publishes that tenth, so the world health bar anchors
+to the top of the *battlements* (`keepTop + displayHeight × 0.1`) instead of to
+the empty air above the texture — anchoring to the raw bounds floated the bar
+into the river row. The keep's foot sits at `baseY + TILE_SIZE × 0.9`, on the
+top edge of the bottom margin row, so the two rows of grass and rock under the
+bastion stay visible.
+
+`src/data/arenaArt.js` is the manifest (`ARENA_ART`, `PORTAL_ANIM`); `BootScene`
+loads the four files and registers `portal-vortex-idle` at 30 fps, and
+`GameScene.createPortalAndBase()` places them. The river is drawn as two
+`tileSprite`s across row 5 with `ADD` blending, scrolled at different speeds in
+`update()` — one texture offset per frame, not a per-cell redraw. The vortex is composited by
+`scripts/build_arena_art.sh` from the CC0 Kenney FX sheets the game already
+ships: every layer is composited on **black**, and the sheet is played with
+`ADD`, so it has no alpha channel **by design** — additive blending drops the
+black and keeps the glow. Layers are flattened after they are rotated; rotating
+first and flattening later leaves pink wedges in the corners.
+
+- `map_<theme>.png` — 120×72 minimaps rendered from the *same* ASCII
+  battlefields in `src/data/mapData.js` and the *same* themed tiles the game
+  loads: one 6 px block per cell, road cells brightened so the lane reads at
+  thumbnail size. Adding a level therefore adds a thumbnail for free.
 
 ## 5. Known gaps and deliberate choices
 
@@ -128,13 +535,142 @@ Every tile is 64×64 and derived from `tileset/grass.png` / `water.png`:
 5. **Cropped, not repainted.** Bases are trimmed to 64 px wide and weapons are
    recoloured only for the frost/lightning branches (hue remap in the
    generator), so no art is invented.
+6. **Every Kenney `towerDefense_tile` is Adam7-interlaced.** The in-repo PNG
+   decoder handles all seven passes; a decoder that ignores the interlace byte
+   silently returns rainbow noise instead of art (this bit the gem icon first).
 
 ## 6. Regenerating the art
 
 ```bash
-python3 scripts/build_spire_assets.py
+python3 scripts/build_spire_assets.py     # towers/enemies/tiles + spireManifest.js
+python3 scripts/build_tower_decor.py      # per-tier decorations + towerDecor.js
+python3 scripts/build_projectiles.py      # per-line L4/L5 shots + projectileArt.js
+python3 scripts/build_engineer_towers.py  # 5 engineer lines + engineerTowerArt.js
+python3 scripts/build_engineer_fx.py      # engineer shots + impacts + muzzles
+python3 scripts/build_fx_assets.py        # element + per-line effect atlases
+python3 scripts/terrain.py --contrast     # battlefield readability table
 ```
 
 Requires only the standard library plus the unpacked source packs in
 `src/assets/spire/`. The script prints one line per output file — treat that as
-the manifest — and rewrites `src/data/spireManifest.js`.
+the manifest — and rewrites `src/data/spireManifest.js`. Terrain and enemy tiers
+are deterministic (crc32 seeding), so a rebuild with no source change produces
+identical bytes.
+
+## 8. Req 37 asset audit (2026-10-27)
+
+The brief for this pass was explicit: **inspect what the build already ships
+before searching for more**, and only integrate a pack whose licence is checked
+and whose download actually works from this sandbox. This section records both
+halves — the inventory, and the honest result of the search.
+
+### 8.1 What the build already ships
+
+`public/assets/` is 27.46 MB across 1,284 files. Counted today, not remembered:
+
+| folder | files | size | what it is |
+| --- | --: | --: | --- |
+| `enemies/` | 216 | 20.32 MB | 20 creature sheets × 5 biome skins × 3 escalation tiers |
+| `towers/` + `units/` | 229 | 0.49 MB | 11 tower families: base strip + weapon strip per level/specialisation, plus the vanguard units |
+| `tiles/` | 516 | 0.32 MB | terrain autotiles (grass/road/rock/water/foliage) for five biomes |
+| `fx/` | 56 | 1.41 MB | Kenney explosion/particle strips, re-graded per element |
+| `projectiles/` | 41 | 0.01 MB | one projectile texture per firing tower |
+| `arena/` | 6 | 1.11 MB | portal vortex (32 frames, 144 px), fortress, keep, city, river flow |
+| `ui/` + `ui-kit/` + `cozy-ui/` | 188 | 1.79 MB | panels, buttons, icons, dock cards |
+| `audio/`, `hero/`, `worldmap/`, `effects/` | 32 | 2.01 MB | the rest |
+
+### 8.2 Animation coverage, sheet by sheet
+
+`src/data/spireManifest.js` is generated from the real PNGs (`scripts/build_spire_assets.py`),
+so these row counts are measured, not assumed:
+
+| asset class | real animation rows | gap |
+| --- | --- | --- |
+| ground creatures (18 sheets) | 9 rows = **idle / move / death** × 3 facings | **no attack row, no hit row** |
+| flyer (`enemy-ashwing`) | 9 rows, same three clips | no dedicated hover/attack/hit |
+| towers (11 families) | base strip **+ weapon strip**, 6–29 real frames per tier | weapon recoil is the attack; no separate "hit" |
+| bastion | `bastion-fortress.svg` → 420 px raster, OpenGameArt "Fortress", **CC0** | static by design |
+| portal | 32 frames of 144 px packed 8×4, composited from CC0 Kenney particles | — |
+| projectiles / effects | per-element strips + impact/frost/lightning ramps, Kenney **CC0** | — |
+
+So the shipped set is a genuine animated set for idle/walk/death, and the towers
+and effects carry their own animation. What it does **not** have is a per-creature
+attack and hit clip — the game currently plays the idle clip while a creep beats
+on a barricade or the bastion.
+
+### 8.3 Can we download more from here? (re-tested today)
+
+| host | result |
+| --- | --- |
+| `github.com`, `api.github.com`, `codeload.github.com` | **200** — usable |
+| `registry.npmjs.org`, `pypi.org` | **200** — usable |
+| `opengameart.org`, `kenney.nl`, `itch.io`, `craftpix.net` | TLS handshake dropped (`SSL_ERROR_SYSCALL`, status 000) |
+| `raw.githubusercontent.com` | blocked (use the `contents` API with `Accept: application/vnd.github.raw`) |
+
+The one route that still works is a **GitHub-hosted CC0 mirror** —
+[`Tiddybub/2d-assets`](https://github.com/Tiddybub/2d-assets) (1,101 packs, each
+with a `SOURCE.md` naming the upstream page and licence). Its tree and code
+search answered normally today, so a blobless sparse clone of a chosen pack is
+possible; the previous 26 MB library at `/home/user/asset-library` is no longer
+on this machine and would have to be re-fetched.
+
+### 8.4 Packs that would close the gap — manual links, licence stated
+
+Nothing below was downloaded or integrated in this pass; the battlefield work
+was finished on the existing art. These are the packs to fetch by hand if the
+attack/hit rows are wanted next. All are **CC0** (commercial use, no attribution
+required) unless noted.
+
+| pack | link | licence | what it adds | why not integrated yet |
+| --- | --- | --- | --- | --- |
+| Tower defense slime enemy (Tisroc) | <https://opengameart.org/content/tower-defense-slime-enemy> | CC0 | top-down enemy with **idle / walk / hurt / death / attack** PNGs + one combined sheet — exactly the missing clips | one creature only; needs a 9-row repack and a new skin lane |
+| Tower Defense (Top-Down) (Kenney) | <https://kenney.nl/assets/tower-defense-top-down> | CC0 | 300 tiles/props/towers/enemies, matches our road grammar | static art, no animation rows; we already use Kenney for fx |
+| Tower Defense (isometric) (Kenney) | <https://opengameart.org/content/tower-defense-assets-isometric> | CC0 | modular tower blocks | isometric projection does not fit our orthographic board |
+| Tiny Swords (Pixel Frog) | <https://pixelfrog-assets.itch.io/tiny-swords> | CC0 | units with idle/run/attack (+ death in later drops), buildings, terrain | side-on framing — enemies would need redrawing to read top-down |
+| Explosion Pack / Particle Pack (Kenney) | <https://kenney.nl/assets/explosion-pack> | CC0 | the fx we already ship | already integrated |
+
+**Verdict for P5:** audit done, licences verified, download route documented,
+no pirated or ripped art used, and **no new pack integrated** — the pass ships
+the existing CC0 set.
+
+## 9. Request 43 — the ten royal lines (original, generated in-repo)
+
+The royal roster needed art that does not exist in any licensed pack: ten
+defences, five authored tiers each, with a dedicated projectile, trail, muzzle,
+impact and status look. No external source could be reached from this
+environment for these, and drawing them as recolours of the Spire towers is
+explicitly rejected by the brief. So they are **generated by code in this
+repository** and treated as project art, not as third-party assets.
+
+| Property | Value |
+| --- | --- |
+| Author | This repository (`scripts/build_royal_defences.py`) |
+| Licence | Original project work — no third-party source, no attribution required |
+| Third-party material | none |
+| Regenerate | `python3 scripts/build_royal_defences.py` (needs Pillow) |
+| Inspect | `python3 scripts/check_royal_art.py` (exit 1 on any bad sheet) |
+| Reference | `docs/royal-defences.md` §7 |
+
+### 9.1 Files
+
+| Group | Count | Path | Dimensions |
+| --- | --- | --- | --- |
+| Tier bases | 50 | `public/assets/towers/base_<line>-l<1..5>.png` | cropped to ink, bottom edge = ground line; ≤80 px wide and ≤142 px tall (clamped, so a bastion never bleeds into the next tile) |
+| Tier weapon sheets | 50 | `public/assets/towers/weapon_<line>-l<1..5>.png` | `768×128` (6 frames of `128×128`), pivot `(64,104)` |
+| Dock cards | 10 | `public/assets/ui/card_<line>.png` | `64×64` |
+| Projectiles | 7 | `public/assets/projectiles/proj-royal-<line>.png` | one per shooting line, own silhouette |
+| Impact strips | 10 | `public/assets/fx/fx-line-<line>-impact.png` | `1280×128` (10 frames of `128×128`, 30 fps) |
+| Muzzle flashes | 10 | `public/assets/fx/fx-line-<line>-muzzle.png` | `48×48`, single frame |
+| Projectile trails | 7 | `public/assets/fx/fx-line-<line>-trail.png` | `48×48` soft streak, shooting lines only |
+| Wrecks | 10 | `public/assets/towers/ruin_<line>.png` | `96×64`, one per line; five collapse styles, accent shard identifies the line |
+| Geometry tables | 2 | `src/data/royalTowerArt.js`, `src/data/royalFx.js` | generated; never edited by hand |
+
+### 9.2 Licence audit for the pass
+
+* No art was downloaded during Request 43. The blocked-source list in §8.3 still
+  applies — the sandbox cannot reach `opengameart.org`, `kenney.nl`, `itch.io`
+  or `raw.githubusercontent.com`.
+* The existing Spire and Kenney files shipped in earlier passes are untouched,
+  and no royal asset is presented as part of those packs.
+* Every generated sprite is committed in the working tree; nothing in the game
+  points at a file that is not there (checked by `check_royal_art.py`).

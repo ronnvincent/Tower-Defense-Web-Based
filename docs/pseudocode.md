@@ -10,8 +10,8 @@ This document outlines the high-level pseudocode for the primary data structures
 ALGORITHM BFS_ShortestPath(graph, startNode, goalNode, blockedSet)
   INPUT:
     graph       : Adjacency list representation of road cells
-    startNode   : Spawn cell identifier (e.g., "5,0")
-    goalNode    : Base cell identifier (e.g., "5,19")
+    startNode   : Spawn cell identifier (e.g., "5,1")
+    goalNode    : Base cell identifier (e.g., "5,18")
     blockedSet  : Optional set of nodes temporarily treated as impassable
 
   OUTPUT:
@@ -188,50 +188,77 @@ END CLASS
 
 ---
 
-## 4. Barricade Feasibility Validation
+## 4. Palisade Siege Resolution
 
 ```text
-ALGORITHM TryBlockCell(graph, candidateCell, livingEnemiesList, spawnCell, baseCell)
+ALGORITHM UpdateSiege(enemy, graphRoute, barricadeIndex)
   INPUT:
-    candidateCell    : Road cell the player clicked to place barricade
-    livingEnemiesList: Array of living enemy entities with their next target cell
-    spawnCell        : Spawn coordinate "5,0"
-    baseCell         : Base coordinate "5,19"
+    enemy          : Living enemy entity with a position and a route
+    barricadeIndex : Map<"row,col", Palisade> built by PlacementSystem
 
   OUTPUT:
-    result           : { ok: Boolean, reason: String, enemyPaths: Map }
+    true when the enemy spent this frame attacking a wall
 
-  IF candidateCell == spawnCell OR candidateCell == baseCell THEN
-    RETURN { ok: false, reason: "endpoint" }
+  nextCell <- enemy.route[enemy.pathIndex]
+  wall     <- barricadeIndex.get(nextCell)
+  IF wall is null OR wall.health <= 0 THEN
+    RETURN false                       // normal waypoint movement continues
   END IF
 
-  // 1. Verify Spawn still reaches Base
-  blockedSet <- Set containing candidateCell
-  spawnTest <- BFS_ShortestPath(graph, spawnCell, baseCell, blockedSet)
-  IF spawnTest.found IS FALSE THEN
-    RETURN { ok: false, reason: "blocks-path" }
+  // 1. Stand one stop-distance OUTSIDE the wall tile (never inside it)
+  target <- ApproachPoint(enemy.position, wall.position, STOP_DISTANCE)
+
+  // 2. Spread the pack sideways so attackers do not stack on one pixel
+  target <- target + perpendicularOffset(enemy.id)
+
+  IF distance(enemy.position, target) > step THEN
+    enemy.position <- moveTowards(enemy.position, target, step)
+    RETURN true
   END IF
 
-  // 2. Verify all living enemies still reach Base
-  enemyPathMap <- Instantiate Map()
-  FOR EACH enemy IN livingEnemiesList DO
-    enemyStart <- enemy.nextTargetCell
-    IF enemyStart == candidateCell THEN
-      RETURN { ok: false, reason: "enemy-on-tile" }
+  // 3. In contact: swing on the archetype's cadence
+  enemy.siegeTimer <- enemy.siegeTimer + delta
+  IF enemy.siegeTimer >= enemy.def.siegeInterval THEN
+    enemy.siegeTimer <- enemy.siegeTimer - enemy.def.siegeInterval
+    swing <- ResolveSiegeSwing(wall, enemy.def.siege)
+    wall.takeDamage(swing.dealt)
+    IF swing.destroyed THEN
+      activeTowers.remove(wall)
+      placement.release(wall.cell)     // the road is open again
     END IF
-
-    // Use cached path if another enemy is heading to the same cell
-    IF enemyPathMap DOES NOT CONTAIN enemyStart THEN
-      enemyTest <- BFS_ShortestPath(graph, enemyStart, baseCell, blockedSet)
-      IF enemyTest.found IS FALSE THEN
-        RETURN { ok: false, reason: "traps-enemy" }
-      END IF
-      enemyPathMap.set(enemyStart, enemyTest.path)
-    END IF
-  END FOR
-
-  // 3. Commit graph edge cut
-  graph.removeNode(candidateCell)
-  RETURN { ok: true, enemyPaths: enemyPathMap }
+  END IF
+  RETURN true
 END ALGORITHM
 ```
+
+```text
+ALGORITHM ValidateBuild(typeKey, row, col)
+  definition <- getBuildDefinition(typeKey)
+  basic      <- PlacementSystem.validate(definition, row, col, coins)
+
+  IF basic.ok IS FALSE THEN RETURN basic END IF
+
+  // A wall only pays off on the lanes the horde actually marches. Every route
+  // the map offers is legal ground now (one wave per lane), so the set is the
+  // union of all lanes — a decoy road would otherwise swallow the 30 gold and
+  // read as a dodge.
+  routeCells <- PathfindingSystem.laneCells          // union of every lane, once on load
+  IF typeKey == "barricade" AND NOT routeCells.has(cellKey(row, col)) THEN
+    RETURN { ok: false, reason: "off-route" }
+  END IF
+
+  // A wall may not be dropped on top of a living enemy.
+  IF typeKey == "barricade" AND anyLivingEnemyOccupies(row, col) THEN
+    RETURN { ok: false, reason: "enemy-on-tile" }
+  END IF
+
+  RETURN { ok: true, reason: null }
+END ALGORITHM
+```
+
+> **Why the old `TryBlockCell` algorithm is gone.** It removed the road node from
+> the graph and pushed BFS onto a 26-cell detour whenever a 22-cell lane was
+> walled off — i.e. the horde *dodged* the palisade. Players read that as the
+> wall doing nothing. The graph now describes the road network only; walls are
+> physical hit-point objects resolved by `UpdateSiege` above.
+
