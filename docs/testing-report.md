@@ -3039,3 +3039,118 @@ Five product bugs were found and fixed during this pass because the browser
 * **Not verified** — real mobile touch input (no device in this environment; the
   responsive pass was Chromium emulation at 844 × 390 only), and a full 8-wave
   campaign won with royal towers only. Neither is claimed.
+
+---
+
+## 34. Request 45 — every royal line branches at level 3
+
+Scope: the ten royal lines stopped being a five-step track and became two
+five-tier paths each. Levels 1–2 are shared; level 3 buys branch A (the
+machine the line already had) or branch B (a second, different machine with its
+own building, weapon, shot, hit effect and wreck). Thirty new tiers were
+authored, drawn, inspected, wired and tested. Everything below was executed in
+this pass.
+
+### 34.1 Automated (vitest, executed)
+
+| Suite | Result |
+| --- | --- |
+| Full run — `npx vitest run` | **120 files / 1 500 tests passed** |
+| `tests/royal-defences.test.js` | 32 passed — roster asserts two branches, two `specKey`s, three rising prices per branch, eight art slots per line and branch-B fx/shot/wreck files on disk; a branch-B trap trigger is pinned to its own hit art |
+| `tests/branch-niche.test.js` | 6 passed — every branch wins its declared column at L3/4/5, no branch is dominated, no tier regresses |
+| `tests/description-truth.test.js` | 4 passed — all 100 tier descriptions agree with the stat block they sit on |
+| `tests/tower-ascension.test.js` | 9 passed — 21 branching lines, `fieldPower` ladder for support branches |
+| `tests/engineer-defenses.test.js` | 27 passed — damage band 4.04 (< 4.2), control 1.38 (< 2.5), support band via `supportPower`, max/min maxed-tower cost 1.88 (< 1.9) |
+| `tests/forge-defenses.test.js` | 17 passed — the linear-line special case is gone; royal shots are checked against the generated table the loader really iterates |
+| `tests/spec-ui.test.js` | 9 passed — the chooser shows both royal branches, and a two-shell branch is badged `VOLLEY` instead of being filed under its shell |
+| `npm run build` (vite 7.3.7) | `✓ built in 6.54 s`, 140 modules, no warnings |
+
+Two test-only crutches were removed rather than papered over:
+
+* the "is this branch worth upgrading?" check compared `dps()` for every branch,
+  which is `0 > 0` for a repair yard or a ward. It now compares `fieldPower()`
+  — damage for a turret, the field it hands the roster for a support building —
+  and still requires the dps ladder for anything that shoots;
+* the power-per-gold band divided support throughput (always 0) by gold. The
+  support family is now priced with `supportPower()`: an aura at the fire rate
+  and range it grants a reference turret, repairs at the health they restore, a
+  ward at the effective damage its breaks unlock, a coin aura at the gold per
+  kill, all scaled by field area. No assertion was weakened to `>=` and no band
+  was widened.
+
+### 34.2 Art inspection (executed)
+
+`python3 scripts/check_royal_art.py` — **all twenty branches pass**. The checker
+gained three rules for this pass: eight slots per line, a ≥ 4 % bottom-centre
+aligned difference between branch A and branch B on base, wreck, impact, muzzle,
+trail and shot, and the branch-B ladder must itself change silhouette by ≥ 6 %
+per tier. 214 images are generated (80 bases, 80 weapon strips, 28 shots,
+20 impacts, 20 muzzles, 14 trails, 20 wrecks, 10 cards) plus three data tables.
+Real defects it caught: two branch-B weapons whose only difference was interior
+detail (invisible in the alpha mask — both redrawn with exterior outline), a
+mirrored caltrop/impaler pair, and a `width=3.4` ellipse that crashed Pillow's
+integer `width` argument at generation time.
+
+### 34.3 Balance numbers after the pass (measured, not estimated)
+
+| Family | Spread (worst → best, power per gold) | Cap |
+| --- | --- | --- |
+| damage | `mortar.cluster` 0.16 → `frost.lightning` 0.64 = **4.04×** | 4.2× |
+| control | `frost.blizzard` 0.17 → `harpoon.grapple` 0.24 = **1.38×** | 2.5× |
+| support | `obelisk.rune` 0.075 → `workshop.engineer` 0.108 = **1.44×** | 1.5× |
+| maxed cost | 595 g → 1 120 g = **1.88×** | 1.9× |
+
+The support family had no honest number at all before this pass — its damage
+cols were zero, so its power-per-gold was 0/0. Priced by `supportPower()` the
+six support branches land inside 1.44× of each other without touching a single
+aura or repair value except the repair yard's (see below), which is the point:
+they are alternatives, not a ranking.
+
+Data changes made to land inside the bands (each one a real stat or price, never
+a test edit):
+
+* `archer.rapid` L5 damage 34 → 32 (it was the cheapest, highest-yield tower);
+* `mortar.cluster` L5 damage 92 → 96 (and its description, which quotes it);
+* `royalArtillery` entry 300 → 260 g, upgrades 160/230/330/460 →
+  140/190/240/290 g (the heaviest line was priced outside the roster's cost band);
+* `workshop.master` repairs 20 → 18 HP/s at L3, 36 → 30 at L4, 52 → 42 at L5
+  (the repair crew was the highest support yield in the game);
+* `banner.muster` 165/325 → 130/240 g (the economy standard should be the
+  cheaper standard);
+* `skybreaker.flak` L5 damage 46 → 55 so the cap tier is a real step.
+
+One code defect the browser path exposed in this pass: `RoyalSystems.playTrapSnap()`
+fired the *line's* effect (`fx-line-spikeTrap-impact`) no matter which branch the
+trap was built as, so a caltrop field triggered with the impaler's burst even
+though it ships its own. It now uses `trap.artLine`, and
+`tests/royal-defences.test.js` pins both branches' trigger art (verified red
+before the fix, green after).
+
+### 34.4 Browser (executed on the production build, `:4320`)
+
+Bootstrap: name gate → menu → world map → Verdant Marches → DEPLOY through the
+real UI. Towers placed with the scene's own `attemptBuild`; every upgrade went
+through `Tower.upgrade()`, including the level-3 branch choice.
+
+| Check | Result |
+| --- | --- |
+| `royalArtillery` → `battery` to L5 | PASS — `lvl1 → lvl2 → spec-b → spec-b2 → spec-b3`, `tower-top-royalArtillery-b1/-b2/-b3`, title `Royal Salvo Battery` |
+| `tesla` → `arccannon` to L5 | PASS — same ladder, title `Storm Cannon`, `artLine: tesla-b` |
+| `mortar` → `cluster` to L5 | PASS — same ladder, title `Royal Cluster Battery`, `proj-royal-mortar-b2` |
+| Shot art in flight | PASS — live projectile texture `proj-royal-royalArtillery-b2`, `TRAIL_BUDGET` respected (`__trailSprites` 1 → 13 during a volley, back to 0) |
+| Branch-B trail and impact | PASS — `fx-line-royalArtillery-b-trail` and `fx-line-royalArtillery-b-impact` used (the probe hooked `vfx.impact` and recorded `line: royalArtillery-b`), both textures present for `tesla-b` too |
+| Wreck | PASS — destroying the salvo battery spawned `ruin-royalArtillery-b` (branch-A wreck is the fallback), tile released |
+| Branch-B trap (live) | PASS — `spikeTrap` → `caltrop` L5 (`Royal Spike Field`, field 96 px, 210 dmg / 2.4 s) triggered on a grunt and hit under `fx-line-spikeTrap-b-impact`; `trapsTriggered` 1, `trapDamage` 210. Before the fix in this pass it re-used the impaler's burst |
+| Branch-B support (live) | PASS — `workshop` → `engineer` L5 (`Royal Engineer Corps`): a neighbouring `tesla` → `arccannon` took `range 1.24`, `cooldown 0.64` (exactly +24 % range, +36 % rate from the 330 px aura), and the crew healed a damaged neighbour 26 HP in one tick. `obelisk` → `nullify` L5 (`Null Colossus`) warded a guard inside 235 px: `armorBreak 15`, `resistanceBreak 0.5`, physical resistance 0.35 → 0.00 |
+| Branch chooser | PASS — a level-2 Royal Siege Artillery offers PATH I `Bastion Culverin` (BOSS HUNTER, DPS 90 → 126, 190 g) and PATH II `Twin-Bore Battery` (VOLLEY, DPS 90 → 145, `base_royalArtillery-b1.png`, 180 g); clicking the PATH II card buys branch B (`level 3`, `specialization battery`, `spec-b`, `artLine royalArtillery-b`) |
+| Console | PASS — 0 page errors across the run |
+
+### 34.5 Labelled honestly
+
+* **Automated** — every row in 34.1 and 34.2, executed in this pass.
+* **Controlled** — 34.4: a real browser on the real build, but the probe granted
+  gold and started the wave itself. It is *not* a natural playthrough, and no
+  screenshot is presented as one.
+* **Still not verified** — real mobile touch input, a full 8-wave campaign won
+  with royal towers only, and a single frame containing trails, muzzle flash and
+  ruins together. None of these is claimed.

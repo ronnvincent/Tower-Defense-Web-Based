@@ -251,9 +251,11 @@ export class RoyalSystems {
     if (key && trap.scene?.anims.exists(`${key}-fire`)) {
       trap.topSprite?.play?.(`${key}-fire`);
     }
+    // The trigger wears the branch's own hit: a caltrop field is a different
+    // machine from the impaler, with its own `fx-line-spikeTrap-b-impact`.
     this.scene.vfx?.impact?.(trap.x, trap.y, 'physical', {
       scale: 0.9,
-      line: trap.typeKey,
+      line: trap.artLine || trap.typeKey,
       shake: false,
     });
     this.scene.vfx?.groundBlast?.(trap.x, trap.y, 0.55);

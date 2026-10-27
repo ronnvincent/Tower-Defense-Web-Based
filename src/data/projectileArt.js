@@ -6,6 +6,11 @@
  * at level 4 and level 5 so an upgrade is visible in flight, not only on the
  * tower. `Projectile` guards each key with textures.exists(), so a missing
  * file costs a downgrade to the line's base bolt, never a crash.
+ *
+ * The ten royal lines are **not** in this table: they branch at level 3, so
+ * their shots are keyed by branch as well as tier and live in
+ * `data/royalProjectiles.js` (also generated), which is the single owner of
+ * those files.
  */
 
 /** Per-line base projectile for lines that do not share the type table. */
@@ -26,16 +31,6 @@ export const TIERED_PROJECTILES = {
   flamer: { 4: 'proj-line-flamer-4', 5: 'proj-line-flamer-5' },
   venom: { 4: 'proj-line-venom-4', 5: 'proj-line-venom-5' },
   harpoon: { 4: 'proj-line-harpoon-4', 5: 'proj-line-harpoon-5' },
-  // Royal lines (scripts/build_royal_defences.py): the shell, bolt, lance and
-  // shard get a heavier silhouette from level 4, so the upgrade is visible in
-  // flight as well as on the emplacement.
-  royalArtillery: { 4: 'proj-royal-royalArtillery-2', 5: 'proj-royal-royalArtillery-2' },
-  siegeBallista: { 4: 'proj-royal-siegeBallista-2', 5: 'proj-royal-siegeBallista-2' },
-  arcaneSniper: { 4: 'proj-royal-arcaneSniper-2', 5: 'proj-royal-arcaneSniper-2' },
-  mortar: { 4: 'proj-royal-mortar-2', 5: 'proj-royal-mortar-2' },
-  rimeTower: { 4: 'proj-royal-rimeTower-2', 5: 'proj-royal-rimeTower-2' },
-  tesla: { 4: 'proj-royal-tesla-2', 5: 'proj-royal-tesla-2' },
-  skybreaker: { 4: 'proj-royal-skybreaker-2', 5: 'proj-royal-skybreaker-2' },
 };
 
 /**

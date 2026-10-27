@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TOWER_TYPES } from '../src/data/towerData.js';
 import { branchPair, evaluate, NICHE, NICHE_LEVELS, TARGETS } from './helpers/balance.js';
+import { dps } from '../src/data/towerAscension.js';
 
 /**
  * Every specialisation has to earn its gold.
@@ -132,6 +133,28 @@ describe('specialisation niches', () => {
         const three = evaluate(line, specKey, 3);
         const four = evaluate(line, specKey, 4);
         const five = evaluate(line, specKey, 5);
+        if (dps(three.stats) === 0) {
+          // A support branch does not shoot, so its damage columns are all zero
+          // and "stronger" has to mean the field it actually provides. Every
+          // one of those fields must still grow — and none may regress — or the
+          // upgrade is gold for nothing.
+          const utility = ['aura', 'repair', 'debuff'];
+          let grew = false;
+          for (const group of utility) {
+            const a = three.stats[group];
+            if (!a) continue;
+            for (const [key, value] of Object.entries(a)) {
+              if (typeof value !== 'number') continue;
+              expect(four.stats[group][key], `${line}.${specKey} L4 regressed on ${group}.${key}`)
+                .toBeGreaterThanOrEqual(value);
+              expect(five.stats[group][key], `${line}.${specKey} L5 regressed on ${group}.${key}`)
+                .toBeGreaterThanOrEqual(four.stats[group][key]);
+              if (five.stats[group][key] > value) grew = true;
+            }
+          }
+          expect(grew, `${line}.${specKey} is a support branch that gains nothing by level 5`).toBe(true);
+          continue;
+        }
         for (const column of Object.keys(TARGETS)) {
           expect(four.columns[column], `${line}.${specKey} L4 regressed on ${column}`)
             .toBeGreaterThan(three.columns[column]);

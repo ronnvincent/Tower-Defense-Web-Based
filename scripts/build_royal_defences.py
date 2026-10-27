@@ -107,6 +107,8 @@ ICE_L = hx("#d7f4ff")
 RUNE = hx("#9b6cff")
 RUNE_L = hx("#d7c4ff")
 BLOOD = hx("#8e2b2b")
+SLATE = hx("#4c5560")
+BRASS = hx("#d8a648")
 
 
 # --------------------------------------------------------------------------
@@ -321,8 +323,21 @@ PROFILES = {
 }
 DEFAULT_PROFILE = dict(w=1.0, h=1.0, crest="round")
 
+# The second branch wears a different crown, so the two silhouettes differ at
+# the roofline even before the weapon is drawn.
+B_CREST_SWAP = {
+    "round": "pikes",
+    "pikes": "spires",
+    "spires": "carved",
+    "carved": "round",
+    "ice": "rods",
+    "rods": "ice",
+    "dish": "chimney",
+    "chimney": "dish",
+}
 
-def foundation(p: Pen, level: int, stone=True, profile=None):
+
+def foundation(p: Pen, level: int, stone=True, profile=None, variant: str = "a"):
     """One real structural step per tier, so L1…L5 are not a tint ramp.
 
     L1 timber deck → L2 stone footing + iron brackets → L3 stepped emplacement
@@ -333,6 +348,12 @@ def foundation(p: Pen, level: int, stone=True, profile=None):
     profile = profile or DEFAULT_PROFILE
     w = FOUND_W[level] * profile.get("w", 1.0)
     h = FOUND_H[level] * profile.get("h", 1.0)
+    if variant == "b":
+        # The second branch is a *different building*, not the first one with a
+        # new gun: it is slimmer and taller, wears another crown, and from L3 it
+        # carries a round side turret that the other branch never gets.
+        w *= 0.90
+        h *= 1.05
     top = GROUND - h
     left, right = mid - w / 2, mid + w / 2
 
@@ -383,6 +404,48 @@ def foundation(p: Pen, level: int, stone=True, profile=None):
     for x in (left + 4, right - 4):
         p.rect(x - 1.4, top - 14, x + 1.4, top - 4, fill=IRON, outline=OUTLINE, width=0.9)
     p.line([(left + 4, top - 13), (right - 4, top - 13)], IRON, 1.4)
+    if variant == "b":
+        # Round side turret with a slate cone and an arrow slit.
+        tx = right + 5
+        ty = top + 14
+        p.rect(tx - 7, ty, tx + 7, GROUND - 5, fill=shade(STONE, 0.95), outline=OUTLINE, width=1.4)
+        bricks(p, tx - 7, ty, tx + 7, GROUND - 6, shade(STONE_D, 0.92), 6)
+        p.rect(tx - 8.5, ty - 4, tx + 8.5, ty + 1, fill=STONE_L, outline=OUTLINE, width=1.1)
+        p.poly([(tx - 9, ty - 4), (tx, ty - 19), (tx + 9, ty - 4)], fill=SLATE, outline=OUTLINE, width=1.2)
+        p.line([(tx - 6, ty - 7), (tx + 6, ty - 7)], shade(SLATE, 0.8), 0.9)
+        p.rect(tx - 1.6, ty + 8, tx + 1.6, ty + 16, fill=INK)
+        pennant(p, tx + 2, ty - 19, 12, BLOOD)
+
+    if variant == "b" and level >= 4:
+        # A lean-to annex on the left. Branch B grows *outwards* as it upgrades:
+        # the crew that works the second machine gets a roof, and the building's
+        # outline changes instead of only its height.
+        ax = left - 4
+        p.rect(ax - 7, GROUND - 36, ax + 8, GROUND - 2, fill=shade(STONE, 0.92),
+               outline=OUTLINE, width=1.3)
+        bricks(p, ax - 7, GROUND - 36, ax + 8, GROUND - 4, shade(STONE_D, 0.88), 6)
+        p.poly([(ax - 9, GROUND - 36), (ax + 1, GROUND - 47), (ax + 11, GROUND - 36)],
+               fill=SLATE, outline=OUTLINE, width=1.1)
+        p.line([(ax - 9, GROUND - 36), (ax + 1, GROUND - 45)], shade(SLATE, 0.78), 0.9)
+        p.rect(ax - 2, GROUND - 26, ax + 4, GROUND - 14, fill=INK)
+        p.rect(ax + 4.5, GROUND - 24, ax + 7, GROUND - 20, fill=GOLD_D)
+    if variant == "b" and level >= 5:
+        # Brass gallery bridging the side turret to the keep, hung with finials.
+        p.rect(left - 4, top + 15, right + 13, top + 22, fill=BRASS, outline=OUTLINE, width=1.2)
+        for x in (left - 4, right + 13):
+            p.rect(x - 2, top + 4, x + 2, top + 16, fill=STEEL, outline=OUTLINE, width=1.0)
+            p.poly([(x - 3, top + 4), (x, top - 4), (x + 3, top + 4)], fill=GOLD, outline=OUTLINE, width=0.8)
+        p.disc(mid, top + 18.5, 3.4, fill=GOLD_L)
+        for k in range(4):
+            p.rect(left - 2 + k * 14, top + 22, left + 0.5 + k * 14, top + 27, fill=STEEL_L)
+        # The annex gains a storey and a pair of banners: level 5 is the widest
+        # and busiest silhouette in the roster, so it cannot read as level 4.
+        ax2 = left - 4
+        p.rect(ax2 - 7, GROUND - 54, ax2 + 8, GROUND - 34, fill=shade(STONE, 0.86),
+               outline=OUTLINE, width=1.2)
+        p.rect(ax2 - 8, GROUND - 55, ax2 + 9, GROUND - 52, fill=STONE_L, outline=OUTLINE, width=1.0)
+        pennant(p, ax2 + 9, GROUND - 54, 14, BLOOD)
+        pennant(p, right + 14, top + 2, 13, BLOOD)
 
     if level == 3:
         return top
@@ -392,7 +455,10 @@ def foundation(p: Pen, level: int, stone=True, profile=None):
         p.poly([(x - 5, GROUND - 8), (x + 5, GROUND - 8), (x + 3, top + 6), (x - 3, top + 6)],
                fill=STONE_L, outline=OUTLINE, width=1.2)
         p.rect(x - 5.5, top + 14, x + 5.5, top + 18, fill=IRON, outline=OUTLINE, width=0.8)
-    _crest(p, level, profile.get("crest", "round"), left, right, top)
+    crest = profile.get("crest", "round")
+    if variant == "b":
+        crest = B_CREST_SWAP.get(crest, "round")
+    _crest(p, level, crest, left, right, top)
     if level == 4:
         pennant(p, right - 4, top - 12, 18, BLOOD)
         return top - 8
@@ -558,8 +624,8 @@ def _crest(p: Pen, level: int, crest: str, left, right, top):
         p.rect(x - 3.4, top - 13, x + 3.4, top - 5, fill=STONE, outline=OUTLINE, width=1.0)
 
 
-def base_royalArtillery(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["royalArtillery"])
+def base_royalArtillery(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["royalArtillery"])
     mid = BASE_W / 2
     if level <= 2:
         r = 13 + level * 1.5
@@ -625,8 +691,8 @@ def weapon_royalArtillery(p: Pen, level: int, pose):
 # 2. Siege ballista
 # --------------------------------------------------------------------------
 
-def base_siegeBallista(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["siegeBallista"])
+def base_siegeBallista(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["siegeBallista"])
     mid = BASE_W / 2
     # Swivel post: timber → iron-banded → steel bearing.
     post_w = [7, 8.5, 10, 11, 12][level - 1]
@@ -707,8 +773,8 @@ def weapon_siegeBallista(p: Pen, level: int, pose):
 # 3. Arcane sniper
 # --------------------------------------------------------------------------
 
-def base_arcaneSniper(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["arcaneSniper"])
+def base_arcaneSniper(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["arcaneSniper"])
     mid = BASE_W / 2
     if level >= 2:
         p.ring(mid, top - 6, 13 + level, RUNE, 1.6)
@@ -773,8 +839,8 @@ def weapon_arcaneSniper(p: Pen, level: int, pose):
 # 4. Mortar
 # --------------------------------------------------------------------------
 
-def base_mortar(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["mortar"])
+def base_mortar(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["mortar"])
     mid = BASE_W / 2
     p.rect(mid - 24, top + 2, mid + 24, GROUND - 12, fill=shade(IRON, 1.05) if level < 3 else shade(STONE, 0.9),
            outline=OUTLINE, width=1.4)
@@ -837,8 +903,8 @@ def weapon_mortar(p: Pen, level: int, pose):
 # 5. Frost
 # --------------------------------------------------------------------------
 
-def base_rimeTower(p: Pen, level: int):
-    top = foundation(p, level, stone=False)
+def base_rimeTower(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, stone=False, variant=variant)
     mid = BASE_W / 2
     # Snow cap on every tier.
     p.poly([(mid - 22, top + 2), (mid - 12, top - 4), (mid, top - 1), (mid + 12, top - 4), (mid + 22, top + 2),
@@ -898,8 +964,8 @@ def weapon_rimeTower(p: Pen, level: int, pose):
 # 6. Tesla
 # --------------------------------------------------------------------------
 
-def base_tesla(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["tesla"])
+def base_tesla(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["tesla"])
     mid = BASE_W / 2
     # Ceramic insulator stacks: one more per tier, up to five.
     for k in range(level):
@@ -957,8 +1023,8 @@ def weapon_tesla(p: Pen, level: int, pose):
 # 7. Skybreaker
 # --------------------------------------------------------------------------
 
-def base_skybreaker(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["skybreaker"])
+def base_skybreaker(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["skybreaker"])
     mid = BASE_W / 2
     gear(p, mid - 20, top + 10, 8 + level * 0.8, BRONZE if level < 4 else STEEL)
     if level >= 2:
@@ -1015,8 +1081,8 @@ def weapon_skybreaker(p: Pen, level: int, pose):
 # 8. Engineer workshop
 # --------------------------------------------------------------------------
 
-def base_workshop(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["workshop"])
+def base_workshop(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["workshop"])
     mid = BASE_W / 2
     w = [30, 36, 44, 52, 62][level - 1]
     h = [26, 32, 40, 48, 58][level - 1]
@@ -1095,8 +1161,8 @@ def weapon_workshop(p: Pen, level: int, pose):
 # 9. Warding obelisk
 # --------------------------------------------------------------------------
 
-def base_obelisk(p: Pen, level: int):
-    top = foundation(p, level, profile=PROFILES["obelisk"])
+def base_obelisk(p: Pen, level: int, variant: str = "a"):
+    top = foundation(p, level, variant=variant, profile=PROFILES["obelisk"])
     mid = BASE_W / 2
     # Carved stele rises out of the plinth.
     h = [30, 38, 46, 56, 66][level - 1]
@@ -1152,9 +1218,31 @@ def weapon_obelisk(p: Pen, level: int, pose):
 # 10. Spike trap
 # --------------------------------------------------------------------------
 
-def base_spikeTrap(p: Pen, level: int):
+def base_spikeTrap(p: Pen, level: int, variant: str = "a"):
     mid = BASE_W / 2
     w = [40, 48, 56, 64, 74][level - 1]
+    if variant == "b":
+        # Branch B is a *field*, not a plate: wider, lower, with a brass frame
+        # and rows of caltrops. The silhouette is different on purpose, so the
+        # two branches are told apart at a glance on the road.
+        fw = [58, 66, 74, 82, 90][level - 1]
+        ground_shadow(p, fw * 0.58, GROUND - 2)
+        p.rect(mid - fw / 2, GROUND - 7, mid + fw / 2, GROUND - 1,
+               fill=IRON if level < 4 else STEEL, outline=OUTLINE, width=1.3)
+        p.rect(mid - fw / 2 + 2, GROUND - 7, mid + fw / 2 - 2, GROUND - 5.6, fill=BRASS)
+        for side in (-1, 1):
+            p.rect(mid + side * (fw / 2 - 1.5) - 1.6, GROUND - 11, mid + side * (fw / 2 - 1.5) + 1.6,
+                   GROUND - 1, fill=BRASS, outline=OUTLINE, width=0.9)
+        caltrops = 3 + level
+        for k in range(caltrops):
+            x = mid - fw / 2 + 8 + k * (fw - 16) / (caltrops - 1)
+            p.poly([(x - 3.4, GROUND - 7), (x, GROUND - 13 - (k % 2) * 2), (x + 3.4, GROUND - 7)],
+                   fill=STEEL_L, outline=OUTLINE, width=0.8)
+            p.line([(x, GROUND - 7), (x, GROUND - 9)], GOLD_D if level >= 4 else IRON_L, 1.0)
+        # A brass tally rail: how many rows of spikes this field carries.
+        for k in range(level):
+            p.rect(mid - 14 + k * 7, GROUND - 12.5, mid - 11 + k * 7, GROUND - 11, fill=GOLD)
+        return GROUND - 8
     ground_shadow(p, w * 0.6, GROUND - 3)
     # The plate lies on the road: low, readable, never hides the path.
     p.rect(mid - w / 2, GROUND - 9, mid + w / 2, GROUND - 1,
@@ -1211,6 +1299,391 @@ def weapon_spikeTrap(p: Pen, level: int, pose):
 # poses — six frames, matched to what `Tower` actually does when it fires
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# Branch B weapons
+#
+# Every royal line splits at level 3. Branch A keeps the weapon the line shipped
+# with; branch B carries a *different machine*, drawn here, so the choice is
+# visible on the board and not just a number in the inspector. Each one returns
+# the muzzle distance from the pivot, exactly like branch A.
+# --------------------------------------------------------------------------
+
+def weapon_b_royalArtillery(p: Pen, level: int, pose):
+    """Twin-bore siege battery: two short, wide tubes instead of one long gun."""
+    px, py = PIVOT
+    rec = pose["rec"]
+    length = [30, 36, 42, 48, 54][level - 1]
+    bore = [10.5, 12, 13.5, 15, 16.5][level - 1]
+    gap = bore * 1.25
+    colour = BRONZE_L if level < 4 else (STEEL if level == 4 else STEEL_L)
+    # Shared breech block: one carriage, two bores.
+    p.rect(px - gap - bore, py + rec - 3, px + gap + bore, py + rec + 10,
+           fill=shade(colour, 0.72), outline=OUTLINE, width=1.3)
+    p.rect(px - gap - bore + 2, py + rec + 4, px + gap + bore - 2, py + rec + 8, fill=GOLD_D)
+    for side in (-1, 1):
+        cx = px + side * gap
+        p.rect(cx - bore, py + rec - length, cx + bore, py + rec + 6, fill=colour, outline=OUTLINE, width=1.3)
+        p.rect(cx - bore * 0.7, py + rec - length + 4, cx + bore * 0.7, py + rec + 3, fill=shade(colour, 1.2))
+        for k in range(2 + level // 2):
+            yy = py + rec - length + 6 + k * ((length - 10) / max(1, 1 + level // 2))
+            p.rect(cx - bore - 1.4, yy, cx + bore + 1.4, yy + 2.4, fill=GOLD_D, outline=OUTLINE, width=0.7)
+        p.rect(cx - bore - 1.8, py + rec - length - 2.6, cx + bore + 1.8, py + rec - length + 1.4,
+               fill=shade(colour, 1.3), outline=OUTLINE, width=1.0)
+        p.disc(cx, py + rec - length + 0.5, bore * 0.5, fill=INK)
+    if level >= 3:
+        p.arc(px, py + rec + 2, gap + bore + 4, 200, 340, IRON_L, 1.3)
+    if level >= 4:
+        # Tier 4: a shield plate bolted between the bores.
+        p.rect(px - 6, py + rec - length * 0.62, px + 6, py + rec - length * 0.18,
+               fill=STEEL, outline=OUTLINE, width=1.1)
+        p.disc(px, py + rec - length * 0.4, 2.4, fill=GOLD_L)
+    if level >= 5:
+        # Tier 5: a third, shorter bore under the pair, and a brass loading cage.
+        p.rect(px - 5.5, py + rec - length * 0.55, px + 5.5, py + rec + 6, fill=shade(colour, 0.85),
+               outline=OUTLINE, width=1.2)
+        p.disc(px, py + rec - length * 0.55, 3.4, fill=INK)
+        for side in (-1, 1):
+            p.line([(px + side * (gap + bore), py + rec - length * 0.2),
+                    (px + side * (gap + bore + 6), py + rec + 4)], BRASS, 2.2)
+        # A sight frame standing over both bores: level 5 is a different
+        # machine, and the silhouette says so from across the field.
+        p.rect(px - gap - bore - 4, py + rec - length - 18, px - gap - bore - 0.5, py + rec - length + 2,
+               fill=BRASS, outline=OUTLINE, width=1.0)
+        p.rect(px + gap + bore + 0.5, py + rec - length - 18, px + gap + bore + 4, py + rec - length + 2,
+               fill=BRASS, outline=OUTLINE, width=1.0)
+        p.rect(px - gap - bore - 5, py + rec - length - 22, px + gap + bore + 5, py + rec - length - 16,
+               fill=STEEL, outline=OUTLINE, width=1.1)
+        p.ring(px, py + rec - length - 8, 3.4, GOLD_L, 1.2)
+    charge_orb(p, pose["charge"], length, hx("#ffd47a"))
+    if pose["flash"]:
+        for side in (-1, 1):
+            flash_cone(p, 6 + level * 1.1, hx("#fff3c0"), hx("#ff9d3c"), at=length + rec)
+    return length + 4
+
+
+def weapon_b_siegeBallista(p: Pen, level: int, pose):
+    """Repeater ballista: a short double-prod bow over a bolt magazine."""
+    px, py = PIVOT
+    pull = pose["draw"]
+    stock = [34, 40, 46, 52, 58][level - 1]
+    span = [20, 24, 28, 32, 36][level - 1]
+    col = WOOD_L if level < 3 else (STEEL if level < 5 else GOLD)
+    # Short, thick stock — this bow is built for rate, not reach.
+    p.rect(px - 3.6, py - stock, px + 3.6, py + 9, fill=WOOD_D if level < 4 else STEEL, outline=OUTLINE, width=1.4)
+    p.rect(px - 1.4, py - stock + 3, px + 1.4, py + 6, fill=col)
+    # Two prods crossed high on the stock: the repeating silhouette.
+    for k, y in enumerate((py - stock * 0.86, py - stock * 0.56)):
+        sweep = 8 + k * 5
+        limb = [(px - span, y + sweep), (px - span * 0.6, y + 2), (px, y - 2.5),
+                (px + span * 0.6, y + 2), (px + span, y + sweep)]
+        p.line(limb, OUTLINE, 5.4)
+        p.line(limb, col, 3.6)
+    tip_y = py - stock * 0.86
+    string_y = tip_y + 6 + pull * 12
+    p.line([(px - span, tip_y + 8), (px, string_y), (px + span, tip_y + 8)], hx("#efe9d6"), 1.2)
+    # Magazine: three bolts racked on the left, one in the groove.
+    for k in range(3):
+        x = px - span - 8 + k * 3.6
+        p.line([(x, py - 10), (x, py - 30)], WOOD_L, 1.5)
+    if level >= 4:
+        # Tier 4: a winding frame and the drum that feeds the magazine.
+        p.rect(px - span - 20, py - 34, px - span - 17, py - 2, fill=IRON, outline=OUTLINE, width=1.0)
+        p.rect(px - span - 11, py - 38, px - span - 8, py - 2, fill=IRON, outline=OUTLINE, width=1.0)
+        p.rect(px - span - 21, py - 40, px - span - 7, py - 34, fill=STEEL, outline=OUTLINE, width=1.1)
+        p.disc(px - span - 14, py - 18, 6.0, fill=WOOD_D, outline=OUTLINE, width=1.2)
+        p.disc(px - span - 14, py - 18, 2.4, fill=STEEL_L)
+        for k in range(4):
+            a = math.radians(45 * k)
+            p.line([(px - span - 14 + math.cos(a) * 2.4, py - 18 + math.sin(a) * 2.4),
+                    (px - span - 14 + math.cos(a) * 6.0, py - 18 + math.sin(a) * 6.0)], WOOD, 1.0)
+    if level >= 5:
+        # Tier 5: a second magazine on the other side, both latched open.
+        for k in range(3):
+            x = px + span + 4 + k * 3.6
+            p.line([(x, py - 10), (x, py - 30)], WOOD_L, 1.5)
+        p.rect(px - span - 12, py - 34, px + span + 12, py - 30, fill=GOLD, outline=OUTLINE, width=1.0)
+    if pull > 0.1:
+        p.rect(px - 1.1, tip_y - 6, px + 1.1, string_y, fill=WOOD_L, outline=OUTLINE, width=0.8)
+        p.poly([(px - 2.8, tip_y - 14), (px, tip_y - 6), (px + 2.8, tip_y - 14)], fill=STEEL_L, outline=OUTLINE, width=0.7)
+    if level >= 4:
+        p.disc(px - span * 0.5, py - stock * 0.7, 2.2, fill=STEEL_L, outline=OUTLINE, width=0.7)
+    if pose["flash"]:
+        p.line([(px - 8, tip_y - 12), (px, tip_y - 24), (px + 8, tip_y - 12)], hx("#fff3c4"), 1.5)
+    return stock + 2
+
+
+def weapon_b_arcaneSniper(p: Pen, level: int, pose):
+    """Hex weaver: three orbiting shards around a low focus ring, no long barrel."""
+    px, py = PIVOT
+    charge = pose["charge"]
+    r = 12 + level * 1.8
+    cy = py - 18 - level * 3
+    # Hex ring: the whole tower is a focusing lattice, not a lance.
+    p.ring(px, cy, r, RUNE, 1.6)
+    for k in range(6):
+        a = math.radians(k * 60 + charge * 55)
+        x1, y1 = px + math.cos(a) * r, cy + math.sin(a) * r
+        x2, y2 = px + math.cos(a) * (r + 5), cy + math.sin(a) * (r + 5)
+        p.line([(x1, y1), (x2, y2)], RUNE_L, 1.2)
+    # Three shards float on the ring; they spread as the shot charges.
+    for k in range(3):
+        a = math.radians(k * 120 + charge * 40 - 90)
+        d = r * (0.62 + charge * 0.2)
+        crystal(p, px + math.cos(a) * d, cy + math.sin(a) * d, 5 + level * 0.5, 12 + level * 1.2, RUNE_L)
+    p.disc(px, cy, 4.2 + charge * 1.6, fill=hx("#efe6ff"), outline=RUNE, width=1.0)
+    if level >= 4:
+        for side in (-1, 1):
+            p.line([(px + side * (r + 6), cy - r * 0.5), (px + side * (r + 12), cy - r * 0.9)], RUNE_L, 1.3)
+            p.disc(px + side * (r + 12), cy - r * 0.9, 2.0, fill=RUNE_L)
+    if pose["flash"]:
+        for k in range(6):
+            a = math.radians(k * 60)
+            p.line([(px + math.cos(a) * r, cy + math.sin(a) * r),
+                    (px + math.cos(a) * (r + 13), cy + math.sin(a) * (r + 13))], hx("#efe6ff"), 1.4)
+    return r + 14
+
+
+def weapon_b_mortar(p: Pen, level: int, pose):
+    """Cluster battery: three short tubes fanned out instead of one long one."""
+    px, py = PIVOT
+    rec = pose["rec"]
+    length = [26, 30, 34, 38, 42][level - 1]
+    inner = [9.5, 10.5, 11.5, 12.5, 13.5][level - 1]
+    colour = IRON_L if level < 3 else (STEEL if level < 5 else STEEL_L)
+    dark = shade(colour, 0.62)
+    # Iron bed the three tubes sit in.
+    p.rect(px - 21, py + rec - 2, px + 21, py + rec + 12, fill=IRON, outline=OUTLINE, width=1.4)
+    p.rect(px - 19, py + rec + 1, px + 19, py + rec + 4, fill=STEEL_L)
+    for k, angle in enumerate((-17, 0, 17)):
+        a = math.radians(angle)
+        dx, dy = math.sin(a), -math.cos(a)
+        # Draw the tube as a thick tapered band of segments, outlined first.
+        for step in range(int(length) + 1):
+            x = px + dx * step
+            y = py + rec + dy * step - 4
+            w = inner - step * 0.10
+            p.rect(x - w, y - 5.2, x + w, y + 5.2, fill=colour, outline=None)
+        # One clean outline down each side, so the tube reads as metal.
+        p.line([(px - inner, py + rec + 1), (px - inner + dx * length, py + rec + dy * length - 3)], OUTLINE, 1.1)
+        p.line([(px + inner, py + rec + 1), (px + inner + dx * length, py + rec + dy * length - 3)], OUTLINE, 1.1)
+        tipx, tipy = px + dx * length, py + rec + dy * length - 4
+        p.rect(tipx - inner - 1.6, tipy - 4.4, tipx + inner + 1.6, tipy + 4.4,
+               fill=shade(colour, 1.15), outline=OUTLINE, width=1.1)
+        p.disc(tipx, tipy - 0.6, inner * 0.55, fill=dark)
+        p.disc(tipx - 1, tipy - 1.4, inner * 0.3, fill=INK)
+        # Breech block per tube.
+        p.rect(px + dx * 2 - inner - 1.2, py + rec - 3, px + dx * 2 + inner + 1.2, py + rec + 8,
+               fill=dark, outline=OUTLINE, width=1.0)
+    if level >= 3:
+        for side in (-1, 1):
+            p.rect(px + side * 19 - 1.8, py + rec - 18, px + side * 19 + 1.8, py + rec + 4,
+                   fill=STEEL, outline=OUTLINE, width=0.9)
+            p.poly([(px + side * 19 - 2.6, py + rec - 18), (px + side * 19, py + rec - 23),
+                    (px + side * 19 + 2.6, py + rec - 18)], fill=STEEL_L, outline=OUTLINE, width=0.7)
+    charge_orb(p, pose["charge"], length, hx("#ffd47a"))
+    if pose["flash"]:
+        for angle in (-17, 0, 17):
+            a = math.radians(angle)
+            p.disc(px + math.sin(a) * (length + 4), py + rec - math.cos(a) * (length + 4) - 4, 3.6, fill=hx("#ffe1a6"))
+    return length + 6
+
+
+def weapon_b_rimeTower(p: Pen, level: int, pose):
+    """Frost tempest: a fan of three shards instead of one great crystal."""
+    px, py = PIVOT
+    charge = pose["charge"]
+    h = [22, 28, 34, 40, 46][level - 1]
+    for k in (-1, 0, 1):
+        a = math.radians(k * 24)
+        d = 10 + level * 1.6
+        x = px + math.sin(a) * d
+        y = py - h * 0.6 - math.cos(a) * 6
+        crystal(p, x, y, 8 + level * 0.6 - abs(k) * 1.6, h * (1 - abs(k) * 0.18), ICE if k == 0 else ICE_D)
+    for k in range(3 + level):
+        a = math.radians(k * (360 / max(1, 3 + level)) + charge * 70)
+        r = 14 + level * 1.4 + charge * 3
+        p.disc(px + math.cos(a) * r, py - h * 0.6 + math.sin(a) * r * 0.5, 1.7, fill=ICE_L)
+    if pose["flash"]:
+        for k in range(8):
+            a = math.radians(k * 45)
+            p.line([(px + math.cos(a) * 10, py - h * 0.6 + math.sin(a) * 10),
+                    (px + math.cos(a) * 20, py - h * 0.6 + math.sin(a) * 20)], hx("#e8fbff"), 1.5)
+    return h * 0.6 + 12
+
+
+def weapon_b_tesla(p: Pen, level: int, pose):
+    """Arc cannon: a horizontal barrel ringed with coils, not a mast and orb."""
+    px, py = PIVOT
+    charge = pose["charge"]
+    length = [30, 36, 42, 48, 54][level - 1]
+    width = [7, 8, 9.5, 11, 12.5][level - 1]
+    cy = py - 10
+    # Barrel lies across the frame; the tower still rotates toward its target.
+    p.rect(px - width, cy - length, px + width, cy + 8, fill=STEEL, outline=OUTLINE, width=1.3)
+    p.rect(px - width * 0.55, cy - length + 4, px + width * 0.55, cy + 6, fill=STEEL_L)
+    for k in range(2 + level):
+        yy = cy - length + 8 + k * ((length - 12) / max(1, 1 + level))
+        p.rect(px - width - 3.4, yy, px + width + 3.4, yy + 3.6, fill=COPPER, outline=OUTLINE, width=0.8)
+    # Spark gap: two ceramic balls and the arc between them.
+    for side in (-1, 1):
+        p.disc(px + side * (width + 9), cy - length + 2, 4.2, fill=CERAMIC, outline=OUTLINE, width=1.0)
+    gap = 4 + charge * 4
+    p.line([(px - gap - 3, cy - length + 2), (px, cy - length - 3), (px + gap + 3, cy - length + 2)],
+           hx("#dff6ff"), 1.4 + charge)
+    if level >= 5:
+        p.ring(px, cy - length + 2, width + 8, GOLD, 1.2)
+    if pose["flash"]:
+        # The discharge itself: the flash sits on the muzzle, so the release
+        # frame is visibly different from the rest pose.
+        flash_cone(p, 8 + level * 1.2, hx("#ffffff"), hx("#9fe6ff"), at=length + 7)
+        p.line([(px, cy - length - 4), (px, cy - length - 22)], hx("#ffffff"), 1.8)
+    elif charge > 0.4:
+        for k in range(3):
+            a = math.radians(k * 120 + charge * 90)
+            p.line([(px + math.cos(a) * (width + 6), cy - length + 2 + math.sin(a) * 6),
+                    (px + math.cos(a) * (width + 13), cy - length + 2 + math.sin(a) * 11)],
+                   (*hx("#dff6ff")[:3], int(150 + 80 * charge)), 1.2)
+    return length + 10
+
+
+def weapon_b_skybreaker(p: Pen, level: int, pose):
+    """Flak battery: four stubby tubes in a boxy mount, built to fill the sky."""
+    px, py = PIVOT
+    rec = pose["rec"]
+    length = [24, 28, 32, 36, 40][level - 1]
+    colour = IRON if level < 3 else (STEEL if level < 5 else STEEL_L)
+    # Boxy launcher frame.
+    p.rect(px - 20, py + rec - 6, px + 20, py + rec + 12, fill=shade(colour, 0.72), outline=OUTLINE, width=1.4)
+    for side in (-1, 1):
+        for k in range(2):
+            cx = px + side * (4 + k * 8)
+            p.rect(cx - 3.2, py + rec - length, cx + 3.2, py + rec + 2, fill=colour, outline=OUTLINE, width=1.1)
+            p.rect(cx - 1.4, py + rec - length + 3, cx + 1.4, py + rec, fill=shade(colour, 1.25))
+            p.disc(cx, py + rec - length + 1, 2.2, fill=INK)
+    # Elevation arc + tracker dish on the shoulder.
+    p.arc(px, py + rec + 4, 26, 205, 335, IRON_L, 1.3)
+    p.line([(px + 22, py + rec - 2), (px + 28, py + rec - 18)], IRON, 1.2)
+    p.poly([(px + 28, py + rec - 18), (px + 34, py + rec - 22), (px + 30, py + rec - 12)], fill=STEEL_L, outline=OUTLINE, width=0.8)
+    if pose["flash"]:
+        for side in (-1, 1):
+            for k in range(2):
+                cx = px + side * (4 + k * 8)
+                p.disc(cx, py + rec - length - 4, 3.0, fill=hx("#ffe9a8"))
+    return length + 6
+
+
+def weapon_b_workshop(p: Pen, level: int, pose):
+    """Field engineer: a crane with a pulley, a counterweight and a crate."""
+    px, py = PIVOT
+    swing = pose["swing"]
+    h = [30, 36, 42, 48, 54][level - 1]
+    # Mast with cross-bracing.
+    p.rect(px - 4.2, py - h, px + 4.2, py + 12, fill=IRON, outline=OUTLINE, width=1.3)
+    for k in range(level + 1):
+        yy = py - 2 - k * 9
+        p.line([(px - 4.2, yy), (px + 4.2, yy - 6)], STEEL_L, 1.0)
+    # Jib swinging on the mast head.
+    a = math.radians(-16 + swing * 30)
+    jib = h * 1.55
+    jx = px + math.sin(a) * jib
+    jy = py - h - math.cos(a) * jib * 0.22
+    p.line([(px, py - h), (jx, jy)], STEEL, 5.0)
+    p.line([(px, py - h), (jx, jy)], OUTLINE, 1.4)
+    # Counterweight behind the mast head.
+    p.rect(px - 13, py - h - 3, px - 4, py - h + 4, fill=IRON, outline=OUTLINE, width=1.1)
+    p.disc(px - 8.5, py - h + 0.5, 2.0, fill=STEEL_L)
+    # Pulley, cable and the load.
+    p.disc(jx, jy + 2, 4.0, fill=STEEL_L, outline=OUTLINE, width=1.1)
+    p.disc(jx, jy + 2, 1.4, fill=IRON)
+    drop = 8 + swing * 14
+    p.line([(jx, jy + 5), (jx, jy + 5 + drop)], hx("#d8cfae"), 1.2)
+    # Crate on the hook: the crew is lifting something, not swinging a hammer.
+    cw, ch = 9.5 + level * 0.5, 8 + level * 0.4
+    cy = jy + 5 + drop
+    p.rect(jx - cw / 2, cy, jx + cw / 2, cy + ch, fill=WOOD_L, outline=OUTLINE, width=1.2)
+    p.line([(jx - cw / 2, cy + 2.5), (jx + cw / 2, cy + 2.5)], WOOD_D, 1.0)
+    p.line([(jx - cw / 2, cy + ch - 2.5), (jx + cw / 2, cy + ch - 2.5)], WOOD_D, 1.0)
+    p.line([(jx, cy), (jx, cy + ch)], WOOD_D, 1.0)
+    if level >= 3:
+        p.rect(px - 10, py - h * 0.5, px - 3.4, py - h * 0.5 + 8, fill=COPPER, outline=OUTLINE, width=1.0)
+        p.disc(px - 6.7, py - h * 0.5 + 4, 2.2, fill=GOLD_L)
+    if level >= 5:
+        p.ring(jx, jy + 2, 6.2, GOLD, 1.2)
+        p.disc(px, py - h, 2.6, fill=GOLD_L)
+    return h + 8
+
+
+def weapon_b_obelisk(p: Pen, level: int, pose):
+    """Null obelisk: twin floating shards, one dark and one bright."""
+    px, py = PIVOT
+    charge = pose["charge"]
+    h = [26, 32, 38, 44, 50][level - 1]
+    cy = py - h * 0.5
+    for side in (-1, 1):
+        x = px + side * (6 + level * 1.4)
+        crystal(p, x, cy + side * 5, 6 + level * 0.5, h * 0.8, RUNE if side > 0 else hx("#5b4a86"))
+    # A dark ring binds the pair.
+    for i in range(2 + level // 2):
+        p.ring(px, cy, 12 + i * 5 + charge * 2, RUNE if i % 2 else hx("#6d5a9c"), 1.0)
+    p.disc(px, cy, 3.4 + charge * 1.4, fill=hx("#e9dcff"))
+    if level >= 4:
+        for k in range(4):
+            a = math.radians(k * 90 + 45)
+            p.disc(px + math.cos(a) * (18 + level), cy + math.sin(a) * (18 + level), 1.9, fill=RUNE_L)
+    if pose["flash"]:
+        for k in range(6):
+            a = math.radians(k * 60)
+            p.line([(px + math.cos(a) * 10, cy + math.sin(a) * 10),
+                    (px + math.cos(a) * 22, cy + math.sin(a) * 22)], hx("#e9dcff"), 1.4)
+    return h * 0.6 + 8
+
+
+def weapon_b_spikeTrap(p: Pen, level: int, pose):
+    """Impalers: a dense grid of short spikes with one tall centre spike."""
+    px, py = PIVOT
+    rise = pose["rise"]
+    cols = 2 + level // 2
+    rows = 2
+    span = 20 + level * 2.4
+    for i in range(cols):
+        for j in range(rows):
+            x = px - span + i * (span * 2 / max(1, cols - 1))
+            y = py + 10 - j * 7 + abs(i - (cols - 1) / 2) * 1.6
+            height = 9 + rise * 14 + (3 if (i + j) % 2 else 0)
+            p.poly([(x - 3.0, y), (x, y - height), (x + 3.0, y)], fill=STEEL_L if (i + j) % 2 else STEEL,
+                   outline=OUTLINE, width=0.9)
+            if pose["flash"]:
+                # Barbs snap out on the strike, and the gore runs down the shaft:
+                # a trap that fires has to look different from a trap at rest.
+                p.line([(x - 4.4, y - height * 0.55), (x, y - height), (x + 4.4, y - height * 0.55)],
+                       hx("#ffe1a6"), 1.3)
+                p.disc(x, y - height, 1.6, fill=hx("#ffd0d0"))
+    # The centre impaler.
+    p.poly([(px - 4.2, py + 12), (px, py + 8 - 20 - rise * 16), (px + 4.2, py + 12)],
+           fill=STEEL_L, outline=OUTLINE, width=1.1)
+    if pose["flash"]:
+        p.poly([(px - 9, py + 8), (px, py + 4 - 26 - rise * 12), (px + 9, py + 8)],
+               fill=(*hx("#ffd9a0")[:3], 170))
+    p.disc(px, py + 12, 3.2, fill=GOLD if level >= 5 else IRON)
+    if level >= 4:
+        p.rect(px - span - 4, py + 10, px + span + 4, py + 14, fill=IRON, outline=OUTLINE, width=1.0)
+    return 24 + rise * 9
+
+
+B_WEAPONS = {
+    "royalArtillery": weapon_b_royalArtillery,
+    "siegeBallista": weapon_b_siegeBallista,
+    "arcaneSniper": weapon_b_arcaneSniper,
+    "mortar": weapon_b_mortar,
+    "rimeTower": weapon_b_rimeTower,
+    "tesla": weapon_b_tesla,
+    "skybreaker": weapon_b_skybreaker,
+    "workshop": weapon_b_workshop,
+    "obelisk": weapon_b_obelisk,
+    "spikeTrap": weapon_b_spikeTrap,
+}
+
+
 POSES = [
     dict(rec=0.0, flash=False, charge=0.00, draw=0.00, swing=0.00, rise=0.00),   # 0 rest
     dict(rec=-2.0, flash=False, charge=0.35, draw=0.55, swing=0.45, rise=0.25),  # 1 prepare
@@ -1219,6 +1692,30 @@ POSES = [
     dict(rec=5.0, flash=False, charge=0.22, draw=0.08, swing=1.10, rise=0.75),   # 4 recoil
     dict(rec=1.0, flash=False, charge=0.04, draw=0.00, swing=0.18, rise=0.20),   # 5 settle
 ]
+
+
+# --------------------------------------------------------------------------
+# The eight art slots of a royal line
+#
+# L1 and L2 are shared; the branch is chosen at level 3. Branch A keeps the
+# tier art the line shipped with (l3…l5); branch B has its own machine and its
+# own atlas (b1…b3), so an upgrade inside a branch still changes the building.
+# --------------------------------------------------------------------------
+
+SLOTS = [
+    ("lvl1", 1, "a"),
+    ("lvl2", 2, "a"),
+    ("spec-a", 3, "a"),
+    ("spec-a2", 4, "a"),
+    ("spec-a3", 5, "a"),
+    ("spec-b", 3, "b"),
+    ("spec-b2", 4, "b"),
+    ("spec-b3", 5, "b"),
+]
+
+
+def slot_suffix(level: int, variant: str) -> str:
+    return f"l{level}" if variant == "a" else f"b{level - 2}"
 
 
 @dataclass
@@ -1230,23 +1727,25 @@ class Line:
     accent: str
     projectile: str | None
     muzzle: str
+    # Branch B fires a different missile (its own silhouette, not a recolour).
+    projectile_b: str | None = None
 
 
 LINES = [
     Line("royalArtillery", base_royalArtillery, weapon_royalArtillery, "rotating", "#ff9d3c",
-         "proj-royal-royalArtillery", "shell"),
+         "proj-royal-royalArtillery", "shell", "twin-shell"),
     Line("siegeBallista", base_siegeBallista, weapon_siegeBallista, "rotating", "#e7e2d2",
-         "proj-royal-siegeBallista", "bolt"),
+         "proj-royal-siegeBallista", "bolt", "triple-bolt"),
     Line("arcaneSniper", base_arcaneSniper, weapon_arcaneSniper, "rotating", "#a98cff",
-         "proj-royal-arcaneSniper", "lance"),
+         "proj-royal-arcaneSniper", "lance", "hex-orb"),
     Line("mortar", base_mortar, weapon_mortar, "rotating", "#ffb347",
-         "proj-royal-mortar", "shell"),
+         "proj-royal-mortar", "shell", "cluster-shell"),
     Line("rimeTower", base_rimeTower, weapon_rimeTower, "static", "#8fd4ee",
-         "proj-royal-rimeTower", "shard"),
+         "proj-royal-rimeTower", "shard", "shard-fan"),
     Line("tesla", base_tesla, weapon_tesla, "static", "#bfe9ff",
-         "proj-royal-tesla", "arc"),
+         "proj-royal-tesla", "arc", "arc-slug"),
     Line("skybreaker", base_skybreaker, weapon_skybreaker, "rotating", "#ffd47a",
-         "proj-royal-skybreaker", "bolt"),
+         "proj-royal-skybreaker", "bolt", "flak-shell"),
     Line("workshop", base_workshop, weapon_workshop, "static", "#ffc46b",
          None, "hammer"),
     Line("obelisk", base_obelisk, weapon_obelisk, "static", "#c9a8ff",
@@ -1256,10 +1755,10 @@ LINES = [
 ]
 
 
-def render_base(line: Line, level: int):
+def render_base(line: Line, level: int, variant: str = "a"):
     image = new_base()
     p = Pen(image)
-    mount_y = line.base(p, level)
+    mount_y = line.base(p, level, variant) if variant == "b" else line.base(p, level)
     flat = downsample(image)
     bbox = flat.getbbox()
     if not bbox:
@@ -1295,10 +1794,10 @@ def render_base(line: Line, level: int):
 WEAPON_SCALE = 0.86
 
 
-def render_weapon(line: Line, level: int, pose):
+def render_weapon(line: Line, level: int, pose, variant: str = "a"):
     image = new_frame()
     p = Pen(image)
-    tip = line.weapon(p, level, pose)
+    tip = line.weapon(p, level, pose) if variant == "a" else B_WEAPONS[line.key](p, level, pose)
     flat = downsample(image)
     # Scale the machinery about its pivot: the art has to sit on a 64 px tile
     # without spilling over its neighbours, and the pivot must not move or the
@@ -1321,7 +1820,13 @@ IMPACT_FRAMES = 10
 IMPACT_SIZE = 128
 
 
-def render_impact(line: Line):
+def render_impact(line: Line, variant: str = "a"):
+    """The hit.
+
+    Branch B is not a recolour of branch A: it bursts on a six-spoke star with a
+    brass inner ring, where branch A bursts on an eight-spoke ring, so the two
+    branches of the same line read differently on the board.
+    """
     strip = Image.new("RGBA", (IMPACT_SIZE * IMPACT_FRAMES * SS, IMPACT_SIZE * SS), (0, 0, 0, 0))
     accent = hx(line.accent)
     for index in range(IMPACT_FRAMES):
@@ -1331,19 +1836,33 @@ def render_impact(line: Line):
         fade = int(95 + 160 * max(0.0, 1.0 - t ** 1.4))
         c = IMPACT_SIZE / 2
         if index == 0:
-            p.disc(c, c, 6, fill=(255, 255, 255, 235))
+            p.disc(c, c, 6 if variant == "a" else 7.5, fill=(255, 255, 255, 235))
+            if variant == "b":
+                p.ring(c, c, 10, (*BRASS[:3], 200), 1.8)
         else:
             radius = 6 + t * 40
             width = max(1.8, 5.0 * (1 - t))
-            p.ring(c, c, radius, (*accent[:3], fade), width)
-            p.ring(c, c, radius * 0.62, (*accent[:3], int(fade * 0.7)), max(1.0, width * 0.6))
-            spokes = 8
-            for k in range(spokes):
-                a = math.radians(k * (360 / spokes) + t * 40)
-                r0 = radius * 0.7
-                r1 = radius * (1.05 + 0.25 * (k % 2))
-                p.line([(c + math.cos(a) * r0, c + math.sin(a) * r0),
-                        (c + math.cos(a) * r1, c + math.sin(a) * r1)], (*accent[:3], fade), max(1.0, width * 0.8))
+            if variant == "a":
+                p.ring(c, c, radius, (*accent[:3], fade), width)
+                p.ring(c, c, radius * 0.62, (*accent[:3], int(fade * 0.7)), max(1.0, width * 0.6))
+                spokes = 8
+                for k in range(spokes):
+                    a = math.radians(k * (360 / spokes) + t * 40)
+                    r0 = radius * 0.7
+                    r1 = radius * (1.05 + 0.25 * (k % 2))
+                    p.line([(c + math.cos(a) * r0, c + math.sin(a) * r0),
+                            (c + math.cos(a) * r1, c + math.sin(a) * r1)], (*accent[:3], fade), max(1.0, width * 0.8))
+            else:
+                # Branch B: a six-point star with a brass ring closing on it.
+                p.ring(c, c, radius * 0.92, (*BRASS[:3], int(fade * 0.85)), max(1.4, width * 0.7))
+                spokes = 6
+                for k in range(spokes):
+                    a = math.radians(k * (360 / spokes) - t * 30)
+                    r0 = radius * 0.35
+                    r1 = radius * (1.10 + 0.16 * (k % 2))
+                    p.line([(c + math.cos(a) * r0, c + math.sin(a) * r0),
+                            (c + math.cos(a) * r1, c + math.sin(a) * r1)], (*accent[:3], fade), max(1.2, width * 0.9))
+                p.ring(c, c, radius * 0.55, (*accent[:3], int(fade * 0.65)), max(1.0, width * 0.5))
             if line.key in ("mortar", "royalArtillery"):
                 p.disc(c, c, radius * 0.4, fill=(120, 116, 108, int(fade * 0.35)))
         strip.paste(frame, (index * IMPACT_SIZE * SS, 0), frame)
@@ -1369,7 +1888,7 @@ RUIN_STYLE = {
 }
 
 
-def render_ruin(line: Line):
+def render_ruin(line: Line, variant: str = "a"):
     """What is left when the line falls: its own wreck, not a generic puff.
 
     A destroyed royal building drops this on its tile for a moment (the tile is
@@ -1445,6 +1964,71 @@ def render_ruin(line: Line):
     # Each gun line leaves one recognisable broken part, so the wreck names the
     # weapon that fell instead of being five identical mason piles in different
     # accent colours.
+    if variant == "b":
+        # Branch B falls as its own machine, not as branch A with a brass ring.
+        # A toppled drum, a split carriage and the barrel that broke off it are
+        # a different outline from every branch-A wreck above.
+        if style == "stump":
+            p.rect(mid - 40, base - 20, mid + 6, base - 4, fill=shade(IRON, 1.1), outline=OUTLINE, width=1.6)
+            p.rect(mid - 40, base - 20, mid + 6, base - 16, fill=BRASS, outline=OUTLINE, width=1.0)
+            p.disc(mid - 40, base - 9, 5.4, fill=BRASS, outline=OUTLINE, width=1.2)
+            p.rect(mid - 30, base - 13, mid - 12, base - 10, fill=BRASS, outline=None)
+            p.rect(mid + 6, base - 22, mid + 15, base - 2, fill=STEEL, outline=OUTLINE, width=1.3)
+            p.rect(mid + 8, base - 24, mid + 13, base - 2, fill=shade(STEEL, 0.7))
+            p.disc(mid + 10.5, base - 24, 4.0, fill=INK, outline=OUTLINE, width=1.0)
+        elif style == "timber":
+            # The crane came down: its jib and pulley lie across the yard.
+            p.poly([(mid - 36, base), (mid - 34, base - 8), (mid + 30, base - 20), (mid + 38, base - 6)],
+                   fill=shade(WOOD_D, 0.95), outline=OUTLINE, width=1.6)
+            for k in range(3):
+                x = mid - 26 + k * 20
+                p.line([(x, base - 4), (x + 8, base - 16)], shade(WOOD, 0.8), 2.4)
+            p.disc(mid + 30, base - 15, 5.2, fill=BRASS, outline=OUTLINE, width=1.2)
+            p.rect(mid + 34, base - 6, mid + 44, base - 1, fill=BRASS, outline=OUTLINE, width=1.0)
+        elif style == "stele":
+            # The null colossus: the stele snapped, and the void ring fell flat.
+            p.poly([(mid - 20, base), (mid - 17, base - 20), (mid - 6, base - 26),
+                    (mid + 8, base - 20), (mid + 20, base)], fill=hx("#4a4356"), outline=OUTLINE, width=1.7)
+            p.d.ellipse([(mid - 46) * SS, (base - 30) * SS, (mid + 10) * SS, (base - 1) * SS],
+                        outline=BRASS, width=3)
+            p.line([(mid - 30, base - 15), (mid - 18, base - 6)], hx("#c9a8ff"), 1.8)
+            p.rect(mid + 20, base - 10, mid + 40, base - 2, fill=hx("#4a4356"), outline=OUTLINE, width=1.2)
+            p.poly([(mid + 24, base - 10), (mid + 30, base - 22), (mid + 37, base - 12)],
+                   fill=hx("#6b6379"), outline=OUTLINE, width=1.0)
+            # The upper third of the column, snapped off and lying across the
+            # yard: the branch-B stele leaves a longer, lower wreck.
+            p.poly([(mid - 44, base - 6), (mid - 26, base - 18), (mid - 6, base - 14),
+                    (mid - 10, base - 4), (mid - 32, base - 1)],
+                   fill=hx("#585064"), outline=OUTLINE, width=1.4)
+            p.line([(mid - 36, base - 8), (mid - 14, base - 12)], RUNE, 1.4)
+        elif style == "plate":
+            # A torn caltrop field: the frame bent up at both ends.
+            p.rect(mid - 42, base - 9, mid + 42, base - 1, fill=IRON, outline=OUTLINE, width=1.3)
+            p.line([(mid - 42, base - 9), (mid - 34, base - 24)], BRASS, 3.0)
+            p.line([(mid + 42, base - 9), (mid + 33, base - 26)], BRASS, 3.0)
+            p.line([(mid - 42, base - 9), (mid - 34, base - 24)], OUTLINE, 0.9)
+            p.line([(mid + 42, base - 9), (mid + 33, base - 26)], OUTLINE, 0.9)
+            for x in (-32, -21, -10, 3, 14, 25, 34):
+                p.poly([(mid + x - 3.0, base - 9), (mid + x, base - 22), (mid + x + 3.0, base - 9)],
+                       fill=STEEL_L, outline=OUTLINE, width=0.9)
+        else:
+            # The crystal drum burst along its brass bands.
+            p.rect(mid - 32, base - 12, mid + 12, base - 3, fill=shade(STONE, 0.82), outline=OUTLINE, width=1.5)
+            p.line([(mid - 32, base - 9), (mid + 12, base - 6)], BRASS, 2.0)
+            for x, y, w, h in [(-30, -20, 8, 20), (-10, -26, 9, 24), (14, -18, 7, 16), (28, -12, 5, 11)]:
+                p.poly([(mid + x, base + y - h / 2), (mid + x + w / 2, base + y),
+                        (mid + x, base + y + h / 2), (mid + x - w / 2, base + y)],
+                       fill=accent, outline=OUTLINE, width=1.1)
+        # Spilled blocks, charred beams and smoke are shared by both branches.
+        for x, y, w, h in [(-34, -3, 12, 6), (-16, -2, 9, 5), (18, -3, 13, 6), (30, -4, 8, 5)]:
+            p.rect(mid + x, base + y - h, mid + x + w, base + y, fill=STONE_L, outline=OUTLINE, width=1.0)
+        for x0, y0, x1, y1, w in [(-26, -6, -38, -30, 3.4), (26, -8, 40, -26, 3.2)]:
+            p.line([(mid + x0, base + y0), (mid + x1, base + y1)], WOOD_D, w)
+            p.line([(mid + x0, base + y0), (mid + x1, base + y1)], INK, 0.8)
+        for x, y, r in [(-22, -32, 3.4), (14, -34, 2.8), (30, -22, 2.2)]:
+            p.disc(mid + x, base + y, r, fill=(92, 90, 98, 110))
+        return downsample(image)
+
     if style == "stump":
         if line.key == "royalArtillery":
             # The barrel, thrown clear and split at the muzzle.
@@ -1497,7 +2081,7 @@ def render_ruin(line: Line):
 TRAIL_SIZE = 48
 
 
-def render_trail(line: Line):
+def render_trail(line: Line, variant: str = "a"):
     """The streak a shot leaves behind it.
 
     Drawn pointing up (the art convention for missiles), so `Projectile` can
@@ -1509,33 +2093,57 @@ def render_trail(line: Line):
     image = Image.new("RGBA", (size * SS, size * SS), (0, 0, 0, 0))
     accent = hx(line.accent)
     cx = size / 2
+    # Branch A leaves one wide streak; branch B leaves a tighter double strand,
+    # so a salvo reads as a salvo in flight.
     layers = [
         (0.34, 0.26, 13.0, 245),
         (0.78, 0.48, 10.0, 190),
         (1.10, 0.72, 6.0, 130),
     ]
+    if variant == "b":
+        layers = [
+            (0.26, 0.24, 9.0, 240),
+            (0.60, 0.46, 7.0, 180),
+            (0.86, 0.70, 4.5, 120),
+        ]
     for width_scale, length_scale, radius, alpha in layers:
         top = size * 0.5 - size * length_scale * 0.75
         bottom = size * 0.5 + size * length_scale * 0.35
         p = Pen(image)
-        p.rect(cx - radius * width_scale, top, cx + radius * width_scale, bottom,
-               fill=(*accent[:3], alpha))
+        if variant == "b":
+            p.rect(cx - radius * width_scale - 5.0, top, cx - 2.0 + radius * width_scale, bottom,
+                   fill=(*accent[:3], int(alpha * 0.8)))
+            p.rect(cx + 2.0 - radius * width_scale, top, cx + radius * width_scale + 5.0, bottom,
+                   fill=(*accent[:3], alpha))
+        else:
+            p.rect(cx - radius * width_scale, top, cx + radius * width_scale, bottom,
+                   fill=(*accent[:3], alpha))
     # Soften the edges so the streak fades into the tile instead of ending flat.
     image = image.filter(ImageFilter.GaussianBlur(2.2 * SS))
     return downsample(image)
 
 
-def render_muzzle(line: Line):
+def render_muzzle(line: Line, variant: str = "a"):
     size = 48
     image = Image.new("RGBA", (size * SS, size * SS), (0, 0, 0, 0))
     p = Pen(image)
     accent = hx(line.accent)
     c = size / 2
-    for k in range(6):
-        a = math.radians(k * 60)
-        p.line([(c, c), (c + math.cos(a) * 16, c + math.sin(a) * 16)], (*accent[:3], 220), 2.0)
-    p.disc(c, c, 7, fill=(255, 250, 226, 240))
-    p.ring(c, c, 12, (*accent[:3], 180), 1.6)
+    if variant == "a":
+        for k in range(6):
+            a = math.radians(k * 60)
+            p.line([(c, c), (c + math.cos(a) * 16, c + math.sin(a) * 16)], (*accent[:3], 220), 2.0)
+        p.disc(c, c, 7, fill=(255, 250, 226, 240))
+        p.ring(c, c, 12, (*accent[:3], 180), 1.6)
+    else:
+        # A twin-lobed flash on a brass ring: the branch-B barrels fire two at a
+        # time, and the flash says so even when the volley is a single frame.
+        for side in (-1, 1):
+            p.line([(c + side * 5, c), (c + side * 9, c - 14)], (*accent[:3], 220), 2.2)
+            p.line([(c + side * 5, c), (c + side * 9, c + 14)], (*accent[:3], 190), 1.8)
+            p.disc(c + side * 5, c, 4.2, fill=(255, 250, 226, 220))
+        p.disc(c, c, 5.4, fill=(255, 252, 235, 240))
+        p.ring(c, c, 13, (*BRASS[:3], 200), 1.8)
     return downsample(image)
 
 
@@ -1543,12 +2151,147 @@ def render_muzzle(line: Line):
 # projectiles — each line's shot is its own silhouette
 # --------------------------------------------------------------------------
 
-def render_projectile(kind: str, accent: str):
+# Each branch-B weapon fires a missile of its own, not a recoloured branch-A
+# shot: a salvo shell pair, a bolt bundle, a hex orb, a cluster shell, a shard
+# fan, an arc slug or a flak shell.
+B_PROJECTILE_KINDS = {
+    "twin-shell", "triple-bolt", "hex-orb", "cluster-shell",
+    "shard-fan", "arc-slug", "flak-shell",
+}
+
+
+def _render_branch_b_projectile(p: Pen, kind: str, c, heavy: bool):
+    size = (40, 64)
+    cx, top = size[0] / 2, 4.0
+    band = 2.0 if heavy else 1.0
+    # Heavy tier: a brass collar around the whole missile, drawn last by the
+    # caller so the silhouette stays one object.
+
+    if kind == "twin-shell":
+        for dx in (-7.0, 7.0):
+            p.rect(cx + dx - 5, top + 8, cx + dx + 5, top + 36, fill=IRON, outline=OUTLINE, width=1.2)
+            p.poly([(cx + dx - 5, top + 8), (cx + dx, top + 1), (cx + dx + 5, top + 8)],
+                   fill=STEEL_L, outline=OUTLINE, width=1.0)
+            p.rect(cx + dx - 5, top + 20 - band, cx + dx + 5, top + 21 + band, fill=BRASS)
+        p.rect(cx - 9, top + 38, cx + 9, top + 43, fill=shade(IRON, 0.75), outline=OUTLINE, width=1.0)
+        if heavy:
+            # Tier 4/5: a third shell in the shared cradle.
+            p.rect(cx - 4.6, top + 40, cx + 4.6, top + 54, fill=IRON, outline=OUTLINE, width=1.2)
+            p.poly([(cx - 4.6, top + 40), (cx, top + 33), (cx + 4.6, top + 40)],
+                   fill=STEEL_L, outline=OUTLINE, width=1.0)
+            p.rect(cx - 4.6, top + 47, cx + 4.6, top + 48.6, fill=BRASS)
+    elif kind == "triple-bolt":
+        for dx, tilt in ((-7.0, -3.0), (0.0, 0.0), (7.0, 3.0)):
+            p.rect(cx + dx - 1.2, top + 10, cx + dx + 1.2, top + 50, fill=WOOD_L, outline=OUTLINE, width=0.9)
+            p.poly([(cx + dx - 3.4 + tilt, top + 12), (cx + dx + tilt, top + 2),
+                    (cx + dx + 3.4 + tilt, top + 12)], fill=STEEL_L, outline=OUTLINE, width=0.9)
+        p.rect(cx - 10, top + 34, cx + 10, top + 38 + band, fill=BRASS, outline=OUTLINE, width=0.9)
+        if heavy:
+            # Tier 4/5: a fourth bolt in the rack and a wider brass feeder.
+            p.rect(cx - 12.5, top + 6, cx - 10.5, top + 40, fill=WOOD_L, outline=OUTLINE, width=0.8)
+            p.poly([(cx - 15.5, top + 8), (cx - 11.5, top + 0), (cx - 10.5, top + 8)],
+                   fill=STEEL_L, outline=OUTLINE, width=0.8)
+            p.rect(cx - 13, top + 42, cx + 13, top + 45, fill=BRASS, outline=OUTLINE, width=0.7)
+    elif kind == "hex-orb":
+        points = []
+        for k in range(6):
+            a = math.radians(60 * k - 90)
+            points.append((cx + math.cos(a) * 9, top + 24 + math.sin(a) * 9))
+        p.poly(points, fill=shade(c, 0.85), outline=OUTLINE, width=1.3)
+        p.poly([(cx, top + 17), (cx + 4.5, top + 24), (cx, top + 31), (cx - 4.5, top + 24)],
+               fill=hx("#f5edff"), outline=None)
+        for k in range(3):
+            a = math.radians(90 * k + 30)
+            p.line([(cx + math.cos(a) * 9.5, top + 24 + math.sin(a) * 9.5),
+                    (cx + math.cos(a) * (13 + band), top + 24 + math.sin(a) * (13 + band))],
+                   (*c[:3], 200), 1.4)
+        if heavy:
+            # Tier 4/5: a brass hex frame wraps the orb, so the upgraded shot is
+            # a different outline, not a brighter hexagon.
+            frame = []
+            for k in range(6):
+                a = math.radians(60 * k - 90)
+                frame.append((cx + math.cos(a) * 17, top + 24 + math.sin(a) * 17))
+            p.poly(frame, outline=BRASS, width=1.6)
+            for k in range(3):
+                a = math.radians(120 * k + 30)
+                p.line([(cx + math.cos(a) * 11, top + 24 + math.sin(a) * 11),
+                        (cx + math.cos(a) * 17, top + 24 + math.sin(a) * 17)], BRASS, 1.6)
+    elif kind == "cluster-shell":
+        p.rect(cx - 6, top + 4, cx + 6, top + 34, fill=IRON, outline=OUTLINE, width=1.3)
+        p.poly([(cx - 6, top + 4), (cx, top - 2), (cx + 6, top + 4)], fill=STEEL_L, outline=OUTLINE, width=1.1)
+        p.rect(cx - 6, top + 16 - band, cx + 6, top + 18 + band, fill=BRASS)
+        bomblets = ((-9.0, top + 30), (9.0, top + 30))
+        if heavy:
+            bomblets = ((-11.0, top + 28), (11.0, top + 28), (-11.0, top + 40), (11.0, top + 40))
+            for side in (-1, 1):
+                p.poly([(cx + side * 5, top + 34), (cx + side * 15, top + 44),
+                        (cx + side * 5, top + 42)], fill=STEEL, outline=OUTLINE, width=1.0)
+        for dx, dy in bomblets:
+            p.disc(cx + dx, dy, 4.2, fill=shade(IRON, 1.15), outline=OUTLINE, width=1.0)
+            p.disc(cx + dx - 1, dy - 1, 1.6, fill=STEEL_L)
+        p.rect(cx - 8, top + 36, cx + 8, top + 40, fill=shade(IRON, 0.7), outline=OUTLINE, width=0.9)
+    elif kind == "shard-fan":
+        fan = ((-8.0, -5.0, 26.0), (0.0, 0.0, 36.0), (8.0, 5.0, 26.0))
+        if heavy:
+            # Tier 4/5 sends a five-shard fan, not a wider three-shard one.
+            fan = ((-13.0, -8.0, 20.0), (-6.5, -4.0, 30.0), (0.0, 0.0, 40.0), (6.5, 4.0, 30.0), (13.0, 8.0, 20.0))
+        for dx, tilt, h in fan:
+            p.poly([(cx + dx + tilt, top + 2), (cx + dx + 5 + tilt, top + h * 0.55),
+                    (cx + dx + tilt, top + h), (cx + dx - 5 + tilt, top + h * 0.55)],
+                   fill=c, outline=OUTLINE, width=1.1)
+            p.poly([(cx + dx + tilt, top + 6), (cx + dx + 2 + tilt, top + h * 0.55),
+                    (cx + dx + tilt, top + h - 6)], fill=hx("#eafcff"))
+        p.rect(cx - 8, top + 40, cx + 8, top + 44 + band, fill=BRASS, outline=OUTLINE, width=0.9)
+    elif kind == "arc-slug":
+        p.rect(cx - 5, top + 8, cx + 5, top + 42, fill=shade(c, 0.9), outline=OUTLINE, width=1.2)
+        p.poly([(cx - 5, top + 8), (cx, top), (cx + 5, top + 8)], fill=hx("#f4fdff"), outline=OUTLINE, width=1.0)
+        p.rect(cx - 6, top + 24 - band, cx + 6, top + 26 + band, fill=BRASS)
+        for side in (-1, 1):
+            p.poly([(cx + side * 5, top + 14), (cx + side * (11 + band), top + 20),
+                    (cx + side * 5, top + 24)], fill=STEEL_L, outline=OUTLINE, width=0.9)
+        if heavy:
+            # Tier 4/5: a longer slug and a second pair of fins.
+            p.rect(cx - 4.2, top + 42, cx + 4.2, top + 56, fill=shade(c, 0.8), outline=OUTLINE, width=1.1)
+            p.poly([(cx - 4.2, top + 56), (cx, top + 62), (cx + 4.2, top + 56)],
+                   fill=hx("#f4fdff"), outline=OUTLINE, width=0.9)
+            for side in (-1, 1):
+                p.poly([(cx + side * 4, top + 44), (cx + side * 10, top + 50),
+                        (cx + side * 4, top + 54)], fill=STEEL_L, outline=OUTLINE, width=0.8)
+    else:
+        # flak-shell: a squat shell inside a brass cradle, fused at the nose.
+        p.rect(cx - 7, top + 10, cx + 7, top + 36, fill=IRON, outline=OUTLINE, width=1.3)
+        p.poly([(cx - 7, top + 10), (cx, top + 1), (cx + 7, top + 10)], fill=STEEL_L, outline=OUTLINE, width=1.1)
+        p.disc(cx, top + 6, 2.4, fill=BRASS, outline=OUTLINE, width=0.8)
+        p.ring(cx, top + 22, 11 + band, BRASS, 1.5)
+        p.rect(cx - 9, top + 34, cx + 9, top + 39, fill=shade(BRASS, 0.8), outline=OUTLINE, width=1.0)
+        if heavy:
+            # Tier 4/5: cradle arms folded out around the shell.
+            for side in (-1, 1):
+                p.line([(cx + side * 9, top + 34), (cx + side * 14, top + 26),
+                        (cx + side * 13, top + 15)], BRASS, 2.0)
+            p.rect(cx - 6, top + 42, cx + 6, top + 47, fill=shade(IRON, 0.8), outline=OUTLINE, width=1.0)
+    if heavy:
+        p.rect(cx - 1.4, top + 16, cx + 1.4, top + 34, fill=(*c[:3], 110))
+
+
+def render_projectile(kind: str, accent: str, variant: str = "a", heavy: bool = False):
+    """One shot, drawn pointing up.
+
+    `variant` picks the branch: A fires the line's original missile, B fires the
+    second branch's — a salvo shell, a bolt bundle, a hex orb. `heavy` is the
+    level-4/5 version of the same missile: bigger casing, an extra band, a
+    brighter core. Both are drawn on the same 40×64 canvas so the sprite's
+    origin and rotation offset stay valid for every tier.
+    """
     size = (40, 64)
     image = Image.new("RGBA", (size[0] * SS, size[1] * SS), (0, 0, 0, 0))
     p = Pen(image)
     c = hx(accent)
     cx, top = size[0] / 2, 4.0
+    if variant == "b" and kind in B_PROJECTILE_KINDS:
+        _render_branch_b_projectile(p, kind, c, heavy)
+        return downsample(image)
     if kind == "shell":
         p.rect(cx - 6, top + 6, cx + 6, top + 34, fill=IRON, outline=OUTLINE, width=1.4)
         p.poly([(cx - 6, top + 6), (cx, top - 2), (cx + 6, top + 6)], fill=STEEL_L, outline=OUTLINE, width=1.2)
@@ -1576,6 +2319,13 @@ def render_projectile(kind: str, accent: str):
             p.line([(cx, top + 20), (cx + math.cos(a) * 15, top + 20 + math.sin(a) * 15)], (*c[:3], 230), 1.6)
     else:
         p.disc(cx, top + 20, 7, fill=c)
+    if heavy:
+        # Tier 4/5: two brass driving bands close on the body and a hot core
+        # runs down its spine. Nothing is drawn outside the missile, so the
+        # heavier shot still reads as one object in flight.
+        for y in (top + 13, top + 29):
+            p.rect(cx - 5.5, y, cx + 5.5, y + 2.6, fill=BRASS, outline=OUTLINE, width=0.7)
+        p.rect(cx - 1.6, top + 14, cx + 1.6, top + 28, fill=(*c[:3], 110))
     return downsample(image)
 
 
@@ -1624,9 +2374,10 @@ def main():
 
     for line in LINES:
         tiers = {}
-        for level in range(1, 6):
-            base_img, mount = render_base(line, level)
-            base_name = f"base_{line.key}-l{level}.png"
+        for slot, level, variant in SLOTS:
+            base_img, mount = render_base(line, level, variant)
+            suffix = slot_suffix(level, variant)
+            base_name = f"base_{line.key}-{suffix}.png"
             base_img.save(os.path.join(TOWER_DIR, base_name))
             written.append(os.path.join("public/assets/towers", base_name))
 
@@ -1638,17 +2389,17 @@ def main():
                 # road hazard is readable before it ever fires.
                 poses = [dict(pose, rise=max(pose["rise"], 0.55)) for pose in POSES]
             for pose in poses:
-                frame, frame_tip = render_weapon(line, level, pose)
+                frame, frame_tip = render_weapon(line, level, pose, variant)
                 frames.append(frame)
                 tip = max(tip, frame_tip)
             sheet = Image.new("RGBA", (FRAME * 6, FRAME), (0, 0, 0, 0))
             for index, frame in enumerate(frames):
                 sheet.alpha_composite(frame, (index * FRAME, 0))
-            weapon_name = f"weapon_{line.key}-l{level}.png"
+            weapon_name = f"weapon_{line.key}-{suffix}.png"
             sheet.save(os.path.join(TOWER_DIR, weapon_name))
             written.append(os.path.join("public/assets/towers", weapon_name))
 
-            tiers[f"lvl{level}"] = dict(
+            tiers[slot] = dict(
                 base=base_name,
                 weapon=weapon_name,
                 fw=FRAME,
@@ -1663,50 +2414,63 @@ def main():
             )
         art[line.key] = tiers
 
-        card = render_card(render_base(line, 3)[0], render_weapon(line, 3, POSES[0])[0], render_base(line, 3)[1])
+        card_base, card_mount = render_base(line, 3)
+        card = render_card(card_base, render_weapon(line, 3, POSES[0])[0], card_mount)
         card_name = f"card_{line.key}.png"
         card.save(os.path.join(UI_DIR, card_name))
         written.append(os.path.join("public/assets/ui", card_name))
 
+        # One shot per branch, and a heavier tier-4/5 version of each. The files
+        # are written on the same 40×64 canvas so `Projectile` treats them all
+        # alike.
         if line.projectile:
-            projectile = render_projectile(projectile_kind(line), line.accent)
-            projectile_name = f"{line.projectile}.png"
-            projectile.save(os.path.join(PROJ_DIR, projectile_name))
-            written.append(os.path.join("public/assets/projectiles", projectile_name))
+            for suffix, kind, variant, heavy in (
+                ("", projectile_kind(line), "a", False),
+                ("-2", projectile_kind(line), "a", True),
+                ("-b", line.projectile_b, "b", False),
+                ("-b2", line.projectile_b, "b", True),
+            ):
+                projectile = render_projectile(kind, line.accent, variant, heavy)
+                projectile_name = f"{line.projectile}{suffix}.png"
+                projectile.save(os.path.join(PROJ_DIR, projectile_name))
+                written.append(os.path.join("public/assets/projectiles", projectile_name))
 
-        impact = render_impact(line)
-        impact_name = f"fx-line-{line.key}-impact.png"
-        impact.save(os.path.join(FX_DIR, impact_name))
-        written.append(os.path.join("public/assets/fx", impact_name))
+        for variant, suffix in (("a", ""), ("b", "-b")):
+            impact = render_impact(line, variant)
+            impact_name = f"fx-line-{line.key}{suffix}-impact.png"
+            impact.save(os.path.join(FX_DIR, impact_name))
+            written.append(os.path.join("public/assets/fx", impact_name))
 
-        muzzle = render_muzzle(line)
-        muzzle_name = f"fx-line-{line.key}-muzzle.png"
-        muzzle.save(os.path.join(FX_DIR, muzzle_name))
-        written.append(os.path.join("public/assets/fx", muzzle_name))
+            muzzle = render_muzzle(line, variant)
+            muzzle_name = f"fx-line-{line.key}{suffix}-muzzle.png"
+            muzzle.save(os.path.join(FX_DIR, muzzle_name))
+            written.append(os.path.join("public/assets/fx", muzzle_name))
 
-        ruin = render_ruin(line)
-        ruin_name = f"ruin_{line.key}.png"
-        ruin.save(os.path.join(TOWER_DIR, ruin_name))
-        written.append(os.path.join("public/assets/towers", ruin_name))
+            ruin = render_ruin(line, variant)
+            ruin_name = f"ruin_{line.key}{suffix}.png"
+            ruin.save(os.path.join(TOWER_DIR, ruin_name))
+            written.append(os.path.join("public/assets/towers", ruin_name))
 
-        # Only a line that prints a projectile can leave a trail behind one.
-        trail_name = f"fx-line-{line.key}-trail.png"
-        if line.projectile:
-            trail = render_trail(line)
-            trail.save(os.path.join(FX_DIR, trail_name))
-            written.append(os.path.join("public/assets/fx", trail_name))
-        elif os.path.exists(os.path.join(FX_DIR, trail_name)):
-            # A field building has no shot, so a stale streak from an older run
-            # would be an unused file claiming to belong to it.
-            os.remove(os.path.join(FX_DIR, trail_name))
+            # Only a line that prints a projectile can leave a trail behind one.
+            trail_name = f"fx-line-{line.key}{suffix}-trail.png"
+            if line.projectile:
+                trail = render_trail(line, variant)
+                trail.save(os.path.join(FX_DIR, trail_name))
+                written.append(os.path.join("public/assets/fx", trail_name))
+            elif os.path.exists(os.path.join(FX_DIR, trail_name)):
+                # A field building has no shot, so a stale streak from an older
+                # run would be an unused file claiming to belong to it.
+                os.remove(os.path.join(FX_DIR, trail_name))
 
     write_tower_art(art)
     write_fx(art)
-    print(f"wrote {len(written)} images + 2 data tables")
+    write_projectiles(art)
+    print(f"wrote {len(written)} images + 3 data tables")
     for key in art:
         row = art[key]
-        print(f"  {key:16s} mounts {[row[f'lvl{n}']['mount'] for n in range(1, 6)]}"
-              f"  heights {[row[f'lvl{n}']['height'] for n in range(1, 6)]}")
+        print(f"  {key:16s} A mounts {[row[slot]['mount'] for slot in ('lvl1', 'lvl2', 'spec-a', 'spec-a2', 'spec-a3')]}"
+              f"  B mounts {[row[slot]['mount'] for slot in ('spec-b', 'spec-b2', 'spec-b3')]}"
+              f"  heights {[row[slot]['height'] for slot, _, _ in SLOTS]}")
 
 
 def projectile_kind(line: Line) -> str:
@@ -1718,12 +2482,15 @@ def write_tower_art(art):
         "// GENERATED by scripts/build_royal_defences.py — do not edit by hand.",
         "",
         "/**",
-        " * Geometry for the ten royal lines, five authored tiers each.",
+        " * Geometry for the ten royal lines.",
         " *",
         " * `mount` is the weapon pivot's height above the tile's bottom edge, so",
         " * `Tower` places the machinery on the shoulder of its emplacement instead",
         " * of on the ground. `muzzleY` is the distance from that pivot to the drawn",
         " * tip, measured by the generator (negative = up).",
+        " *",
+        " * Slots: `lvl1`, `lvl2` are shared; `spec-a`/`spec-a2`/`spec-a3` and",
+        " * `spec-b`/`spec-b2`/`spec-b3` are the two branches at L3/L4/L5.",
         " */",
         "",
         "export const ROYAL_ART = {",
@@ -1733,7 +2500,7 @@ def write_tower_art(art):
         for slot, data in tiers.items():
             fields = ", ".join(f"{name}: {js_num(value) if not isinstance(value, str) else repr(value)}"
                                for name, value in data.items())
-            lines.append(f"    {slot}: {{ {fields} }},")
+            lines.append(f"    '{slot}': {{ {fields} }},")
         lines.append("  },")
     lines.append("};")
     lines.append("")
@@ -1747,6 +2514,54 @@ PROJECTILE_LINES = {
 }
 
 
+def write_projectiles(art):
+    """The royal shot table.
+
+    Branch A and branch B of every shooting line fire their own missiles, and
+    each branch upgrades its missile at level 4 — four keys per line. The royal
+    generator owns this table; `data/projectileArt.js` (the older lines, from
+    `scripts/build_projectiles.py`) does not list the royal lines any more, so
+    there is exactly one owner per file.
+    """
+    lines = [
+        "// GENERATED by scripts/build_royal_defences.py — do not edit by hand.",
+        "",
+        "/**",
+        " * Royal shot art. `a` is branch A at level 3, `a2` the level-4/5 version",
+        " * of it; `b` and `b2` are the same two tiers of branch B. `Projectile`",
+        " * guards every key with textures.exists(), so a missing file falls back",
+        " * to the line's base shot instead of crashing.",
+        " */",
+        "export const ROYAL_PROJECTILES = {",
+    ]
+    for key in art:
+        if key not in PROJECTILE_LINES:
+            continue
+        lines.append(
+            f"  {key}: {{ a: 'proj-royal-{key}', a2: 'proj-royal-{key}-2', "
+            f"b: 'proj-royal-{key}-b', b2: 'proj-royal-{key}-b2' }},"
+        )
+    lines += [
+        "};",
+        "",
+        "/**",
+        " * Art key for a royal shot: the branch the tower took, at its tier.",
+        " * Returns null for a line that does not shoot, so the caller falls back",
+        " * to the shared type table.",
+        " */",
+        "export function royalProjectileArt(line, level, branch = 'spec-a') {",
+        "  const tiers = ROYAL_PROJECTILES[line];",
+        "  if (!tiers) return null;",
+        "  const second = branch === 'spec-b';",
+        "  if (level >= 4) return second ? tiers.b2 : tiers.a2;",
+        "  return second ? tiers.b : tiers.a;",
+        "}",
+        "",
+    ]
+    with open(os.path.join(DATA_DIR, "royalProjectiles.js"), "w") as handle:
+        handle.write("\n".join(lines))
+
+
 def write_fx(art):
     lines = [
         "// GENERATED by scripts/build_royal_defences.py — do not edit by hand.",
@@ -1758,16 +2573,20 @@ def write_fx(art):
         "export const ROYAL_FX_SHEETS = {",
     ]
     for key in art:
-        lines.append(
-            f"  'fx-line-{key}-impact': {{ file: 'fx-line-{key}-impact.png', frameWidth: 128, frameHeight: 128, frames: {IMPACT_FRAMES}, frameRate: 30 }},"
-        )
-        lines.append(
-            f"  'fx-line-{key}-muzzle': {{ file: 'fx-line-{key}-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 }},"
-        )
-        if key in PROJECTILE_LINES:
+        # Branch A keeps the line's own id; branch B is a distinct effect line
+        # (`royalArtillery-b`), so the impact and the muzzle of the second
+        # machine are its own art, not the first one's.
+        for suffix in ("", "-b"):
             lines.append(
-                f"  'fx-line-{key}-trail': {{ file: 'fx-line-{key}-trail.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 }},"
+                f"  'fx-line-{key}{suffix}-impact': {{ file: 'fx-line-{key}{suffix}-impact.png', frameWidth: 128, frameHeight: 128, frames: {IMPACT_FRAMES}, frameRate: 30 }},"
             )
+            lines.append(
+                f"  'fx-line-{key}{suffix}-muzzle': {{ file: 'fx-line-{key}{suffix}-muzzle.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 }},"
+            )
+            if key in PROJECTILE_LINES:
+                lines.append(
+                    f"  'fx-line-{key}{suffix}-trail': {{ file: 'fx-line-{key}{suffix}-trail.png', frameWidth: 48, frameHeight: 48, frames: 1, frameRate: 1 }},"
+                )
     lines.append("};")
     lines.append("")
     with open(os.path.join(DATA_DIR, "royalFx.js"), "w") as handle:

@@ -48,7 +48,7 @@ export const ASCENSION = {
       apex: {
         slug: 'rapid-3',
         title: 'Storm Ranger',
-        damage: 34,
+        damage: 32,
         range: 196,
         cooldown: 260,
         upgradeCost: 260,
@@ -614,7 +614,7 @@ export const ASCENSION = {
         damage: 32,
         range: 178,
         cooldown: 1100,
-        upgradeCost: 165,
+        upgradeCost: 130,
         aura: { radius: 185, damageBonus: 0.26, rangeBonus: 0.08, fireRateBonus: 0.2, coinPerKill: 2 },
         ability: { label: 'Muster' },
         description: 'Nearby towers fire 20% faster; every kill inside pays 2 extra gold.',
@@ -625,13 +625,116 @@ export const ASCENSION = {
         damage: 44,
         range: 188,
         cooldown: 1050,
-        upgradeCost: 325,
+        upgradeCost: 240,
         aura: { radius: 205, damageBonus: 0.34, rangeBonus: 0.12, fireRateBonus: 0.28, coinPerKill: 3 },
         ability: { label: 'War Camp' },
         description: 'Nearby towers fire 28% faster and every kill pays 3 extra gold.',
       },
     },
   },
+
+  /* ================================================== the ten royal lines */
+  royalArtillery: {
+    bombard: {
+      elite: { slug: 'bombard-2', title: 'Counterweight Bombard', upgradeCost: 240, damage: 640, range: 495, cooldown: 3600, damageType: 'explosive', armorPenetration: 0.5, minRange: 115, bossBonus: 0.3, description: 'One 640 damage shell every 3.6 s from 495: 178 DPS, 50 % penetration and a 30 % titan bonus. Slower than the salvo battery and far heavier.' },
+      apex: { slug: 'bombard-3', title: 'Royal Siege Battery', upgradeCost: 290, damage: 900, range: 520, cooldown: 3400, damageType: 'explosive', armorPenetration: 0.6, minRange: 120, description: 'Twin-banded royal bombard, 900 a shell. Eleven waves of reload paid off.', bossBonus: 0.34, ability: { label: 'Titan Shell' } },
+    },
+    battery: {
+      elite: { slug: 'battery-2', title: 'Salvo Culverin', upgradeCost: 230, damage: 265, range: 420, cooldown: 2700, damageType: 'explosive', armorPenetration: 0.38, minRange: 135, ability: { shots: 2, label: 'Salvo Pair' }, description: 'Two 265 damage shells every 2.7 s: 196 DPS, still 420 px of reach, and a wider dead zone than the branch below.' },
+      apex: { slug: 'battery-3', title: 'Royal Salvo Battery', upgradeCost: 280, damage: 380, range: 440, cooldown: 2500, damageType: 'explosive', armorPenetration: 0.46, minRange: 140, ability: { shots: 2, label: 'Salvo Pair' }, description: '380 damage per shell, two shells a volley: 304 DPS across 440 px. The bombard’s single shell is heavier and pierces more armour; this battery simply fires more of them.' },
+    },
+  },
+  siegeBallista: {
+    arbalest: {
+      elite: { slug: 'arbalest-2', title: 'Torsion Siege Bow', upgradeCost: 200, damage: 225, range: 295, cooldown: 1180, damageType: 'piercing', armorPenetration: 0.78, bossBonus: 0.33, description: '225 damage a bolt at 78 % penetration: 191 DPS that ignores most plate, plus a 33 % bonus against titans. The repeater still out-rates it on bare skin.' },
+      apex: { slug: 'arbalest-3', title: 'Colossus Ballista', upgradeCost: 280, damage: 250, range: 310, cooldown: 1050, damageType: 'piercing', armorPenetration: 0.85, bossBonus: 0.4, description: 'Twin torsion springs and a bolt as long as a spear.', ability: { label: 'Plate Splitter' } },
+    },
+    repeater: {
+      elite: { slug: 'repeater-2', title: 'Windlass Repeater', upgradeCost: 190, damage: 110, range: 260, cooldown: 900, damageType: 'physical', armorPenetration: 0, ability: { shots: 2, label: 'Twin Bolt' }, description: 'Twin bolts out of one draw: 110 damage each, 244 DPS against a single body. No boss bonus — this bow clears runners, the arbalest kills plate.' },
+      apex: { slug: 'repeater-3', title: 'Hailstorm Ballista', upgradeCost: 270, damage: 120, range: 272, cooldown: 800, damageType: 'physical', armorPenetration: 0, ability: { shots: 2, label: 'Twin Bolt' }, description: 'Two 120 damage bolts every 0.8 s: 300 DPS on one body, no penetration at all. It out-rates the arbalest and loses to it on plate.' },
+    },
+  },
+  arcaneSniper: {
+    marksman: {
+      elite: { slug: 'marksman-2', title: 'Astral Lattice', upgradeCost: 250, damage: 290, range: 410, cooldown: 1650, damageType: 'magic', armorPenetration: 0.52, description: '290 damage in one lance every 1.65 s: 176 DPS at 410 range. The hex weaver trades that reach for a burst and a snare.' },
+      apex: { slug: 'marksman-3', title: 'Arcane Longshot Spire', upgradeCost: 340, damage: 400, range: 430, cooldown: 1500, damageType: 'magic', armorPenetration: 0.6, description: 'Five lattices stacked into a spire, and one very deliberate beam.', ability: { label: 'Long Lance' } },
+    },
+    hexweaver: {
+      elite: { slug: 'hexweaver-2', title: 'Curse Lattice', upgradeCost: 240, damage: 155, range: 345, cooldown: 1500, damageType: 'magic', armorPenetration: 0.36, splash: 70, slow: 0.22, slowMs: 1000, description: '155 damage on a 70 px burst, −22 % movement for a second: 103 DPS in an area the marksman cannot reach.' },
+      apex: { slug: 'hexweaver-3', title: 'Hex Spire', upgradeCost: 330, damage: 200, range: 360, cooldown: 1400, damageType: 'magic', armorPenetration: 0.42, splash: 85, slow: 0.26, slowMs: 1100, description: '200 damage across an 85 px hex, −26 % speed for 1.1 s, 143 DPS. Area denial, not assassination.', ability: { label: 'Hex Burst' } },
+    },
+  },
+  mortar: {
+    greatmortar: {
+      elite: { slug: 'greatmortar-2', title: 'Twin-Vent Mortar', upgradeCost: 240, damage: 135, range: 360, cooldown: 2150, damageType: 'explosive', splash: 130, minRange: 98, targetsGround: true, targetsAir: false, description: '135 damage across a 130 px blast every 2.15 s, ground only. The cluster battery fires two shells; this one covers more road with each.' },
+      apex: { slug: 'greatmortar-3', title: 'Royal Siege Mortar', upgradeCost: 330, damage: 180, range: 380, cooldown: 1950, damageType: 'explosive', splash: 150, minRange: 100, targetsGround: true, targetsAir: false, description: 'A graduated arc, a stone cradle and a 150 px crater.', ability: { label: 'Wide Blast' } },
+    },
+    cluster: {
+      elite: { slug: 'cluster-2', title: 'Fanned Mortar', upgradeCost: 230, damage: 62, range: 340, cooldown: 1800, damageType: 'explosive', splash: 65, minRange: 96, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: '62 damage a shell, two shells per salvo, 69 DPS on a single body with a 65 px blast. Wider coverage than the great mortar, weaker per shell.' },
+      apex: { slug: 'cluster-3', title: 'Royal Cluster Battery', upgradeCost: 320, damage: 96, range: 355, cooldown: 1700, damageType: 'explosive', splash: 78, minRange: 98, targetsGround: true, targetsAir: false, ability: { shots: 2, label: 'Fanned Salvo' }, description: 'Two 96 damage shells on a 78 px blast, 113 DPS into one target. The great mortar still covers more ground per shell.' },
+    },
+  },
+  rimeTower: {
+    glacier: {
+      elite: { slug: 'glacier-2', title: 'Winter Core', upgradeCost: 170, damage: 54, range: 220, cooldown: 800, damageType: 'magic', slow: 0.45, slowMs: 1800, splash: 72, description: '54 damage on a 72 px burst and a 45 % snare for 1.8 s. The tempest spreads wider; the glacier holds the lane still.' },
+      apex: { slug: 'glacier-3', title: 'Hoarfrost Crown', upgradeCost: 220, damage: 70, range: 230, cooldown: 760, damageType: 'magic', slow: 0.5, slowMs: 2200, splash: 80, description: 'A crown of ice: −50 % for 2.2 s, and every hit splashes the chill.', ability: { label: 'Deep Freeze' } },
+    },
+    tempest: {
+      elite: { slug: 'tempest-2', title: 'Rime Gale', upgradeCost: 160, damage: 44, range: 212, cooldown: 660, damageType: 'magic', splash: 105, description: '44 damage across a 105 px gale, 67 DPS: the widest chill in the roster and none of the glacier’s snare.' },
+      apex: { slug: 'tempest-3', title: 'Winter Tempest', upgradeCost: 210, damage: 56, range: 224, cooldown: 620, damageType: 'magic', splash: 120, description: '56 damage on a 120 px blast, 90 DPS. It chills the whole bend; the glacier stops one creep dead.', ability: { label: 'Shard Fan' } },
+    },
+  },
+  tesla: {
+    chain: {
+      elite: { slug: 'chain-2', title: 'Storm Cage', upgradeCost: 200, damage: 100, range: 220, cooldown: 1150, damageType: 'lightning', chainTargets: 4, chainRange: 122, chainFalloff: 0.72, description: '100 damage that arcs to four more bodies at 72 % carried: 348 DPS across a pack. The arc cannon still wins a single duel.' },
+      apex: { slug: 'chain-3', title: 'Thunderhead', upgradeCost: 280, damage: 130, range: 235, cooldown: 1050, damageType: 'lightning', chainTargets: 5, chainRange: 130, chainFalloff: 0.75, description: 'Five extra bodies, 75 % carried per hop. Ground and air alike.', ability: { label: 'Five-Body Chain' } },
+    },
+    arccannon: {
+      elite: { slug: 'arccannon-2', title: 'Thunder Lance', upgradeCost: 190, damage: 155, range: 230, cooldown: 1200, damageType: 'lightning', chainTargets: 1, chainRange: 96, chainFalloff: 0.6, description: '155 damage into the first body, 129 DPS, and one short hop behind it. The coil still wins the crowd.' },
+      apex: { slug: 'arccannon-3', title: 'Storm Cannon', upgradeCost: 270, damage: 200, range: 240, cooldown: 1100, damageType: 'lightning', chainTargets: 2, chainRange: 104, chainFalloff: 0.65, description: '200 damage on impact, 182 DPS, two hops at 65 % carried. A duelist that happens to arc.', ability: { label: 'Heavy Arc' } },
+    },
+  },
+  skybreaker: {
+    lance: {
+      elite: { slug: 'lance-2', title: 'Radar Battery', upgradeCost: 220, damage: 155, range: 330, cooldown: 1000, damageType: 'piercing', bossBonus: 0.35, description: '155 damage a bolt, 155 DPS against the air, with a 35 % titan bonus. The flak battery covers a swarm instead.' },
+      apex: { slug: 'lance-3', title: 'Sky Citadel', upgradeCost: 310, damage: 205, range: 350, cooldown: 920, damageType: 'piercing', bossBonus: 0.4, description: 'Six barrels and a spotter glass. Nothing with wings survives the approach.', ability: { label: 'Titan Tracker' } },
+    },
+    flak: {
+      elite: { slug: 'flak-2', title: 'Burst Battery', upgradeCost: 210, damage: 50, range: 300, cooldown: 700, damageType: 'piercing', splash: 65, bossBonus: 0.18, ability: { shots: 2, label: 'Burst Pair' }, description: '50 damage a burst, two bursts every 0.7 s, 65 px of splinter radius: 143 DPS against anything with wings.' },
+      apex: { slug: 'flak-3', title: 'Royal Flak Battery', upgradeCost: 300, damage: 55, range: 310, cooldown: 640, damageType: 'piercing', splash: 78, bossBonus: 0.2, ability: { shots: 2, label: 'Burst Pair' }, description: 'Two 55 damage bursts every 0.64 s across a 78 px blast: 172 DPS on a pack. The lance is still the answer to a single wyrm.' },
+    },
+  },
+  workshop: {
+    master: {
+      elite: { slug: 'master-2', title: 'Siege Workshop', upgradeCost: 250, damage: 0, range: 0, cooldown: 0, damageType: 'true', aura: { radius: 260, fireRateBonus: 0.22, rangeBonus: 0.15 }, repair: { radius: 230, perSecond: 30 }, description: '+22 % fire rate and +15 % range across 260 px, and the crew puts 30 HP a second back into the worst-hit building.' },
+      apex: { slug: 'master-3', title: 'Royal Foundry', upgradeCost: 340, damage: 0, range: 0, cooldown: 0, damageType: 'true', aura: { radius: 300, fireRateBonus: 0.28, rangeBonus: 0.18 }, repair: { radius: 260, perSecond: 42 }, ability: { label: 'Foundry Aura' }, description: '+28 % fire rate, +18 % range, and 42 HP/s of repairs across 260 px.' },
+    },
+    engineer: {
+      elite: { slug: 'engineer-2', title: 'Engineer Company', upgradeCost: 240, damage: 0, range: 0, cooldown: 0, damageType: 'true', aura: { radius: 300, fireRateBonus: 0.3, rangeBonus: 0.2 }, repair: { radius: 210, perSecond: 18 }, description: '+30 % fire rate across 300 px and a 210 px repair crew at 18 HP a second. The foundry still puts more stone back.' },
+      apex: { slug: 'engineer-3', title: 'Royal Engineer Corps', upgradeCost: 330, damage: 0, range: 0, cooldown: 0, damageType: 'true', aura: { radius: 330, fireRateBonus: 0.36, rangeBonus: 0.24 }, repair: { radius: 230, perSecond: 26 }, ability: { label: 'Corps Aura' }, description: '+36 % fire rate over 330 px — the widest aura in the roster — and a repair crew half the foundry’s size.' },
+    },
+  },
+  obelisk: {
+    rune: {
+      elite: { slug: 'rune-2', title: 'Sigil Monolith', upgradeCost: 260, damage: 0, range: 0, cooldown: 0, damageType: 'magic', debuff: { radius: 250, armorBreak: 20, resistanceBreak: 0.24 }, description: '−20 armour and −24 % resistance across 250 px. The null obelisk trades the armour break for twice the resistance break.' },
+      apex: { slug: 'rune-3', title: 'Warding Colossus', upgradeCost: 350, damage: 0, range: 0, cooldown: 0, damageType: 'magic', debuff: { radius: 270, armorBreak: 26, resistanceBreak: 0.3 }, ability: { label: 'Ward Break' }, description: '−26 armour and −30 % resistance across 270 px. The whole lane feels it.' },
+    },
+    nullify: {
+      elite: { slug: 'nullify-2', title: 'Void Monolith', upgradeCost: 250, damage: 0, range: 0, cooldown: 0, damageType: 'magic', debuff: { radius: 215, armorBreak: 12, resistanceBreak: 0.4 }, description: '−40 % resistance across 215 px, with a token 12 armour off. Magic towers do the rest.' },
+      apex: { slug: 'nullify-3', title: 'Null Colossus', upgradeCost: 340, damage: 0, range: 0, cooldown: 0, damageType: 'magic', debuff: { radius: 235, armorBreak: 15, resistanceBreak: 0.5 }, ability: { label: 'Resistance Void' }, description: '−50 % resistance inside 235 px. The colossus makes every mage on the field hit twice as hard; it never strips armour like the ward.' },
+    },
+  },
+  spikeTrap: {
+    impaler: {
+      elite: { slug: 'impaler-2', title: 'Iron Maw', upgradeCost: 240, damage: 300, range: 0, cooldown: 4600, damageType: 'physical', trapRadius: 56, trapCooldown: 4600, targetsGround: true, targetsAir: false, description: '300 damage to every ground creep on a 56 px plate, every 4.6 s. The caltrop field bites a much wider one.' },
+      apex: { slug: 'impaler-3', title: 'Royal Caltrop Field', upgradeCost: 330, damage: 420, range: 0, cooldown: 4000, damageType: 'physical', trapRadius: 60, trapCooldown: 4000, targetsGround: true, targetsAir: false, description: '420 damage every 4 s across 60 px. A chokepoint turns into a grinder.', ability: { label: 'Single Bite' } },
+    },
+    caltrop: {
+      elite: { slug: 'caltrop-2', title: 'Spike Field', upgradeCost: 230, damage: 150, range: 0, cooldown: 2700, damageType: 'physical', trapRadius: 86, trapCooldown: 2700, targetsGround: true, targetsAir: false, description: '150 damage to everything inside 86 px, every 2.7 s. The impaler hits one body much harder.' },
+      apex: { slug: 'caltrop-3', title: 'Royal Spike Field', upgradeCost: 320, damage: 210, range: 0, cooldown: 2400, damageType: 'physical', trapRadius: 96, trapCooldown: 2400, targetsGround: true, targetsAir: false, description: '210 damage across a 96 px plate every 2.4 s: the whole lane bleeds. A single impaler still delivers twice the damage to one body.', ability: { label: 'Wide Field' } },
+    },
+  },
+
 };
 
 /** Level at which the branch is chosen (and art switches to spec-a/spec-b). */

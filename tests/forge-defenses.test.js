@@ -9,6 +9,8 @@ import {
 } from '../src/data/towerData.js';
 import { Tower } from '../src/entities/Tower.js';
 import { TOWER_VISUALS, SLOTS, PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../src/data/towerVisuals.js';
+import { ROYAL_PROJECTILES } from '../src/data/royalProjectiles.js';
+import { TIERED_PROJECTILES } from '../src/data/projectileArt.js';
 import { IMPACT_SHEETS } from '../src/data/spireManifest.js';
 import { ENEMY_TYPES, waveHealthMultiplier } from '../src/data/enemyData.js';
 import { STARTING_COINS, STARTING_BASE_HEALTH, WAVE_CLEAR_COINS } from '../src/config/gameConfig.js';
@@ -109,14 +111,9 @@ describe('Forge defences (the three extra lines)', () => {
       expect(slotOf.call({ specialization: null, level: 1, def })).toBe('lvl1');
       expect(slotOf.call({ specialization: null, level: 2, def })).toBe('lvl2');
 
-      // Royal lines are linear: their slot is the level, not a branch.
-      if (def.linear) {
-        for (let level = 1; level <= 5; level += 1) {
-          expect(slotOf.call({ specialization: null, level, def })).toBe(`lvl${level}`);
-        }
-        continue;
-      }
-
+      // Every line branches at level 3 now, royal lines included: there is no
+      // linear five-step track left to special-case.
+      expect(def.linear, `${key} still claims a linear track`).toBeUndefined();
       for (const [specKey, spec] of Object.entries(def.specializations || {})) {
         const slot = slotOf.call({ specialization: specKey, level: 3, def });
         expect(slot, `${key}.${specKey}`).toBe(spec.branch);
@@ -144,11 +141,18 @@ describe('Forge defences (the three extra lines)', () => {
       }
       expect(existsSync(join('public/assets/ui', `card_${key}.png`)), `card_${key}.png missing`).toBe(true);
     }
-    // Every projectile texture is listed in BootScene; impact strips come from
-    // the generated manifest.
+    // Every projectile texture is loaded by BootScene. Most are named in the
+    // literal list; the tiered and royal shots are queued from their generated
+    // tables, so a key listed there is loaded just as surely.
     const boot = readFileSync('src/scenes/BootScene.js', 'utf8');
+    const tableLoaded = new Set([
+      ...Object.values(ROYAL_PROJECTILES).flatMap((tiers) => Object.values(tiers)),
+      ...Object.values(TIERED_PROJECTILES).flatMap((tiers) => Object.values(tiers)),
+    ]);
     for (const texture of new Set(Object.values(PROJECTILE_TEXTURES))) {
-      expect(boot.includes(`'${texture}'`), `${texture} not loaded by BootScene`).toBe(true);
+      const named = boot.includes(`'${texture}'`);
+      const tabled = tableLoaded.has(texture) && boot.includes('ROYAL_PROJECTILES') && boot.includes('TIERED_PROJECTILES');
+      expect(named || tabled, `${texture} not loaded by BootScene`).toBe(true);
       expect(existsSync(join('public/assets/projectiles', `${texture}.png`)), `${texture}.png missing`).toBe(true);
     }
     for (const texture of new Set(Object.values(IMPACT_TEXTURES))) {

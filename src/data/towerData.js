@@ -412,7 +412,7 @@ const CORE_TOWER_TYPES = {
         damage: 24,
         range: 170,
         cooldown: 1150,
-        upgradeCost: 120,
+        upgradeCost: 100,
         projectile: 'arrow',
         projectileSpeed: 640,
         damageType: 'physical',

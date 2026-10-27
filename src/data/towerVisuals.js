@@ -134,26 +134,34 @@ export const TOWER_VISUALS = {
 };
 
 /**
- * The ten royal lines: five authored tiers each (`lvl1`…`lvl5`).
+ * The ten royal lines: eight authored slots each.
  *
- * These are *linear* lines — there is no branch at level 3 — so the slot is a
- * straight function of the level and `Tower.visualSlot` asks for `lvl<n>`
- * directly. Geometry comes from the generator, which measures every tier's
- * pivot and muzzle from its own drawing.
+ * `lvl1` and `lvl2` are shared; the branch is bought at level 3 and runs to
+ * level 5. Branch A keeps the machine the line shipped with (`spec-a` →
+ * `spec-a2` → `spec-a3`), branch B has its own (`spec-b` → `spec-b2` →
+ * `spec-b3`), so the choice is visible on the board and an upgrade inside a
+ * branch still changes the building.
+ *
+ * The generator writes the file each slot actually uses (`-l3` for branch A,
+ * `-b1` for branch B), so the texture keys are derived from that file name
+ * rather than guessed from the slot.
  */
 export const ROYAL_VISUALS = Object.fromEntries(
-  Object.entries(ROYAL_ART).map(([line, tiers]) => [
+  Object.entries(ROYAL_ART).map(([line, slots]) => [
     line,
     Object.fromEntries(
-      Object.entries(tiers).map(([slot, art]) => [
-        slot,
-        {
-          ...art,
-          file: `${line}-l${slot.replace('lvl', '')}`,
-          baseKey: `tower-base-${line}-l${slot.replace('lvl', '')}`,
-          weaponKey: `tower-top-${line}-l${slot.replace('lvl', '')}`,
-        },
-      ])
+      Object.entries(slots).map(([slot, art]) => {
+        const id = String(art.base).replace(/^base_/, '').replace(/\.png$/, '');
+        return [
+          slot,
+          {
+            ...art,
+            file: id,
+            baseKey: `tower-base-${id}`,
+            weaponKey: `tower-top-${id}`,
+          },
+        ];
+      })
     ),
   ])
 );
@@ -250,8 +258,6 @@ export const MUZZLE_OFFSET = {
 // keeps its offset from the branch it grew out of. Deriving them here means a
 // new tower only has to be measured once, at the branch.
 for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
-  // Royal lines are linear and have no branch slots to derive from; they carry
-  // their own measured muzzle for every tier (loop below).
   if (!slots['spec-a'] || !slots['spec-b']) continue;
   for (const [slot, suffix] of Object.entries(SLOT_SUFFIX)) {
     if (!suffix.endsWith('2') && !suffix.endsWith('3')) continue;
@@ -264,9 +270,11 @@ for (const [typeKey, slots] of Object.entries(TOWER_VISUALS)) {
   }
 }
 
-// Every royal weapon is measured, so a shot leaves the drawn barrel tip even on
-// a tier whose barrel is 40 % longer than the one below it. (This runs after the
-// table above is declared — touching it earlier is a temporal-dead-zone error.)
+// Every royal weapon — both branches, all three tiers — is measured by the
+// generator, so a shot leaves the drawn barrel tip even on a tier whose barrel
+// is 40 % longer than the one below it, and branch B never borrows branch A's
+// muzzle. (This runs after the table above is declared — touching it earlier is
+// a temporal-dead-zone error.)
 for (const [line, tiers] of Object.entries(ROYAL_VISUALS)) {
   for (const [slot, art] of Object.entries(tiers)) {
     MUZZLE_OFFSET[art.file] = { x: 0, y: art.muzzleY };

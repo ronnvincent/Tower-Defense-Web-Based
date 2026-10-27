@@ -21,7 +21,15 @@ import { ENGINEER_ART } from '../src/data/engineerTowerArt.js';
 import { FX_SHEETS } from '../src/data/fxManifest.js';
 import { IMPACT_SHEETS } from '../src/data/spireManifest.js';
 import { ASCENSION, ascensionTier, dps, MAX_LEVEL } from '../src/data/towerAscension.js';
-import { NICHE, costAt, statsAt, TARGETS, throughput } from './helpers/balance.js';
+import {
+  NICHE,
+  costAt,
+  statsAt,
+  supportPower,
+  fieldPower,
+  TARGETS,
+  throughput,
+} from './helpers/balance.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { Enemy } from '../src/entities/Enemy.js';
 import { Projectile } from '../src/entities/Projectile.js';
@@ -380,10 +388,14 @@ describe('balance guardrails', () => {
         const niche = NICHE[line][specKey];
         const stats = statsAt(line, specKey, 5);
         const cost = costAt(line, specKey, 5);
-        // "Power" is what the tower does to a single target plus what it does to
-        // a crowd, averaged — a tower with splash is not twice a tower.
-        const power = (throughput(stats, TARGETS.single) + throughput(stats, TARGETS.pack)) / 2;
         const family = niche === 'control' ? 'control' : niche === 'support' ? 'support' : 'damage';
+        // "Power" is what the tower does to a single target plus what it does to
+        // a crowd, averaged — a tower with splash is not twice a tower. A support
+        // branch does neither: it is scored on the field it hands the roster, in
+        // the same DPS-equivalent unit (see `supportPower`).
+        const power = family === 'support'
+          ? supportPower(stats)
+          : (throughput(stats, TARGETS.single) + throughput(stats, TARGETS.pack)) / 2;
         return { key: `${line}.${specKey}`, ratio: power / cost, cost, family };
       })
     );
@@ -409,9 +421,10 @@ describe('balance guardrails', () => {
     expect(spread, `${best.key} dwarfs ${worst.key}`).toBeLessThan(2.5);
   });
 
-  it('keeps the two standards comparable to each other', () => {
-    // Neither shoots for a living, so they must be close — the reason to pick
-    // one is the aura, not a hidden DPS difference.
+  it('keeps the support standards comparable to each other', () => {
+    // The two banners, the two workshops and the two obelisks all buy their
+    // keep with the field they hand out, not with damage of their own. Their
+    // gold has to go about as far whichever one the player picks.
     const { best, worst, spread } = band('support');
     expect(spread, `${best.key} dwarfs ${worst.key}`).toBeLessThan(1.5);
   });
@@ -441,9 +454,17 @@ describe('balance guardrails', () => {
       for (const specKey of Object.keys(TOWER_TYPES[line].specializations || {})) {
         const spec = TOWER_TYPES[line].specializations[specKey];
         const l4 = { ...spec, ...ascensionTier(line, specKey, 4) };
-        const l5 = { ...l4, ...ascensionTier(line, specKey, 5) };
-        expect(dps(l4), `${line}.${specKey} L4`).toBeGreaterThan(dps(spec));
-        expect(dps(l5), `${line}.${specKey} L5`).toBeGreaterThan(dps(l4));
+        const l5 = { ...spec, ...ascensionTier(line, specKey, 5) };
+        // A repair crew or a ward upgrades on the field it provides, so the
+        // ladder is walked on `fieldPower`, which is damage for a turret and
+        // support value for a standard. `dps` would be 0 > 0 for a workshop.
+        expect(fieldPower(l4), `${line}.${specKey} L4`).toBeGreaterThan(fieldPower(spec));
+        expect(fieldPower(l5), `${line}.${specKey} L5`).toBeGreaterThan(fieldPower(l4));
+        if (dps(spec) > 0) {
+          // Whatever else it does, a shooting branch must also hit harder.
+          expect(dps(l4), `${line}.${specKey} L4 dps`).toBeGreaterThan(dps(spec));
+          expect(dps(l5), `${line}.${specKey} L5 dps`).toBeGreaterThan(dps(l4));
+        }
       }
     }
   });

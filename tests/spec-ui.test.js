@@ -5,6 +5,7 @@ import path from 'node:path';
 import { HUD } from '../src/ui/HUD.js';
 import { TOWER_TYPES } from '../src/data/towerData.js';
 import { ENGINEER_LINES } from '../src/data/engineerDefenses.js';
+import { ROYAL_LINES } from '../src/data/royalDefences.js';
 import { dps } from '../src/data/towerAscension.js';
 
 /**
@@ -74,9 +75,9 @@ describe('specialisation cards', () => {
     expect(a).not.toBe(b);
   });
 
-  it('gives every engineer line a card for each branch', () => {
+  it('gives every engineer and royal line a card for each branch', () => {
     const hud = mountHud();
-    for (const line of ENGINEER_LINES) {
+    for (const line of [...ENGINEER_LINES, ...ROYAL_LINES]) {
       hud.inspectTower(specTower(line));
       const srcs = [...document.querySelectorAll('.spec-card img.spec-card-art')].map((img) =>
         img.getAttribute('src')
@@ -114,6 +115,23 @@ describe('specialisation cards', () => {
       hud.inspectTower(specTower(line));
       const roles = [...document.querySelectorAll('.spec-card-role')].map((el) => el.textContent);
       expect(roles, line).toContain(role);
+    }
+  });
+
+  it('calls a salvo a salvo instead of filing it under its shell', () => {
+    const hud = mountHud();
+    const cases = [
+      ['royalArtillery', 'battery', 'VOLLEY'],
+      ['mortar', 'cluster', 'VOLLEY'],
+      ['royalArtillery', 'bombard', 'BOSS HUNTER'],
+    ];
+    for (const [line, branch, role] of cases) {
+      hud.inspectTower(specTower(line));
+      const card = [...document.querySelectorAll('.spec-card.btn-upgrade-choice')].find(
+        (c) => c.dataset.choice === branch
+      );
+      expect(card, `${line}.${branch} has no card`).toBeTruthy();
+      expect(card.querySelector('.spec-card-role').textContent, `${line}.${branch}`).toBe(role);
     }
   });
 

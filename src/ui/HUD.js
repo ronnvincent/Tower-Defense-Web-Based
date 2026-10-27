@@ -1444,7 +1444,7 @@ export class HUD {
     // ★3 would have labelled a maxed tower as a fresh specialisation. It says
     // the level only — the title next to it already carries the ascension name,
     // and "SIEGE BALLISTA ★5 Siege Ballista" was the same words twice.
-    const titleStr = tower.def?.linear
+    const titleStr = tower.def?.royal
       ? `★${tower.level} · ${String(tower.stats?.title || '').toUpperCase()}`
       : tower.specialization
       ? tower.level >= MAX_LEVEL
@@ -1680,6 +1680,10 @@ export class HUD {
     if (s.dot) return s.dot.kind === 'poison' ? 'VENOM' : 'BURN';
     if (s.bossBonus) return 'BOSS HUNTER';
     if (s.armorBreak) return 'ARMOUR BREAK';
+    // A branch that fires several bolts a volley is defined by the volley, not
+    // by the blast radius of one shell: the salvo battery and the cluster
+    // battery are both "two shells", and the badge has to say so.
+    if ((s.ability?.shots || 1) > 1) return 'VOLLEY';
     if (s.splash) return 'CROWD CLEAR';
     if (s.chainTargets > 1) return 'CHAIN';
     if (s.stunMs || s.slow) return 'CONTROL';
@@ -1707,12 +1711,9 @@ export class HUD {
   /** Slot name for the "one option" upgrades (level 2 and the ascension tiers). */
   nextSlot(tower) {
     if (!tower) return null;
-    // Royal lines: the next tier *is* the next slot, and its base PNG is the
-    // real art the tower will wear, so the preview cannot show a recolour the
-    // engine does not ship.
-    if (tower.def?.linear) {
-      return tower.level < (tower.def.levels?.length || 5) ? `lvl${tower.level + 1}` : null;
-    }
+    // The preview is the real base PNG the tower will wear, so it can never
+    // show a recolour the engine does not ship. A royal branch resolves to its
+    // own ladder (`spec-a2` / `spec-b2`) like every other line.
     if (tower.level === 1) return 'lvl2';
     if (!tower.specialization) return null;
     const branch = tower.def?.specializations?.[tower.specialization]?.branch === 'spec-b'

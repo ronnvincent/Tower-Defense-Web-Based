@@ -12,6 +12,7 @@ import {
 import { DECOR_ART, DECOR_CROWN } from '../data/towerDecor.js';
 import { ENGINEER_LINES } from '../data/engineerDefenses.js';
 import { projectileArtFor } from '../data/projectileArt.js';
+import { royalProjectileArt } from '../data/royalProjectiles.js';
 import { Projectile } from './Projectile.js';
 import { aimAngle, canFire, muzzlePoint, stepAngle } from '../systems/TurretAim.js';
 import { audio } from '../rendering/AudioSynth.js';
@@ -164,9 +165,10 @@ export class Tower {
    * the 'spec-b' art.
    */
   get visualSlot() {
-    // Royal lines are linear: five authored tiers, no branch, so the slot is
-    // just the level. (`lvl1`…`lvl5` in data/royalTowerArt.js.)
-    if (this.def.linear) return `lvl${this.level}`;
+    // Every line — the twelve older keeps and the ten royal ones — branches at
+    // level 3. A royal line still has its own art per slot (`lvl1`, `lvl2`,
+    // then `spec-a`/`spec-a2`/`spec-a3` or the `spec-b` ladder), it just is not
+    // a straight five-step track any more.
     if (this.specialization) {
       const spec = this.def.specializations?.[this.specialization];
       const branch = spec?.branch === 'spec-b' ? 'spec-b' : 'spec-a';
@@ -188,9 +190,27 @@ export class Tower {
    * now ships its own art, and levels 4–5 ship another, so an upgrade is
    * visible in the projectile as well as on the tower.
    */
+  /**
+   * The effect line this tower fires under.
+   *
+   * A royal branch is a different machine, so it has its own impact, muzzle and
+   * trail (`fx-line-royalArtillery-b-*`). Everything else keeps the line id it
+   * has always had.
+   */
+  get artLine() {
+    if (this.def.royal && this.def.specializations?.[this.specialization]?.branch === 'spec-b') {
+      return `${this.typeKey}-b`;
+    }
+    return this.typeKey;
+  }
+
   get projectileArt() {
     if (this.isBarricade) return null;
-    const lineArt = projectileArtFor(this.typeKey, this.level);
+    const branch = this.specialization && this.def.specializations?.[this.specialization]?.branch;
+    const royalArt = this.def.royal
+      ? royalProjectileArt(this.typeKey, this.level, branch || 'spec-a')
+      : null;
+    const lineArt = royalArt || projectileArtFor(this.typeKey, this.level);
     if (lineArt && this.scene?.textures?.exists?.(lineArt)) return lineArt;
     return this.visual?.slotTexture || null;
   }
@@ -213,11 +233,16 @@ export class Tower {
       return this.def.levels[this.level - 1];
     }
     if (this.specialization) {
-      const spec = this.def.specializations[this.specialization];
+      const spec = this.def.specializations?.[this.specialization];
+      if (!spec) return this.def.levels[this.def.levels.length - 1];
       const tier = ascensionTier(this.typeKey, this.specialization, this.level);
       return tier ? { ...spec, ...tier } : spec;
     }
-    return this.def.levels[this.level - 1];
+    // A tower built before the roster branched can carry a level with no
+    // specialisation. Falling back to the last shared tier is the honest answer:
+    // it is the strongest block that tower ever legitimately had, and it cannot
+    // return `undefined` into the damage path.
+    return this.def.levels[Math.min(this.level, this.def.levels.length) - 1];
   }
 
   /** Attack range including Banner Keep buffs. */
@@ -373,13 +398,6 @@ export class Tower {
       // 1-based), and level 5 offers nothing — the UI disables the button.
       if (this.level < this.def.levels.length) {
         return [{ key: `tier-${this.level + 1}`, ...this.def.levels[this.level] }];
-      }
-      return [];
-    }
-    if (this.def.linear) {
-      // L1 → L2 → … → L5, one authored tier per step, and nothing at the cap.
-      if (this.level < this.def.levels.length) {
-        return [{ key: `lvl${this.level + 1}`, ...this.def.levels[this.level] }];
       }
       return [];
     }
@@ -817,21 +835,13 @@ export class Tower {
       return true;
     }
 
-    if (this.def.linear) {
-      // Same damage-preservation rule as a wall: reinforcing a damaged battery
-      // raises its ceiling without healing the holes.
+    if (this.def.royal) {
+      // Same damage-preservation rule as a wall: reinforcing a damaged royal
+      // building raises its ceiling without healing the holes.
       const previousMax = this.maxHealth;
       const previousRatio = previousMax > 0 ? this.health / previousMax : 1;
-      this.level += 1;
       this.maxHealth = this.computeMaxHealth();
       this.health = Math.max(1, Math.round(this.maxHealth * previousRatio));
-      this.applyVisual();
-      this.updateLevelIndicator();
-      this.updateHealthBar();
-      this.drawRangeCircle(0x4ee1ff);
-      this.scene?.vfx?.levelUp?.(this.x, this.y - 10);
-      if (this.level >= MAX_LEVEL) this.createAscensionAura();
-      return true;
     }
 
     if (this.level === 1) {
@@ -1092,7 +1102,7 @@ export class Tower {
 
     // Element-coloured flash at the barrel tip — the single cheapest change
     // that makes a tower feel like it is *firing* rather than emitting.
-    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.typeKey);
+    this.scene.vfx?.muzzle?.(originX, originY, aim, s.damageType || 'physical', this.artLine);
 
     const shots = Math.max(1, s.ability?.shots || 1);
     // The shot carries the *instance's* categories, not just the line's: a
@@ -1100,7 +1110,7 @@ export class Tower {
     const fired = this.engagedTargets;
     const stats = {
       // The firing line, so the impact can pick that defence's own effect.
-      line: this.typeKey,
+      line: this.artLine,
       // The shot carries what its tower may hit: the blast and the chain have
       // to keep the rule after the tower is no longer looking at the target.
       targetsGround: fired.ground,

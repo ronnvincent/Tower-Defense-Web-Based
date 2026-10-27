@@ -251,10 +251,18 @@ full effective-damage tables (and the method behind them) are generated into
 
 ### The five-tier ladder (`src/data/towerAscension.js`)
 
-Every line upgrades **1 → 2 → branch (3) → 4 → 5**. The shop tiers stay in
-`towerData.js`; the two tiers above the branch live in `towerAscension.js` and
-are merged over the specialisation they belong to, so a tier only declares what
-it changes.
+Every line upgrades **1 → 2 → branch (3) → 4 → 5** — all twenty-one of them,
+the ten royal lines included (Request 45). The shop tiers stay in
+`towerData.js` (and `royalDefences.js` for the royal roster); the two tiers above
+the branch live in `towerAscension.js` and are merged over the specialisation
+they belong to, so a tier only declares what it changes.
+
+A *support* branch (the repair yard, the field engineer, the two obelisks) deals
+no damage at all, so `dps()` is 0 for every tier of it. Anything that asks "is
+this upgrade worth it?" or "is this worth its gold?" has to score those branches
+on the field they hand the roster instead — `tests/helpers/balance.js`
+(`supportPower`, `fieldPower`) is the one place that does, and the tests import
+it rather than inventing a private weighting.
 
 | Line / branch | L3 DPS | L4 DPS (cost) | L5 DPS (cost) | Capstone signature |
 | --- | ---: | ---: | ---: | --- |
@@ -269,28 +277,41 @@ it changes.
 | runes · void | 61 | 100 (🪙185) | 231 (🪙345) | 2-lance **Twin Oblivion** |
 | runes · nova | 52 | 88 (🪙180) | 209 (🪙340) | 2-rune **Rune Split**, 96 px |
 | banner · warbanner | 26 | 36 (🪙165) | 51 (🪙320) | +55% dmg / +24% range aura |
-| banner · muster | 21 | 29 (🪙170) | 42 (🪙330) | +28% fire rate, +3 gold per kill |
+| banner · muster | 21 | 29 (🪙130) | 42 (🪙240) | +28% fire rate, +3 gold per kill |
 
-The ladder is deliberately **not** linear in DPS: a capstone is 2.0–4.1× its
+The ladder is deliberately **not** flat in DPS: a capstone is 2.0–4.1× its
 branch, and the multiplier is carried by a named behaviour (`ability.shots`,
-`ability.nova`) rather than by a bigger number.
+`ability.nova`) rather than by a bigger number. The ten royal lines have their
+own two-branch tables in [`royal-defences.md`](royal-defences.md) §2 (branch A)
+and §2b (branch B).
 
 **How the roster is priced.** Raw DPS is the wrong yardstick once splash, DoT,
-chain and control exist: a 60 DPS venom still kills a pack that a 300 DPS
-crossbow cannot. Every branch is therefore scored on *effective* output —
-direct DPS plus the DoT tick rate — multiplied by a reach weight (support 2.6,
-chain 2.0, DoT+splash 2.1, DoT 1.8, control 1.7, splash 1.55, single 1.0) and a
-boss-damage bonus, then divided by the total gold to max it. The five engineer
-lines were costed this way, and the older lines were re-priced against them:
+chain, control and support exist: a 60 DPS venom still kills a pack that a 300
+DPS crossbow cannot, and a repair yard kills nothing at all. Every branch is
+therefore scored on what it actually does, against four representative targets
+(`pack`, `single`, `armor`, `boss`) in `tests/helpers/balance.js`:
 
-- power per gold stays inside a **4.2× band** (support banner at the bottom, a
-  harpoon or chain-lightning at the top);
+- damage branches are `dps × mitigation`, plus burn, splash, chain and trap
+  terms that mirror the runtime rather than a hand-picked multiplier;
+- support branches (banners, workshops, obelisks) are scored by `supportPower`:
+  the fire rate, range, repairs, ward and gold-per-kill they hand the field,
+  scaled by the area they cover;
+- the resulting figure is divided by the gold to max the branch.
+
+The bands that fall out of that model are asserted, not written down here:
+
+- power per gold inside the **damage** family stays within **4.2×**, the
+  **control** family within **2.5×** and the **support** family within **1.5×**;
 - the cheapest and the dearest maxed tower are within **1.9×** of each other;
-- every branch still clears **1.6×** its level-3 DPS at the cap, so no upgrade
-  is a downgrade.
+- every branch still clears **1.6×** its level-3 output at the cap, so no
+  upgrade is a downgrade;
+- every branch beats its sibling by **8 %** on the column its niche promises.
 
-`tests/engineer-defenses.test.js` recomputes those three bands from the data, so
-a future balance edit that breaks them fails CI instead of shipping.
+`tests/engineer-defenses.test.js` recomputes the bands from the data, so a
+future balance edit that breaks them fails CI instead of shipping;
+`tests/branch-niche.test.js` does the same for the niche contract, and
+`node scripts/balance-report.mjs > docs/balance.md` prints the same numbers as
+Markdown.
 
 ### Damage over time, stuns and enemy traits
 

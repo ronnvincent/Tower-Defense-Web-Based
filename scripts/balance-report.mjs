@@ -32,7 +32,7 @@ const pad = (s, n) => String(s).padEnd(n);
 
 const INTRO = `## Why this file exists
 
-The shop sells eleven defence lines with two branches each, and for a long time
+The shop sells twenty-one defence lines with two branches each, and for a long time
 the second branch was often decoration. Measured against the same targets, one
 branch beat its sibling on **every** column — sometimes while also being cheaper:
 

@@ -1,6 +1,7 @@
 import { generateAllTextures } from '../rendering/TextureFactory.js';
 import { TOWER_VISUALS, BARRICADE_VISUALS } from '../data/towerVisuals.js';
 import { ROYAL_TOWER_TYPES } from '../data/royalDefences.js';
+import { ROYAL_PROJECTILES } from '../data/royalProjectiles.js';
 import { DECOR_ART } from '../data/towerDecor.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
@@ -103,6 +104,9 @@ export class BootScene extends Phaser.Scene {
     // per line, so a destroyed battery does not look like a destroyed obelisk.
     for (const key of ROYAL_TOWER_TYPES ? Object.keys(ROYAL_TOWER_TYPES) : []) {
       this.load.image(`ruin-${key}`, `assets/towers/ruin_${key}.png`);
+      // Branch B falls to its own wreck, so the player can tell which machine
+      // they lost, not just which line.
+      this.load.image(`ruin-${key}-b`, `assets/towers/ruin_${key}-b.png`);
     }
 
     // 3b. Tower decorations — the per-tier parts that grow the silhouette.
@@ -138,15 +142,9 @@ export class BootScene extends Phaser.Scene {
       'proj-flame',
       'proj-acid',
       'proj-harpoon',
-      // Royal shots (scripts/build_royal_defences.py). L4/L5 variants live in
-      // TIERED_PROJECTILES below, like every other line's tier art.
-      'proj-royal-royalArtillery',
-      'proj-royal-siegeBallista',
-      'proj-royal-arcaneSniper',
-      'proj-royal-mortar',
-      'proj-royal-rimeTower',
-      'proj-royal-tesla',
-      'proj-royal-skybreaker',
+      // Royal shots (scripts/build_royal_defences.py) are queued from their own
+      // generated table below: four keys per shooting line (branch A, branch B,
+      // and the level-4/5 version of each), so the loader cannot drift.
     ]) {
       this.load.image(key, `assets/projectiles/${key}.png`);
     }
@@ -154,6 +152,12 @@ export class BootScene extends Phaser.Scene {
     for (const tiers of Object.values(TIERED_PROJECTILES)) {
       for (const key of Object.values(tiers)) {
         this.load.image(key, `assets/projectiles/${key}.png`);
+      }
+    }
+    // Every royal shot, both branches and both tiers.
+    for (const tiers of Object.values(ROYAL_PROJECTILES)) {
+      for (const key of Object.values(tiers)) {
+        if (!this.textures.exists(key)) this.load.image(key, `assets/projectiles/${key}.png`);
       }
     }
     this.load.image('coin-sprite', 'assets/projectiles/coin.png');

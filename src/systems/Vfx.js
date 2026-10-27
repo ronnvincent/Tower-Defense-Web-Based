@@ -89,6 +89,19 @@ const LINE_SCALE = {
   workshop: 0.5,
   obelisk: 0.86,
   spikeTrap: 0.6,
+  // Branch B of each royal line hits under its own id, so it needs its own hit
+  // size. A salvo pair reads a little smaller per shell; a cluster battery a
+  // little wider; a spike field stays flat.
+  'royalArtillery-b': 0.9,
+  'siegeBallista-b': 0.58,
+  'arcaneSniper-b': 0.74,
+  'mortar-b': 0.86,
+  'rimeTower-b': 0.6,
+  'tesla-b': 0.66,
+  'skybreaker-b': 0.56,
+  'workshop-b': 0.5,
+  'obelisk-b': 0.82,
+  'spikeTrap-b': 0.56,
 };
 
 export class Vfx {

@@ -3153,7 +3153,12 @@ export class GameScene extends Phaser.Scene {
    * and removes itself.
    */
   spawnStructureRuin(structure) {
-    const key = `ruin-${structure?.typeKey}`;
+    // A branch-B building leaves the wreck of *its* machine; the branch-A
+    // wreck is the fallback so an older save still drops something.
+    const base = `ruin-${structure?.typeKey}`;
+    const branchB = `${base}-b`;
+    const branch = structure?.def?.specializations?.[structure?.specialization]?.branch;
+    const key = branch === 'spec-b' && this.textures?.exists?.(branchB) ? branchB : base;
     if (!this.textures?.exists?.(key) || !this.add?.image) return null;
     try {
       const ruin = this.add

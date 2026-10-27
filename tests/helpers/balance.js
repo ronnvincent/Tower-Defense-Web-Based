@@ -80,6 +80,14 @@ export function throughput(stats, target) {
   if (stats.chainTargets && target.bodies > 1) {
     total += base * multiplier * Math.min(stats.chainTargets, target.bodies - 1) * 0.75;
   }
+  // A trap is an area hit: `RoyalSystems.tickTraps()` damages every ground body
+  // inside `trapRadius` at full value, with no falloff. The number of bodies a
+  // plate covers is its area over the tile grid, capped by the pack size — the
+  // same assumption the splash model makes, just without the rim.
+  if (stats.trapRadius && target.bodies > 1) {
+    const covered = (Math.PI * stats.trapRadius * stats.trapRadius) / (TILE_PX * TILE_PX);
+    total += base * multiplier * Math.min(target.bodies - 1, covered);
+  }
   return total;
 }
 
@@ -149,7 +157,79 @@ export const NICHE = {
   flamer: { napalm: 'pack', inferno: 'single' },
   venom: { plague: 'pack', corrosive: 'armor' },
   harpoon: { grapple: 'control', ballista: 'boss' },
+  // Royal lines. Each pair is a real trade, not a damage bump: the siege gun's
+  // second machine is a salvo battery (rate and reach traded for two shells),
+  // the frost tower's second branch drops the snare for a wider bite, and the
+  // workshop / obelisk branches split the fire-rate aura from the repair crew
+  // and the armour break from the resistance break.
+  royalArtillery: { bombard: 'boss', battery: 'single' },
+  siegeBallista: { arbalest: 'armor', repeater: 'single' },
+  arcaneSniper: { marksman: 'single', hexweaver: 'control' },
+  mortar: { greatmortar: 'pack', cluster: 'single' },
+  rimeTower: { glacier: 'control', tempest: 'pack' },
+  tesla: { chain: 'pack', arccannon: 'single' },
+  skybreaker: { lance: 'boss', flak: 'pack' },
+  workshop: { master: 'support', engineer: 'support' },
+  obelisk: { rune: 'support', nullify: 'support' },
+  spikeTrap: { impaler: 'single', caltrop: 'pack' },
 };
+
+/**
+ * Support branches do not shoot, so `throughput()` scores them zero and any
+ * "power per gold" band built on it divides by nothing. What they give the
+ * field is still measurable — it is just not damage of their own. This turns
+ * that gift into the roster's own unit, effective damage per second, using the
+ * reference rates below. They are stated once, here, and used by the tests
+ * instead of a private weighting living inside a test body.
+ */
+export const SUPPORT_REFERENCE = {
+  /** A mid-roster turret: the tower an aura or a ward is paid to lift. */
+  dps: 100,
+  /** The radius that score is quoted at; reach is scaled by area from here. */
+  radius: 240,
+  /** One extra coin per kill, at this roster's kill rate, in DPS-equivalent. */
+  coinPerKill: 3,
+};
+
+/** The extra damage a ward is worth, as a fraction of a reference turret. */
+export function wardGain({ armorBreak = 0, resistanceBreak = 0 } = {}) {
+  const base = getArmorDamageMultiplier(calculateEffectiveArmor(40, 0, 0));
+  const broken = getArmorDamageMultiplier(calculateEffectiveArmor(Math.max(0, 40 - armorBreak), 0, 0));
+  const physical = base > 0 ? broken / base - 1 : 0;
+  const magical = resistanceBreak ? 1 / (1 - resistanceBreak) - 1 : 0;
+  return physical + magical;
+}
+
+/**
+ * Effective damage per second a support structure hands the field. Aura and
+ * ward numbers are already fractions of a turret's output; repairs are counted
+ * as staying power (a structure that lives longer does more work); a coin aura
+ * is priced at `coinPerKill` per kill. Reach scales by area against the
+ * reference radius so a wider field is worth more.
+ */
+export function supportPower(stats) {
+  if (!stats) return 0;
+  const reach = (radius) => ((radius || SUPPORT_REFERENCE.radius) / SUPPORT_REFERENCE.radius) ** 2;
+  let total = 0;
+  if (stats.aura) {
+    const buff = (stats.aura.damageBonus || 0) + (stats.aura.fireRateBonus || 0) + 0.4 * (stats.aura.rangeBonus || 0);
+    total += buff * SUPPORT_REFERENCE.dps * reach(stats.aura.radius);
+    total += (stats.aura.coinPerKill || 0) * SUPPORT_REFERENCE.coinPerKill;
+  }
+  if (stats.repair) total += (stats.repair.perSecond || 0) * reach(stats.repair.radius);
+  if (stats.debuff) total += wardGain(stats.debuff) * SUPPORT_REFERENCE.dps * reach(stats.debuff.radius);
+  return total;
+}
+
+/**
+ * What one tower is worth, on one scale, for the "does every tier earn its
+ * gold?" checks: the damage it deals if it shoots, the field it hands out if it
+ * does not. Never zero-or-flat just because the branch is a repair crew.
+ */
+export function fieldPower(stats) {
+  if (!stats) return 0;
+  return dps(stats) > 0 ? throughput(stats, TARGETS.single) + throughput(stats, TARGETS.pack) : supportPower(stats);
+}
 
 /** Utility a control / support branch is allowed to trade damage for. */
 export function utilityOf(stats) {

@@ -18,11 +18,17 @@
  *
  * ## Progression model
  *
- * The twelve older lines branch at level 3 (`levels` + `specializations`). The
- * royal lines are **linear**: one authored level per tier, L1 → L5, with no
- * specialisation choice. `linear: true` tells `Tower` to step through
- * `levels[]` instead of asking for a branch, which is why the same upgrade
- * button, the same cost check and the same L5 cap keep working untouched.
+ * Like the twelve older lines, every royal line is **two shared tiers plus a
+ * branch at level 3**: `levels` holds L1 and L2, `specializations` holds the two
+ * paths, and `ASCENSION[line][spec]` holds each path's L4 and L5 tiers. `royal:
+ * true` marks the roster so the runtime knows the branch also has its own art
+ * (`spec-a*` / `spec-b*`), its own shot (`data/royalProjectiles.js`), its own
+ * effects (`fx-line-<line>b-*`) and its own wreck.
+ *
+ * Branch A keeps the machine the line shipped with; branch B is a second,
+ * different machine — a salvo battery instead of one long gun, a repeater
+ * instead of a torsion bow — with its own silhouette and its own trade. Neither
+ * branch is a flat damage bump: see docs/royal-defences.md §6.
  *
  * Every tier must be a *structurally* different building — the art pipeline
  * (`scripts/build_royal_defences.py`) adds masonry, machinery and mountings per
@@ -39,7 +45,7 @@
  *
  * ## Fields the runtime understands
  *
- *   linear            no specialisation branches; L1…L5 walk `levels`
+ *   royal             the base-defence roster; enables branch-B art, shots and fx
  *   targetsGround     false → never aims at, splashes or chains into ground units
  *   targetsAir        false → never aims at, splashes or chains into flyers
  *   minRange          inside this radius the weapon cannot depress enough to fire
@@ -61,7 +67,7 @@
 
 import { TARGETING_MODE } from '../entities/TowerTargeting.js';
 
-/** Build the five linear tiers of a line from one row per tier. */
+/** Build the shared, pre-branch tiers of a line from one row per tier. */
 function track(rows) {
   return rows.map((row, index) => ({
     level: index + 1,
@@ -121,9 +127,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Royal Siege Artillery',
     shortName: 'Artillery',
     hotkey: 'z',
-    cost: 300,
+    royal: true,
+    cost: 260,
     role: 'Siege',
-    linear: true,
     placement: 'grass',
     description:
       'The long arm of the crown: one enormous shell, a huge reload and enough reach to cover half the field. The answer to a boss, not to a crowd.',
@@ -149,7 +155,7 @@ export const ROYAL_TOWER_TYPES = {
       },
       {
         title: 'Banded Siege Gun',
-        upgradeCost: 160,
+        upgradeCost: 140,
         damage: 360,
         range: 450,
         cooldown: 4000,
@@ -157,38 +163,42 @@ export const ROYAL_TOWER_TYPES = {
         armorPenetration: 0.3,
         minRange: 105,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      bombard: {
+        specKey: 'bombard',
+        branch: 'spec-a',
         title: 'Bastion Culverin',
-        upgradeCost: 230,
+        upgradeCost: 190,
         damage: 480,
         range: 470,
         cooldown: 3800,
         damageType: 'explosive',
         armorPenetration: 0.4,
+        bossBonus: 0.26,
         minRange: 110,
+        description: 'One 480 damage shell every 3.8 s from 470 px, with a 26 % bonus against titans. The salvo battery fires twice as often and reaches less far.',
       },
-      {
-        title: 'Counterweight Bombard',
-        upgradeCost: 330,
-        damage: 640,
-        range: 495,
-        cooldown: 3600,
+      battery: {
+        specKey: 'battery',
+        branch: 'spec-b',
+        title: 'Twin-Bore Battery',
+        upgradeCost: 180,
+        damage: 210,
+        range: 400,
+        cooldown: 2900,
         damageType: 'explosive',
-        armorPenetration: 0.5,
-        minRange: 115,
+        armorPenetration: 0.3,
+        minRange: 130,
+        ability: { shots: 2, label: 'Salvo Pair' },
+        description: 'Two shells a volley: 210 damage each, 145 DPS together, out of a 400 px reach and a 130 px dead zone. The bombard hits once for far more; this one hits twice as often.',
       },
-      {
-        title: 'Royal Siege Battery',
-        upgradeCost: 460,
-        damage: 900,
-        range: 520,
-        cooldown: 3400,
-        damageType: 'explosive',
-        armorPenetration: 0.6,
-        minRange: 120,
-        description: 'Twin-banded royal bombard, 900 a shell. Eleven waves of reload paid off.',
-      },
-    ]),
+    },
+
   },
 
   /* ============================================================ siege ballista */
@@ -197,9 +207,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Siege Ballista',
     shortName: 'Ballista',
     hotkey: 'x',
+    royal: true,
     cost: 150,
     role: 'Anti-armour',
-    linear: true,
     placement: 'grass',
     description:
       'A great bow on a swivel: faster and shorter-ranged than the artillery, and its bolt goes straight through plate. The armoured column’s problem.',
@@ -230,7 +240,15 @@ export const ROYAL_TOWER_TYPES = {
         armorPenetration: 0.62,
         bossBonus: 0.2,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      arbalest: {
+        specKey: 'arbalest',
+        branch: 'spec-a',
         title: 'Steel-Proof Arbalest',
         upgradeCost: 140,
         damage: 140,
@@ -239,29 +257,22 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'piercing',
         armorPenetration: 0.7,
         bossBonus: 0.26,
+        description: '140 damage a bolt at 70 % penetration and 26 % against titans: 108 DPS. The repeater fires faster with no penetration at all.',
       },
-      {
-        title: 'Torsion Siege Bow',
-        upgradeCost: 200,
-        damage: 185,
-        range: 295,
-        cooldown: 1180,
-        damageType: 'piercing',
-        armorPenetration: 0.78,
-        bossBonus: 0.33,
+      repeater: {
+        specKey: 'repeater',
+        branch: 'spec-b',
+        title: 'Repeater Ballista',
+        upgradeCost: 130,
+        damage: 95,
+        range: 250,
+        cooldown: 700,
+        damageType: 'physical',
+        armorPenetration: 0,
+        description: 'A magazine-fed prod: 95 damage every 0.7 s, 136 DPS. The bolts are light — no penetration against the arbalest’s 70 % — and 30 px shorter in reach.',
       },
-      {
-        title: 'Colossus Ballista',
-        upgradeCost: 280,
-        damage: 240,
-        range: 310,
-        cooldown: 1050,
-        damageType: 'piercing',
-        armorPenetration: 0.85,
-        bossBonus: 0.4,
-        description: 'Twin torsion springs and a bolt as long as a spear.',
-      },
-    ]),
+    },
+
   },
 
   /* =========================================================== arcane sniper */
@@ -270,9 +281,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Arcane Sniper Tower',
     shortName: 'Arcane',
     hotkey: 'c',
+    royal: true,
     cost: 210,
     role: 'Precision',
-    linear: true,
     placement: 'grass',
     description:
       'A focusing tower that spends three seconds charging one lance of raw magic. Superb against one elite, wasted against a swarm.',
@@ -314,7 +325,15 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'magic',
         armorPenetration: 0.35,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      marksman: {
+        specKey: 'marksman',
+        branch: 'spec-a',
         title: 'Trine Prism',
         upgradeCost: 180,
         damage: 210,
@@ -322,27 +341,25 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 1800,
         damageType: 'magic',
         armorPenetration: 0.45,
+        description: '210 damage in a single lance every 1.8 s: 117 DPS from 385 away. The hex weaver trades that kill shot for an area burst.',
       },
-      {
-        title: 'Astral Lattice',
-        upgradeCost: 250,
-        damage: 290,
-        range: 410,
-        cooldown: 1650,
+      hexweaver: {
+        specKey: 'hexweaver',
+        branch: 'spec-b',
+        title: 'Hex Weaver',
+        upgradeCost: 170,
+        damage: 120,
+        range: 330,
+        cooldown: 1600,
         damageType: 'magic',
-        armorPenetration: 0.52,
+        armorPenetration: 0.3,
+        splash: 60,
+        slow: 0.18,
+        slowMs: 900,
+        description: 'Hexfire bursts on a 60 px radius and chills by 18 % for 0.9 s: 75 DPS that hits the column behind the target. The marksman kills one body; this softens several.',
       },
-      {
-        title: 'Arcane Longshot Spire',
-        upgradeCost: 340,
-        damage: 400,
-        range: 430,
-        cooldown: 1500,
-        damageType: 'magic',
-        armorPenetration: 0.6,
-        description: 'Five lattices stacked into a spire, and one very deliberate beam.',
-      },
-    ]),
+    },
+
   },
 
   /* ================================================================== mortar */
@@ -351,9 +368,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Mortar Tower',
     shortName: 'Mortar',
     hotkey: 'v',
+    royal: true,
     cost: 200,
     role: 'Area',
-    linear: true,
     placement: 'grass',
     description:
       'Lobbed shells that land on the point they were aimed at and hurt everything standing there. Useless against one fast creep, brutal against a column.',
@@ -393,7 +410,15 @@ export const ROYAL_TOWER_TYPES = {
         targetsGround: true,
         targetsAir: false,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      greatmortar: {
+        specKey: 'greatmortar',
+        branch: 'spec-a',
         title: 'Stone Emplacement',
         upgradeCost: 160,
         damage: 100,
@@ -404,33 +429,26 @@ export const ROYAL_TOWER_TYPES = {
         minRange: 95,
         targetsGround: true,
         targetsAir: false,
+        description: '100 damage across a 115 px blast, ground only: 43 DPS on one body and 96 DPS across a pack. The cluster fires two lighter shells.',
       },
-      {
-        title: 'Twin-Vent Mortar',
-        upgradeCost: 240,
-        damage: 135,
-        range: 360,
-        cooldown: 2150,
+      cluster: {
+        specKey: 'cluster',
+        branch: 'spec-b',
+        title: 'Cluster Battery',
+        upgradeCost: 150,
+        damage: 52,
+        range: 320,
+        cooldown: 1900,
         damageType: 'explosive',
-        splash: 130,
-        minRange: 98,
+        splash: 55,
+        minRange: 95,
         targetsGround: true,
         targetsAir: false,
+        ability: { shots: 2, label: 'Fanned Salvo' },
+        description: 'Two fanned shells, 52 damage each over a 55 px blast: 55 DPS aimed at one body, from a cradle that never has to reload very long.',
       },
-      {
-        title: 'Royal Siege Mortar',
-        upgradeCost: 330,
-        damage: 180,
-        range: 380,
-        cooldown: 1950,
-        damageType: 'explosive',
-        splash: 150,
-        minRange: 100,
-        targetsGround: true,
-        targetsAir: false,
-        description: 'A graduated arc, a stone cradle and a 150 px crater.',
-      },
-    ]),
+    },
+
   },
 
   /* =================================================================== frost */
@@ -439,9 +457,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Frost Tower',
     shortName: 'Frost',
     hotkey: 'b',
+    royal: true,
     cost: 130,
     role: 'Control',
-    linear: true,
     placement: 'grass',
     description:
       'Low damage, high value: every shard chills what it touches, and a chilled lane is a lane your other towers get to shoot twice.',
@@ -472,7 +490,15 @@ export const ROYAL_TOWER_TYPES = {
         slow: 0.35,
         slowMs: 1200,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      glacier: {
+        specKey: 'glacier',
+        branch: 'spec-a',
         title: 'Frost Spine',
         upgradeCost: 120,
         damage: 42,
@@ -482,31 +508,22 @@ export const ROYAL_TOWER_TYPES = {
         slow: 0.4,
         slowMs: 1500,
         splash: 62,
+        description: '42 damage on a 62 px burst and a 40 % snare for 1.5 s. The tempest bites wider; the glacier is what stops a runner.',
       },
-      {
-        title: 'Winter Core',
-        upgradeCost: 170,
-        damage: 54,
-        range: 220,
-        cooldown: 800,
+      tempest: {
+        specKey: 'tempest',
+        branch: 'spec-b',
+        title: 'Frost Tempest',
+        upgradeCost: 110,
+        damage: 34,
+        range: 200,
+        cooldown: 700,
         damageType: 'magic',
-        slow: 0.45,
-        slowMs: 1800,
-        splash: 72,
+        splash: 90,
+        description: 'A fan of shards on a 90 px burst: 49 DPS to everything it touches, with no slow at all. The glacier slows deeper; this one only bites wider.',
       },
-      {
-        title: 'Hoarfrost Crown',
-        upgradeCost: 220,
-        damage: 70,
-        range: 230,
-        cooldown: 760,
-        damageType: 'magic',
-        slow: 0.5,
-        slowMs: 2200,
-        splash: 80,
-        description: 'A crown of ice: −50 % for 2.2 s, and every hit splashes the chill.',
-      },
-    ]),
+    },
+
   },
 
   /* =================================================================== tesla */
@@ -515,9 +532,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Tesla Tower',
     shortName: 'Tesla',
     hotkey: 'n',
+    royal: true,
     cost: 190,
     role: 'Chain',
-    linear: true,
     placement: 'grass',
     description:
       'Lightning that refuses to stop at one body. Each arc is weaker than the last, and no creep in a chain is ever hit twice.',
@@ -550,7 +567,15 @@ export const ROYAL_TOWER_TYPES = {
         chainRange: 105,
         chainFalloff: 0.64,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      chain: {
+        specKey: 'chain',
+        branch: 'spec-a',
         title: 'Arc Lattice',
         upgradeCost: 140,
         damage: 78,
@@ -560,31 +585,24 @@ export const ROYAL_TOWER_TYPES = {
         chainTargets: 3,
         chainRange: 112,
         chainFalloff: 0.68,
+        description: '78 damage that arcs to three more bodies at 68 % carried: 203 DPS across a pack, the best crowd clear of the pair.',
       },
-      {
-        title: 'Storm Cage',
-        upgradeCost: 200,
-        damage: 100,
+      arccannon: {
+        specKey: 'arccannon',
+        branch: 'spec-b',
+        title: 'Arc Cannon',
+        upgradeCost: 130,
+        damage: 120,
         range: 220,
-        cooldown: 1150,
+        cooldown: 1300,
         damageType: 'lightning',
-        chainTargets: 4,
-        chainRange: 122,
-        chainFalloff: 0.72,
+        chainTargets: 1,
+        chainRange: 90,
+        chainFalloff: 0.55,
+        description: 'One heavy arc and one short hop: 120 damage on the primary, 92 DPS, where the chain coil spreads its damage across four bodies.',
       },
-      {
-        title: 'Thunderhead',
-        upgradeCost: 280,
-        damage: 130,
-        range: 235,
-        cooldown: 1050,
-        damageType: 'lightning',
-        chainTargets: 5,
-        chainRange: 130,
-        chainFalloff: 0.75,
-        description: 'Five extra bodies, 75 % carried per hop. Ground and air alike.',
-      },
-    ]),
+    },
+
   },
 
   /* =============================================================== skybreaker */
@@ -593,9 +611,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Skybreaker Tower',
     shortName: 'Skybreaker',
     hotkey: 'm',
+    royal: true,
     cost: 170,
     role: 'Anti-air',
-    linear: true,
     placement: 'grass',
     description:
       'A tracker that only looks up. Flyers get a dedicated, long-range answer instead of whatever happened to have a spare arrow.',
@@ -626,7 +644,15 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'piercing',
         bossBonus: 0.25,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      lance: {
+        specKey: 'lance',
+        branch: 'spec-a',
         title: 'Quad Tracker',
         upgradeCost: 150,
         damage: 115,
@@ -634,27 +660,24 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 1080,
         damageType: 'piercing',
         bossBonus: 0.3,
+        description: '115 damage a bolt, 30 % against titans: 106 DPS in the air. The flak battery trades that duel for splinter radius.',
       },
-      {
-        title: 'Radar Battery',
-        upgradeCost: 220,
-        damage: 155,
-        range: 330,
-        cooldown: 1000,
+      flak: {
+        specKey: 'flak',
+        branch: 'spec-b',
+        title: 'Flak Battery',
+        upgradeCost: 140,
+        damage: 40,
+        range: 285,
+        cooldown: 760,
         damageType: 'piercing',
-        bossBonus: 0.35,
+        splash: 55,
+        bossBonus: 0.15,
+        ability: { shots: 2, label: 'Burst Pair' },
+        description: 'Two bursting shells a salvo, 40 damage each over a 55 px blast: 105 DPS spread across a flyer pack, with no ground game at all.',
       },
-      {
-        title: 'Sky Citadel',
-        upgradeCost: 310,
-        damage: 205,
-        range: 350,
-        cooldown: 920,
-        damageType: 'piercing',
-        bossBonus: 0.4,
-        description: 'Six barrels and a spotter glass. Nothing with wings survives the approach.',
-      },
-    ]),
+    },
+
   },
 
   /* ======================================================== engineer workshop */
@@ -663,9 +686,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Engineer Workshop',
     shortName: 'Workshop',
     hotkey: 'l',
+    royal: true,
     cost: 160,
     role: 'Support',
-    linear: true,
     supportOnly: true,
     placement: 'grass',
     description:
@@ -697,7 +720,15 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'true',
         aura: { radius: 220, fireRateBonus: 0.14, rangeBonus: 0.1 },
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      master: {
+        specKey: 'master',
+        branch: 'spec-a',
         title: 'Repair Yard',
         upgradeCost: 180,
         damage: 0,
@@ -705,31 +736,24 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 0,
         damageType: 'true',
         aura: { radius: 240, fireRateBonus: 0.18, rangeBonus: 0.12 },
-        repair: { radius: 200, perSecond: 20 },
-        description: 'Begins repairing nearby structures at 20 HP/s — slower than two attackers can break them.',
+        repair: { radius: 200, perSecond: 18 },
+        description: 'Begins repairing nearby structures at 18 HP/s — slower than two attackers can break them.',
       },
-      {
-        title: 'Siege Workshop',
-        upgradeCost: 250,
+      engineer: {
+        specKey: 'engineer',
+        branch: 'spec-b',
+        title: 'Field Engineer',
+        upgradeCost: 170,
         damage: 0,
         range: 0,
         cooldown: 0,
         damageType: 'true',
-        aura: { radius: 260, fireRateBonus: 0.22, rangeBonus: 0.15 },
-        repair: { radius: 240, perSecond: 36 },
+        aura: { radius: 270, fireRateBonus: 0.24, rangeBonus: 0.16 },
+        repair: { radius: 190, perSecond: 12 },
+        description: '+24 % fire rate and +16 % range across 270 px, with a small repair crew 190 px out. Built to sit behind a gun line, not inside a fortress.',
       },
-      {
-        title: 'Royal Foundry',
-        upgradeCost: 340,
-        damage: 0,
-        range: 0,
-        cooldown: 0,
-        damageType: 'true',
-        aura: { radius: 300, fireRateBonus: 0.28, rangeBonus: 0.18 },
-        repair: { radius: 280, perSecond: 52 },
-        description: '+28 % fire rate, +18 % range, and 52 HP/s of repairs across 280 px.',
-      },
-    ]),
+    },
+
   },
 
   /* ============================================================ warding obelisk */
@@ -738,9 +762,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Warding Obelisk',
     shortName: 'Obelisk',
     hotkey: 'k',
+    royal: true,
     cost: 180,
     role: 'Debuff',
-    linear: true,
     supportOnly: true,
     placement: 'grass',
     description:
@@ -769,7 +793,15 @@ export const ROYAL_TOWER_TYPES = {
         damageType: 'magic',
         debuff: { radius: 210, armorBreak: 12, resistanceBreak: 0.14 },
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      rune: {
+        specKey: 'rune',
+        branch: 'spec-a',
         title: 'Glyph Stele',
         upgradeCost: 190,
         damage: 0,
@@ -777,27 +809,22 @@ export const ROYAL_TOWER_TYPES = {
         cooldown: 0,
         damageType: 'magic',
         debuff: { radius: 230, armorBreak: 16, resistanceBreak: 0.18 },
+        description: '−16 armour and −18 % resistance inside 230 px. The null obelisk trades the armour break for a much deeper resistance break.',
       },
-      {
-        title: 'Sigil Monolith',
-        upgradeCost: 260,
+      nullify: {
+        specKey: 'nullify',
+        branch: 'spec-b',
+        title: 'Null Obelisk',
+        upgradeCost: 180,
         damage: 0,
         range: 0,
         cooldown: 0,
         damageType: 'magic',
-        debuff: { radius: 250, armorBreak: 20, resistanceBreak: 0.24 },
+        debuff: { radius: 200, armorBreak: 10, resistanceBreak: 0.3 },
+        description: 'Trades armour break for magic: −30 % resistance inside 200 px. The answer to resistant elites; the rune stele still strips plate.',
       },
-      {
-        title: 'Warding Colossus',
-        upgradeCost: 350,
-        damage: 0,
-        range: 0,
-        cooldown: 0,
-        damageType: 'magic',
-        debuff: { radius: 270, armorBreak: 26, resistanceBreak: 0.3 },
-        description: '−26 armour and −30 % resistance across 270 px. The whole lane feels it.',
-      },
-    ]),
+    },
+
   },
 
   /* =============================================================== spike trap */
@@ -806,9 +833,9 @@ export const ROYAL_TOWER_TYPES = {
     name: 'Spike Trap',
     shortName: 'Spikes',
     hotkey: 'j',
+    royal: true,
     cost: 70,
     role: 'Trap',
-    linear: true,
     trap: true,
     placement: 'wall',
     structure: true,
@@ -845,7 +872,15 @@ export const ROYAL_TOWER_TYPES = {
         targetsGround: true,
         targetsAir: false,
       },
-      {
+    ]),
+    /**
+     * Two branches at level 3 — the line's own machine, or a second one.
+     * `Tower` buys the branch like any older line; see docs §6.
+     */
+    specializations: {
+      impaler: {
+        specKey: 'impaler',
+        branch: 'spec-a',
         title: 'Spring Harrow',
         upgradeCost: 160,
         damage: 220,
@@ -856,33 +891,25 @@ export const ROYAL_TOWER_TYPES = {
         trapCooldown: 5200,
         targetsGround: true,
         targetsAir: false,
+        description: '220 damage to every ground creep on a 52 px plate every 5.2 s: 42 DPS to one body, and twice the caltrop field’s bite.',
       },
-      {
-        title: 'Iron Maw',
-        upgradeCost: 240,
-        damage: 300,
+      caltrop: {
+        specKey: 'caltrop',
+        branch: 'spec-b',
+        title: 'Caltrop Field',
+        upgradeCost: 150,
+        damage: 110,
         range: 0,
-        cooldown: 4600,
+        cooldown: 3000,
         damageType: 'physical',
-        trapRadius: 56,
-        trapCooldown: 4600,
+        trapRadius: 78,
+        trapCooldown: 3000,
         targetsGround: true,
         targetsAir: false,
+        description: 'A wide 78 px field that bites every ground creep inside it for 110 damage every 3 s. Chip damage across a lane, not one big bite.',
       },
-      {
-        title: 'Royal Caltrop Field',
-        upgradeCost: 330,
-        damage: 420,
-        range: 0,
-        cooldown: 4000,
-        damageType: 'physical',
-        trapRadius: 60,
-        trapCooldown: 4000,
-        targetsGround: true,
-        targetsAir: false,
-        description: '420 damage every 4 s across 60 px. A chokepoint turns into a grinder.',
-      },
-    ]),
+    },
+
   },
 };
 

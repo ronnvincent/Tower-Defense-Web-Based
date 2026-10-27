@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { ROYAL_LINES, ROYAL_TOWER_TYPES, ROYAL_SUPPORT_LINES } from '../src/data/royalDefences.js';
+import { ASCENSION } from '../src/data/towerAscension.js';
+import { ROYAL_PROJECTILES } from '../src/data/royalProjectiles.js';
 import { TOWER_TYPES, BUILD_OPTIONS, BUILD_GROUPS, SUPPORT_LINES, BARRICADE } from '../src/data/towerData.js';
 import { TOWER_VISUALS, PROJECTILE_TEXTURES, IMPACT_TEXTURES, MUZZLE_OFFSET, NON_ROTATING_TYPES } from '../src/data/towerVisuals.js';
 import { TARGETING_MODE, sortTargets } from '../src/entities/TowerTargeting.js';
@@ -13,7 +15,9 @@ import { RoyalSystems, REPAIR_UNDER_FIRE } from '../src/systems/RoyalSystems.js'
 import { makeCombatScene, makeCombatContext, parkingPath } from './helpers/combat.js';
 
 /**
- * The royal roster: ten base-defence lines, five authored tiers each.
+ * The royal roster: ten base-defence lines, each branching at level 3 into two
+ * five-tier paths (branch A keeps the line's own machine, branch B is a second
+ * one with its own building, weapon, shot and wreck).
  *
  * These tests run the real `Tower`, `Projectile`, `Enemy` and `RoyalSystems`
  * over the headless combat harness, so what is asserted here is the behaviour
@@ -54,24 +58,37 @@ function pngSize(file) {
 /* ============================================================ the roster */
 
 describe('royal roster', () => {
-  it('ships ten lines, each with five authored tiers', () => {
+  it('ships ten lines, each branching into two five-tier paths', () => {
     expect(ROYAL_LINES).toHaveLength(10);
     for (const key of ROYAL_LINES) {
       const def = ROYAL_TOWER_TYPES[key];
       expect(def, `${key} missing`).toBeTruthy();
-      expect(def.linear, `${key} must be a linear line`).toBe(true);
-      expect(def.levels, `${key} has no levels`).toHaveLength(5);
-      expect(def.levels.map((l) => l.level)).toEqual([1, 2, 3, 4, 5]);
-      for (const level of def.levels) {
-        expect(level.title, `${key} L${level.level} needs a tier name`).toBeTruthy();
-        expect(Number.isFinite(level.damage), `${key} L${level.level} damage`).toBe(true);
+      expect(def.royal, `${key} must be marked as a royal line`).toBe(true);
+      // Two shared tiers, then the branch is bought at level 3.
+      expect(def.levels, `${key} has no levels`).toHaveLength(2);
+      expect(def.levels.map((l) => l.level)).toEqual([1, 2]);
+      const specs = Object.values(def.specializations || {});
+      expect(specs, `${key} needs two branches`).toHaveLength(2);
+      expect(new Set(specs.map((s) => s.branch))).toEqual(new Set(['spec-a', 'spec-b']));
+      // Both paths climb: L3 price, L4 price, L5 price, each higher than the last.
+      for (const spec of specs) {
+        expect(spec.specKey, `${key} branch needs a specKey`).toBeTruthy();
+        expect(spec.title, `${key}.${spec.specKey} needs a name`).toBeTruthy();
+        expect(Number.isFinite(spec.damage), `${key}.${spec.specKey} damage`).toBe(true);
+        const asc = ASCENSION[key]?.[spec.specKey];
+        expect(asc, `${key}.${spec.specKey} has no ascension tiers`).toBeTruthy();
+        const costs = [spec.upgradeCost, asc.elite.upgradeCost, asc.apex.upgradeCost];
+        for (const cost of costs) expect(cost, `${key}.${spec.specKey} upgrade cost`).toBeGreaterThan(0);
+        for (let i = 1; i < costs.length; i += 1) {
+          expect(costs[i], `${key}.${spec.specKey} upgrade ${i + 3} must cost more`).toBeGreaterThan(costs[i - 1]);
+        }
       }
-      // Every tier above the first is bought, and the price climbs.
-      const costs = def.levels.slice(1).map((l) => l.upgradeCost);
-      for (const cost of costs) expect(cost).toBeGreaterThan(0);
-      for (let i = 1; i < costs.length; i += 1) {
-        expect(costs[i], `${key} upgrade ${i + 1} must cost more than ${i}`).toBeGreaterThan(costs[i - 1]);
-      }
+      // The two branches must be different answers, never the same tower twice.
+      // A field building has no damage block, so its payload is the aura, the
+      // repair crew or the ward it carries.
+      const payload = (spec) => JSON.stringify([spec.damage, spec.cooldown, spec.aura, spec.repair, spec.debuff]);
+      const [a, b] = specs;
+      expect(payload(a) === payload(b), `${key} ships the same branch twice`).toBe(false);
     }
   });
 
@@ -106,14 +123,15 @@ describe('royal roster', () => {
 /* ================================================================ the art */
 
 describe('royal art is real, unique and shipped', () => {
-  it('gives every tier its own base and six-frame weapon sheet on disk', () => {
+  it('gives every tier of both branches its own base and weapon sheet on disk', () => {
+    const SLOTS = ['lvl1', 'lvl2', 'spec-a', 'spec-a2', 'spec-a3', 'spec-b', 'spec-b2', 'spec-b3'];
     for (const key of ROYAL_LINES) {
       const slots = TOWER_VISUALS[key];
       expect(slots, `${key} has no visual line`).toBeTruthy();
       const bases = new Set();
-      for (const level of [1, 2, 3, 4, 5]) {
-        const art = slots[`lvl${level}`];
-        expect(art, `${key} L${level} art missing`).toBeTruthy();
+      for (const slot of SLOTS) {
+        const art = slots[slot];
+        expect(art, `${key} ${slot} art missing`).toBeTruthy();
         bases.add(art.base);
         for (const file of [art.base, art.weapon]) {
           const path = join(process.cwd(), 'public', 'assets', 'towers', file);
@@ -129,8 +147,25 @@ describe('royal art is real, unique and shipped', () => {
         expect(MUZZLE_OFFSET[art.file], `${art.file} has no measured muzzle`).toBeTruthy();
         expect(MUZZLE_OFFSET[art.file].y).toBeLessThan(0);
       }
-      // No tier may reuse the tier below it.
-      expect(bases.size, `${key} reuses art between tiers`).toBe(5);
+      // No tier may reuse another tier's drawing — five tiers a branch, and the
+      // second branch is a different machine, not a repaint.
+      expect(bases.size, `${key} reuses art between tiers`).toBe(SLOTS.length);
+    }
+  });
+
+  it('ships branch-B effects and shots, not just branch-B towers', () => {
+    for (const key of ROYAL_LINES) {
+      for (const file of [`fx-line-${key}-b-impact.png`, `fx-line-${key}-b-muzzle.png`]) {
+        expect(existsSync(join(process.cwd(), 'public/assets/fx', file)), file).toBe(true);
+      }
+      expect(existsSync(join(process.cwd(), 'public/assets/towers', `ruin_${key}-b.png`))).toBe(true);
+      const tiers = ROYAL_PROJECTILES[key];
+      if (!tiers) continue;
+      for (const file of [tiers.b, tiers.b2]) {
+        expect(existsSync(join(process.cwd(), 'public/assets/projectiles', `${file}.png`)), file).toBe(true);
+        expect(file).not.toBe(tiers.a);
+      }
+      expect(existsSync(join(process.cwd(), 'public/assets/fx', `fx-line-${key}-b-trail.png`))).toBe(true);
     }
   });
 
@@ -356,7 +391,9 @@ describe('royal field effects', () => {
 
   it('repairs the worst-hit structure and never rebuilds rubble', () => {
     const workshop = tower(scene, context, 'workshop', 6, 10);
+    // A royal tower branches at level 3; the repair yard lives on branch A.
     workshop.level = 3;
+    workshop.specialization = 'master';
     const damaged = tower(scene, context, 'archer', 6, 11);
     damaged.health = 40;
     const destroyed = tower(scene, context, 'archer', 6, 12);
@@ -381,7 +418,9 @@ describe('royal field effects', () => {
 
   it('makes the repair visible — one beam per heal, capped, gone on its own', () => {
     const workshop = tower(scene, context, 'workshop', 6, 10);
+    // A royal tower branches at level 3; the repair yard lives on branch A.
     workshop.level = 3;
+    workshop.specialization = 'master';
     const damaged = tower(scene, context, 'archer', 6, 11);
     damaged.health = 40;
     scene.activeTowers.push(workshop, damaged);
@@ -422,6 +461,7 @@ describe('royal field effects', () => {
   it('a ward lowers real mitigation and lapses when the creep leaves', () => {
     const obelisk = tower(scene, context, 'obelisk', 6, 10);
     obelisk.level = 5;
+    obelisk.specialization = 'rune';
     scene.activeTowers.push(obelisk);
     const guard = creep(scene, 'guard', obelisk.x + 30, obelisk.y, { health: 900 });
     scene.activeEnemies.push(guard);
@@ -465,6 +505,33 @@ describe('royal field effects', () => {
     // After the cooldown it re-arms.
     expect(systems.tickTraps(ROYAL_TOWER_TYPES.spikeTrap.levels[0].trapCooldown)).toBe(1);
     expect(walker.health).toBeLessThan(400);
+  });
+
+  it('fires the spike trap of the branch it was built as', () => {
+    const lines = [];
+    scene.vfx = {
+      impact: (x, y, element, opts) => lines.push(opts?.line ?? null),
+      groundBlast: () => {},
+    };
+
+    const impaler = tower(scene, context, 'spikeTrap', 6, 10);
+    impaler.level = 3;
+    impaler.specialization = 'impaler';
+    const caltrop = tower(scene, context, 'spikeTrap', 6, 14);
+    caltrop.level = 3;
+    caltrop.specialization = 'caltrop';
+    scene.activeTowers.push(impaler, caltrop);
+
+    // One body per plate, so each trap triggers exactly once.
+    scene.activeEnemies.push(
+      creep(scene, 'grunt', impaler.x, impaler.y, { health: 900 }),
+      creep(scene, 'grunt', caltrop.x, caltrop.y, { health: 900 })
+    );
+    expect(systems.tickTraps(100)).toBe(2);
+    // Branch A hits under the line id, branch B under its own — the two
+    // triggers must not wear the same burst.
+    expect(lines.sort()).toEqual(['spikeTrap', 'spikeTrap-b']);
+    expect(existsSync(join(process.cwd(), 'public/assets/fx/fx-line-spikeTrap-b-impact.png'))).toBe(true);
   });
 });
 

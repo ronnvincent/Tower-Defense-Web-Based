@@ -3,26 +3,25 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { TOWER_TYPES } from '../src/data/towerData.js';
 import { TOWER_VISUALS, SLOTS, MUZZLE_OFFSET } from '../src/data/towerVisuals.js';
-import { ASCENSION, MAX_LEVEL, ascensionTier, nextAscension, dps } from '../src/data/towerAscension.js';
+import { ASCENSION, MAX_LEVEL, ascensionTier, nextAscension } from '../src/data/towerAscension.js';
+import { fieldPower } from './helpers/balance.js';
 
-// Branching lines only. The ten royal lines are linear (five authored tiers,
-// no specialisation) and their own contract lives in
-// tests/royal-defences.test.js.
+// Every line branches at level 3, the ten royal lines included (they branch
+// into two five-tier paths, each with its own `elite`/`apex`). The royal art
+// and roster contract lives in tests/royal-defences.test.js.
 const LINES = Object.keys(TOWER_TYPES).filter((line) => TOWER_TYPES[line].specializations);
 
 /** Every branch of every line, flattened: [{ line, specKey, spec }] */
-// Branching lines only: the royal roster is linear (L1…L5, no specialisation)
-// and is covered by tests/royal-defences.test.js instead.
-const SPECS = LINES.filter((line) => TOWER_TYPES[line].specializations).flatMap((line) =>
+const SPECS = LINES.flatMap((line) =>
   Object.entries(TOWER_TYPES[line].specializations).map(([specKey, spec]) => ({ line, specKey, spec }))
 );
 
 describe('Five-tier defences', () => {
   it('defines exactly the five tiers the HUD promises', () => {
     expect(MAX_LEVEL).toBe(5);
-    // Six Spire keeps + five engineer lines + ten royal lines.
+    // Six Spire keeps + five engineer lines + ten royal lines, all branching.
     expect(Object.keys(TOWER_TYPES)).toHaveLength(21);
-    expect(LINES).toHaveLength(11);
+    expect(LINES).toHaveLength(21);
     for (const { line, specKey } of SPECS) {
       expect(ASCENSION[line], `${line} has no ascension table`).toBeTruthy();
       expect(ASCENSION[line][specKey], `${line}.${specKey} never grows past level 3`).toBeTruthy();
@@ -38,13 +37,15 @@ describe('Five-tier defences', () => {
     for (const { line, specKey, spec } of SPECS) {
       const tiers = [spec, ascensionTier(line, specKey, 4), ascensionTier(line, specKey, 5)];
       const label = `${line}.${specKey}`;
-      // Damage per second, counting multi-shot abilities: a "weaker" number
-      // that fires three times a draw is still an upgrade, and the ladder has
-      // to reflect what the player actually gets.
+      // What the tier is worth, counting multi-shot abilities and blasts: a
+      // "weaker" number that fires three times a draw is still an upgrade, and
+      // the ladder has to reflect what the player actually gets. A support
+      // branch (a workshop, a ward) upgrades on the field it hands out, so it is
+      // scored on that instead of on damage it never deals.
       const merged = tiers.map((tier, index) =>
         index === 0 ? spec : { ...tiers[index - 1], ...tier }
       );
-      const values = merged.map((tier) => dps(tier));
+      const values = merged.map((tier) => fieldPower(tier));
       expect(values[1], `${label} level 4 is not stronger`).toBeGreaterThan(values[0]);
       expect(values[2], `${label} level 5 is not stronger`).toBeGreaterThan(values[1]);
       // The cap tier must be worth the investment on its own: at least 1.6x the

@@ -14,7 +14,7 @@ all read the same data in `src/data/royalDefences.js`.
 
 | Line | Type key | Cost | Role | Range ceiling | Weakness |
 |---|---|---|---|---|---|
-| Royal Siege Artillery | `royalArtillery` | 300 | Boss/elite single-target burst | 520 | Slow reload, minimum range, no splash |
+| Royal Siege Artillery | `royalArtillery` | 260 | Boss/elite single-target burst | 520 | Slow reload, minimum range, no splash |
 | Siege Ballista | `siegeBallista` | 150 | Armour-piercing single target | 310 | Short reach, single target only |
 | Arcane Sniper Tower | `arcaneSniper` | 210 | Long-range magic sniping | 430 | Tiny DPS against groups |
 | Mortar Tower | `mortar` | 200 | Ground area denial | 380 | Ground only, minimum range, poor single target |
@@ -25,9 +25,11 @@ all read the same data in `src/data/royalDefences.js`.
 | Warding Obelisk | `obelisk` | 180 | Armour/resistance debuff field | aura 190–270 | No direct damage |
 | Spike Trap | `spikeTrap` | 70 | Road hazard with a cooldown | trigger 48–60 | Ground only, one trigger per re-arm |
 
-Ten new *linear* lines: L1 → L2 → L3 → L4 → L5, one authored tier per level,
-no branch at level 3. The eleven older lines keep their branching ascension
-untouched.
+Ten new lines that branch at level 3, exactly like the eleven older ones: two
+shared tiers (`lvl1`, `lvl2`), then a choice between the line's own machine
+(branch A) and a second, different machine (branch B), each with its own
+art, its own shot and its own level 4 and 5. Request 45 added the branches;
+§2b carries the branch-B numbers and §6 the upgrade flow.
 
 ### Note on names
 
@@ -44,23 +46,25 @@ The enemy creature `skybreaker` is unrelated to the tower and kept its name.
 
 ---
 
-## 2. Stats
+## 2. Stats — branch A (the line's own machine)
 
 Base damage, range and interval per tier. DPS is `damage ÷ interval` before
 armour, buffs or debuffs; the game computes real damage through
-`CombatCalculator`, never from this table.
+`CombatCalculator`, never from this table. Levels 1–2 are shared by both
+branches; levels 3–5 below are branch A. Branch B is in §2b.
 
-### Royal Siege Artillery — `royalArtillery` (300g)
+### Royal Siege Artillery — `royalArtillery` (260g)
 
 | L | Name | DMG | Range | Interval | DPS | Upgrade | Pen |
 |---|---|---|---|---|---|---|---|
 | 1 | Field Bombard | 260 | 430 | 4.20 s | 62 | — | 25 % |
-| 2 | Banded Siege Gun | 360 | 450 | 4.00 s | 90 | 160 g | 30 % |
-| 3 | Bastion Culverin | 480 | 470 | 3.80 s | 126 | 230 g | 40 % |
-| 4 | Counterweight Bombard | 640 | 495 | 3.60 s | 178 | 330 g | 50 % |
-| 5 | Royal Siege Battery | 900 | 520 | 3.40 s | 265 | 460 g | 60 % |
+| 2 | Banded Siege Gun | 360 | 450 | 4.00 s | 90 | 140 g | 30 % |
+| 3 | Bastion Culverin | 480 | 470 | 3.80 s | 126 | 190 g | 40 % |
+| 4 | Counterweight Bombard | 640 | 495 | 3.60 s | 178 | 240 g | 50 % |
+| 5 | Royal Siege Battery | 900 | 520 | 3.40 s | 265 | 290 g | 60 % |
 
 Minimum range 100 → 120 px. Ground **and** air, both filtered by the panel.
+Titan bonus per tier: +26 % / +30 % / +34 % at levels 3 / 4 / 5.
 
 ### Siege Ballista — `siegeBallista` (150g)
 
@@ -69,8 +73,8 @@ Minimum range 100 → 120 px. Ground **and** air, both filtered by the panel.
 | 1 | Field Ballista | 70 | 250 | 1.45 s | 48 | — | 55 % | +15 % |
 | 2 | Windlass Ballista | 100 | 265 | 1.38 s | 72 | 90 g | 62 % | +20 % |
 | 3 | Steel-Proof Arbalest | 140 | 280 | 1.30 s | 108 | 140 g | 70 % | +26 % |
-| 4 | Torsion Siege Bow | 185 | 295 | 1.18 s | 157 | 200 g | 78 % | +33 % |
-| 5 | Colossus Ballista | 240 | 310 | 1.05 s | 229 | 280 g | 85 % | +40 % |
+| 4 | Torsion Siege Bow | 225 | 295 | 1.18 s | 191 | 200 g | 78 % | +33 % |
+| 5 | Colossus Ballista | 250 | 310 | 1.05 s | 238 | 280 g | 85 % | +40 % |
 
 Armour penetration is applied by `calculateEffectiveArmor`, so 85 % penetration
 against a 40-armour guard leaves 6 armour, not "ignore armour".
@@ -165,6 +169,102 @@ enforces for direct hits, splash and chain alike.
 
 ---
 
+## 2b. Stats — branch B (the second machine)
+
+Every royal line offers a second machine at level 3. It is a *trade*, not a
+bigger version of branch A: the siege gun gives up shell weight for a two-shell
+salvo, the ballista gives up penetration for rate, the mortar gives up blast
+width for a fanned pair, the workshop splits its aura and its repair crew, the
+obelisk splits armour-off from resistance-off, and the trap turns a single maw
+into a spike field. Each one has its own building, its own weapon sheet, its own
+shot art and its own hit effect (`proj-royal-<line>-b*`,
+`fx-line-<line>-b-*`), so a player can tell the two branches apart on the board.
+
+`DMG` is per shot; `DPS` counts the volley, so a "pair" tier fires twice.
+
+### Royal Siege Artillery → Twin-Bore Battery — branch B (`battery`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Twin-Bore Battery | 210 | 400 | 2.90 s | 145 | 180 g | min range 130 px |
+| 4 | Salvo Culverin | 265 | 420 | 2.70 s | 196 | 230 g | min range 135 px |
+| 5 | Royal Salvo Battery | 380 | 440 | 2.50 s | 304 | 280 g | min range 140 px |
+
+### Siege Ballista → Repeater Ballista — branch B (`repeater`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Repeater Ballista | 95 | 250 | 0.70 s | 136 | 130 g | — |
+| 4 | Windlass Repeater | 110 | 260 | 0.90 s | 244 | 190 g | — |
+| 5 | Hailstorm Ballista | 120 | 272 | 0.80 s | 300 | 270 g | — |
+
+### Arcane Sniper Tower → Hex Weaver — branch B (`hexweaver`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Hex Weaver | 120 | 330 | 1.60 s | 75 | 170 g | splash 60 px; slow 18 % for 900 ms |
+| 4 | Curse Lattice | 155 | 345 | 1.50 s | 103 | 240 g | splash 70 px; slow 22 % for 1000 ms |
+| 5 | Hex Spire | 200 | 360 | 1.40 s | 143 | 330 g | splash 85 px; slow 26 % for 1100 ms |
+
+### Mortar Tower → Cluster Battery — branch B (`cluster`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Cluster Battery | 52 | 320 | 1.90 s | 55 | 150 g | splash 55 px; min range 95 px; ground only |
+| 4 | Fanned Mortar | 62 | 340 | 1.80 s | 69 | 230 g | splash 65 px; min range 96 px; ground only |
+| 5 | Royal Cluster Battery | 96 | 355 | 1.70 s | 113 | 320 g | splash 78 px; min range 98 px; ground only |
+
+### Frost Tower → Frost Tempest — branch B (`tempest`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Frost Tempest | 34 | 200 | 0.70 s | 49 | 110 g | splash 90 px |
+| 4 | Rime Gale | 44 | 212 | 0.66 s | 67 | 160 g | splash 105 px |
+| 5 | Winter Tempest | 56 | 224 | 0.62 s | 90 | 210 g | splash 120 px |
+
+### Tesla Tower → Arc Cannon — branch B (`arccannon`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Arc Cannon | 120 | 220 | 1.30 s | 92 | 130 g | chains 1 (falloff 55 %) |
+| 4 | Thunder Lance | 155 | 230 | 1.20 s | 129 | 190 g | chains 1 (falloff 60 %) |
+| 5 | Storm Cannon | 200 | 240 | 1.10 s | 182 | 270 g | chains 2 (falloff 65 %) |
+
+### Skybreaker Tower → Flak Battery — branch B (`flak`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Flak Battery | 40 | 285 | 0.76 s | 105 | 140 g | splash 55 px; +15 % vs titans |
+| 4 | Burst Battery | 50 | 300 | 0.70 s | 143 | 210 g | splash 65 px; +18 % vs titans |
+| 5 | Royal Flak Battery | 55 | 310 | 0.64 s | 172 | 300 g | splash 78 px; +20 % vs titans |
+
+### Engineer Workshop → Field Engineer — branch B (`engineer`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Field Engineer | — | — | — | — | 170 g | aura 270 px (+24 % rate, +16 % range); repairs 12 HP/s within 190 px |
+| 4 | Engineer Company | — | — | — | — | 240 g | aura 300 px (+30 % rate, +20 % range); repairs 18 HP/s within 210 px |
+| 5 | Royal Engineer Corps | — | — | — | — | 330 g | aura 330 px (+36 % rate, +24 % range); repairs 26 HP/s within 230 px |
+
+### Warding Obelisk → Null Obelisk — branch B (`nullify`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Null Obelisk | — | — | — | — | 180 g | ward 200 px (−10 armour, −30 % resist) |
+| 4 | Void Monolith | — | — | — | — | 250 g | ward 215 px (−12 armour, −40 % resist) |
+| 5 | Null Colossus | — | — | — | — | 340 g | ward 235 px (−15 armour, −50 % resist) |
+
+### Spike Trap → Caltrop Field — branch B (`caltrop`)
+
+| L | Name | DMG | Range | Interval | DPS | Upgrade | Also |
+|---|---|---|---|---|---|---|---|
+| 3 | Caltrop Field | 110 | 0 | 3.00 s | 37 | 150 g | ground only; field 78 px |
+| 4 | Spike Field | 150 | 0 | 2.70 s | 56 | 230 g | ground only; field 86 px |
+| 5 | Royal Spike Field | 210 | 0 | 2.40 s | 88 | 320 g | ground only; field 96 px |
+
+
+--- 
+
 ## 3. Balance reasoning
 
 The ten lines are not a straight upgrade over the eleven existing ones — they
@@ -193,6 +293,25 @@ trade raw efficiency for a job.
   mortar cannot touch air; the trap cannot touch air and fires once per 4–6 s;
   the artillery cannot hit anything standing on its own emplacement. The tests
   in `tests/royal-defences.test.js` pin those limits.
+* **A branch is a trade, not an upgrade.** Request 45 gave every royal line a
+  second machine at level 3, and the two were measured against each other rather
+  than against the line's own history: each branch declares a niche in
+  `tests/helpers/balance.js` and has to beat its sibling on that column by 8 % at
+  levels 3, 4 and 5. The salvo battery out-shoots the bombard against a single
+  unarmoured body while the bombard keeps the titan bonus and the bigger shell;
+  the cluster battery wins the single-target column while the great mortar keeps
+  the wider blast; the arc cannon drops chain targets for a heavier bolt; the
+  field engineer keeps the wider aura and hands the repair crew to the repair
+  yard. Neither branch is ever the cheaper *and* better one — that is asserted,
+  not assumed.
+* **Support branches are scored on the field they hand out.** A workshop deals
+  no damage, so dividing its DPS by its gold is a division by zero. `supportPower`
+  in `tests/helpers/balance.js` prices an aura at the fire rate and range it
+  grants a reference turret, a repair crew at the health it restores, a ward at
+  the effective damage its armour/resistance break unlocks across the roster, and
+  a coin aura at the extra gold per kill — all scaled by the area the field
+  covers. That number is what the power-per-gold band and the "is the upgrade
+  worth it?" test read for the four support branches.
 
 ---
 
@@ -283,15 +402,24 @@ after `trapCooldown`. Flyers passing over take nothing.
 
 ## 6. Progression and the upgrade flow
 
-* `Tower.get stats` reads `levels[level - 1]` for a linear line; there is no
-  specialisation step.
-* `nextUpgrades` returns the next tier with `upgradeCost`, and `canUpgrade()`
-  asks the economy. The click is guarded by `upgradeLock` (260 ms), and the
-  cost is deducted exactly once, only on success.
+* Levels 1 and 2 are shared (`levels: [L1, L2]`). At level 3 the tower *chooses*:
+  `nextUpgrades` returns both branches, each with its own `specKey`, `branch`,
+  price and description, and the HUD draws them as two cards.
+* `Tower.get stats` then reads `specializations[specKey]` and, at levels 4 and 5,
+  merges the tier from `ASCENSION[line][specKey]` on top of it — the same
+  `elite`/`apex` ladder the eleven older lines use. A tower that somehow carries
+  a level with no branch falls back to the last shared tier rather than
+  returning `undefined` into the damage path.
+* `canUpgrade()` asks the economy. The click is guarded by `upgradeLock`
+  (260 ms), and the cost is deducted exactly once, only on success.
 * Health is carried across tiers as a ratio, so an upgraded tower does not heal
   itself.
-* Each tier has its own base art and its own weapon sheet; `visualSlot` is
-  `lvl1 … lvl5`.
+* Each tier of each branch has its own base art and weapon sheet, and
+  `visualSlot` maps them to `lvl1`, `lvl2`, then `spec-a` / `spec-a2` / `spec-a3`
+  or `spec-b` / `spec-b2` / `spec-b3`. `Tower.artLine` returns
+  `<line>-b` for branch B, which is what selects the branch-B impact, muzzle,
+  trail, shot and wreck. `Tower.projectileArt` asks
+  `royalProjectileArt(line, level, branch)`.
 
 ---
 
@@ -301,7 +429,7 @@ after `trapCooldown`. Flyers passing over take nothing.
 
 | Step | Command | Output |
 |---|---|---|
-| 1. Draw | `python3 scripts/build_royal_defences.py` | 50 bases, 50 weapon strips, 10 dock cards, 7 projectiles, 10 impact strips, 10 muzzle flashes, 7 trails, 10 wrecks, `src/data/royalTowerArt.js`, `src/data/royalFx.js` |
+| 1. Draw | `python3 scripts/build_royal_defences.py` | 80 bases, 80 weapon strips (8 slots × 10 lines), 10 dock cards, 28 shots (4 × 7 shooting lines), 20 impact strips, 20 muzzle flashes, 14 trails, 20 wrecks — 214 images plus `src/data/royalTowerArt.js`, `src/data/royalFx.js`, `src/data/royalProjectiles.js` |
 | 2. Inspect | `python3 scripts/check_royal_art.py` | exit 1 on any failed sheet |
 
 Both scripts need Pillow (`python3 -m venv .venv && .venv/bin/pip install pillow`).
@@ -323,6 +451,10 @@ project art rather than a third-party pack.
 * `-fire` clips play frames `0 … n-2` at 16 fps; frame 0 is the resting pose.
 * Non-rotating lines (Frost, Workshop, Obelisk, Spike Trap) carry their action in
   the animation and never spin toward a target.
+* Eight slots per line: `lvl1`, `lvl2`, then `spec-a`/`spec-a2`/`spec-a3` and
+  `spec-b`/`spec-b2`/`spec-b3`. Branch B is drawn as a *different machine* — its
+  own frame, its own weapon geometry, its own accent — never a tint or a mirror
+  of branch A.
 
 ### Trails
 
@@ -361,6 +493,9 @@ glance.
   static explosion pasted over an idle frame fails;
 * every tier changes the **silhouette** by at least 6 % of the canvas versus
   the tier below it — a recolour fails;
+* branch B differs from branch A on the base, the wreck, the impact, the muzzle,
+  the trail and the shot by at least 4 % of the canvas, compared bottom-centre
+  aligned (`align_bottom_center`) — a mirrored or recoloured twin fails;
 * impact strips are `10 × 128 px` with no blank frame, muzzles are 48×48, cards
   are 64×64;
 * trails are 48×48 with a transparent margin and a visible peak alpha, and only
@@ -368,13 +503,18 @@ glance.
   unused file;
 * wrecks are RGBA with real transparency and their ink reaches the ground edge,
   so a wreck never floats above the tile it fell on;
-* the seven shooting lines have their own projectile with a transparent margin.
+* the seven shooting lines have their own projectile with a transparent margin,
+  in both branches and both tiers; the `-b` / `-b2` shots keep a transparent
+  edge so the salvo reads as a shot in flight, not a decal;
+* only shooting lines ship a trail, and a branch-B building trails under
+  `fx-line-<line>-b-trail`.
 
-Current status: all ten lines pass.
+Current status: all twenty branches pass, and both sheets sets load cleanly in
+`BootScene`.
 
 ### What each tier adds
 
-Every line grows by one real structural step: timber deck → stone footing with
+Every line grows by one real structural step, along the branch it took: timber deck → stone footing with
 iron straps → stepped emplacement with a railing → bastion with buttresses and
 crenellations → royal bastion with a gold band, carved emblem and corner
 spires. The machinery on top changes too (a barrel gains bands, springs and a
@@ -394,6 +534,8 @@ before it.
 | Browser | Trails in flight: peak 6 live streaks during a volley, back to 0 afterwards | Same probe, counting `scene.__trailSprites` |
 | Browser | Wrecks: four lines destroyed on the board, each dropped its own `ruin-*` sprite, tile released, no page errors | Destroyed through `damageStructure` |
 | Browser | Repair is visible: workshop L5 healed a gun 343 → 423 HP, hammer clip `tower-top-workshop-l5-fire` playing, one live beam, back to 0 after the fade | `:beams` counter and a screenshot |
+| Browser | Branch B on a live board (Request 45): `royalArtillery` → `battery`, `tesla` → `arccannon` and `mortar` → `cluster` built through `attemptBuild`, each upgraded to L5. Slots walked `lvl1 → lvl2 → spec-b → spec-b2 → spec-b3`, art keys `tower-base-<line>-b1…b3`, shots `proj-royal-<line>-b` then `-b2`, `artLine` `<line>-b`. Shots seen in flight with `fx-line-<line>-b-trail`, hits delivered with `fx-line-<line>-b-impact`, and a destroyed salvo battery dropped `ruin-royalArtillery-b`. Zero page errors | Probe against the Vite preview build, screenshots kept outside the repo |
+| Automated | Every branch of every line declares a niche and beats its sibling there at L3/4/5; no branch is dominated; support branches are scored on the field they hand out (`supportPower`), not on damage they never deal | `tests/branch-niche.test.js`, `tests/engineer-defenses.test.js` |
 | Not verified | Real mobile touch input, and a full 8-wave campaign playthrough with only royal towers | Needs a device / a longer session |
 
 The browser probes are **not** a substitute for a natural playthrough: they
