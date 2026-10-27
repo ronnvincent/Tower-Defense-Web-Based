@@ -2,8 +2,9 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 1250 tests across 105 test suites.
-- **Pass Rate:** **100% (1250 / 1250 Passed)**
+- **Total Automated Unit Tests:** 1,459 tests across 119 test suites (current
+  count; the newest suite is `campaign-regression`, see §30.8).
+- **Pass Rate:** **100% (1,459 / 1,459 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -1998,3 +1999,594 @@ upgrade bar is entirely inside the body's visible area (not merely in the DOM);
   forced it. Suite: **1408 passing / 115 files**. Contrast: **68/68**. Build
   clean: `index-CIkrR0pq.css` 202.05 kB (39.76 gzip), `index-BMbpo9C1.js`
   617.89 kB (177.86 gzip).
+
+## 27. Ground and air become one rule (Request 36, part one)
+
+The audit for this request found the flying archetype honoured in exactly one
+place — a tower choosing its next target — and ignored by every effect that fires
+without an aim. A Boulder Sling could not *aim* at a wraith, and still damaged
+one standing inside its blast; a ground-locked keep's chain lightning climbed
+into the sky. That is the bug this section covers.
+
+### Written, not patched four times
+
+`src/systems/TargetCategories.js` now owns the rule
+(`canTarget`, `projectileCanHit`, `defenceTargets`) plus the two labels the UI
+prints. `Tower.acquireTarget`, `Projectile.impact`, `Projectile.frostNova`,
+`Projectile.executeChainLightning` and `Tower.checkBarricadeThorns` all ask it.
+`Tower.fire` copies the firing line's categories onto the shot, because the tower
+may be gone by the time a slow shell lands. The palisade now declares
+`targetsAir: false` — it was silently claiming the sky.
+
+The chain was rewritten while passing through: it walked the enemy array once,
+could not repeat a target by construction, and could not pick the nearest one. It
+now takes the nearest valid creep and keeps a visited set.
+
+### Air is a route
+
+`src/systems/AirRoutes.js` derives three sky lanes per board (three mouths on the
+top rim, a drop, a diagonal into the bastion cell). `GameScene.spawnEnemy` sends
+a flying creep down the sky lane for the same wave ordinal the ground horde uses.
+Level 1, measured in the browser: ground lane starts `2,4` with 25 waypoints, sky
+lane starts `1,12` with 15, both end on the bastion `9,21`.
+
+The wraith is no longer a stage-5 exclusive: 2 + 5 in stage 1, 4 in stages 2 and
+3, 9 in stage 4. The debut wave is never one of the first three.
+
+### Tests added
+
+* `tests/target-categories.test.js` — 23 tests over the real `Tower`,
+  `Projectile` and `Enemy` classes: splash, nova, chain, thorns, and the
+  "sweeps the sky" opt-out.
+* `tests/air-routes.test.js` — 15 tests: ≥ 2 lanes per board, every lane ends on
+  the bastion, every board's sky crosses ground the road cannot, lanes differ
+  from the roads, determinism, and the wave data actually using them.
+
+### Tests updated (behaviour deliberately changed)
+
+| file | old assertion | new assertion |
+| --- | --- | --- |
+| `tests/flying.test.js` | wraith only in stage 5 | wraith in ≥ 4 stages, never in waves 1–3 |
+| `tests/lane-routing.test.js` | spawn uses the road lane, verbatim | ground uses the road lane, flyers use the sky lane, one `lane` variable |
+| `tests/enemy-assets.test.js` | `types.has(group.type)` | compares **art** keys — the wraith flies on the wyvern sheet |
+| `tests/mobile-shell.test.js` | sheet cap 58vh / 250px | 70vh / 280px, with the measurement that forced it |
+
+### In the browser (Chromium, dev server and production build)
+
+| check | 844 × 390 dev | 844 × 390 production (`?probe=1`) |
+| --- | --- | --- |
+| dock badges | `BOTH`/`GROUND` on 12 cards, barricade `GROUND` | same |
+| inspector `TARGETS` cell | `GROUND + AIR` (`targets-both`) | same |
+| ground lane / sky lane start | `2,4` / `1,12`, both end `9,21` | same |
+| cannon vs wraith, 90 ticks | fired 0 shots, HP 152 → 152 | fired 0 shots, HP 152 → 152 |
+| archer vs wraith, 90 ticks | fired 3 shots, HP 152 → 104 | fired 3 shots, HP 152 → 104 |
+| scout strip | `NEXT IN 9 · AIR`, wraith chip flagged `air` | same |
+| console errors / failed requests | `[]` / `[]` | `[]` / `[]` |
+
+### The phone inspector, re-measured
+
+| viewport | sheet | body | upgrade row | targeting | path cards |
+| --- | --- | --- | --- | --- | --- |
+| 844 × 390 | 273 px | 221 px | y 118–162 | y 168–213 | 108 px, both visible |
+| 667 × 375 | 263 px | 211 px | y 114–158 | y 164–209 | 108 px, both visible |
+| 568 × 320 | 224 px | 172 px | y 97–141 | y 147–192 | 108 px, both visible |
+
+Before: 203 px sheet / 151 px body with the upgrade 224 px below the fold.
+
+Full suite after these changes: **1446 passing / 117 files**. Contrast:
+**68/68**. Build clean (`index-CIKq2dGO.css` 204.13 kB / 40.17 gzip,
+`index-DfrhpGnN.js` 621.48 kB / 178.97 gzip).
+
+Not done, and not claimed: specialist branches, new CC0 art, and the authored
+stage aspect (5:3) were not touched. See `docs/bastion-overhaul.md` §6.
+
+## 28. Req 37 — battlefield, bastion and asset pipeline
+
+### 28.1 World geometry, before and after
+
+| | before | after |
+| --- | --- | --- |
+| board | 26 × 12 = **1664 × 768 px** (2.17 : 1) | 32 × 12 = **2048 × 768 px** (2.67 : 1) |
+| columns | absolute numbers (`3`, `22`, `[8, 16]`) | authored as axis offsets — `A(-8)`, `A(9)`, `[A(-4), A(4)]` |
+| axis | hard-coded 12 | `ARENA.axisCol = 15`, exported `colAt()` |
+| bastion row | 9 of 12 = 75 % down, two rim rows below | 10 of 12 = **87.5 % down**, one rim row below |
+| keep clearance | `BASE_CLEARANCE = 1` | unchanged, plus `BASTION_APRON = 2` for scattered props |
+| lanes | one centre pair | every board re-authored around the axis; 20 boards re-parsed |
+
+The width was chosen against the camera band, not by taste: between the top bar
+and the open forge the canvas leaves ≈ 2.7 : 1 at desktop sizes, so a 2.17 : 1
+board was **height-bound** and left ~110 px of dead world on each side. At
+2.67 : 1 the board fills the width at 1920 × 1080 and 844 × 390, and is within
+14 % of filling it at 1366 × 768.
+
+### 28.2 Measured result, seven viewports (dev server, Chromium)
+
+| viewport | shell | canvas | zoom | board on screen | board % of viewport | bastion centre y | gap below bastion |
+| --- | --- | --- | --: | --- | --- | --: | --: |
+| 360 × 640 | portrait → rotate gate | 360 × 216 | 0.625 | 360 × 135 | 100 / 21 % | 335 | 305 |
+| 390 × 844 | portrait → rotate gate | 390 × 234 | 0.625 | 390 × 146 | 100 / 17 % | 441 | 403 |
+| 768 × 1024 | portrait → rotate gate | 768 × 461 | 0.625 | 768 × 288 | 100 / 28 % | 583 | 441 |
+| 667 × 375 | landscape phone | 667 × 400 | 0.625 | 667 × 250 | 100 / 67 % | 208 | 167 |
+| 844 × 390 | landscape phone | 813 × 488 | 0.622 | 809 × 303 | 96 / 78 % | 217 | 173 |
+| 1366 × 768 | desktop | 1366 × 820 | 0.540 | 1181 × 443 | 86 / 58 % | 362 | 406 |
+| 1920 × 1080 | desktop | 1920 × 1152 | 0.625 | 1920 × 720 | 100 / 67 % | 597 | 483 |
+
+Bastion centre sits at 87.5 % of the board height in **every** row of the table,
+and the row below it (row 11) is plain rim — so the fortress always has ground
+under it, never the dock edge. On the two portrait phone sizes gameplay is
+paused by the rotate gate; they are listed because they were opened.
+
+Camera: fit zoom 0.540 (height-bound, 1366 × 768) to 0.625 (width-bound,
+1920 × 1080); `min` equals the fit, `max` 3×. Wheel zoom-in measured 0.540 →
+0.752, zoom-out clamped back to 0.540, drag panned `scrollX 384 → 557` with the
+board still inside `worldView` (2369 wide vs 2048 of board).
+
+### 28.3 Perimeter and build pads
+
+Scripted over every board and the first five campaign levels:
+
+- **20 boards** (17 campaign + 3 duel) parsed at 12 × 32 with gates on both banks.
+- **2,348 scattered props** (rock + pond cells) across those boards, **0 inside the
+  bastion apron** — the scatter now *relocates* a prop that lands within
+  `BASTION_APRON = 2` of the keep instead of deleting it, so no scenery was lost.
+- Level 1–5 slot lists: 16 / 15 / 16 / 16 / 16 pads, rows 6–9 only, **none on a
+  lane tile, none in a blocked zone, none within 2 cells of the keep, all grass**.
+- In the browser (prod build, 1366 × 768) a pad was clicked with the mouse and a
+  Ballista was built at `(9, 22)`; gold 300 → 240. Placement inside the bastion
+  (row 10), on the rim row 11 and on the river lane were all refused.
+
+### 28.4 Ground and air, re-verified after the widening
+
+| check | dev 1366 × 768 | prod 844 × 390 |
+| --- | --- | --- |
+| wraith path vs `airRoutes.laneAt(0)` | identical, 24 nodes | identical, 24 nodes |
+| wraith `flying` / route cells | true / sky only | true / sky only |
+| wraith reaches the bastion | base HP 20 → 19 at t+22 s, `assaulting` | same |
+| ground wave 1 (10 grunts, 26-node road) | 10 defeated, 0 escaped, HP 20/20 | — |
+| wave advance | wave 2 auto-started after the 10 s gap | — |
+| cannon vs wraith (90 ticks) | 0 shots | 0 shots (from §27) |
+| archer vs wraith (90 ticks) | 3 shots, 152 → 104 | same (from §27) |
+
+The desktop run is a **real playthrough of wave 1** — card clicked, pad clicked,
+START WAVE clicked — not a mocked call. It is not a full 8-wave campaign clear;
+that is still unverified.
+
+### 28.5 Build, tests, assets
+
+- `npx vitest run` → **117 files / 1,446 tests passing** after the new geometry.
+- `npm run build` → `index-CIKq2dGO.css` 204.13 kB (40.17 gzip),
+  `index-DjaW4r0K.js` 622.15 kB (179.27 gzip), phaser 1,208.06 kB.
+- Production preview on `:4320` re-ran the desktop flow above with the same
+  numbers, and the 844 × 390 inspector sheet still measures **273 px / 221 px body**
+  (`#inspect-targets` = `GROUND + AIR`).
+- CSS hash is unchanged from §27 (`index-CIKq2dGO.css`), which is the check that
+  no stylesheet was touched in this pass.
+- Assets: audit and manual pack list in `docs/asset-integration.md` §8. Nothing
+  new was downloaded; the shipped set is idle/move/death × 3 facings per
+  creature, base + weapon strips per tower, Kenney CC0 effects.
+
+### 28.6 Still open
+
+1. At **1366 × 768** the board is height-bound: 86 % width, 36.9 px tiles on
+   screen (20.8 px at 667 × 375, 25.3 px at 844 × 390, 60 px at 1920 × 1080). The
+   binding constraint is chrome (91 px top bar + 227 px open dock = 41 % of the
+   screen). Trimming it measures out to ≈ 6 % larger tiles, so the HUD layout was
+   left alone rather than restyled for a marginal gain.
+2. The authored stage is 5 : 3 while the board is 2.67 : 1 — the board letterboxes
+   inside the stage. Not changed; this is the authored-aspect decision from §27.
+3. `MAP_COLS = 20` in `src/config/gameConfig.js` still disagrees with the 32-column
+   board. Nothing reads it for layout any more (the camera is data-driven), but the
+   constant is misleading and should be derived from `ARENA`.
+4. The phone inspector's SELL row is still below the fold at ≤ 390 px height; the
+   sheet scrolls, and the fade marks it (§27 decision, unchanged).
+5. No attack/hit animation rows exist for the creatures; packs that would supply
+   them are listed in `docs/asset-integration.md` §8.4 but were not fetched.
+6. Untested: a full 8-wave campaign on desktop, two-device PvP, 4K, real touch
+   hardware, and the manual downloads in §8.4.
+
+## 29. Request 38 — animated combat, visual overhaul and campaign proof
+
+This pass is verification-first: every claim below was produced by a real
+browser run on the dev server (`:4300`), and the fixtures are named where a
+run was helped along. Nothing was committed, pushed or deployed.
+
+### 29.1 Code changed in this pass
+
+| File | Change |
+| --- | --- |
+| `src/config/gameConfig.js` | `MAP_COLS` / `MAP_ROWS` deleted; `STAGE_ASPECT = 5 / 3`, `STAGE_WIDTH = 1280`, `STAGE_HEIGHT = 768`, with `GAME_WIDTH` / `GAME_HEIGHT` kept as aliases for the Phaser canvas. |
+| `src/scenes/GameScene.js` | Bastion apron (depth 5, two-tone ellipse + 1 px rim) under the keep; build pads repainted gold `0xf6e2ac` (double ring + four corner brackets over a dark halo) because the previous green ring disappeared on grassland. |
+| `src/data/assetManifest.js`, `scripts/write_asset_manifest.mjs`, `docs/asset-manifest.md`, `tests/asset-manifest.test.js` | Asset manifest and the test that keeps the document honest (Req 38 part 2). |
+
+`MAP_COLS` disposition: the constant was only ever read by `src/main.js:58-59`
+(as `GAME_WIDTH`), so it was retired instead of being re-pointed at `ARENA`.
+`grep -rn "MAP_COLS\|MAP_ROWS" src tests` now returns nothing. Tests that pin
+the 1280 × 768 canvas (`camera-math`, `pvp`, `endless-map`) were left alone and
+still pass, because the canvas size itself did not change.
+
+### 29.2 Geometry, measured on seven viewports
+
+| Viewport | Canvas (CSS) | Board (CSS) | % width / height | Zoom | Bastion y | From bottom |
+| --- | --- | --- | --- | --- | --- | --- |
+| 360 × 640 | 360 × 216 | 360 × 135 | 100 / 21 | 0.625 | 335 | 305 |
+| 390 × 844 | 390 × 234 | 390 × 146 | 100 / 17 | 0.625 | 441 | 403 |
+| 768 × 1024 | 768 × 461 | 768 × 288 | 100 / 28 | 0.625 | 583 | 441 |
+| 667 × 375 | 667 × 400 | 667 × 250 | 100 / 67 | 0.625 | 208 | 167 |
+| 844 × 390 | 813 × 488 | 809 × 303 | 96 / 78 | 0.622 | 217 | 173 |
+| 1366 × 768 | 1366 × 820 | 1181 × 443 | 86 / 58 | 0.540 | 362 | 406 |
+| 1920 × 1080 | 1920 × 1152 | 1920 × 720 | 100 / 67 | 0.625 | 597 | 483 |
+
+Row visibility (camera viewport included, not just canvas pixels): at
+1366 × 768 the twelve rows sit between y 126 and y 532, clear of the 82 px top
+bar and the 216 px open dock; at 1920 × 1080 between 162 and 822; at 844 × 390
+between 83 and 284 with the dock collapsed; at 667 × 375 between 73 and 302.
+The 5 : 3 stage still bleeds 25 % vertically — that cap is deliberate
+(`src/style.css:147-149`) and is what keeps the board full-bleed without
+cropping a playable row.
+
+The 5 : 3 stage versus the 2.67 : 1 board was re-evaluated and **left as is**:
+the camera rig frames by world size (`fitZoom = clamp(min(w/bw, h/bh), 0.45, 1)`),
+so the authored aspect changes how much scenery is on screen, not the tile size
+needed for readable combat.
+
+### 29.3 Asset pipeline
+
+`node scripts/write_asset_manifest.mjs` → 12 packs, 20 creatures, 88 tower
+variants, 14 projectiles, 14 impacts, 37 effect strips. Every creature sheet is
+9 rows tall (idle / walk / death × 3 facings), `height = 9 × frameHeight` and
+`width = frames × frameWidth`; `tests/asset-manifest.test.js` enforces both and
+refuses any licence other than CC0-1.0 or project-owned.
+
+The honest gap the manifest records: **20/20 creatures have idle, walk and
+death, and none has an attack row or a hit row.** Fallbacks in play are the
+70 ms white tint flash on damage (`src/entities/Enemy.js:510-516`), weapon
+recoil plus muzzle flash on towers, and the per-line impact effects. No new
+pack was downloaded — `opengameart.org`, `kenney.nl`, `itch.io` and
+`raw.githubusercontent.com` are unreachable from this sandbox — so the manual
+list stays in `docs/asset-integration.md` §8.4 and nothing was invented.
+
+### 29.4 Combat readability (browser-verified)
+
+- Walk: `enemy-grunt-d0-move`, 7 distinct frames observed.
+- Death: `enemy-grunt-d0-death` plays, then the sprite is destroyed and removed
+  from `activeEnemies`.
+- Fire: the archer cycles `tower-top-archer-rest` ↔ `tower-top-archer-fire`,
+  spawns exactly one projectile and drops a creep from 92 HP to 0. `Tower.fire()`
+  is reachable only from `Tower.update()` (`src/entities/Tower.js:781`) behind
+  `cooldownTimer <= 0 && canFire(...)` and a live `currentTarget`, so the muzzle
+  flash and the `-fire` clip cannot play without executing the configured shot.
+- Impact: `fx-line-archer-impact`, `fx-line-archer-muzzle`, `fx-spark`,
+  `fx-smoke-light`, `fx-ring`, `fx-rune`; never more than six effect objects at
+  once in the single-tower probes.
+- Boss: `spawnEnemy('warlord', 8)` → two depth-58 bars, `activeBoss`
+  "Abyssal Warlord", bars cleared after ≈ 1.8 s.
+
+### 29.5 Inspector and upgrades (browser-verified)
+
+All twelve dock entries were built, selected and read back; L1 damage, range,
+cooldown and DPS equal `src/data/towerData.js`, and the target line matches the
+firing rules:
+
+| Dock key | Inspector title | Cost | DMG | Range | Rate | DPS | Type | Targets |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| archer | Scout Ballista | 60 | 16 | 155 px | 0.62 s | 26 | physical | ground + air |
+| cannon | Mortar Battery | 110 | 55 | 150 px | 1.65 s | 33 | explosive | ground |
+| frost | Chilling Crystal | 85 | 10 | 140 px | 0.95 s | 11 | magic | ground + air |
+| forge | Anvil Forge | 120 | 60 | 140 px | 1.60 s | 38 | explosive | ground |
+| runes | Rune Shard | 135 | 30 | 170 px | 1.10 s | 27 | magic | ground + air |
+| banner | Banner Post | 125 | 16 | 155 px | 1.25 s | 13 | physical | ground + air |
+| crossbow | Field Crossbow | 70 | 34 | 175 px | 0.95 s | 36 | piercing | ground + air |
+| gatling | Hand Crank | 125 | 8 | 118 px | 0.15 s | 53 | physical | ground + air |
+| flamer | Pitch Brazier | 95 | 18 | 105 px | 0.90 s | 20 + 12 burn | explosive | ground + air |
+| venom | Toxic Gourd | 105 | 16 | 165 px | 1.10 s | 15 + 14 poison | magic | ground |
+| harpoon | Dock Winch | 115 | 75 | 200 px | 2.20 s | 34 | physical | ground |
+| barricade | (wall panel) | 30 | — | — | — | 420 / 420 HP | — | ground only |
+
+Upgrade chain on the archer: L1 → L2 costs 50 (gold 740 → 690) and the panel
+re-renders as "Twin Ballista"; L2 offers two specialisation cards (PATH I Rapid
+Ranger / PATH II Sniper Tower); PATH I → L3 costs 90 (690 → 600) and reads
+"DAMAGE 30 · RANGE 178 px · 0.22 s · DPS 136". Every card preview matched the
+tier it sold: L1 promised `DPS 26 → 48`, `RATE 1.6 → 1.9`, `RANGE 155 → 168` and
+L2 delivered exactly that; L3 promised `136 → 238` for Tempest Ranger. Two
+clicks in the same frame produced level 1 → 3 and 140 gold spent (50 + 90), so
+there is no double deduction. The barricade is placed on a road tile only
+(`6, 11` in that run) and upgrades to "Reinforced Palisade", 420 → 900 HP and
+0 → 20 thorns.
+
+Rejected placements (no tower added, no gold spent): the keep tile, the bottom
+rim row, and a river/road lane.
+
+### 29.6 Campaign, victory and defeat (browser-verified)
+
+- **Victory, natural run**, 1366 × 768 at 2×: 8/8 waves, 20/20 HP, 186 kills,
+  0 leaks, 415.1 s, score 10,374, 3/3 stars, two unlocks
+  (`/tmp/browser/campaign-win3.log`).
+- **Defeat, natural run** with no towers: 20 → 0 HP at ≈ 33 s, DEFEAT card,
+  no `#result-next` (`/tmp/browser/defeat2.log`).
+- **Leave battle**: pause → `#btn-menu` shows `#quit-warning` once, the second
+  click returns to the world map with the HUD hidden.
+- **Result wiring** (forced-victory fixture — used *only* for the buttons; the
+  natural victory above is separate evidence): `#result-replay` restarts level 1
+  with 0 towers, 20 HP and 0 waves and no second scene left running;
+  `#result-next` loads level 2 with 25 HP; `#result-menu` returns to the menu.
+
+### 29.7 Suite, build, performance
+
+- `npx vitest run` → **118 files / 1,453 tests passing**.
+- `npm run build` → `index-CIKq2dGO.css` 204.13 kB (40.17 gzip),
+  `index-BXYeg3lW.js` 622.92 kB (179.45 gzip), phaser 1,208.06 kB.
+- Perf sample — headless Chromium on ANGLE/SwiftShader, i.e. a **CPU
+  rasteriser and therefore a floor, not a GPU claim**: 8 towers and 40 creeps at
+  1× averaged 53.2 fps (min 42.7); 59 creeps at 2× averaged 56.6 fps (min 54.5);
+  at most 785 display objects, 31 effect objects, 35.6 MB JS heap and 904–926
+  texture keys.
+- The production preview on `:4320` now serves that build
+  (`index-BXYeg3lW.js`); the desktop flow was re-run against it — build by real
+  click, wave 1 cleared 10 defeated / 0 escaped / 20 HP, wave 2 auto-started,
+  `errs [] failed []`.
+
+### 29.8 Partial and untested
+
+1. No attack or hit rows exist in the shipped creature sheets — the tint flash
+   and recoil are the honest fallback; new packs are manual downloads.
+2. The bastion is a static CC0 fortress SVG: no idle / damage / destruction
+   frames, only flash + pulse + shake.
+3. A heavy run created 22 new texture keys (904 → 926) that were not traced; a
+   fresh run showed no "Texture key already in use" warning.
+4. Build pads are visible only while a defence is armed (by design) — a player
+   may read the ground as featureless before choosing.
+5. Levels 2–5 were not played to a terminal state in this pass; **§30 closes
+   that gap** — all five levels reached a verified victory, and level 2 also
+   ended in a real defeat.
+6. Performance was measured in software rendering only; 4K, real touch hardware,
+   two-device PvP and the manual asset downloads remain untested (§28.6).
+
+## 30. Request 39 — full campaign regression and progression validation
+
+Nothing was committed, pushed, merged or deployed. No art was downloaded or
+generated. The only code change in this pass is a test file; the campaign data,
+waves, towers, heroes, spells and progression rules were not modified.
+
+### 30.1 What was inspected first
+
+Existing coverage that already answered part of the brief, so it was **not**
+repeated: `campaign-levels` (every node wires to a pathable board, each level
+closes with its boss wave), `wave-flow` (one authored wave list spawns in order
+and completes), `progression` (a single clear, a replay, a defeat, persistence),
+`campaign-ui` (Next button only when a next level exists, defeat shows Retry),
+`world-map` / `difficulty` (a locked banner renders `is-locked` and its DEPLOY is
+disabled), `target-categories` (the ground/air rule at unit level) and
+`systems` (a match cannot be both game-over and victory).
+
+What was genuinely missing, and is what this pass adds:
+
+1. **Every shipped level walked end to end through the real wave queue** — not
+   one authored list, all five.
+2. **The five-level unlock chain** as one sequence, with rewards, stars and the
+   campaign-complete flag.
+3. **Natural browser playthroughs of levels 2–5** to a terminal state.
+4. **Restart hygiene** — a re-initialised scene must not inherit the previous
+   battle's frame, draft offer or mode flags.
+
+### 30.2 Level-by-level results (browser, real game logic)
+
+Method: production-equivalent dev build on `:4300`, `?probe=1`, real pointer
+clicks for builds and for every result button. Level 5 was then played again on
+the **built bundle** served by `vite preview` on `:4320`, to prove the shipped
+build reaches the same terminal state. The **battles are natural** —
+real waves, real pathing, real targeting, real economy. Two things were
+controlled and are labelled as such: playback ran at the game's own **2× speed
+toggle**, and the build/upgrade decisions were made by a probe routine (it
+builds on the highest-coverage pads, then upgrades) rather than by a human.
+
+| Level | Start (HP / coins / waves) | Result | HP left | Kills | Leaks | Stars | Wall time | Upgrades | Reward |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 Verdant Marches | 20 / 300 / 8 | **VICTORY** 8/8 | 20/20 | 180 | 0 | 3★ | 196 s | — | +150 gold, +5 gems, opened level 2 + Endless |
+| 2 Sunscorch Mesa (run A) | 25 / 240 / 7 | **DEFEAT** at wave 4 | 0/25 | 67 | 0 | — | 80 s | 8 towers | profile unchanged |
+| 2 Sunscorch Mesa (run B) | 25 / 240 / 7 | **VICTORY** 7/7 | 25/25 | 137 | 0 | 3★ | 132 s | 29 | +200 gold, +7 gems |
+| 3 Frostbite Hollow | 25 / 260 / 8 | **VICTORY** 8/8 | 25/25 | 168 | 0 | 3★ | 197 s | 38 | +260 gold, +9 gems |
+| 4 Prism Depths | 25 / 280 / 9 | **VICTORY** 9/9 | 14/25 | 258 | 0 | 2★ | 238 s | 64 | +320 gold, +10 gems |
+| 5 Ashen Caldera | 25 / 320 / 10 | **VICTORY** 10/10 | 24/25 | 271 | 0 | 3★ | 228 s | 78 | +380 gold, +15 gems, campaign complete |
+| 5 Ashen Caldera (production bundle, `:4320`) | 25 / 320 / 10 | **VICTORY** 10/10 | 25/25 | 271 | 0 | 3★ | 227 s | 70 | +380 gold, +15 gems, campaign complete |
+
+Observations that matter:
+
+- **Run A of level 2 is a real defeat** (25 → 0 HP at wave 4) with the same
+  shallow policy that cleared level 1. Run B, which upgrades instead of spreading
+  eight level-1 towers, clears it with a perfect core. The difficulty step
+  between level 1 and level 2 is real, and upgradeable rather than unwinnable.
+- **Level 4 finishes on 14 / 25 HP** and the result screen pays exactly 2 stars
+  (14 / 25 = 56 %, above the 50 % two-star gate and below the 85 % three-star
+  gate) — the star thresholds are live, not decorative.
+- **Every wave sequence was strictly increasing** (0..8, 0..7, 0..8, 0..9,
+  0..10) with no repeated wave number, i.e. no duplicate wave starts.
+- **HP loss with `leaks: 0` is expected**: creeps that arrive at the bastion do
+  not despawn, they *assault* it. `handleEnemyHitBase` counts `baseHits`;
+  `handleEnemyReachedBase` is the path that increments `enemiesEscaped`. A
+  defeat with zero escapes therefore means the wall was chipped down, not that
+  the counter is broken.
+- Level 1 (natural, no seed) is the evidence that clearing a stage really opens
+  the next road: the profile came out as `unlocked: [level-1, level-2, endless]`
+  with `stars: {level-1: 3}` and 150 gold in the bank.
+
+Per-run verdicts (actions: open the world map → pick the banner → DEPLOY →
+build/upgrade until the result screen → press the result button):
+
+| Run | Expected | Actual | Verdict | Console / network |
+| --- | --- | --- | --- | --- |
+| Level 1, map → deploy → play | victory only after wave 8 | VICTORY 8/8, 20/20 HP, result card | **PASS** | none / none |
+| Level 2 (run A), same policy as level 1 | hold or lose honestly | DEFEAT at wave 4, 0 HP, RETRY offered, no NEXT | **PASS** (defeat path) | none / none |
+| Level 2 (run B), upgrade-first policy | victory with all 7 waves | VICTORY 7/7, 25/25 HP, 3★ | **PASS** | none / none |
+| Level 2 → REPLAY | same stage, clean battle, no reward | wave 0, 0 towers, 25 HP, 240 coins, profile unchanged | **PASS** | none / none |
+| Replay → pause → LEAVE (twice) | confirm, then the map, HUD hidden | `#quit-warning`, then `['MenuScene']`, HUD hidden | **PASS** | none / none |
+| Level 3 → NEXT LEVEL | level 4 loads clean | `level-4`, crystal, 25 HP, 280 coins, 0 towers | **PASS** | none / none |
+| Level 4 victory | 9/9 waves, stars follow HP | VICTORY 9/9, 14/25 HP, 2★ | **PASS** | none / none |
+| Level 5 victory | 10/10, complete, no NEXT | VICTORY 10/10, "CAMPAIGN COMPLETE", no `#result-next` | **PASS** | none / none |
+| Level 5 → MAIN MENU | menu, one scene | `campaignComplete: true`, `['MenuScene']`, HUD hidden | **PASS** | none / none |
+| Level 5 on the shipped bundle (`:4320`) | same terminal state as dev | VICTORY 10/10, 25/25 HP, 271 kills, `TIME 455.7s`, campaign complete, MAIN MENU → `['MenuScene']` | **PASS** | none / none |
+| Cannon vs wraith (production build) | never targets air | 21 in-range samples, no target, 120 → 120 HP | **PASS** | none / none |
+| Archer vs wraith (production build) | targets air | targeted, 120 → 8 HP | **PASS** | none / none |
+| Locked banner (fresh profile) | briefing opens, DEPLOY disabled | `disabled: true`, others `is-locked` | **PASS** | none / none |
+
+Every one of those runs ended with `errs [] failed []` from the probe's console
+and request listeners (the one exception is the console-driven `destroy()` case
+noted in §30.9.5).
+
+### 30.3 Progression rules, derived from the implementation
+
+Documented here because the brief asks that none be invented:
+
+| Rule | Where it lives | Behaviour |
+| --- | --- | --- |
+| Starting unlock | `createProfile()` | `unlocked: ['level-1']`, everything else locked, even Endless. |
+| First clear | `computeRewards()` | full `level.reward` (gold + gems) **plus 1 gem** when the clear is 3★. |
+| Replay | `computeRewards()` | `round(reward.gold × 0.2)` gold, **0 gems**, no second unlock. |
+| Stars | `starRating()` | ✔ HP ratio ≥ `level.stars.three` → 3; ≥ `two` → 2; else 1. All five stages use 0.85 / 0.5. |
+| Unlock | `recordVictory()` | `getNextLevel(id)` is appended to `unlocked`; level 1 also opens `endless`. |
+| Campaign end | `recordVictory()` | clearing the last level sets `campaignComplete`; the result screen drops NEXT and prints "CAMPAIGN COMPLETE — ENDLESS SIEGE AWAITS". |
+| Achievements | `syncAchievements()` | their gems are paid **on top of** the bounty; that is why level 1 banked 44 gems while the card printed +5. |
+| Sell refund | `SELL_REFUND_RATIO = 0.6` | a 60-gold archer refunds 36 — measured in the browser, and the HUD prints the same number it pays. |
+| Locked stage | `stageState()` + `WorldMapUI` | banner carries `is-locked`/`data-state="locked"`; the briefing still opens, but DEPLOY is `disabled`. |
+
+### 30.4 Transitions, replay and teardown (browser, real clicks)
+
+| Check | Expected | Actual |
+| --- | --- | --- |
+| Level 1 victory → NEXT LEVEL | loads level 2, clean battle | `level-2`, desert, 25 HP, 240 coins, 0 towers, 0 kills, 0 leaks, speed back to 1×, result gone, one active scene |
+| Level 2 victory → REPLAY | same stage, clean state, no extra reward | `level-2`, 25 HP, 240 coins, wave 0, 0 towers, result gone; profile gold/gems/stars unchanged |
+| Replayed battle → pause → LEAVE | confirm once, then the world map | `#quit-warning` shown, then `scenes: ['MenuScene']`, HUD hidden |
+| Level 3 victory → NEXT LEVEL | loads level 4 | `level-4`, crystal, 25 HP, 280 coins, 9 waves, 0 towers |
+| Level 5 victory → MAIN MENU | menu, campaign complete | `campaignComplete: true`, menu overlay open, `scenes: ['MenuScene']`, HUD hidden |
+| Duplicate scenes / timers | exactly one active scene at every hop | every sample returned a single `GameScene` (or a single `MenuScene`); no second battle scene, no result left behind |
+
+Level 5's result card reads `VICTORY Ashen Caldera 3 of 3 stars SCORE 13744
+WAVES 10 / 10 … +380 +15 All the Stars CAMPAIGN COMPLETE — ENDLESS SIEGE AWAITS
+REPLAY WORLD MAP LEADERBOARD MAIN MENU` — no `#result-next`, which is the last
+stage's contract.
+
+### 30.5 Ground/air compatibility in the browser
+
+Run against the **production build** (`:4320`, `index-BXYeg3lW.js`), level 1.
+One tower on pad `6,10`, which sits 46 px from the flight path a wave-1 wraith
+actually takes; a wraith is then spawned into that same lane and tracked every
+200 ms. Samples that are near the bastion are excluded, because a creep inside
+the gate is `reachedBase` and no tower may target it any more.
+
+| Tower on pad `6,10` | Range | Samples in range, not at base | Ever targeted the wraith | Wraith HP |
+| --- | --- | --- | --- | --- |
+| `cannon` (ground only) | 150 px | **21** (min distance 45 px) | **no** | 120 → **120** |
+| `archer` (ground + air) | 155 px | **21** (min distance 46 px) | **yes** | 120 → **8** |
+
+Same pad, same lane, same sampling: the ground-only battery never looks up even
+when the flyer is 45 px away, while the archer locks it and takes 112 HP off in
+one pass. This is the runtime half of the `target-categories` suite.
+
+The control that proves the cannon was not simply idle: on the same pad, with a
+ground `grunt` and a `wraith` of the same wave ordinal spawned together, the
+cannon targets and hits the grunt (**92 → 7 HP**) while the wraith passes at
+45 px and stays at **120 HP**. It is armed, it is shooting, and air is simply
+not a category it declares.
+
+Economy spot-check from the same run: selling that cannon returned **66 gold on
+a 110 gold build** — exactly the 60 % `SELL_REFUND_RATIO`, paid into the same
+balance the dock reads.
+
+### 30.6 Locked-stage gate in the browser
+
+Fresh profile — `unlocked: ['level-1']`:
+
+```
+banner-verdant   state=next     objective=true   locked=false
+banner-sunscorch state=locked   locked=true
+banner-frostbite state=locked   locked=true
+banner-prism     state=locked   locked=true
+banner-caldera   state=locked   locked=true
+banner-endless   state=locked   locked=true
+```
+
+Opening the locked Frostbite briefing leaves `#wm-deploy.disabled === true`;
+opening Verdant enables it.
+
+### 30.7 Automated tests added
+
+`tests/campaign-regression.test.js` — 6 tests, all passing:
+
+1. **All five levels walk their whole wave list** through the real `WaveManager`
+   (queue drains, one completion event per wave, strictly increasing wave
+   numbers, the final wave flagged `isFinal`, `wavesCompleted` equals the list
+   length, and a second `startNextWave()` in the same frame is refused).
+2. **Each stage boss spawns exactly once, in the closing wave** (and is a real
+   `isBoss` enemy). Level 1 closes with the warlord *followed by escorts*, so the
+   assertion is "once, in the last wave", not "last in the queue".
+3. **No unknown creature** is spawned by any level.
+4. **The five-clear chain**: one road opens at a time, first clear pays the
+   printed bounty (+1 gem at 3★), achievements pay on top, `getNextLevel` is
+   unlocked, the last clear sets `campaignComplete`, and a replay pays the 20 %
+   stipend with **no gems and no new unlock**.
+5. **A locked stage stays locked** after an unrelated clear.
+6. **A restart starts a fresh battle**: re-running `init()` on the same scene
+   resets `battleFrame`, `battleFrameLocked`, `lastOffer` and the mode flags, and
+   resolves the new level id — no carry-over from the previous stage.
+
+### 30.8 Suite and build
+
+- `npx vitest run` → **119 files / 1,459 tests passing** (118 / 1,453 before this
+  pass; +1 file, +6 tests), 66.10 s on the final tree.
+- `npm run build` → `index-CIKq2dGO.css` 204.13 kB (40.17 gzip),
+  `index-BXYeg3lW.js` 622.92 kB (179.45 gzip), phaser 1,208.06 kB. Hashes are
+  unchanged from §29, which is the check that this pass touched no shipped code.
+  That bundle is what the `:4320` production run in §30.2 was played on.
+
+### 30.9 Known issues, ambiguity and limitations
+
+1. **Result-screen TIME is simulation time, not wall time.** `stepSimulation`
+   advances the match clock by `Math.min(rawDelta, MAX_FRAME_DELTA) * simSpeed`
+   (`MAX_FRAME_DELTA` = 50 ms, `src/scenes/GameScene.js:4011`), i.e. it caps how
+   much simulated time one frame may add. On a fast machine that is exactly wall
+   time × speed — the production level-5 run reported **TIME 455.7 s for 227 s of
+   wall clock at 2×**, a clean 2.0 ratio — but when the headless SwiftShader
+   renderer falls to a few frames per second, frames longer than 50 ms are
+   truncated and the clock (and the wave timers with it) advances more slowly
+   than the wall clock. Level 2's `TIME 33.7s` in a 132 s run is that clamp, not
+   a stopwatch. It is a deliberate anti-jump guard, so it was not "fixed"; the
+   reading is simply not a measurement of human play speed and every table in
+   §30 uses wall time, not the card's TIME.
+2. **Levels 2–5 ran on a seeded profile** (level 1 cleared, roads open). The
+   *battles* were natural; only the "player has already cleared level 1" state
+   was prepared. The unlock chain itself is covered naturally for level 1 (see
+   §30.2) and for all five by test 4 in §30.7.
+3. **Accelerated playback**: 2× speed toggle was used on every run. One frame in
+   two is skipped by design, so this is the game's own fast-forward, not a
+   different ruleset.
+4. **No human-level play skill**: the probe's build order is deterministic
+   (coverage-ranked pads, then upgrades). A different build could lose where this
+   one won — run A of level 2 shows exactly that.
+5. **Destroying a live enemy from the console logs a caught simulation error.**
+   The category probe first removed flyers with `enemy.destroy()`; the scene then
+   printed `[GameScene] simulation error (game loop kept alive): …` twice. The
+   loop recovered and normal play never showed it (`errs []` on every campaign
+   run), and nothing in the UI can reach that path, so it is recorded here rather
+   than patched inside an unrelated system.
+6. **Not tested in this pass**: two-device PvP, the non-campaign modes, real touch
+   hardware, 4K, and the remaining manual asset downloads (§28.6). Also untested:
+   an Endless run past the first milestone. Every campaign clear above ran on the
+   dev server (`:4300`); the **production bundle** (`:4320`) was exercised with a
+   full natural level-5 clear (§30.2, "production run"), which is where the
+   shipped asset set and build-time transforms would differ.
+
+### 30.10 Status summary
+
+| Area | Status |
+| --- | --- |
+| Levels 1–5 to a terminal victory | **Verified — natural gameplay** (2× speed, probe-controlled builds); level 5 also on the production bundle |
+| Result-screen TIME | **Explained** (simulation clock, clamped delta — §30.9.1), not a stopwatch |
+| Defeat path | **Verified — natural** (level 2, run A: 25 → 0 HP, DEFEAT card, no NEXT) |
+| Wave progression without duplicates | **Verified** (strictly increasing wave sequence on all runs + automated) |
+| Rewards, stars, unlocks | **Verified** (level 1 natural; 2–5 on a seeded profile; all five by automated test) |
+| Replay / Next / Map / Menu | **Verified** (real clicks, clean state, single scene) |
+| Locked stages | **Verified** (browser gate + `world-map`/`difficulty` suites) |
+| Ground-only vs air | **Verified** (browser: cannon never touches a wraith; archer does) |
+| Sell refund | **Verified** (60 % of invested, HUD number equals the payout) |
+| Duplicate reward claims | **Covered by automated tests only** (replay stipend, no gems, no re-unlock) |
+| Stale state across stages | **Covered by automated tests only** (`init()` reset) |
+| PvP, modes, touch hardware, 4K | **Not tested** (out of scope) |
