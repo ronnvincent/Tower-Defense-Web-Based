@@ -6,6 +6,17 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    // A battle owns the screen. `startLevel` stops the menu before launching a
+    // field, but the menu can also be queued by the title flow at the same
+    // moment as a DEPLOY press — and a queued scene boots *after* the one that
+    // replaced it, which used to drop the title card and its overlay on top of a
+    // running battle. If a field is already live, stand down instead of drawing.
+    const battleLive = Boolean(window.game?.scene?.getScene?.('GameScene')?.scene?.isActive?.());
+    if (battleLive) {
+      this.scene.stop();
+      return;
+    }
+
     const { width, height } = this.scale;
 
     // Dark fantasy atmospheric background with grid coordinates

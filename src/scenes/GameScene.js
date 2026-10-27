@@ -23,7 +23,8 @@ import {
 import { drawCards } from '../data/draftCards.js';
 import { rollAnomaly } from '../data/anomalies.js';
 import { getBuildDefinition } from '../data/towerData.js';
-import { PathfindingSystem, gateIndexForSpawn, laneIndexForWave } from '../systems/PathfindingSystem.js';
+import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
+import { gateIndexForSpawn, waveGatePlan } from '../systems/SpawnGates.js';
 import { buildAirRoutes } from '../systems/AirRoutes.js';
 import { paintLaneHint, laneLabel, LANE_ARROW_DEPTH } from '../systems/LaneArrows.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
@@ -321,10 +322,12 @@ export class GameScene extends Phaser.Scene {
     // pads any more (see `systems/BuildZone.js`) — the rectangle is the rule,
     // and it is the same rectangle the overlay draws.
     this.buildBounds = buildBounds(this.map);
-    // Round-robin across the ground portals: each enemy of a wave takes the next
-    // gate, so a wave arrives from all three directions instead of one. Reset on
-    // every `init` so a replay starts the rotation from the first portal again.
-    this.spawnRotation = 0;
+    // Which gates a wave uses. A wave walks one road while the stage is still
+    // teaching and only splits over two or three gates deep into the run — see
+    // `systems/SpawnGates.js`. Derived from the wave ordinal alone (memoised per
+    // wave), so there is no counter to keep in sync and a replay or a duel seat
+    // derives exactly the same gate.
+    this.gatePlanCache = new Map();
     this.duelReported = false;
     // The Vanguard stands one road cell short of the core, so it starts inside
     // the fight instead of behind it. Created here — after the lane graph, before
@@ -1402,7 +1405,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Which lane a wave walks.
+   * Which lane a wave opens on.
    *
    * The horde files down **one** road per wave and the next wave takes the next
    * one: wave 1 lane 1, wave 2 lane 2, wave 3 lane 3, wave 4 lane 1 again. A
@@ -1415,7 +1418,41 @@ export class GameScene extends Phaser.Scene {
     return laneIndexForWave(waveNumber, this.pathfinding?.laneCount || 0);
   }
 
-  spawnEnemy(typeKey, waveNumber) {
+  /**
+   * The portal plan for one wave: how many gates it may use and which ones.
+   *
+   * Cached per wave ordinal because it is read on every spawn, and memoised by
+   * ordinal alone — the same wave in the same stage always resolves the same
+   * way, which is what keeps a duel and a replay deterministic.
+   */
+  gatePlanFor(waveNumber, gateCount) {
+    const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
+    const lanes = Math.max(1, Math.floor(Number(gateCount) || 1));
+    const cache = this.gatePlanCache || (this.gatePlanCache = new Map());
+    const key = `${wave}:${lanes}`;
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const plan = waveGatePlan({
+      waveNumber: wave,
+      totalWaves: this.waveManager?.totalWaves ?? this.level?.waves?.length ?? 0,
+      endless: Boolean(this.waveManager?.endless),
+      laneCount: lanes,
+    });
+    // Keep the newest entry only: waves move forward, so a two-entry cache is
+    // enough and the map can never grow with the run.
+    if (cache.size > 3) cache.clear();
+    cache.set(key, plan);
+    return plan;
+  }
+
+  /** Gate plan for the ground lanes — what the entrance hint paints. */
+  currentGatePlan() {
+    const manager = this.waveManager;
+    const pending = manager && manager.state === WAVE_STATE.IDLE ? manager.waveNumber + 1 : manager?.waveNumber || 1;
+    return this.gatePlanFor(Math.max(1, pending), this.pathfinding?.laneCount || 0);
+  }
+
+  spawnEnemy(typeKey, waveNumber, gateOverride = null) {
     // Every spawn of a wave — including a boss and the minions it summons —
     // joins the same lane, and the choice is the wave ordinal, never random, so
     // both duel seats send the same horde down the same road.
@@ -1424,16 +1461,27 @@ export class GameScene extends Phaser.Scene {
     // is *not* using and a dock of ground-only guns cannot cover both by
     // accident.
     const flies = Boolean(ENEMY_TYPES[typeKey]?.flying);
-    // A wave is **not** one road any more. Each enemy takes the next gate in a
-    // fixed rotation, so a single wave arrives from all three directions at
-    // once — which is the whole point of a board with three portals. The
-    // rotation is deterministic (a running counter plus the wave ordinal), so
-    // both duel seats and a replay produce byte-identical spawns.
+    // One wave, one road — until the stage is deep enough to open the board up.
+    // `gateIndexForSpawn` deals the wave's enemies out across the gates the wave
+    // owns, and a wave that owns a single gate sends every one of them down the
+    // same road (wave 1 → road 0, wave 2 → road 1, …). The plan is a pure
+    // function of the wave ordinal, so both duel seats and a replay produce
+    // byte-identical spawns.
     const gateCount = flies
       ? Math.max(1, this.airRoutes?.laneCount || 0)
       : Math.max(1, this.pathfinding?.laneCount || 0);
-    const slot = gateIndexForSpawn(this.spawnRotation || 0, waveNumber, gateCount);
-    this.spawnRotation = (this.spawnRotation || 0) + 1;
+    const plan = this.gatePlanFor(waveNumber, gateCount);
+    // The index of this enemy *within its wave*. Boss summons spawn outside the
+    // wave queue, so they reuse the current index — which keeps a summon on the
+    // gate its boss walked out of instead of teleporting it to another road.
+    const tick = Math.max(0, (this.waveManager?.spawnedThisWave || 1) - 1);
+    // `null` must stay "no override": `Number(null)` is 0, which would quietly
+    // pin every wave in the game to the first gate.
+    const overrideRaw = gateOverride === null || gateOverride === undefined ? null : Number(gateOverride);
+    const override = Number.isFinite(overrideRaw) ? Math.floor(overrideRaw) : null;
+    const slot = override === null || override < 0 || override >= gateCount
+      ? gateIndexForSpawn(tick, waveNumber, gateCount, plan.gates)
+      : override;
     const lane = flies
       ? (this.airRoutes?.laneAt(slot)?.length ? this.airRoutes.laneAt(slot) : this.pathfinding.laneAt(slot))
       : this.pathfinding.laneAt(slot);
@@ -1498,14 +1546,17 @@ export class GameScene extends Phaser.Scene {
         y: this.map.base.row * TILE_SIZE + TILE_SIZE / 2,
       }),
       onHitBase: (e, damage) => this.handleEnemyHitBase(e, damage),
-      onSummonMinions: (typeKey, count) => {
+      onSummonMinions: (typeKey, count, summoner) => {
+        // The boss's own gate, so its brood files out behind it instead of
+        // stepping out of a portal on the other side of the board.
+        const summonGate = Number.isFinite(summoner?.gateSlot) ? summoner.gateSlot : null;
         for (let k = 0; k < count; k++) {
           // Timers fire from Phaser's UPDATE event, outside update()'s guard —
           // so contain this spawn too rather than risk killing the game loop.
           this.time.delayedCall(k * 320, () => {
             try {
               if (!this.gameState.isOver()) {
-                this.spawnEnemy(typeKey, this.waveManager.waveNumber);
+                this.spawnEnemy(typeKey, this.waveManager.waveNumber, summonGate);
               }
             } catch (error) {
               this.reportRuntimeError(error);
@@ -1514,6 +1565,9 @@ export class GameScene extends Phaser.Scene {
         }
       },
     }, { ...this.spawnScaling(waveNumber, typeKey), theme: this.theme?.id || this.level.theme });
+    // Remember the mouth it came from: a boss that summons minions sends them
+    // out of its own gate, not one three roads away.
+    enemy.gateSlot = slot;
     this.activeEnemies.push(enemy);
     this.gameState.counters.enemiesSpawned++;
 
@@ -1528,6 +1582,9 @@ export class GameScene extends Phaser.Scene {
         this.reportRuntimeError(error);
       }
     }
+    // The caller (and the probe harness) gets the body it just created, so a
+    // summon or a test can read the gate it walked out of.
+    return enemy;
   }
 
   /**
@@ -1868,7 +1925,7 @@ export class GameScene extends Phaser.Scene {
       // would bury the wave name under the lane hint.
       const rule = this.activeAnomaly ? ` · ${this.activeAnomaly.name}` : '';
       this.hud?.showToast(
-        `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.laneName()}${rule}`,
+        `Wave ${wave}: ${this.waveManager.currentWave.name} · ⚑ ${this.gateLabel()}${rule}`,
         'info'
       );
       if (this.hero?.isDown) {
@@ -3384,16 +3441,21 @@ export class GameScene extends Phaser.Scene {
     const graphics = this.laneHintGraphics;
     if (!graphics?.clear) return 0;
     graphics.clear();
-    // A base-defence board is attacked from every portal at once, so the hint
-    // marks **every** entrance: one beacon ring and a short run of chevrons per
-    // road, pointing the way each push will walk. Marking a single lane would
-    // now be a lie — the horde is dealt out across all three.
     const lanes = (this.pathfinding?.lanes || []).filter((lane) => lane?.length);
     if (!lanes.length) {
       return paintLaneHint(graphics, this.pathfinding?.mainPath || [], TILE_SIZE);
     }
+    // Mark the gates the coming wave will actually use — one beacon for the
+    // opening waves, two or three once the stage opens the board up. Painting
+    // every road regardless was a hint that stopped being true the moment a wave
+    // walked a single lane.
+    const plan = this.currentGatePlan();
+    const slots = plan.slots?.length ? plan.slots : [plan.primary || 0];
     let painted = 0;
-    for (const lane of lanes) painted += paintLaneHint(graphics, lane, TILE_SIZE);
+    for (const slot of slots) {
+      const lane = lanes[slot];
+      if (lane?.length) painted += paintLaneHint(graphics, lane, TILE_SIZE);
+    }
     return painted;
   }
 
@@ -3426,6 +3488,22 @@ export class GameScene extends Phaser.Scene {
   /** "UPPER LANE" / "CENTRE LANE" … for the wave toast and the pause card. */
   laneName(index = this.waveLaneIndex) {
     return `${laneLabel(this.pathfinding?.lanes, index)} LANE`;
+  }
+
+  /**
+   * Where the wave is coming from, in words.
+   *
+   * A single-gate wave reads "LEFT LANE"; a split wave lists the roads it uses,
+   * and a wave that opens every gate says so. The toast has to agree with the
+   * beacons on the board — that is the whole point of the hint.
+   */
+  gateLabel() {
+    const plan = this.currentGatePlan();
+    const laneCount = Math.max(1, this.pathfinding?.laneCount || 1);
+    if (!plan.slots?.length || plan.gates <= 1) return this.laneName(plan.primary || 0);
+    if (plan.gates >= laneCount) return 'ALL LANES';
+    const names = plan.slots.map((slot) => laneLabel(this.pathfinding?.lanes, slot));
+    return `${names.join(' + ')} LANES`;
   }
 
   toggleBFSVisualizer(enabled) {

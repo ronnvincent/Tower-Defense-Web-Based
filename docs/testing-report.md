@@ -2788,3 +2788,147 @@ Honest labels:
    use: enemy-grunt" and friends. The natural wave path logs nothing — the
    eight-wave victory run finished with an empty console — so this is the probe's
    shortcut, not player-facing. It was left alone rather than papered over.
+## 32. One wave, one road — the horde stops arriving from everywhere at once
+
+Nothing was committed, pushed or deployed as part of this section; the change
+rides on the branch with the Request 42 work.
+
+### 32.1 What was wrong
+
+The Request 40 board has three portals, and `spawnEnemy` dealt **every** enemy
+of **every** wave round-robin across all three of them. The arithmetic was
+correct and the intent ("a base is attacked from all sides") was reasonable, but
+in play it read as one undifferentiated blob: three columns of creeps stepped out
+of three holes inside the same second, from wave 1 on, and the entrance hint —
+which was already painting every lane — could not tell the player which push
+mattered. The first four waves of a campaign stage are where the player learns to
+read the board, and they were the noisiest waves in the game.
+
+Measured on the live scene before the change: a single opening wave produced
+enemies from **3** distinct gates, and the hint painted **3** beacons.
+
+### 32.2 The rule now
+
+`src/systems/SpawnGates.js` — pure functions, no Phaser, no scene state:
+
+```js
+waveProgress({ waveNumber, totalWaves, endless })   // 0 at the first wave, 1 at the last
+gatesInPlay({ waveNumber, totalWaves, endless, laneCount })   // 1 · 2 · 3
+gateIndexForSpawn(tick, waveNumber, gateCount, activeGates)   // the enemy's gate
+waveGatePlan({ … })                                  // { progress, gates, slots, primary }
+```
+
+Thresholds live in `config/gameConfig.js` (`SPAWN_GATES`), not in the module:
+
+| progress | gates | campaign, 8 waves | endless |
+| --- | --- | --- | --- |
+| < 0.5 | 1 | waves 1–4 | waves 1–6 |
+| 0.5 – 0.8 | 2 | waves 5–6 | waves 7–10 |
+| ≥ 0.8 | 3 | waves 7–8 | wave 11 onwards |
+
+- A wave **owns a block of gates** starting at its own ordinal and its enemies
+  cycle inside that block only, so a one-gate wave sends every grunt, runner and
+  escort down the same road — the beacon, the toast and the marching column now
+  agree.
+- Three gates is a hard cap even on a five-mouth board; beyond that a spawn is
+  noise rather than pressure.
+- Endless has no last wave, so it ramps over `endlessRampWaves` (12) and then
+  stays fully open. Wave 1 of endless is one road; wave 20 is all of them.
+- A boss's summons inherit **the boss's own gate** (`enemy.gateSlot` is handed to
+  `onSummonMinions`), so a warlord's brood never steps out of a portal on the far
+  side of the board.
+- The whole thing is a function of the wave ordinal, so a duel seat, a replay and
+  a server-side check derive the same gate with no data on the wire.
+
+### 32.3 What else had to follow
+
+- **The entrance hint** (`drawLaneHint`) now paints only the gates the coming
+  wave will use instead of all three. Between waves it paints the *next* wave's
+  gates; during a wave it paints the marching wave's.
+- **The wave toast** reads the same plan: `⚑ LEFT LANE` for a single-gate wave,
+  `⚑ LEFT + CENTRE LANES` for a two-gate split, `⚑ ALL LANES` when the whole
+  board opens. (`GameScene.gateLabel()`.)
+- `gateIndexForSpawn` moved out of `PathfindingSystem.js` into `SpawnGates.js` and
+  grew a fourth argument. `PathfindingSystem` keeps `laneIndexForWave`, which is
+  still the wave's starting road.
+- `docs/multi-lane-routing.md` §2 was rewritten — it still documented the
+  pre-Request-40 rule ("every spawn uses `laneIndexForWave`").
+
+### 32.4 A bug found while wiring it (and fixed)
+
+`spawnEnemy(typeKey, waveNumber, gateOverride)` used
+`Number.isFinite(Number(gateOverride))`, and `Number(null) === 0` is finite — so
+the first version silently pinned **every wave in the game** to gate 0. The
+browser probe caught it (wave 8 reported `slots: [0]` while its plan said
+`[1,2,0]`); the guard now keeps `null`/`undefined` as "no override".
+
+### 32.5 Verification
+
+Automated: `npx vitest run` → **119 files, 1 466 tests passed** (15 of them in
+the new `tests/spawn-gates.test.js`). The two existing tests that pinned the old
+round-robin were updated to assert the new contract *and* the old one where it
+still holds (a wave that owns every gate is the flat rotation).
+
+`npm run build` clean (`index-D1FeULbL.js` 629.74 kB, gzip 181.73 kB);
+`npm run check:contrast` 68/68.
+
+Browser, real scene, dev server `:4300` and the built bundle on `:4320`:
+
+| Check | Result |
+| --- | --- |
+| Wave 1 of the campaign (`gates.mjs`) | **one** gate. Real queued spawns: `slots: [0]`, 4 grunts, all at `x = 288` (the left mouth). Toast: `Wave 1: The Scouting Line · ⚑ LEFT LANE` |
+| Wave 8 of the campaign | **three** gates: `slots: [0,1,2]`. Toast: `Wave 8: Cataclysmic Siege · ⚑ ALL LANES` |
+| Wave 5 of the campaign (`twogate.mjs`) | **two** gates: plan `[1,2]`, hint grew from 108 to **216** commands (two beacons), toast `⚑ CENTRE + RIGHT LANES` (`shots/req43-two-gates.png`) |
+| Endless wave 1 / 7 / 20 | plan gates `1 / 2 / 3` |
+| Natural campaign run, unattended (`natwave2.mjs`, 2× speed, eight real keeps) | **waves 1–4: one gate each** (`[0]`, `[1]`, `[2]`, `[0]`), **waves 5–6: two** (`[1,2]`, `[2,0]`), **waves 7–8: three** (`[0,1,2]` — the live scene showed all three at once). Finished on a real **VICTORY 8/8, 20/20 HP, 393.1 s, 3★, score 9 948** (`shots/req43-natural.png`). No console error, no failed request |
+| Entrance hint, wave 1 | 108 graphics commands — **one** beacon + chevron run (`shots/req43-hint-wave1.png`) |
+| Entrance hint, wave 8 | 324 commands — **three** beacons (`shots/req43-hint-wave8.png`) |
+| Console / network | none on either server |
+
+The hint screenshots are the visual proof: `req43-hint-wave1.png` shows the arrow
+run on the left road only, `req43-hint-wave8.png` shows all three.
+
+### 32.6 A second bug, found by leaving a battle alone
+
+While the wave run above was in progress the title card appeared **over a live
+battlefield** — the game was still playing underneath, but the menu overlay was
+on top and the HUD was hidden. Nothing was pressed; it happened about 20 s in.
+
+Cause: `MenuScene` can be queued by the title flow at the same moment the player
+presses DEPLOY. Phaser boots a queued scene *after* the one that replaced it, so
+`MenuScene.create()` ran on a board that was already live, painted itself, and
+un-hid the menu overlay. `startLevel` had correctly stopped the menu a moment
+earlier — the late boot undid it.
+
+Fix: `MenuScene.create()` now stands down if `GameScene` is already active, so a
+stale queued boot cannot draw over a battle or reveal the menu:
+
+```js
+const battleLive = Boolean(window.game?.scene?.getScene?.('GameScene')?.scene?.isActive?.());
+if (battleLive) { this.scene.stop(); return; }
+```
+
+Browser evidence, `menuflow.mjs` on the built bundle (`:4320`) — every check
+passes:
+
+| Check | Result |
+| --- | --- |
+| A lost core (real leak into a 1 HP bastion) shows the DEFEAT card | PASS |
+| MAIN MENU from that card shows the menu | PASS |
+| …and the field is torn down once the menu has it | PASS (`active: ["MenuScene"]`) |
+| DEPLOY → a live battle with the menu down | PASS |
+| 30 s of unattended play, sampled every 3 s | **0** intrusions — the menu never opened itself |
+| Console / network | none on `:4320` |
+
+### 32.7 Known limitations
+
+1. **The gate count is a step function**, not a ramp: wave 4 → 5 in a campaign
+   jumps from one road to two. That is deliberate (a wave either splits or it does
+   not), but it means wave 5 is the noticeable difficulty step in every stage.
+2. **A two-gate wave alternates** between its two roads (1-2-1-2) rather than
+   sending equal columns; with an odd enemy count one road gets one more body.
+3. **Air waves use the same rule** measured against the air-lane count, which is
+   also three. A wave of wraiths therefore arrives on one flank early and on
+   up to three late.
+4. **Duel fairness** rests on the plan being pure — it was verified in unit tests
+   (same input, same answer) but the duel itself was not replayed in this pass.

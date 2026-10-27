@@ -1,11 +1,12 @@
 /**
  * Lane hint marker.
  *
- * The horde files down **one lane per wave** (see `GameScene.laneIndexForWave`)
- * and the next wave takes another road, so the only thing the player has to read
- * is *which gate mouth the push is coming out of*. Painting arrows down the whole
- * route answered a question nobody asked and turned the map into a road atlas:
- * this module marks the entrance instead.
+ * A wave leaves from the gate it owns (see `systems/SpawnGates.js`) and the next
+ * wave takes another, so the only thing the player has to read is *which gate
+ * mouth the push is coming out of*. Painting arrows down the whole route answered
+ * a question nobody asked and turned the map into a road atlas: this module marks
+ * the entrance instead — one beacon for an opening wave, two or three once the
+ * stage opens the board up.
  *
  * What it draws:
  *   - a beacon ring on the gate tile itself, and

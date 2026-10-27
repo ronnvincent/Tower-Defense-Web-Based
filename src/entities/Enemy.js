@@ -915,7 +915,8 @@ export class Enemy {
       if (this.abilityTimer >= (ability.intervalMs || 6000)) {
         this.abilityTimer = 0;
         if (ability.type === 'summon') {
-          this.callbacks.onSummonMinions?.(ability.enemyKey, ability.count);
+          // `this` goes along so the brood leaves through the boss's own gate.
+          this.callbacks.onSummonMinions?.(ability.enemyKey, ability.count, this);
         } else if (ability.type === 'speedAura') {
           this.callbacks.onSpeedAura?.(
             this,

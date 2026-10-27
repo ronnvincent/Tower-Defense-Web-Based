@@ -2,7 +2,8 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { parseMap, getMapLayout, TILE } from '../src/data/mapData.js';
 import { cellKey } from '../src/dsa/Graph.js';
-import { PathfindingSystem, gateIndexForSpawn, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
+import { PathfindingSystem, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
+import { gateIndexForSpawn, gatesInPlay } from '../src/systems/SpawnGates.js';
 import { PlacementSystem } from '../src/systems/PlacementSystem.js';
 import { getLevel } from '../src/data/levelData.js';
 import { buildBounds, zoneBlock } from '../src/systems/BuildZone.js';
@@ -152,6 +153,18 @@ describe('the bastion field: three portals above, one keep below, open ground be
     expect([0, 1, 2].map((tick) => gateIndexForSpawn(tick, 2, count))).toEqual([1, 2, 0]);
     // The wave still owns one road for the palisade rule.
     expect([1, 2, 3, 4].map((wave) => laneIndexForWave(wave, count))).toEqual([0, 1, 2, 0]);
+  });
+
+  it('opens one gate per wave until the stage is deep, then more', () => {
+    const count = map().spawns.length;
+    // A wave that owns a single gate sends every enemy down that one road.
+    for (const wave of [1, 2, 3]) {
+      expect(gatesInPlay({ waveNumber: wave, totalWaves: 8, laneCount: count })).toBe(1);
+      const slots = [0, 1, 2, 3, 4, 5].map((tick) => gateIndexForSpawn(tick, wave, count, 1));
+      expect(new Set(slots).size, `wave ${wave} leaked a second gate`).toBe(1);
+    }
+    // …and the late waves are allowed the whole board.
+    expect(gatesInPlay({ waveNumber: 8, totalWaves: 8, laneCount: count })).toBe(3);
   });
 });
 

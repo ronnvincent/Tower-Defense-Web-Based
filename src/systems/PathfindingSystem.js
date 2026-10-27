@@ -3,12 +3,16 @@ import { bfsShortestPath, edgeKey } from '../dsa/BFS.js';
 import { isWalkableTile } from '../data/mapData.js';
 
 /**
- * The lane a wave walks.
+ * The lane a wave opens on.
  *
  * One road takes the whole wave and the next wave takes the next one, cycling
  * through every lane: wave 1 → lane 0, wave 2 → lane 1, …, wave 4 → lane 0.
  * Ordinal, never random, so both duel seats send the same horde down the same
  * road without a single byte of lane data on the wire.
+ *
+ * Deep into a stage a wave may split over two or three gates — that part of the
+ * rule lives in `systems/SpawnGates.js`, which uses this ordinal as the wave's
+ * starting gate.
  *
  * @param {number} waveNumber 1-based wave
  * @param {number} laneCount  lanes the battlefield offers (0 = no lanes)
@@ -18,27 +22,6 @@ export function laneIndexForWave(waveNumber, laneCount) {
   if (!count) return 0;
   const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
   return (wave - 1) % count;
-}
-
-/**
- * Which gate the next enemy of a wave walks out of.
- *
- * A base-defence board is attacked from **every** portal, so the horde is dealt
- * out across them: the first enemy takes the first gate, the second the next,
- * and so on, offset by the wave ordinal so two waves in a row do not open on the
- * same gate. Deterministic, never random — a duel seat and a replay must produce
- * byte-identical spawns.
- *
- * @param {number} spawnCounter how many enemies have already spawned this battle
- * @param {number} waveNumber 1-based wave
- * @param {number} gateCount portals the field offers (0 = no gates)
- */
-export function gateIndexForSpawn(spawnCounter, waveNumber, gateCount) {
-  const count = Math.max(0, Math.floor(Number(gateCount) || 0));
-  if (!count) return 0;
-  const wave = Math.max(1, Math.floor(Number(waveNumber) || 1));
-  const tick = Math.max(0, Math.floor(Number(spawnCounter) || 0));
-  return (tick + wave - 1) % count;
 }
 
 /**

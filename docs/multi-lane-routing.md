@@ -59,20 +59,42 @@ per battle scene, not per frame.
 
 ---
 
-## 2. One lane per wave
+## 2. One lane per wave — until the stage opens up
 
 ```js
-laneIndexForWave(wave, laneCount) = (wave - 1) % laneCount;   // 1-based
+laneIndexForWave(wave, laneCount)   = (wave - 1) % laneCount;      // 1-based
+waveProgress(wave, totalWaves)      = (wave - 1) / (totalWaves - 1);
+gatesInPlay(progress)               = 1 · 2 · 3   (see config SPAWN_GATES)
 ```
 
 * Wave 1 → lane 0, wave 2 → lane 1, wave 3 → lane 2, wave 4 → lane 0 again.
-* **Every** spawn of a wave uses it — the grunts, the runners, the boss and the
-  minions a boss summons. There is no per-enemy cursor any more, so a boss can
-  never walk a different road from its escort.
+* **Every** spawn of a wave starts on the wave's own gate — the grunts, the
+  runners and the escort — so the beacon, the toast and the marching column all
+  agree on one gate.
 * Ordinal, never random. Both duel seats run the same wave script, so both boards
-  send wave *w* down the same lane with **no lane data on the wire at all**.
+  send wave *w* out of the same gate with **no lane data on the wire at all**.
 * The rotation means every lane has to be defended over a run: by wave 3 the
   player has been attacked on all three roads.
+
+### 2a. When more than one gate opens
+
+A board with three portals that dumps all three columns in the same second is
+unreadable, so the number of gates a wave uses is a function of **how deep into
+the stage it is** (`systems/SpawnGates.js`, thresholds in `config/gameConfig.js`):
+
+| progress | gates | campaign (8 waves) | endless |
+| --- | --- | --- | --- |
+| < 0.5 | 1 | waves 1–4 | waves 1–6 |
+| 0.5 – 0.8 | 2 | waves 5–6 | waves 7–10 |
+| ≥ 0.8 | 3 | waves 7–8 | wave 11+ |
+
+* When a wave owns *n* gates, its enemies cycle **inside that block only** —
+  `gateIndexForSpawn(tick, wave, laneCount, activeGates)`. A one-gate wave sends
+  every enemy down the same road; a three-gate wave is the flat rotation.
+* Endless has no last wave, so it ramps over `SPAWN_GATES.endlessRampWaves`
+  waves and then stays fully open.
+* A boss's summons inherit the boss's own gate (`enemy.gateSlot`), so its brood
+  never steps out of a portal on the other side of the board.
 * `laneIndexForWave` lives in `PathfindingSystem.js`, takes `(wave, laneCount)`
   and is pure, so `GameScene`, the tests and any future mode share one rule.
 

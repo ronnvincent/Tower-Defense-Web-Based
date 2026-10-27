@@ -73,6 +73,26 @@ export const WAVE_PREP = {
   minMs: 3000,
 };
 
+/**
+ * How many portals one wave is allowed to pour out of.
+ *
+ * A wave that leaves every gate at the same time is unreadable: three columns of
+ * creeps step out of three holes within the same second and the player cannot
+ * tell which push to answer first. So a wave walks **one** road for as long as
+ * the stage is still teaching, and the next wave takes the next road. Only once
+ * the run is deep does the board open up: two roads, then all of them, and the
+ * horde really does arrive from everywhere.
+ *
+ * `progress` is 0 at a stage's first wave and 1 at its last; an endless run
+ * ramps over `endlessRampWaves` waves instead of a fixed stage length.
+ */
+export const SPAWN_GATES = {
+  doubleAt: 0.5, // progress at which a wave may use two gates
+  tripleAt: 0.8, // …and every gate the board offers
+  endlessRampWaves: 12, // endless: wave 13 is the first "all gates" wave
+  maxGates: 3,
+};
+
 /** Colour palette shared by Phaser rendering (hex numbers). */
 export const COLORS = {
   background: 0x0a0f1e,

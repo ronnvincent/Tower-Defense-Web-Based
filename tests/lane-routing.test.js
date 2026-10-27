@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { MAPS, parseMap, isWalkableTile } from '../src/data/mapData.js';
 import { PVP_ARENAS } from '../src/data/pvpArenas.js';
-import { PathfindingSystem, gateIndexForSpawn, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
+import { PathfindingSystem, laneIndexForWave } from '../src/systems/PathfindingSystem.js';
+import { gateIndexForSpawn, gatesInPlay } from '../src/systems/SpawnGates.js';
 import {
   LANE_ARROW_DEPTH,
   LANE_HINT_STEPS,
@@ -161,13 +162,18 @@ describe('one lane per wave', () => {
     expect(laneIndexForWave(9, 0)).toBe(0);
   });
 
-  it('deals a wave out across every gate instead of one road', () => {
-    // This is the rule GameScene.spawnEnemy applies: consecutive enemies take
-    // the next portal, so one wave arrives from all three directions at once.
+  it('deals a wave out across the gates it owns, not blindly across all of them', () => {
     const wave = 2;
+    // With every gate open the helper is the flat rotation it always was…
     const gates = Array.from({ length: 9 }, (_, tick) => gateIndexForSpawn(tick, wave, 3));
     expect(gates).toEqual([1, 2, 0, 1, 2, 0, 1, 2, 0]);
     expect(new Set(gates).size).toBe(3);
+    // …but a wave that owns a single gate keeps every enemy on one road.
+    const single = Array.from({ length: 9 }, (_, tick) => gateIndexForSpawn(tick, wave, 3, 1));
+    expect(new Set(single)).toEqual(new Set([1]));
+    // Two gates split the wave between them and nothing else.
+    const pair = Array.from({ length: 6 }, (_, tick) => gateIndexForSpawn(tick, wave, 3, 2));
+    expect(pair).toEqual([1, 2, 1, 2, 1, 2]);
     // The wave ordinal shifts the rotation, so two waves never open alike.
     expect(gateIndexForSpawn(0, wave, 3)).not.toBe(gateIndexForSpawn(0, wave + 1, 3));
     // A board with no gates cannot divide by zero.
