@@ -3838,10 +3838,17 @@ export class GameScene extends Phaser.Scene {
       window.gameResultScreen.show(payload);
       return payload;
     }
+    // The fallback card still files the run on the right board: the same
+    // fields the result screen forwards, or every mode would land in UNFILED.
     window.gameLeaderboardUI?.show?.({
       status: payload.outcome,
+      mode: payload.mode ?? null,
+      level: payload.level ?? null,
+      pvp: Boolean(payload.pvp || payload.level?.pvp),
+      coop: Boolean(payload.coop),
       score: payload.score,
       waves: payload.waves,
+      totalWaves: payload.totalWaves ?? null,
       timeMs: payload.timeMs,
     });
     return payload;

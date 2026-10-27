@@ -617,11 +617,19 @@ window.gameResultScreen = new ResultScreenUI(screenContainer, {
           }
         : null,
     }),
+  // The board a run belongs on is decided from the run itself, so the mode and
+  // the level travel with the numbers. Without them every run would be filed as
+  // unfiled and the per-mode boards would stay empty.
   onLeaderboard: (result) =>
     window.gameLeaderboardUI.show({
       status: result.outcome,
+      mode: result.mode ?? null,
+      level: result.level ?? null,
+      pvp: Boolean(result.pvp),
+      coop: Boolean(result.coop || result.level?.coop),
       score: result.score,
       waves: result.waves,
+      totalWaves: result.totalWaves ?? null,
       timeMs: result.timeMs,
     }),
 });

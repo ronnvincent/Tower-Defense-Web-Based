@@ -4173,6 +4173,7 @@ kbd {
 /* ---- body: three frames ------------------------------------------------ */
 
 .lb-body {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(180px, 19vw, 250px);
   grid-template-rows: auto minmax(0, 1fr);
@@ -4210,6 +4211,21 @@ kbd {
 
 .lb-body[data-tab='device'] > .dsa-notice {
   flex: 0 0 auto;
+}
+
+/* On a short window the whole device column scrolls (the run summary has to stay
+   reachable above the table), so the frame is not what overflows and a mask on
+   the frame would never appear. The fade belongs to the body's own bottom edge,
+   and only while there is more below — at the end it would dim the telemetry
+   line for no reason. Both classes are measured in LeaderboardUI.
+
+   A mask, not an ::after: an absolutely positioned child of a scroll container
+   scrolls with the content, so a `bottom: 0` overlay sits below the fold and is
+   never seen. A mask paints on the element's box, not on what is scrolled
+   inside it. */
+.lb-body[data-tab='device'].is-scrollable:not(.is-scroll-end) {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 calc(100% - 30px), rgba(0, 0, 0, 0.12) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 calc(100% - 30px), rgba(0, 0, 0, 0.12) 100%);
 }
 
 .lb-block {
@@ -4258,6 +4274,156 @@ kbd {
 .lb-block--device {
   grid-area: device;
   min-height: 0;
+}
+
+/* Title and board name share a line: the strip below already says which board
+   is active, so the note only has to say that the ranking is per-board. */
+.lb-device-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lb-board-note {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 8px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ---- mode categories ---------------------------------------------------- */
+
+/* One key per mode of play. A single scrolling row, never a wrapping grid: the
+   strip carries twelve keys and a wrapped grid would eat the table's height on
+   a landscape phone. */
+/* Same rule for the strip: the right-edge fade only when the keys overflow. */
+.lb-modes.is-scrollable {
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1) 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 22px), rgba(0, 0, 0, 0.1) 100%);
+}
+
+.lb-modes {
+  display: flex;
+  gap: 5px;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-bottom: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198, 158, 88, 0.4) transparent;
+  /* Twelve keys do not fit a phone in portrait. The fade that says so is in
+     .lb-modes.is-scrollable, applied only when the strip really overflows. */
+}
+
+.lb-modes::-webkit-scrollbar {
+  height: 4px;
+}
+
+.lb-modes::-webkit-scrollbar-thumb {
+  background: rgba(198, 158, 88, 0.4);
+  border-radius: 2px;
+}
+
+.lb-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  padding: 4px 8px;
+  font-family: var(--font-heading);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  color: var(--ink-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(198, 158, 88, 0.22);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.lb-mode:hover,
+.lb-mode:focus-visible {
+  color: var(--ink-strong);
+  border-color: var(--gold-line);
+}
+
+.lb-mode.is-active {
+  color: var(--ink-gold);
+  border-color: var(--gold-primary);
+  background: rgba(245, 196, 81, 0.12);
+}
+
+/* A board nobody has recorded on is still a board: it keeps its key so the
+   player can see every mode the game plays, just quieter. */
+.lb-mode.is-empty:not(.is-active) {
+  color: rgba(190, 196, 208, 0.45);
+  border-color: rgba(198, 158, 88, 0.12);
+}
+
+.lb-mode-count {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 0 4px;
+  min-width: 14px;
+  text-align: center;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink-muted);
+}
+
+.lb-mode.is-active .lb-mode-count {
+  color: var(--ink-gold);
+  background: rgba(245, 196, 81, 0.16);
+}
+
+/* The board a row belongs to, printed under the name on the overview only. */
+.lb-run-mode {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-heading);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--text-dim);
+}
+
+/* Title and board share one line. As a third centred line under the title it
+   sat directly above the centred middle stat and the two read as one clump on a
+   short phone. */
+.lb-result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Which board the run about to be recorded goes to. */
+.lb-result-board {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 8px;
+  letter-spacing: 1.6px;
+  color: var(--text-dim);
+}
+
+/* Three numbers, centred as a group. Left to the hall's full width they spread
+   so far apart that the middle one floats alone over the RECORD key. */
+.lb-body .result-summary-box .result-stats {
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lb-result-board strong {
+  color: var(--ink-gold);
 }
 
 .lb-full-frame {
@@ -4441,8 +4607,7 @@ kbd {
   position: relative;
 }
 
-.lb-block--roll::after,
-.lb-block--device::after {
+.lb-block--roll::after {
   content: '';
   position: absolute;
   left: 9px;
@@ -4452,6 +4617,17 @@ kbd {
   background: linear-gradient(180deg, rgba(8, 10, 14, 0) 0%, rgba(8, 10, 14, 0.86) 46%, rgba(8, 10, 14, 0.98) 100%);
   pointer-events: none;
   border-radius: 0 0 3px 3px;
+}
+
+/* The device block keeps the same "the list continues" fade, but it cannot be
+   a gradient over the block: the merge-sort telemetry line lives below the
+   frame, and a block-wide overlay dimmed it into an unreadable smudge. The fade
+   is a mask on the frame itself, and it only exists when the table actually
+   overflows — a mask on a two-row board dimmed the last row for no reason.
+   `is-scrollable` is set from the measured heights in LeaderboardUI. */
+.lb-block--device .lb-roll-frame.is-scrollable {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 calc(100% - 34px), rgba(0, 0, 0, 0.15) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 calc(100% - 34px), rgba(0, 0, 0, 0.15) 100%);
 }
 
 .lb-table {
@@ -4705,6 +4881,23 @@ kbd {
   .lb-tab {
     padding: 5px 9px;
     font-size: 9px;
+  }
+
+  /* The strip is the one control that must never push the table out of the
+     hall, so on a short landscape phone it shrinks first. */
+  .lb-mode {
+    padding: 3px 6px;
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+
+  .lb-mode-count {
+    font-size: 7px;
+    padding: 0 3px;
+  }
+
+  .lb-board-note {
+    display: none;
   }
 
   .lb-block {

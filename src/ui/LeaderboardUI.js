@@ -1,5 +1,13 @@
 import { audio } from '../rendering/AudioSynth.js';
 import { mountScreen } from './screenHost.js';
+import {
+  ALL_CATEGORY,
+  LEADERBOARD_CATEGORIES,
+  categoryInfo,
+  categoryLabel,
+  resolveCategory,
+} from '../data/leaderboardCategories.js';
+import { LEADERBOARD_DISPLAY_LIMIT } from '../config/gameConfig.js';
 
 /**
  * LeaderboardUI.js — the Champions' Hall.
@@ -12,14 +20,27 @@ import { mountScreen } from './screenHost.js';
  *   PODIUM     the top three, one card each, with the gold banner emblem.
  *   THE ROLL   every other commander, one row each, name in gold.
  *   STANDING   the player's own place, whether or not they are on the page.
- *   THIS DEVICE the local run history (merge-sorted), which still works with
- *              no ledger at all.
+ *   THIS DEVICE the local run history (merge-sorted), one board per mode of
+ *              play, which still works with no ledger at all.
+ *
+ * The realm ledger ranks *careers* (power, level, stars, medals), so it has no
+ * per-run boards to split; the device tab is where runs live and where the mode
+ * categories belong. Every board keeps its own ranking, because an Endless run
+ * at wave 60 and a Campaign clear at wave 5 are not the same achievement and
+ * must never be sorted against each other.
  *
  * Nothing here invents a ranking: with no ledger the hall says so, and the
  * device tab is still there.
  */
 
 const PODIUM_METALS = ['gold', 'silver', 'bronze'];
+
+/* Rows a board prints. The same limit the board itself stores/ranks with, so
+   the table and the "of N" numbers never disagree. */
+const LEADERBOARD_ROWS = LEADERBOARD_DISPLAY_LIMIT;
+
+/* The boards without the synthetic overview key. */
+const categoryBoards = () => LEADERBOARD_CATEGORIES;
 
 export class LeaderboardUI {
   /**
@@ -33,6 +54,10 @@ export class LeaderboardUI {
     this.callbacks = callbacks;
     this.cloud = callbacks.cloud || null;
     this.highlightRank = null;
+    // Which board the device tab is showing. 'all' is the overview; a finished
+    // run switches it to that run's own board, so the player lands where their
+    // score actually went.
+    this.mode = 'all';
     this.tab = this.cloud ? 'realm' : 'device';
     this.realm = { state: 'idle', rows: [], total: 0, mine: null, reason: '' };
     this.loadingToken = 0;
@@ -50,6 +75,15 @@ export class LeaderboardUI {
   show(gameResult = null) {
     audio.playClick();
     this._pendingResult = gameResult;
+    if (gameResult) {
+      // A finished run is filed on THIS DEVICE, and its summary — the one with
+      // RECORD THIS RUN — only exists on that tab. Opening the hall on the
+      // realm tab (which the ledger's presence used to force) hid the run the
+      // player had just played and gave them no way to record it.
+      this.tab = 'device';
+      const board = resolveCategory(gameResult);
+      if (board && board !== 'unknown') this.mode = board;
+    }
     this.render(gameResult);
     this.root?.classList.remove('hidden');
     if (this.tab === 'realm') void this.loadRealm();
@@ -262,22 +296,68 @@ export class LeaderboardUI {
 
   /* -------------------------------------------------------------- device */
 
+  /**
+   * The category strip: one key per board, each with how many runs it holds.
+   *
+   * Empty boards still get a key (the point is to show every mode the game
+   * plays, including the ones this player has not finished yet), dimmed, and
+   * clicking one explains what fills it instead of showing a blank table. The
+   * strip scrolls sideways rather than wrapping so it cannot squeeze the table
+   * on a landscape phone.
+   */
+  _categoryStripMarkup(counts) {
+    const keys = [ALL_CATEGORY, ...this._boardsWithRuns(counts)].map((category) => {
+      const count = counts[category.id] || 0;
+      const active = this.mode === category.id;
+      return `<button class="lb-mode ${active ? 'is-active' : ''} ${count === 0 ? 'is-empty' : ''}"
+          type="button" role="tab" aria-selected="${active}"
+          data-lb-mode="${category.id}" title="${escapeHtml(category.title)}">
+          <span class="lb-mode-label">${escapeHtml(category.label)}</span>
+          <span class="lb-mode-count">${count}</span>
+        </button>`;
+    });
+    return `<div class="lb-modes" role="tablist" aria-label="Mode category">${keys.join('')}</div>`;
+  }
+
+  /**
+   * Every board, minus the legacy bucket when it is empty.
+   *
+   * "UNFILED" is real but it is not a mode of play: showing it to a player who
+   * has no unfiled runs would read as a category they somehow missed.
+   */
+  _boardsWithRuns(counts) {
+    return categoryBoards().filter((category) => !category.legacy || (counts[category.id] || 0) > 0);
+  }
+
   _deviceBodyMarkup(gameResult) {
-    const topRecords = this.leaderboard.getTop();
+    const counts = this.leaderboard.getCounts();
+    const board = this.mode;
+    const topRecords = this.leaderboard.getTop(LEADERBOARD_ROWS, board);
     const sortStats = this.leaderboard.lastSortStats;
 
     const rowsHtml =
       topRecords.length === 0
-        ? `<tr><td colspan="6" class="empty-table">No records carved in the stone yet. Defend the realm!</td></tr>`
+        ? `<tr><td colspan="6" class="empty-table">${escapeHtml(
+            board === 'all'
+              ? 'No records carved in the stone yet. Defend the realm!'
+              : categoryInfo(board).blurb
+          )}</td></tr>`
         : topRecords
             .map((r, i) => {
               const rank = i + 1;
               const isHighlighted = rank === this.highlightRank;
               const isVic = r.result === 'victory';
+              // On the overview the board is the one thing a row cannot imply,
+              // so it is printed under the name rather than as a seventh column
+              // that would strip the table of width on a phone.
+              const tag =
+                board === 'all'
+                  ? `<span class="lb-run-mode">${escapeHtml(categoryLabel(r.mode))}</span>`
+                  : '';
               return `
                 <tr class="${isHighlighted ? 'highlight-row' : ''}">
                   <td class="col-rank">${rankChip(rank)}</td>
-                  <td class="col-name">${namePlate(r.name, false)}</td>
+                  <td class="col-name">${namePlate(r.name, false)}${tag}</td>
                   <td class="col-power">${r.score}</td>
                   <td class="col-level">${r.waves}</td>
                   <td class="col-stars">${(r.timeMs / 1000).toFixed(1)}s</td>
@@ -288,14 +368,18 @@ export class LeaderboardUI {
 
     const statsNotice = sortStats
       ? `<div class="dsa-notice">
-          <span><strong>Merge Sort Telemetry:</strong> ${sortStats.comparisons} comparisons &amp; ${sortStats.merges} merges performed on ${sortStats.elements} records</span>
+          <span><strong>Merge Sort Telemetry:</strong> ${sortStats.comparisons} comparisons &amp; ${sortStats.merges} merges performed on ${sortStats.elements} record${sortStats.elements === 1 ? '' : 's'}</span>
          </div>`
       : '';
 
     return `
       ${gameResult ? this._resultMarkup(gameResult) : ''}
       <section class="lb-block lb-block--device" aria-label="Records on this device">
-        <p class="lb-block-title">RECORDS ON THIS DEVICE</p>
+        <div class="lb-device-head">
+          <p class="lb-block-title">RECORDS ON THIS DEVICE</p>
+          <p class="lb-board-note">${escapeHtml(board === 'all' ? ALL_CATEGORY.title : categoryInfo(board).title)} · ranked on this board alone</p>
+        </div>
+        ${this._categoryStripMarkup(counts)}
         <div class="table-scroll-frame lb-roll-frame">
           <table class="game-table lb-table">
             <thead>
@@ -367,6 +451,7 @@ export class LeaderboardUI {
     );
 
     this._bindChrome(gameResult);
+    this._markScrollableFrames();
     this.bindEvents(gameResult);
   }
 
@@ -381,19 +466,66 @@ export class LeaderboardUI {
     body.dataset.tab = this.tab;
     body.innerHTML =
       this.tab === 'realm' ? this._realmBodyMarkup() : this._deviceBodyMarkup(gameResult);
+    this._markScrollableFrames();
     this.bindEvents(gameResult);
+  }
+
+  /**
+   * Flag the frames that really overflow, in both directions.
+   *
+   * The bottom fade and the right-edge fade are the only things telling a
+   * player that a list continues; drawn unconditionally they dim a two-row
+   * board and a strip that already fits, which reads as a rendering fault.
+   * Measured after paint, so it is true rather than guessed from the row count.
+   */
+  _markScrollableFrames() {
+    for (const frame of this.container.querySelectorAll('.lb-roll-frame')) {
+      const overflows = frame.scrollHeight - frame.clientHeight > 2;
+      frame.classList.toggle('is-scrollable', overflows);
+    }
+    for (const strip of this.container.querySelectorAll('.lb-modes')) {
+      const overflows = strip.scrollWidth - strip.clientWidth > 2;
+      strip.classList.toggle('is-scrollable', overflows);
+    }
+
+    // The device column can scroll as a whole on a short window (the run
+    // summary must stay reachable above the table), so the frame above is not
+    // what overflows. The body carries its own fade while there is more below.
+    const body = this.root?.querySelector('.lb-body');
+    if (!body) return;
+    const sync = () => {
+      const overflows = body.scrollHeight - body.clientHeight > 2;
+      const atEnd = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+      body.classList.toggle('is-scrollable', overflows);
+      body.classList.toggle('is-scroll-end', atEnd);
+    };
+    sync();
+    if (body.dataset.scrollBound !== '1') {
+      body.dataset.scrollBound = '1';
+      body.addEventListener('scroll', sync, { passive: true });
+    }
   }
 
   /** The run that just ended, recorded under the commander's name. */
   _resultMarkup(gameResult) {
     const isVictory = gameResult.status === 'victory';
-    const name = this.username || this.leaderboard.getTop()[0]?.name || 'KEEPER';
+    const name = this.username || this.leaderboard.getTop(1)[0]?.name || 'KEEPER';
+    const board = categoryInfo(resolveCategory(gameResult));
+    // Endless and every mode run have no wave total ("30 / 6" was a lie the old
+    // card printed); a number with a total only when the mode has one.
+    const totalWaves = Number(gameResult.totalWaves);
+    const waves = Number.isFinite(totalWaves) && totalWaves > 0
+      ? `${gameResult.waves} / ${totalWaves}`
+      : String(gameResult.waves);
     return `
       <div class="result-summary-box ${isVictory ? 'victory-box' : 'defeat-box'}">
-        <h2 class="result-title">${isVictory ? 'VICTORY ACHIEVED' : 'BASE OVERRUN'}</h2>
+        <div class="lb-result-head">
+          <h2 class="result-title">${isVictory ? 'VICTORY ACHIEVED' : 'BASE OVERRUN'}</h2>
+          <p class="lb-result-board">FILED UNDER <strong>${escapeHtml(board.title)}</strong></p>
+        </div>
         <div class="result-stats">
           <div><span class="lbl">FINAL SCORE</span><span class="val gold-text">${gameResult.score}</span></div>
-          <div><span class="lbl">WAVES CLEARED</span><span class="val">${gameResult.waves} / 6</span></div>
+          <div><span class="lbl">WAVES CLEARED</span><span class="val">${waves}</span></div>
           <div><span class="lbl">ELAPSED TIME</span><span class="val">${(gameResult.timeMs / 1000).toFixed(1)}s</span></div>
         </div>
         <div class="submit-form" id="submit-score-form">
@@ -441,6 +573,20 @@ export class LeaderboardUI {
   bindEvents(gameResult = null) {
     this._pendingResult = gameResult;
 
+    // Category chips live inside the repainted body, so they are bound here
+    // with the rest of the body and never from `_bindChrome` (that would stack
+    // a second listener on every paint).
+    for (const chip of this.container.querySelectorAll('[data-lb-mode]')) {
+      chip.addEventListener('click', () => {
+        const next = chip.dataset.lbMode;
+        if (!next || next === this.mode) return;
+        audio.playClick();
+        this.mode = next;
+        this.highlightRank = null;
+        this._paint();
+      });
+    }
+
     document.getElementById('btn-retry-lb')?.addEventListener('click', () => {
       audio.playClick();
       void this.loadRealm();
@@ -453,14 +599,18 @@ export class LeaderboardUI {
       saveBtn.addEventListener('click', () => {
         const name = this.username || 'KEEPER';
         audio.playCoin();
+        const mode = resolveCategory(gameResult);
         const { rank, saved } = this.leaderboard.addRecord({
           name: name.slice(0, 16),
           score: gameResult.score,
           waves: gameResult.waves,
           timeMs: gameResult.timeMs,
           result: gameResult.status,
+          mode,
         });
         if (saved) {
+          // Land on the board the run was just filed on, with the new row lit.
+          this.mode = mode;
           this.highlightRank = rank;
           this._pendingResult = null;
           this.render(null);
