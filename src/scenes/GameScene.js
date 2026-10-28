@@ -18,6 +18,7 @@ import {
   summariseMods,
 } from '../systems/RunMods.js';
 import { drawCards } from '../data/draftCards.js';
+import { createCoach } from '../systems/FirstRun.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { gateIndexForSpawn, waveGatePlan } from '../systems/SpawnGates.js';
@@ -539,7 +540,12 @@ export class GameScene extends Phaser.Scene {
         onClearFocus: () => this.setFocusFire(null),
       };
       this.hud.setZoomState(this.cameraRig.zoomState());
-      this.hud.showCameraHintOnce();
+      // The first battle teaches three things; every battle after it gets the
+      // camera hint instead. A coached run never shows both bars at once.
+      this.coach = createCoach({ level: this.level });
+      const coachStep = this.coach.start();
+      if (coachStep) this.hud.showCoachStep(coachStep);
+      else this.hud.showCameraHintOnce();
       if (this.level.pvp) {
         // Two facts a duel player must know before the first wave: this is a
         // mirror, and the arena is bigger than a campaign map (so: pull back).
@@ -2004,6 +2010,7 @@ export class GameScene extends Phaser.Scene {
       this.flashWaveBanner(wave, this.waveManager.currentWave.name);
     }
     this.syncHUD();
+    this.advanceCoach('wave');
   }
 
 
@@ -2441,6 +2448,7 @@ export class GameScene extends Phaser.Scene {
       this.refreshTowerAuras();
       this.syncHUD();
       this.updateGhostGraphics();
+      this.advanceCoach('upgrade');
     }
   }
 
@@ -3274,6 +3282,22 @@ export class GameScene extends Phaser.Scene {
     this.drawBuildSlots();
     this.updateGhostGraphics();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
+    this.advanceCoach('place');
+  }
+
+  /**
+   * Move the first battle's coach mark along.
+   *
+   * `createCoach` ignores events that do not match the step on screen and
+   * returns null once everything has been taught, so this is safe to call from
+   * anywhere. Only stage 1 has steps at all, and only until they are all seen.
+   */
+  advanceCoach(event) {
+    const next = this.coach?.report(event);
+    if (!this.coach?.active) return next;
+    if (next) this.hud?.showCoachStep?.(next);
+    else this.hud?.hideCoachStep?.();
+    return next;
   }
 
   /**

@@ -26,6 +26,7 @@ import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { audioDirector } from './rendering/audioDirector.js';
 import { SettingsUI } from './ui/SettingsUI.js';
+import { bindInstallButton, createInstallPrompt, registerServiceWorker } from './systems/Offline.js';
 import { QualityManager } from './systems/QualityManager.js';
 import { DifficultyStore, DEFAULT_DIFFICULTY } from './systems/Difficulty.js';
 import { soundIcon } from './ui/soundIcon.js';
@@ -1005,6 +1006,22 @@ document.getElementById('menu-btn-fullscreen')?.addEventListener('click', () => 
   audio.playClick();
   void fullscreen.toggle();
 });
+
+/**
+ * The install offer, and the offline shell behind it.
+ *
+ * Registration is fire-and-forget on purpose: the first visit must not wait for
+ * a worker, and a browser that refuses one still gets a working game. The
+ * button only appears once Chromium has fired `beforeinstallprompt`, so it can
+ * never be a control that does nothing.
+ */
+const installPrompt = createInstallPrompt(window);
+bindInstallButton(document.getElementById('menu-btn-install'), installPrompt, {
+  // The button hiding itself is the confirmation: the browser has already
+  // shown its own "installed" banner by this point.
+  onInstalled: () => audio.playVictory?.(),
+});
+void registerServiceWorker();
 
 document.getElementById('btn-close-how')?.addEventListener('click', () => {
   audio.playClick();

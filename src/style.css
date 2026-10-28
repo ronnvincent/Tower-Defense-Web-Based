@@ -1791,6 +1791,21 @@ body.is-fullscreen::before {
   font-weight: 700;
 }
 
+/* The first battle's coach mark rides the same pill: same place, same dismiss
+   button, one step at a time. It gets a gold edge and a gold icon instead of the
+   camera's cyan one, so a new player can tell "this one is for me" from "this is
+   the camera". */
+.camera-hint.is-coach {
+  border-color: rgba(245, 196, 81, 0.5);
+  background: linear-gradient(180deg, rgba(28, 23, 12, 0.94), rgba(9, 14, 18, 0.92));
+  color: var(--text-main);
+  box-shadow: 0 0 18px rgba(245, 196, 81, 0.12);
+}
+
+.camera-hint.is-coach .camera-hint-icon {
+  color: var(--gold-primary);
+}
+
 .camera-hint-icon {
   font-size: 15px;
   color: var(--cyan-primary);
@@ -11439,8 +11454,13 @@ body.is-fullscreen #app::after {
   z-index: 150;
 }
 
-/* First-run coaching: under the rail, never over the middle. */
+/* First-run coaching: under the rail, never over the middle.
+   `display: flex` is here on purpose: the short-landscape query above hides the
+   bar ("nothing to spare vertically"), which is right for the camera hint and
+   wrong for the one bar that teaches a new player how to place a tower. The
+   mobile shell is the device that needs it most, so it wins on specificity. */
 [data-shell="mobile"] .camera-hint {
+  display: flex;
   top: calc(var(--topbar-clearance) + 4px);
   bottom: auto;
   max-width: min(74vw, 460px);

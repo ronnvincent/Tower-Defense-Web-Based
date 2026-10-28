@@ -711,6 +711,42 @@ export class HUD {
     this.hintTimer = setTimeout(() => this.hideCameraHint(), durationMs);
   }
 
+  /**
+   * The first battle's coach mark.
+   *
+   * It borrows the camera hint's bar — same plate, same dismiss button, same
+   * place on screen — because a second hint style would read as a second
+   * system. The difference is the contract: a coach step has no timer. It
+   * stays until the player does the thing it asks, so it can never disappear
+   * mid-read and leave them without the sentence they needed.
+   *
+   * @param {{text?:string, textMobile?:string}} step
+   */
+  showCoachStep(step) {
+    const hint = document.getElementById('camera-hint');
+    if (!hint || !step) return;
+    const body = document.getElementById('camera-hint-text');
+    if (body) {
+      // Plain text, not markup: the step's wording lives in one data file and
+      // is never assembled from anything the player typed.
+      body.textContent = (this.isMobileShell && step.textMobile) || step.text || '';
+    }
+    hint.classList.add('is-coach');
+    hint.classList.remove('hidden');
+    if (this.hintTimer) clearTimeout(this.hintTimer);
+    this.hintTimer = null;
+  }
+
+  /** Retire the coach bar. The camera hint keeps its own seen-flag untouched. */
+  hideCoachStep() {
+    const hint = document.getElementById('camera-hint');
+    if (!hint) return;
+    hint.classList.remove('is-coach');
+    hint.classList.add('hidden');
+    if (this.hintTimer) clearTimeout(this.hintTimer);
+    this.hintTimer = null;
+  }
+
   hideCameraHint() {
     const hint = document.getElementById('camera-hint');
     if (!hint) return;
@@ -1208,6 +1244,12 @@ export class HUD {
     document.getElementById('btn-dismiss-hint')?.addEventListener('click', (event) => {
       event.stopPropagation();
       audio.playClick();
+      // Dismissing the coach retires the bar, not the run: the next event
+      // still brings the next step, and the camera hint keeps its own flag.
+      if (document.getElementById('camera-hint')?.classList.contains('is-coach')) {
+        this.hideCoachStep();
+        return;
+      }
       this.hideCameraHint();
     });
     document.getElementById('camera-hint')?.addEventListener('click', () => this.hideCameraHint());

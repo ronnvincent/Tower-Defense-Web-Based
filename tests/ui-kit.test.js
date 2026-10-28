@@ -116,7 +116,7 @@ describe('UI kit — 9-slice geometry', () => {
 });
 
 describe('Main menu — one plate, two keys', () => {
-  // The menu is title + PLAY CAMPAIGN + sound/fullscreen. Every other
+  // The menu is title + PLAY CAMPAIGN + sound/settings/fullscreen/install. Every other
   // destination moved to the world map, so these are the only ids it may bind.
   const wiredIds = [...main.matchAll(/getElementById\('(menu-[a-z-]+)'\)/g)].map((m) => m[1]);
   const uniqueWired = [...new Set(wiredIds)];
@@ -132,9 +132,12 @@ describe('Main menu — one plate, two keys', () => {
     'credits',
   ];
 
-  it('binds the campaign plate and the two utility keys, and nothing else', () => {
+  it('binds the campaign plate and the utility keys, and nothing else', () => {
     expect(uniqueWired.sort()).toEqual([
       'menu-btn-fullscreen',
+      // The install offer is a utility, not a destination: it is a no-op the
+      // moment the browser has nothing to install, and it never opens a screen.
+      'menu-btn-install',
       'menu-btn-play',
       'menu-btn-settings',
       'menu-btn-sound',
