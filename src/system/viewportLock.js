@@ -60,22 +60,30 @@ export function lockViewport(env = {}) {
   const win = env.win ?? (typeof window === 'undefined' ? undefined : window);
   const doc = env.doc ?? (typeof document === 'undefined' ? undefined : document);
   const active = { passive: false };
-  const block = (event) => event.preventDefault();
+  // A touch sequence that already started scrolling produces a non-cancelable
+  // `touchmove`. Calling `preventDefault()` on it does nothing except log
+  // "[Intervention] Ignored attempt to cancel a touchmove event with
+  // cancelable=false" — 74 of those in one 22 s recording, each one a wasted
+  // main-thread round trip. Every guard here asks first.
+  const block = (event) => {
+    if (event.cancelable) event.preventDefault();
+  };
 
   const onTouchMove = (event) => {
+    if (!event.cancelable) return;
     // One finger = camera pan / tower tap. Two or more = a pinch, which the
     // browser would turn into a page zoom.
     if (event.touches && event.touches.length > 1) event.preventDefault();
   };
 
   const onWheel = (event) => {
-    if (event.ctrlKey) event.preventDefault();
+    if (event.ctrlKey && event.cancelable) event.preventDefault();
   };
 
   const onKeyDown = (event) => {
     if (!isBrowserZoomShortcut(event)) return;
     if (isEditableTarget(event.target)) return;
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
   };
 
   const listeners = [

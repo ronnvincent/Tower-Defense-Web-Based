@@ -1168,14 +1168,28 @@ export class Tower {
     // stand, so a siege piece was blind to every creep that walked past it.
     // "My defences stop firing when the enemy gets close" is that rule, and it
     // is gone: a weapon answers whatever stands inside its reach.
-    const inRange = [];
+    //
+    // The list and its entries are reused across ticks. This runs for every
+    // defence on every frame, and a fresh array plus one `{ enemy, dist }` per
+    // creep in reach was the battle's largest steady allocation: six guns with
+    // six creeps each made 36 objects *and* six arrays sixty times a second,
+    // which is what turns into the major GC pause a phone feels as a hitch.
+    // The comparators only ever read the two fields, so a pooled entry behaves
+    // exactly like a new one.
+    const inRange = this._inRange || (this._inRange = []);
+    const pool = this._targetPool || (this._targetPool = []);
+    inRange.length = 0;
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!this.canEngage(e)) continue;
       const dist = Math.hypot(e.x - this.x, e.y - this.y);
       const assaultingTheGate = coversBastion && e.assaulting === true;
       if (dist > range && !assaultingTheGate) continue;
-      inRange.push({ enemy: e, dist });
+      const index = inRange.length;
+      const entry = pool[index] || (pool[index] = { enemy: null, dist: 0 });
+      entry.enemy = e;
+      entry.dist = dist;
+      inRange.push(entry);
     }
 
     if (inRange.length === 0) {

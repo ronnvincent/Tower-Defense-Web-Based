@@ -19,6 +19,7 @@ import {
 } from '../systems/RunMods.js';
 import { drawCards } from '../data/draftCards.js';
 import { createCoach } from '../systems/FirstRun.js';
+import { perfProbe } from '../system/perfProbe.js';
 import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
@@ -4326,6 +4327,7 @@ export class GameScene extends Phaser.Scene {
     // invoking the game step, so any uncaught exception in here means no next
     // frame is ever requested and the whole game freezes permanently. Keep the
     // loop alive and make the fault loud instead of fatal.
+    const span = perfProbe.begin('battle.update');
     try {
       // Camera and badges keep working even while the simulation is paused, so
       // the player can inspect the battlefield before starting a wave.
@@ -4342,6 +4344,8 @@ export class GameScene extends Phaser.Scene {
       this.stepSimulation(rawDelta);
     } catch (error) {
       this.reportRuntimeError(error);
+    } finally {
+      perfProbe.end('battle.update', span);
     }
   }
 

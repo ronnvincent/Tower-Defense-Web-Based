@@ -582,6 +582,137 @@ describe('WorldMapUI', () => {
     ui.hide();
   });
 
+  it('never measures layout inside a pointermove', () => {
+    const { ui } = mount();
+    ui.show();
+
+    // Any layout read during the gesture is a forced synchronous layout: the
+    // camera transform from the previous event is still pending. Count them.
+    const reads = [];
+    const realStageRect = ui.stage.getBoundingClientRect.bind(ui.stage);
+    ui.stage.getBoundingClientRect = () => {
+      reads.push('stage');
+      return realStageRect();
+    };
+    const realTipWidth = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      'offsetWidth'
+    );
+    let tipReads = 0;
+    Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get() {
+        tipReads += 1;
+        return realTipWidth?.get ? realTipWidth.get.call(this) : 0;
+      },
+    });
+
+    try {
+      ui.onPointerDown({ pointerId: 1, clientX: 300, clientY: 300, pointerType: 'mouse', button: 0 });
+      const downReads = reads.length; // one measurement per gesture is allowed
+      for (let i = 0; i < 40; i += 1) {
+        ui.onPointerMove({ pointerId: 1, clientX: 300 + i * 3, clientY: 300 + i });
+      }
+      expect(reads.length).toBe(downReads);
+      expect(tipReads).toBe(0);
+
+      // A two-finger pinch reads the same cached box.
+      ui.onPointerDown({ pointerId: 2, clientX: 400, clientY: 300, pointerType: 'touch' });
+      ui.onPointerDown({ pointerId: 3, clientX: 500, clientY: 300, pointerType: 'touch' });
+      const beforePinch = reads.length;
+      for (let i = 0; i < 20; i += 1) {
+        ui.onPointerMove({ pointerId: 3, clientX: 500 + i * 4, clientY: 300 });
+      }
+      expect(reads.length).toBe(beforePinch);
+      ui.onPointerUp({ pointerId: 1 });
+      ui.onPointerUp({ pointerId: 2 });
+      ui.onPointerUp({ pointerId: 3 });
+    } finally {
+      delete window.HTMLElement.prototype.offsetWidth;
+      if (realTipWidth) {
+        Object.defineProperty(window.HTMLElement.prototype, 'offsetWidth', realTipWidth);
+      }
+    }
+    ui.hide();
+  });
+
+  it('coalesces a burst of moves into one camera write per frame', () => {
+    vi.useFakeTimers();
+    const { ui } = mount();
+    ui.show();
+    vi.advanceTimersByTime(200);
+
+    let paints = 0;
+    const realPaint = ui.paintCamera.bind(ui);
+    ui.paintCamera = () => {
+      paints += 1;
+      realPaint();
+    };
+
+    // Zoomed in far enough that the plate can actually pan in every direction.
+    ui.setCamera({ scale: ui.minScale * 1.8, x: -120, y: -120 });
+    const startedAt = ui.camera.x;
+    ui.onPointerDown({ pointerId: 9, clientX: 500, clientY: 300, pointerType: 'mouse', button: 0 });
+    for (let i = 0; i < 25; i += 1) {
+      ui.onPointerMove({ pointerId: 9, clientX: 500 - i * 4, clientY: 300 });
+    }
+    // 25 pointer events, one pending frame: the state moved, the DOM has not.
+    expect(paints).toBe(0);
+    expect(ui.camera.x).toBeLessThan(startedAt);
+    // …and the next frame paints the whole burst exactly once.
+    vi.advanceTimersByTime(20);
+    expect(paints).toBe(1);
+    expect(ui.cameraEl.style.transform).toContain('translate3d(');
+    expect(ui.cameraEl.style.transform).toContain(`scale(${ui.camera.scale.toFixed(4)})`);
+    ui.onPointerUp({ pointerId: 9 });
+    ui.hide();
+    vi.useRealTimers();
+  });
+
+  it('writes the label counter-scale once the gesture settles, not per frame', () => {
+    const { ui } = mount();
+    ui.show();
+    // Every custom property written on the plate, in order.
+    const writes = [];
+    const realSet = ui.plate.style.setProperty.bind(ui.plate.style);
+    ui.plate.style.setProperty = (key, value) => {
+      writes.push(key);
+      realSet(key, value);
+    };
+
+    // A real zoom change, which is what the counter-scale exists for.
+    ui.setCamera({ scale: ui.minScale * 1.6 });
+    for (let i = 0; i < 10; i += 1) ui.paintCamera();
+    expect(writes.filter((key) => key === '--wm-label-scale')).toHaveLength(0);
+
+    ui.applyCamera(); // the settled write
+    expect(writes.filter((key) => key === '--wm-label-scale')).toHaveLength(1);
+    // A second settled write at the same zoom is a no-op.
+    ui.applyCamera();
+    expect(writes.filter((key) => key === '--wm-label-scale')).toHaveLength(1);
+    ui.hide();
+  });
+
+  it('reuses one tooltip node and measures it once per landmark', () => {
+    const { ui } = mount();
+    ui.show();
+    const tip = document.querySelector('.wm-tip');
+    const first = ui.showTip('banner-verdant', null) ?? document.querySelector('.wm-tip');
+    expect(document.querySelectorAll('.wm-tip')).toHaveLength(1);
+    const markup = tip.innerHTML;
+    // Same landmark again: the markup is not rebuilt and the node is not replaced.
+    tip.innerHTML = 'unchanged';
+    ui.showTip('banner-verdant', { clientX: 10, clientY: 10 });
+    expect(tip.innerHTML).toBe('unchanged');
+    expect(document.querySelectorAll('.wm-tip')).toHaveLength(1);
+    // A different landmark does rebuild the content, once.
+    ui.showTip('shrine', { clientX: 10, clientY: 10 });
+    expect(tip.innerHTML).not.toBe('unchanged');
+    expect(markup).not.toBe(tip.innerHTML);
+    ui.hide();
+    expect(first).toBeTruthy();
+  });
+
   it('keeps its listeners to one set across repeated open/close cycles', () => {
     const { ui } = mount();
     for (let i = 0; i < 5; i += 1) {

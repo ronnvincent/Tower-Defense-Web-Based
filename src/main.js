@@ -41,6 +41,7 @@ import { OrientationGate } from './system/OrientationGate.js';
 import { DisplayGateUI } from './ui/DisplayGateUI.js';
 import { GATE_MODE, gateBlocksGameplay } from './system/displayMode.js';
 import { lockViewport } from './system/viewportLock.js';
+import { DebugOverlay, debugRequested } from './system/DebugOverlay.js';
 import { CloudSave } from './systems/CloudSave.js';
 import { resolveSupabaseConfig, createSupabaseClient } from './net/supabaseClient.js';
 import { NameGateUI } from './ui/NameGateUI.js';
@@ -75,6 +76,10 @@ const phaserConfig = {
     pixelArt: true,
     antialias: false,
     roundPixels: true,
+    // Ask for the discrete GPU on a laptop that has one. A phone ignores this;
+    // a hybrid laptop that hands the canvas to the integrated chip does not,
+    // and the battlefield is a full-screen blit every frame.
+    powerPreference: 'high-performance',
   },
   scene: [BootScene, MenuScene, GameScene],
 };
@@ -131,6 +136,25 @@ window.gameHUD = new HUD(hudContainer, {});
 // This cancels the page-level pinch / ctrl-wheel / zoom-shortcut fallbacks so a
 // two-finger gesture always zooms the battlefield instead of the HUD.
 lockViewport();
+
+// `?debug=1` turns on the FPS / frame-time / long-task panel and the span
+// recorder the hot paths feed (see `system/DebugOverlay.js`). Off otherwise: one
+// property read per frame is the whole cost of having it in the bundle.
+window.gameDebug = null;
+if (debugRequested()) {
+  const overlay = new DebugOverlay(game);
+  overlay.mount();
+  window.gameDebug = overlay;
+  // The probe is the only thing that needs the scene handle in production.
+  window.game = window.game || game;
+}
+// A background tab has no frames to show. The world map is one big plate of
+// ambient CSS animation, so it is parked for as long as the document is hidden
+// instead of being composited behind whatever is in front of the browser.
+document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('wm-paused', document.visibilityState === 'hidden');
+});
+
 window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, {
   cloud: window.gameCloud,
   // The hall's third tab reads the same day and seed the shrine hands out, so

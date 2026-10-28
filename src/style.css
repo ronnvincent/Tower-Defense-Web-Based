@@ -357,6 +357,11 @@ body.is-fullscreen::before {
   display: block;
   image-rendering: pixelated; /* keep the 64 px pixel art crisp */
   cursor: grab;
+  /* The page already forbids page gestures on <html>, but the gesture contract
+     is computed from the hit target down: saying it here too means a browser
+     that only consults the canvas never delays a drag waiting to see whether
+     the gesture is a scroll. */
+  touch-action: none;
 }
 
 #game-container canvas.grabbing {
@@ -12484,6 +12489,8 @@ html.draft-open body {
   will-change: transform;
 }
 
+
+
 /* While the camera is being driven, the ambient decorations stop animating.
    Each of these animates a plate-sized layer (mist, water, 8 embers, 3 birds,
    7 banner sway) and every one of them forces the compositor to re-do work on
@@ -12513,6 +12520,11 @@ body.wm-covers-canvas #game-container canvas {
   position: relative;
   background: #0b0f14;
   overflow: hidden;
+  /* The plate is the camera's child and the whole painted world. Layout and
+     style containment keep any invalidation inside it from walking back up
+     into the chrome (top bar, rail, panel, foot), which are siblings. `paint`
+     is already implied by the clipping this rule has always had. */
+  contain: layout style;
 }
 
 .wm-terrain {
@@ -12557,8 +12569,14 @@ body.wm-covers-canvas #game-container canvas {
   /* No CSS blur: these are already soft radial gradients, and a 16 px filter
      over a whole plate-sized layer was 65% of the map's frame time (measured:
      102 ms → 36 ms with the air layer removed). Same look, no filter pass. */
-  transform: translate3d(var(--wm-cloud-x, 0px), var(--wm-cloud-y, 0px), 0);
-  will-change: transform;
+  /* The parallax is written once per settled camera (`settleClouds`), never
+     per frame: moving a plate-sized gradient makes Chrome repaint it even when
+     its layer is promoted, and that was 1164 ms per pointer move on the
+     benchmark profile. The transition is what makes "once, at the end"
+     invisible — the bank eases into its parallax offset over a quarter second
+     instead of snapping. */
+  transform: translate3d(0, 0, 0);
+  transition: transform 260ms ease-out;
 }
 
 .wm-clouds--a {
@@ -12570,11 +12588,7 @@ body.wm-covers-canvas #game-container canvas {
 .wm-clouds--b {
   inset: -18% -14%;
   opacity: 0.55;
-  transform: translate3d(
-    calc(var(--wm-cloud-x, 0px) * 0.62),
-    calc(var(--wm-cloud-y, 0px) * 0.62),
-    0
-  );
+  transform: translate3d(0, 0, 0);
 }
 
 .wm-mist {
@@ -12743,6 +12757,10 @@ body.wm-covers-canvas #game-container canvas {
   pointer-events: auto;
   --wm-lift: 0px;
   transition: filter 0.18s ease, transform 0.18s ease;
+  /* Thirteen landmarks are restyled when the label counter-scale changes.
+     Containment scopes that work to each building instead of the whole plate.
+     Not `paint`: the art's drop-shadow is painted outside the box. */
+  contain: layout style;
 }
 
 .wm-landmark-art {
@@ -14719,6 +14737,62 @@ body.wm-covers-canvas #game-container canvas {
 :root[data-quality='performance'] #main-menu-overlay,
 :root[data-quality='performance'] .screen-overlay {
   animation: none;
+}
+
+/* ---- world map: the expensive half is the top profile's alone ------------
+   A filtered layer inside a transformed parent is re-rastered whenever the
+   camera scale changes: on a phone that is a full-plate blur, a plate-region
+   blend and thirteen drop-shadowed sprites, all repainted every frame of a
+   pinch. Everything below is a *look*, not a signal — the locked-state grey
+   stays, because that is how a locked stage reads — so the cheaper profiles
+   get a flat, unfiltered copy of the same artwork.
+
+   Desktop (which resolves to `high`) renders exactly what it always did. */
+:root:not([data-quality='high']) .wm-terrain,
+:root:not([data-quality='high']) .wm-landmark-art,
+:root:not([data-quality='high']) .wm-region {
+  filter: none;
+}
+
+/* Water is a blurred, screen-blended highlight over a big part of the plate.
+   Without the filter and the blend it is still the same soft gradient. */
+:root:not([data-quality='high']) .wm-water {
+  filter: none;
+  mix-blend-mode: normal;
+  opacity: 0.4;
+}
+
+:root:not([data-quality='high']) .wm-landmark[data-state='next'] .wm-landmark-art,
+:root:not([data-quality='high']) .wm-landmark.is-active .wm-landmark-art {
+  filter: none;
+}
+
+/* Locked stays grey — it is the only state that is signalled by the art. */
+:root:not([data-quality='high']) .wm-landmark[data-state='locked'] .wm-landmark-art {
+  filter: grayscale(0.72) brightness(0.66);
+}
+
+/* The panel's own entrance and its shadow are one-off; the ambient loops are
+   not. The bottom profile parks the ambience entirely, which is what its copy
+   in the settings screen already promises. */
+:root[data-quality='performance'] .wm-mist,
+:root[data-quality='performance'] .wm-water,
+:root[data-quality='performance'] .wm-embers i,
+:root[data-quality='performance'] .wm-birds i,
+:root[data-quality='performance'] .wm-landmark-beacon,
+:root[data-quality='performance'] .wm-landmark--banner .wm-landmark-art {
+  animation: none;
+}
+
+/* A background tab has no frames to show, so nothing on the map should be
+   compositing. `wm-paused` is toggled from `main.js` on `visibilitychange`. */
+body.wm-paused .wm-mist,
+body.wm-paused .wm-water,
+body.wm-paused .wm-embers i,
+body.wm-paused .wm-birds i,
+body.wm-paused .wm-landmark-beacon,
+body.wm-paused .wm-landmark--banner .wm-landmark-art {
+  animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {

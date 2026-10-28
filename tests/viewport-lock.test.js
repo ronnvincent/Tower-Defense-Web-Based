@@ -106,6 +106,25 @@ describe('lockViewport', () => {
     input.remove();
   });
 
+  it('never asks to cancel a non-cancelable event', () => {
+    // Chrome logs "[Intervention] Ignored attempt to cancel a touchmove event
+    // with cancelable=false" for each of these — 74 in one recording. The
+    // guard is the fix: ask first, and do nothing when the answer is no.
+    const pinch = new Event('touchmove', { cancelable: false });
+    Object.defineProperty(pinch, 'touches', { value: [{}, {}] });
+    expect(() => document.dispatchEvent(pinch)).not.toThrow();
+    expect(pinch.defaultPrevented).toBe(false);
+
+    const gesture = new Event('gesturestart', { cancelable: false });
+    document.dispatchEvent(gesture);
+    expect(gesture.defaultPrevented).toBe(false);
+
+    // A cancelable event still behaves exactly as before.
+    const cancellable = touchMove(2);
+    document.dispatchEvent(cancellable);
+    expect(cancellable.defaultPrevented).toBe(true);
+  });
+
   it('detaches every listener on release', () => {
     release();
     release = null;

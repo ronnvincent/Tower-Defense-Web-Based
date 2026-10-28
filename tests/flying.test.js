@@ -164,3 +164,43 @@ describe('the campaign fields the flyer', () => {
     }
   });
 });
+
+describe('Target acquisition does not allocate', () => {
+  it('reuses one entry per creep in reach across every tick', () => {
+    const creeps = [creep(40, 0), creep(80, 0), creep(120, 0)];
+    const tower = fakeTower({ ancestors: creeps });
+    tower.acquireTarget();
+    const list = tower._inRange;
+    const entries = list.slice();
+
+    for (let tick = 0; tick < 200; tick += 1) {
+      for (const c of creeps) c.x = 40 + Math.sin(tick / 7) * 10;
+      tower.acquireTarget();
+      // The same array and the same entry objects, every tick.
+      expect(tower._inRange).toBe(list);
+    }
+    expect(list).toHaveLength(3);
+    for (let i = 0; i < entries.length; i += 1) {
+      expect(list[i]).toBe(entries[i]);
+    }
+    // …and the values are still live, not frozen at the first tick.
+    expect(list[0].enemy).toBe(tower.currentTarget);
+    expect(tower.currentTarget).toBeTruthy();
+  });
+
+  it('shrinks the list when creeps die without leaking stale targets', () => {
+    const a = creep(40, 0);
+    const b = creep(60, 0);
+    const tower = fakeTower({ ancestors: [a, b] });
+    tower.acquireTarget();
+    expect(tower._inRange).toHaveLength(2);
+    b.isDead = true;
+    tower.acquireTarget();
+    expect(tower._inRange).toHaveLength(1);
+    expect(tower._inRange[0].enemy).toBe(a);
+    tower.context.activeEnemies = [];
+    tower.acquireTarget();
+    expect(tower.currentTarget).toBeNull();
+    expect(tower._inRange).toHaveLength(0);
+  });
+});

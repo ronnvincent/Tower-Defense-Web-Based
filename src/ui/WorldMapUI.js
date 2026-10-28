@@ -55,6 +55,7 @@ import { dailyRun } from '../systems/DailyChallenge.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { audioDirector } from '../rendering/audioDirector.js';
 import { SOUND_ON, soundIcon } from './soundIcon.js';
+import { perfProbe } from '../system/perfProbe.js';
 
 /** How far past `minScale` the camera may go (clamped again in `measure`). */
 const MAX_ZOOM_FACTOR = 3.2;
@@ -66,6 +67,10 @@ const TWEEN_MS = 520;
 const INTRO_MS = 900;
 
 const CLICK_SLOP = 6; // px of pointer travel that turns a tap into a pan
+/** Idle window that keeps the compositor hint and the "moving" state alive. */
+const GESTURE_IDLE_MS = 220;
+/** How often that window is re-checked while a gesture is running. */
+const GESTURE_TICK_MS = 90;
 
 const reducedMotion = () =>
   typeof window !== 'undefined' &&
@@ -125,6 +130,25 @@ export class WorldMapUI {
     this.clickGuardUntil = 0;
     this.tweenFrame = 0;
     this.tweenGoal = null;
+    /**
+     * The stage's box in client coordinates, cached.
+     *
+     * Reading it inside `pointermove` is what turned a one-finger pinch into a
+     * forced layout per event: `getBoundingClientRect()` has to flush pending
+     * style and layout first, and the camera write from the *previous* event is
+     * always still pending. The rect only changes on resize, orientation, a
+     * fullscreen toggle or a new gesture, so it is measured at those points and
+     * nowhere else.
+     */
+    this.hostRect = { left: 0, top: 0, width: 1, height: 1 };
+    this.cameraFrame = 0; // pending rAF flush of the camera transform
+    this.paintedLabelScale = 0; // last counter-scale actually written
+    this.paintedCloudX = NaN;
+    this.paintedCloudY = NaN;
+    this.paintedZoomText = '';
+    this.tipId = null; // tooltip content cache
+    this.tipWidth = 0; // measured once per content change, never per move
+    this.tipFrame = 0;
     this.introTimer = 0;
     this.toastTimer = 0;
     this.knownUnlocked = null;
@@ -234,6 +258,8 @@ export class WorldMapUI {
     this.stage = el.querySelector('[data-wm-stage]');
     this.cameraEl = el.querySelector('[data-wm-camera]');
     this.panel = el.querySelector('[data-wm-panel]');
+    this.plate = el.querySelector('.wm-plate');
+    this.clouds = [el.querySelector('.wm-clouds--a'), el.querySelector('.wm-clouds--b')].filter(Boolean);
     this.tip = el.querySelector('.wm-tip');
     this.toast = el.querySelector('.wm-toast');
     this.zoomReadout = el.querySelector('#wm-zoom-readout');
@@ -354,7 +380,10 @@ export class WorldMapUI {
     this.stage.addEventListener(
       'wheel',
       (event) => {
-        event.preventDefault();
+        // A wheel event that the browser already committed to (a scroll that
+        // began, a non-cancelable synthetic notch) cannot be cancelled, and
+        // asking to is what fills the console with interventions.
+        if (event.cancelable) event.preventDefault();
         this.cancelTween();
         this.markGesture();
         const step = event.deltaMode === 1 ? 0.045 : 0.0016;
@@ -382,12 +411,15 @@ export class WorldMapUI {
       if (!this.visible || resizeFrame) return;
       resizeFrame = requestAnimationFrame(() => {
         resizeFrame = 0;
+        // The stage box is the thing that moved, so this is where the cached
+        // copy is refreshed (along with the zoom range and the tooltip width).
         this.measure();
         this.camera = this.clampCamera(this.camera);
         this.applyCamera();
       });
     };
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('orientationchange', this.onResize);
     document.addEventListener('fullscreenchange', this.onResize);
   }
 
@@ -425,12 +457,39 @@ export class WorldMapUI {
 
   measure() {
     const rect = this.stage.getBoundingClientRect();
-    this.view = { w: Math.max(1, rect.width), h: Math.max(1, rect.height) };
+    // The one place the stage box is read. Everything that used to call
+    // `getBoundingClientRect()` per pointer event reads `this.hostRect`.
+    this.hostRect = {
+      left: rect.left,
+      top: rect.top,
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height),
+    };
+    this.view = { w: this.hostRect.width, h: this.hostRect.height };
+    this.tipWidth = 0; // the viewport changed, so the tooltip must re-measure once
     const cover = Math.max(this.view.w / PLATE.width, this.view.h / PLATE.height);
     this.minScale = cover;
     // Never past the art's native pixels by much: the castle sprite is 360 px
     // wide and is drawn at 200 plate px, so ~1.8 is its 1:1 size.
     this.maxScale = Math.max(cover * 1.6, Math.min(cover * MAX_ZOOM_FACTOR, 2.2));
+  }
+
+  /**
+   * Refresh the cached stage box without redoing the camera range.
+   *
+   * Called on `pointerdown`, on resize, on orientation change and on a
+   * fullscreen toggle — the only moments the box can move.
+   */
+  measureHost() {
+    const rect = this.stage?.getBoundingClientRect?.();
+    if (!rect) return;
+    this.hostRect = {
+      left: rect.left,
+      top: rect.top,
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height),
+    };
+    this.tipWidth = 0;
   }
 
   clampCamera({ x, y, scale }) {
@@ -440,28 +499,105 @@ export class WorldMapUI {
     return { x: Math.min(0, Math.max(minX, x)), y: Math.min(0, Math.max(minY, y)), scale: s };
   }
 
+  /**
+   * Move the camera. The *state* is updated immediately — every gesture reads
+   * `this.camera` to compute its next step — but the DOM write is coalesced
+   * into one frame.
+   *
+   * Pointer events arrive faster than frames (a 120 Hz digitizer, and Chrome
+   * coalesces several samples into one event), and each one used to write a
+   * transform *and* three custom properties on the map root. Writing the root
+   * invalidates style for the entire map — bars, panel, foot, thirteen
+   * landmarks — for every event, which is the 4.6 s of "Recalculate style" in
+   * the trace. Now N events per frame produce exactly one transform write.
+   */
   setCamera(next) {
     this.camera = this.clampCamera({ ...this.camera, ...next });
-    this.applyCamera();
+    this.scheduleCamera();
     return this.camera;
   }
 
-  applyCamera() {
-    const { x, y, scale } = this.camera;
-    this.cameraEl.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
+  /** Ask for a paint on the next frame (at most one per frame). */
+  scheduleCamera() {
+    if (this.cameraFrame) return;
+    this.cameraFrame = requestAnimationFrame(() => {
+      this.cameraFrame = 0;
+      this.paintCamera();
+    });
+  }
 
-    // Labels are map pins, not scenery: they counter-scale so a stage name is
-    // the same size on a phone at min zoom as on a desktop at max zoom.
-    this.el.style.setProperty('--wm-label-scale', (1 / scale).toFixed(4));
-    // Clouds drift *slower* than the ground — a cheap depth cue.
-    this.el.style.setProperty('--wm-cloud-x', `${((-x / scale) * 0.12).toFixed(1)}px`);
-    this.el.style.setProperty('--wm-cloud-y', `${((-y / scale) * 0.12).toFixed(1)}px`);
+  /**
+   * The per-move write: exactly one transform, on the wrapper that is already
+   * promoted for the duration of a gesture. It cannot trigger style or layout
+   * work, which is the whole point — a pointer move may now cost nothing but a
+   * compositor update.
+   */
+  paintCamera() {
+    const span = perfProbe.begin('wm.camera');
+    const { x, y, scale } = this.camera;
+    const cameraEl = this.cameraEl;
+    if (cameraEl) {
+      cameraEl.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`;
+    }
+
+    const zoomText = `${(scale / (this.minScale || 1)).toFixed(1)}x`;
+    if (zoomText !== this.paintedZoomText) {
+      this.paintedZoomText = zoomText;
+      if (this.zoomReadout) this.zoomReadout.textContent = zoomText;
+    }
+    perfProbe.end('wm.camera', span);
+  }
+
+  /**
+   * The settled write: everything `paintCamera` does, plus the two things that
+   * are only worth paying for once the camera has stopped — the label
+   * counter-scale and the zoom-threshold classes.
+   *
+   * `--wm-label-scale` changes the transform of all thirteen name plates. It
+   * is written on `.wm-plate` (the smallest subtree that contains them) and
+   * only here, so a pan writes no custom properties at all and a pinch writes
+   * them once, on release, instead of sixty times a second.
+   */
+  applyCamera() {
+    this.paintCamera();
+    const { x, y, scale } = this.camera;
+    this.settleClouds(x, y, scale);
+
+    const labelScale = Math.round((1 / scale) * 100) / 100;
+    if (labelScale !== this.paintedLabelScale && this.plate) {
+      this.paintedLabelScale = labelScale;
+      this.plate.style.setProperty('--wm-label-scale', labelScale.toFixed(2));
+    }
 
     const zoom = scale / (this.minScale || 1);
     this.el.classList.toggle('is-far', zoom < LABEL_ZOOM);
     this.el.classList.toggle('can-zoom-in', scale < this.maxScale - 0.005);
     this.el.classList.toggle('can-zoom-out', scale > this.minScale + 0.005);
-    if (this.zoomReadout) this.zoomReadout.textContent = `${zoom.toFixed(1)}x`;
+  }
+
+  /**
+   * The cloud parallax, applied once per settled camera.
+   *
+   * Measured on this build: writing both cloud transforms alongside the camera
+   * transform cost 1164 ms per pointer move, against 140 ms with the clouds
+   * left alone. Both are plate-sized radial gradients, and moving one makes
+   * Chrome repaint the gradient even while its layer is promoted. They are
+   * already carried by the camera, so the parallax is a *fraction* of the pan —
+   * dropping it during the gesture and easing it in over 260 ms when the camera
+   * stops is invisible, and it takes a quarter-second of repaint off every
+   * frame of the busiest moment on the screen.
+   */
+  settleClouds(x, y, scale) {
+    if (!this.clouds?.length) return;
+    const cloudX = Math.round((-x / scale) * 0.12 * 2) / 2;
+    const cloudY = Math.round((-y / scale) * 0.12 * 2) / 2;
+    if (cloudX === this.paintedCloudX && cloudY === this.paintedCloudY) return;
+    this.paintedCloudX = cloudX;
+    this.paintedCloudY = cloudY;
+    for (const cloud of this.clouds) {
+      const depth = cloud.classList.contains('wm-clouds--b') ? 0.62 : 1;
+      cloud.style.transform = `translate3d(${cloudX * depth}px, ${cloudY * depth}px, 0)`;
+    }
   }
 
   /** Default view: the Bastion, centred, at the cover scale. */
@@ -482,7 +618,9 @@ export class WorldMapUI {
   }
 
   zoomAt(clientX, clientY, factor) {
-    const rect = this.stage.getBoundingClientRect();
+    // Cached box, not a live measurement: a wheel event arrives in bursts and
+    // reading layout here forced a style + layout flush per notch.
+    const rect = this.hostRect;
     const px = clientX - rect.left;
     const py = clientY - rect.top;
     const scale = clamp(this.camera.scale * factor, this.minScale, this.maxScale);
@@ -565,7 +703,9 @@ export class WorldMapUI {
         y: from.y + (to.y - from.y) * ease,
         scale: from.scale + (to.scale - from.scale) * ease,
       };
-      this.applyCamera();
+      // Mid-flight frames only need the transform; the counter-scale and the
+      // zoom classes are written once when it lands.
+      this.paintCamera();
       if (t < 1) this.tweenFrame = requestAnimationFrame(step);
       else {
         this.tweenFrame = 0;
@@ -626,17 +766,41 @@ export class WorldMapUI {
    */
   markGesture() {
     if (!this.el) return;
+    this.gestureMarks = (this.gestureMarks || 0) + 1;
+    if (this.gestureTimer) return; // already hinted, already counting
+    this.gestureSeen = this.gestureMarks;
     this.el.classList.add('wm-is-panning');
-    clearTimeout(this.gestureTimer);
-    this.gestureTimer = setTimeout(() => {
-      this.el?.classList.remove('wm-is-panning');
-    }, 220);
+    this.gestureTimer = setTimeout(() => this.gestureTick(), GESTURE_IDLE_MS);
+  }
+
+  /**
+   * One timer per idle window instead of a `clearTimeout` + `setTimeout` pair
+   * per pointer event — that churn showed up in the trace as thousands of
+   * timer callbacks competing with the frame.
+   *
+   * The window stays open while anything keeps marking the camera as moving
+   * (a drag, a pinch, a 900 ms flight) and closes 90–220 ms after the last
+   * mark, at which point the camera is settled and the expensive writes run.
+   */
+  gestureTick() {
+    if (this.gestureMarks !== this.gestureSeen) {
+      this.gestureSeen = this.gestureMarks;
+      this.gestureTimer = setTimeout(() => this.gestureTick(), GESTURE_TICK_MS);
+      return;
+    }
+    this.gestureTimer = 0;
+    this.el?.classList.remove('wm-is-panning');
+    this.applyCamera();
   }
 
   onPointerDown(event) {
     this.markGesture();
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     this.cancelTween();
+    // One measurement per gesture, taken before the first move. A pinch reads
+    // this box on every event; measuring it there was a forced layout per
+    // sample (1.2 s of `getBoundingClientRect` in a 22 s pan).
+    this.measureHost();
     this.clickGuardUntil = 0;
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -665,6 +829,7 @@ export class WorldMapUI {
 
   onPointerMove(event) {
     if (!this.pointers.has(event.pointerId)) return;
+    const span = perfProbe.begin('wm.pointermove');
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     // Keep the compositor hint alive for the whole drag, not just its first
     // 220 ms — the timer is what turns it off again after the last move.
@@ -675,7 +840,7 @@ export class WorldMapUI {
       const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
       const mx = (a.x + b.x) / 2;
       const my = (a.y + b.y) / 2;
-      const rect = this.stage.getBoundingClientRect();
+      const rect = this.hostRect;
       const scale = clamp(
         this.pinch.scale * (dist / this.pinch.dist),
         this.minScale,
@@ -689,10 +854,14 @@ export class WorldMapUI {
         y: my - rect.top - (this.pinch.my - rect.top - this.pinch.camY) * ratio,
         scale,
       });
+      perfProbe.end('wm.pointermove', span);
       return;
     }
 
-    if (!this.drag) return;
+    if (!this.drag) {
+      perfProbe.end('wm.pointermove', span);
+      return;
+    }
     const dx = event.clientX - this.drag.x;
     const dy = event.clientY - this.drag.y;
     if (!this.drag.moved && Math.hypot(dx, dy) > CLICK_SLOP) {
@@ -700,6 +869,7 @@ export class WorldMapUI {
       this.hideTip();
     }
     this.setCamera({ x: this.drag.camX + dx, y: this.drag.camY + dy });
+    perfProbe.end('wm.pointermove', span);
   }
 
   onPointerUp(event) {
@@ -726,6 +896,9 @@ export class WorldMapUI {
       if (this.drag?.moved) this.clickGuardUntil = performance.now() + 400;
       this.drag = null;
       this.stage.classList.remove('is-dragging');
+      // A gesture that ends without another move still has to land on the
+      // settled camera (label counter-scale) exactly once.
+      this.applyCamera();
     }
   }
 
@@ -733,33 +906,58 @@ export class WorldMapUI {
      Tooltip
      ===================================================================== */
 
+  /**
+   * One tooltip element, filled only when the subject changes.
+   *
+   * It used to rebuild its `innerHTML` (two template literals, a `stateLabel`
+   * lookup and a fresh node tree) on every `pointerenter`, and then measure
+   * itself with `offsetWidth` on every move. Both are layout work: the first
+   * throws away thirteen nodes, the second forces a synchronous layout. Now the
+   * markup is rebuilt once per landmark, its width is measured once, and a
+   * move only writes a transform.
+   */
   showTip(id, event) {
     const landmark = getLandmark(id);
     if (!landmark || !this.tip) return;
-    const state = landmark.levelId ? stageState(this.progress, landmark.levelId) : null;
-    this.tip.innerHTML = `
+    if (this.tipId !== id) {
+      const state = landmark.levelId ? stageState(this.progress, landmark.levelId) : null;
+      this.tip.innerHTML = `
       <span class="wm-tip-name">${landmark.name}</span>
       <span class="wm-tip-meta">${
         state ? stateLabel(state) : landmark.tag
       }${landmark.levelId ? ' · briefing' : ' · open'}</span>`;
+      this.tipId = id;
+      // One layout read per content change; every later move reuses it.
+      this.tipWidth = Math.max(120, this.tip.offsetWidth || 160);
+    }
     this.tip.classList.remove('hidden');
     if (event) this.moveTip(event);
     else {
       const btn = this.el.querySelector(`[data-wm-id="${id}"]`);
       const rect = btn?.getBoundingClientRect();
-      const host = this.stage.getBoundingClientRect();
+      const host = this.hostRect;
       if (rect) this.placeTip(rect.left + rect.width / 2 - host.left, rect.top - host.top);
     }
   }
 
   moveTip(event) {
-    const host = this.stage.getBoundingClientRect();
-    this.placeTip(event.clientX - host.left, event.clientY - host.top);
+    // Keyboard focus and a hover sweep can both land here in the same frame;
+    // one transform write per frame is enough for a tooltip.
+    this.tipX = event.clientX;
+    this.tipY = event.clientY;
+    if (this.tipFrame) return;
+    this.tipFrame = requestAnimationFrame(() => {
+      this.tipFrame = 0;
+      const host = this.hostRect;
+      this.placeTip(this.tipX - host.left, this.tipY - host.top);
+    });
   }
 
   placeTip(x, y) {
     if (!this.tip) return;
-    const width = this.tip.offsetWidth || 160;
+    // Cached width: `offsetWidth` here would flush the camera transform that
+    // was just written and turn a hover sweep into a layout per event.
+    const width = this.tipWidth || 160;
     const left = clamp(x, width / 2 + 8, this.view.w - width / 2 - 8);
     const top = Math.max(12, y - 18);
     this.tip.style.transform = `translate(${left}px, ${top}px) translate(-50%, -100%)`;
@@ -961,7 +1159,19 @@ export class WorldMapUI {
     if (this.visible) audio.playPanelOpen();
     audioDirector.setLocation(landmark.panel);
     this.panel.focus?.({ preventScroll: true });
-    if (focus) this.focusLandmark(landmark);
+    if (focus) {
+      // The camera flight measures the panel it has to keep clear
+      // (`panelAnchor` → `getBoundingClientRect`), which forces a layout. Doing
+      // that here blocks the panel's own paint behind a layout pass, and the
+      // tap feels late even though the markup is already in the DOM. Defer one
+      // frame: the card appears immediately, the camera starts moving on the
+      // next one, and the flight is 520 ms either way.
+      if (this.focusFrame) cancelAnimationFrame(this.focusFrame);
+      this.focusFrame = requestAnimationFrame(() => {
+        this.focusFrame = 0;
+        if (this.panelOpen && this.activeId === id) this.focusLandmark(getLandmark(id));
+      });
+    }
   }
 
   focusLandmark(landmark) {
@@ -978,7 +1188,7 @@ export class WorldMapUI {
   /** Where a focused landmark should land so the open panel never hides it. */
   panelAnchor() {
     const rect = this.panel.getBoundingClientRect();
-    const host = this.stage.getBoundingClientRect();
+    const host = this.hostRect;
     if (!rect.width || !rect.height) return null;
     const isSheet = rect.top - host.top > host.height * 0.34;
     if (isSheet) {
@@ -1245,6 +1455,15 @@ export class WorldMapUI {
     this.cancelTween();
     clearTimeout(this.introTimer);
     clearTimeout(this.toastTimer);
+    clearTimeout(this.gestureTimer);
+    this.gestureTimer = 0;
+    if (this.cameraFrame) cancelAnimationFrame(this.cameraFrame);
+    this.cameraFrame = 0;
+    if (this.tipFrame) cancelAnimationFrame(this.tipFrame);
+    this.tipFrame = 0;
+    if (this.focusFrame) cancelAnimationFrame(this.focusFrame);
+    this.focusFrame = 0;
+    this.tipId = null;
     this.saved = this.toMemory();
     this.closePanel({ restore: false });
     this.hideTip();
