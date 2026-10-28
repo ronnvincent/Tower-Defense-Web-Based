@@ -4262,6 +4262,14 @@ kbd {
   overflow: hidden;
 }
 
+/* The daily board has no podium: one tall roll beside the standing card. Left on
+   the default template the roll took the `auto` row, sized to its two rows, and
+   the rest of the plate stayed empty. */
+.lb-body[data-tab='daily'] {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'roll stand';
+}
+
 /* A finished run is a summary plus the device table. As a column with the table
    as the only flexible child, the RECORD button stays inside the hall at every
    size — it used to be pushed under the footer on a landscape phone. */
@@ -4683,7 +4691,10 @@ kbd {
   position: relative;
 }
 
-.lb-block--roll::after {
+/* Only while the roll really overflows. Drawn unconditionally it dimmed the last
+   row of a board that already fit — a two-row table looked like it had a
+   rendering fault. `is-scrollable` is measured in LeaderboardUI. */
+.lb-block--roll.is-scrollable::after {
   content: '';
   position: absolute;
   left: 9px;
@@ -4897,6 +4908,16 @@ kbd {
   text-wrap: pretty;
 }
 
+/* `.lb-stand-note` is dropped on a landscape phone to save the plate's height,
+   so a line that must survive there uses this instead. */
+.lb-stand-line {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+
 /* ---- footer ------------------------------------------------------------ */
 
 .lb-foot {
@@ -4991,6 +5012,11 @@ kbd {
     grid-template-areas:
       'podium podium'
       'roll   stand';
+  }
+
+  .lb-body[data-tab='daily'] {
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'roll stand';
   }
 
   .lb-podium {

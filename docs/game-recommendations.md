@@ -19,6 +19,7 @@ at ebidensya lang.
 | **P2 offline shell** | **SHIPPED** (`3814c86`). Service worker + install offer. |
 | **P3 coach marks** | **SHIPPED** (`3814c86`). Tatlong linya sa unang laban. |
 | **P1 global leaderboard** | **Premisa ko ay mali** — meron nang THE REALM na Supabase-backed. Tingnan ang §5 P1. |
+| **P1′ per-seed daily board** | **SHIPPED** (`0002_daily_board.sql` + tab na **TODAY'S SEED** sa Hall). Napatunayan sa browser: dalawang pangalan, isang araw, isang seed. |
 
 ### Ano ang natanggal at bakit
 
@@ -40,8 +41,8 @@ nananatiling mababasa ang mga lumang run.
 
 | # | Ideya | Bakit ito muna | Hirap |
 |---|-------|----------------|-------|
-| **P1′** | **Per-seed daily board** (hindi "global leaderboard" — meron na) | Seeded daily na pantay sa lahat, pero ang resulta ay napupunta lang sa local hall | M (2–3 araw) |
-| **P4** | Shareable seed link + result card | Web-native na bentahe; kailangan lang ng P1′ para may saysay | S |
+| **P1′** | **Per-seed daily board** | **SHIPPED** — `0002_daily_board.sql`, `daily_submit` / `daily_board` / `my_daily_rank`, tab na **TODAY'S SEED** | — |
+| **P4** | Shareable seed link + result card | Web-native na bentahe; ngayon lang may saysay kasi may board nang paglalagyan | S |
 | **P5** | Run summary / "build story" | 29 card, 21 tore, 2 spec — walang nagsasabi kung bakit nanalo | S–M |
 
 Ang natitira (P6–P8) ay nasa §5.
@@ -189,6 +190,29 @@ walang ranggo ng parehong seed. Ito ang huling kulang na piraso, hindi ang buong
 
 **Sukatan:** dalawang browser, isang araw, isang seed — magkaiba ang pangalan sa
 parehong board.
+
+**SHIPPED (2026-10-28).** Ito ang totoong nangyari kumpara sa plano sa itaas:
+
+- `supabase/migrations/0002_daily_board.sql` — `daily_runs(day_key, player_id, level_id, seed, score, waves)`,
+  `unique (day_key, player_id)`, best-score upsert. Naka-`security definer`, RLS on, **walang** table grant sa anon.
+- Tatlong RPC, hindi isa: `daily_submit`, `daily_board(p_day_key, p_seed, p_limit)`, `my_daily_rank(...)`.
+  Kay `my_daily_rank` kasi kailangan ng "you are #2 of 2" sa standing card, hindi lang ng hilera.
+- Parehong tatlo sa `server/cloud-dev.mjs`, kaya nasubukan lokal bago pa mag-deploy.
+- Bagong tab sa Hall: **TODAY'S SEED** — araw at seed mula sa **shrine**, kaya imposibleng
+  magpakita ng board para sa seed na wala namang naglalaro.
+- **Anti-cheat — iba sa plano, at sinasadya:** hindi alam ng server ang wave cap ng bawat
+  level (wala itong `levelData`), kaya ang tinatanggihan lang ay ang imposible: hindi petsang
+  araw, sirang level id, negatibo o lampas-ceiling na numero, at pangalawang hilera sa
+  parehong araw. Nakasulat ito sa header ng migration — ang totoong lunas ay replay check,
+  hindi mas malaking clamp.
+- **Bug na nahuli habang ginagawa:** hindi ipinapasa ng `launchDaily()` ang `seed`, kaya
+  clock seed ang natatanggap ng `GameScene` at **magkaiba ang card na binubunot sa dalawang
+  manlalaro** — sinira nito ang tanging pangako ng daily. Naipasa na ngayon.
+
+**Ebidensya sa browser** (`vite preview` + `server/cloud-dev.mjs`, 844×390 DPR 3):
+isang tunay na daily run (natapos sa **DEFEAT**, score 234, wave 1/8, 74.3 s) → awtomatikong
+naipost; isang pangalawang commander (9120 / wave 8) sa parehong araw at seed; ang board ay
+nagbasa ng **2 rows** na tama ang ranggo, may **YOU** highlight, at `#2 of 2` sa standing.
 
 ### P2 — Tile atlas + service worker · **SHIPPED** (worker + install; atlas pa)
 

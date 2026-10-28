@@ -351,3 +351,142 @@ describe('a returning browser', () => {
     expect(cloud.needsName).toBe(true);
   });
 });
+
+/* ------------------------------------------------------------ daily board */
+
+/**
+ * The day's board is the one ranking two players are truly comparable on, so
+ * the client's half of it has to be exact: the run goes up the moment it ends,
+ * the numbers are normalised before they leave the device, and a ledger that
+ * refuses is reported as a reason instead of swallowed.
+ */
+function dailyClient({ board = [], mine = null, failOn = null } = {}) {
+  const calls = [];
+  const rpc = vi.fn(async (name, params = {}) => {
+    calls.push({ name, params });
+    if (failOn === name) return { ok: false, reason: 'offline' };
+    if (name === 'daily_submit') {
+      return { ok: true, data: { ok: true, day: params.p_day_key, score: params.p_score, waves: params.p_waves } };
+    }
+    if (name === 'daily_board') return { ok: true, data: board };
+    if (name === 'my_daily_rank') return { ok: true, data: mine || { ok: true, played: false } };
+    return { ok: true, data: { ok: true } };
+  });
+  return { configured: true, source: 'env', calls, rpc, ping: vi.fn(async () => ({ ok: true })) };
+}
+
+/** A CloudSave that already owns a name, without replaying the whole claim. */
+function claimedCloud(client) {
+  const storage = createMemoryStorage();
+  const store = new ProgressStore({ storage, key: 'test:daily-progress' });
+  const cloud = new CloudSave({ client, store, storage });
+  cloud.identity = { username: 'Aria', claimed: true, mode: 'cloud', deviceKey: 'dev-device-key-012345' };
+  cloud.status = 'online';
+  return cloud;
+}
+
+describe('the daily board', () => {
+  it('posts the run with the day, the seed and the numbers', async () => {
+    const client = dailyClient();
+    const cloud = claimedCloud(client);
+
+    const result = await cloud.submitDaily({
+      dayKey: '2026-10-28',
+      levelId: 'level-3',
+      seed: 8842,
+      score: 1234,
+      waves: 8,
+    });
+
+    expect(result).toEqual({ ok: true, score: 1234, waves: 8 });
+    expect(client.calls.at(-1)).toEqual({
+      name: 'daily_submit',
+      params: {
+        p_device_key: 'dev-device-key-012345',
+        p_day_key: '2026-10-28',
+        p_level_id: 'level-3',
+        p_seed: 8842,
+        p_score: 1234,
+        p_waves: 8,
+      },
+    });
+  });
+
+  it('normalises the numbers before they leave the device', async () => {
+    const client = dailyClient();
+    const cloud = claimedCloud(client);
+
+    await cloud.submitDaily({ dayKey: '2026-10-28', levelId: 'level-3', seed: 12.7, score: -90, waves: 3.9 });
+
+    const { params } = client.calls.at(-1);
+    expect(params.p_score).toBe(0); // a negative score is never posted
+    expect(params.p_waves).toBe(3);
+    expect(params.p_seed).toBe(12);
+  });
+
+  it('says why it could not post instead of pretending', async () => {
+    const offline = claimedCloud(dailyClient({ failOn: 'daily_submit' }));
+    expect(await offline.submitDaily({ dayKey: '2026-10-28', levelId: 'level-3', seed: 1, score: 5, waves: 1 })).toEqual({
+      ok: false,
+      reason: 'offline',
+    });
+
+    const unclaimed = claimedCloud(dailyClient());
+    unclaimed.identity = { username: '', claimed: false };
+    expect((await unclaimed.submitDaily({ dayKey: 'd', levelId: 'level-3' })).reason).toBe('unclaimed');
+
+    const off = new CloudSave({ client: null, store: new ProgressStore({ storage: createMemoryStorage(), key: 'x' }) });
+    expect((await off.submitDaily({ dayKey: 'd', levelId: 'level-3' })).reason).toBe('unconfigured');
+  });
+
+  it('turns the ledger rows into a ranked board', async () => {
+    const client = dailyClient({
+      board: [
+        { rank: 1, username: 'Borin', level_id: 'level-3', score: 9000, waves: 8, total: 2 },
+        { rank: 2, username: 'Aria', level_id: 'level-3', score: 4100, waves: 8, total: 2 },
+      ],
+    });
+    const cloud = claimedCloud(client);
+
+    const board = await cloud.dailyBoard({ dayKey: '2026-10-28', seed: 8842 });
+    expect(board).toEqual({
+      ok: true,
+      total: 2,
+      rows: [
+        { rank: 1, username: 'Borin', levelId: 'level-3', score: 9000, waves: 8 },
+        { rank: 2, username: 'Aria', levelId: 'level-3', score: 4100, waves: 8 },
+      ],
+    });
+    expect(client.calls.at(-1).params).toEqual({ p_day_key: '2026-10-28', p_seed: 8842, p_limit: 25 });
+  });
+
+  it('reports an unreachable board as a reason, with no rows', async () => {
+    const cloud = claimedCloud(dailyClient({ failOn: 'daily_board' }));
+    expect(await cloud.dailyBoard({ dayKey: '2026-10-28' })).toEqual({
+      ok: false,
+      reason: 'offline',
+      rows: [],
+      total: 0,
+    });
+  });
+
+  it('knows where this device sits, or that it has not played', async () => {
+    const played = claimedCloud(dailyClient({
+      mine: { ok: true, played: true, rank: 4, total: 9, score: 700, waves: 6, levelId: 'level-3' },
+    }));
+    expect(await played.myDailyRank({ dayKey: '2026-10-28', seed: 8842 })).toEqual({
+      played: true,
+      rank: 4,
+      total: 9,
+      score: 700,
+      waves: 6,
+      levelId: 'level-3',
+    });
+
+    const unplayed = claimedCloud(dailyClient());
+    expect(await unplayed.myDailyRank({ dayKey: '2026-10-28' })).toEqual({ played: false });
+
+    const offline = claimedCloud(dailyClient({ failOn: 'my_daily_rank' }));
+    expect(await offline.myDailyRank({ dayKey: '2026-10-28' })).toBeNull();
+  });
+});

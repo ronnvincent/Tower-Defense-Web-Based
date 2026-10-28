@@ -133,6 +133,18 @@ window.gameHUD = new HUD(hudContainer, {});
 lockViewport();
 window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, {
   cloud: window.gameCloud,
+  // The hall's third tab reads the same day and seed the shrine hands out, so
+  // the board can never describe a run nobody is playing.
+  dailyRun: () => {
+    const run = dailyRunForToday();
+    if (!run) return null;
+    return {
+      key: run.key,
+      seed: run.seed,
+      levelId: run.levelId,
+      levelName: getLevel(run.levelId)?.name || '',
+    };
+  },
   onReturnToMenu: () => {
     const gameScene = game.scene.getScene('GameScene');
     if (gameScene && gameScene.scene.isActive()) {
@@ -390,7 +402,10 @@ function launchDaily() {
   const run = dailyRunForToday();
   if (!run) return null;
   window.gameDaily?.recordPlay(run.key);
-  startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier });
+  // The seed travels with the launch. Without it `GameScene` fell back to a
+  // clock seed, so two players on "the same run" were dealt different cards —
+  // the one promise a daily makes.
+  startLevel(run.levelId, { dailyKey: run.key, dailyModifier: run.modifier, seed: run.seed });
   return run;
 }
 

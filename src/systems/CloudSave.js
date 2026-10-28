@@ -565,6 +565,93 @@ export class CloudSave {
     };
   }
 
+  /* ------------------------------------------------------------ daily board */
+
+  /**
+   * Post this device's run on a day's seed.
+   *
+   * The daily board is the one ranking where two players are genuinely
+   * comparable, so the run is sent the moment it ends instead of riding the
+   * debounced save: a player who closes the tab on the victory card should
+   * still be counted. A refusal is a result, never an exception.
+   *
+   * @returns {Promise<{ok:boolean, score?:number, waves?:number, reason?:string}>}
+   */
+  async submitDaily({ dayKey, levelId, seed, score, waves } = {}) {
+    if (!this.client?.configured) return { ok: false, reason: 'unconfigured' };
+    if (!this.identity?.claimed) return { ok: false, reason: 'unclaimed' };
+    if (!dayKey || !levelId) return { ok: false, reason: 'bad-run' };
+
+    const result = await this.client.rpc('daily_submit', {
+      p_device_key: this.identity.deviceKey,
+      p_day_key: String(dayKey),
+      p_level_id: String(levelId),
+      p_seed: Math.floor(Number(seed)) || 0,
+      p_score: Math.max(0, Math.floor(Number(score)) || 0),
+      p_waves: Math.max(0, Math.floor(Number(waves)) || 0),
+    });
+    if (!result.ok) {
+      this.lastError = result.reason || 'offline';
+      return { ok: false, reason: this.lastError };
+    }
+    const data = result.data || {};
+    if (data.ok === false) return { ok: false, reason: data.reason || 'refused' };
+    return { ok: true, score: Number(data.score) || 0, waves: Number(data.waves) || 0 };
+  }
+
+  /**
+   * One page of a day's board.
+   * @returns {Promise<{ok:boolean, rows:Array, total:number, reason?:string}>}
+   */
+  async dailyBoard({ dayKey, seed = null, limit = 25 } = {}) {
+    if (!this.client?.configured) return { ok: false, reason: 'unconfigured', rows: [], total: 0 };
+    if (!dayKey) return { ok: false, reason: 'bad-day', rows: [], total: 0 };
+    const result = await this.client.rpc('daily_board', {
+      p_day_key: String(dayKey),
+      p_seed: seed == null ? null : Math.floor(Number(seed)) || 0,
+      p_limit: limit,
+    });
+    if (!result.ok) {
+      this.lastError = result.reason || 'offline';
+      return { ok: false, reason: this.lastError, rows: [], total: 0 };
+    }
+    const rows = Array.isArray(result.data) ? result.data : [];
+    return {
+      ok: true,
+      rows: rows.map((row) => ({
+        rank: Number(row.rank) || 0,
+        username: String(row.username || ''),
+        levelId: String(row.level_id || ''),
+        score: Number(row.score) || 0,
+        waves: Number(row.waves) || 0,
+      })),
+      total: Number(rows[0]?.total) || rows.length,
+    };
+  }
+
+  /**
+   * Where this device sits on a day's board, or null when it has not played.
+   * @returns {Promise<{played:boolean, rank?:number, total?:number, score?:number, waves?:number, levelId?:string}|null>}
+   */
+  async myDailyRank({ dayKey, seed = null } = {}) {
+    if (!this.identity?.claimed || !this.isOnline) return null;
+    const result = await this.client.rpc('my_daily_rank', {
+      p_device_key: this.identity.deviceKey,
+      p_day_key: String(dayKey || ''),
+      p_seed: seed == null ? null : Math.floor(Number(seed)) || 0,
+    });
+    if (!result.ok || !result.data?.ok) return null;
+    if (!result.data.played) return { played: false };
+    return {
+      played: true,
+      rank: Number(result.data.rank) || 0,
+      total: Number(result.data.total) || 0,
+      score: Number(result.data.score) || 0,
+      waves: Number(result.data.waves) || 0,
+      levelId: String(result.data.levelId || ''),
+    };
+  }
+
   /* --------------------------------------------------------------- misc */
 
   /** Everything a UI needs, without reaching into internals. */

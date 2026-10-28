@@ -15,6 +15,9 @@
  *   POST /rest/v1/rpc/pull_progress       { p_device_key }
  *   POST /rest/v1/rpc/leaderboard_page    { p_limit, p_offset }
  *   POST /rest/v1/rpc/my_rank             { p_device_key }
+ *   POST /rest/v1/rpc/daily_submit        { p_device_key, p_day_key, p_level_id, p_seed, p_score, p_waves }
+ *   POST /rest/v1/rpc/daily_board         { p_day_key, p_seed, p_limit }
+ *   POST /rest/v1/rpc/my_daily_rank       { p_device_key, p_day_key, p_seed }
  *
  * The rules are copies of the SQL on purpose: unique case-insensitive names,
  * a device key per browser, clamped metrics, achievements as rows. If the two
@@ -48,6 +51,7 @@ const db = {
   players: [], // { id, username, key, device, created, power, level, stars, best, waves, achievements }
   progress: {}, // playerId -> { data, revision, updated }
   medals: {}, // playerId -> [achievementId]
+  daily: [], // { day, playerId, levelId, seed, score, waves, updated } — one row per player per day
 };
 
 load();
@@ -59,6 +63,7 @@ function load() {
     if (Array.isArray(raw.players)) db.players = raw.players;
     if (raw.progress && typeof raw.progress === 'object') db.progress = raw.progress;
     if (raw.medals && typeof raw.medals === 'object') db.medals = raw.medals;
+    if (Array.isArray(raw.daily)) db.daily = raw.daily;
   } catch (error) {
     console.warn('[cloud-dev] store unreadable, starting empty:', error.message);
   }
@@ -86,6 +91,11 @@ function cleanName(value) {
 }
 
 const clamp = (value, min) => Math.max(min, Number.isFinite(Number(value)) ? Math.floor(Number(value)) : min);
+
+const DAY_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const LEVEL_PATTERN = /^[a-z0-9-]{1,32}$/;
+const DAILY_MAX_SCORE = 5_000_000;
+const DAILY_MAX_WAVES = 999;
 
 function byName(key) {
   return db.players.find((player) => player.key === key) || null;
@@ -247,6 +257,106 @@ const handlers = {
       achievements: player.achievements,
     };
   },
+
+  /**
+   * `0002_daily_board.sql` → `daily_submit`. Same validation, same "keep the
+   * better run" rule: the barriers here are the cheap ones (a real date, a real
+   * level id, numbers inside a ceiling), and the comment in the migration says
+   * plainly that they are not an anti-cheat guarantee.
+   */
+  daily_submit: ({ p_device_key, p_day_key, p_level_id, p_seed, p_score, p_waves }) => {
+    const player = byDevice(String(p_device_key ?? ''));
+    if (!player) return { ok: false, reason: 'unknown-device' };
+
+    const day = String(p_day_key ?? '');
+    if (!DAY_PATTERN.test(day)) return { ok: false, reason: 'bad-day' };
+    const levelId = String(p_level_id ?? '');
+    if (!LEVEL_PATTERN.test(levelId)) return { ok: false, reason: 'bad-level' };
+
+    const score = Number(p_score);
+    const waves = Number(p_waves);
+    if (!Number.isInteger(score) || score < 0 || score > DAILY_MAX_SCORE) {
+      return { ok: false, reason: 'bad-score' };
+    }
+    if (!Number.isInteger(waves) || waves < 0 || waves > DAILY_MAX_WAVES) {
+      return { ok: false, reason: 'bad-waves' };
+    }
+    const seed = Number.isFinite(Number(p_seed)) ? Math.floor(Number(p_seed)) : 0;
+
+    let row = db.daily.find((entry) => entry.day === day && entry.playerId === player.id);
+    if (!row) {
+      row = { day, playerId: player.id, levelId, seed, score, waves, updated: Date.now() };
+      db.daily.push(row);
+    } else if (score > row.score) {
+      Object.assign(row, { levelId, seed, score, waves, updated: Date.now() });
+    } else {
+      row.waves = Math.max(row.waves, waves);
+      row.updated = Date.now();
+    }
+    persist();
+    return { ok: true, day: row.day, score: row.score, waves: row.waves };
+  },
+
+  /** `daily_board` — one page, best first, filtered to the seed being played. */
+  daily_board: ({ p_day_key, p_seed, p_limit }) => {
+    const day = String(p_day_key ?? '');
+    const limit = Math.min(Math.max(Number(p_limit) || 25, 1), 100);
+    const seed = p_seed === null || p_seed === undefined ? null : Math.floor(Number(p_seed));
+
+    const entries = db.daily
+      .filter((row) => row.day === day && (seed === null || row.seed === seed))
+      .map((row) => ({ row, player: db.players.find((entry) => entry.id === row.playerId) }))
+      .filter((entry) => entry.player)
+      .sort(
+        (a, b) =>
+          b.row.score - a.row.score ||
+          b.row.waves - a.row.waves ||
+          a.row.updated - b.row.updated
+      );
+
+    const total = entries.length;
+    return entries.slice(0, limit).map((entry, index) => ({
+      rank: index + 1,
+      username: entry.player.username,
+      level_id: entry.row.levelId,
+      score: entry.row.score,
+      waves: entry.row.waves,
+      total,
+    }));
+  },
+
+  /** `my_daily_rank` — the caller's place on that day, or `played:false`. */
+  my_daily_rank: ({ p_device_key, p_day_key, p_seed }) => {
+    const player = byDevice(String(p_device_key ?? ''));
+    if (!player) return { ok: false, reason: 'unknown-device' };
+    const day = String(p_day_key ?? '');
+    const seed = p_seed === null || p_seed === undefined ? null : Math.floor(Number(p_seed));
+
+    const row = db.daily.find(
+      (entry) => entry.day === day && entry.playerId === player.id && (seed === null || entry.seed === seed)
+    );
+    if (!row) return { ok: true, played: false };
+
+    const peers = db.daily.filter(
+      (entry) => entry.day === day && (seed === null || entry.seed === seed)
+    );
+    const ahead = peers.filter(
+      (entry) =>
+        entry.score > row.score ||
+        (entry.score === row.score && entry.waves > row.waves) ||
+        (entry.score === row.score && entry.waves === row.waves && entry.updated < row.updated)
+    ).length;
+
+    return {
+      ok: true,
+      played: true,
+      rank: ahead + 1,
+      total: peers.length,
+      score: row.score,
+      waves: row.waves,
+      levelId: row.levelId,
+    };
+  },
 };
 
 function json(res, status, body) {
@@ -321,5 +431,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[cloud-dev] ledger stand-in on http://0.0.0.0:${PORT} (store ${STORE})`);
-  console.log('[cloud-dev] this is NOT Supabase — apply supabase/migrations/0001_cloud_save.sql for the real thing');
+  console.log('[cloud-dev] this is NOT Supabase — apply supabase/migrations/0001_cloud_save.sql and 0002_daily_board.sql for the real thing');
 });

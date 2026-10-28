@@ -40,7 +40,30 @@ the `clean_username` helper, and seven `security definer` functions:
 | `leaderboard_page` | one page of the ranking (power → level → stars → best score) |
 | `my_rank` | the caller's own rank, power, level, stars and medal count |
 
-The client is only ever allowed to call those seven. Tables are locked down:
+### The daily board (`0002_daily_board.sql`)
+
+A second, smaller migration adds **one row per player per day** on that day's
+seed, so the daily is a shared board and not a private streak:
+
+```
+supabase/migrations/0002_daily_board.sql
+```
+
+Apply it the same way (SQL editor → paste → Run). It is idempotent and needs
+`0001` applied first, because every row points at `public.players`.
+
+| function | what it does |
+| --- | --- |
+| `daily_submit` | posts the caller's run for a day (score + waves), keeping the better of the two |
+| `daily_board` | one page of a day's board, best first, filtered by the seed being played |
+| `my_daily_rank` | the caller's place on that day, or `{ played: false }` |
+
+The trust model is written down at the top of the file: the server cannot replay
+a tower-defense run, so it rejects only impossible input (a day that is not a
+date, a bad level id, negative or ceiling-breaking numbers) and one row per
+player per day. A replay check is the honest upgrade, not a bigger clamp.
+
+The client is only ever allowed to call those functions. Tables are locked down:
 RLS is enabled with **no policies** and all table privileges are revoked from
 `anon` / `authenticated`, so the anon key cannot read or write rows directly —
 it can only execute the functions, which are `security definer` with a pinned
@@ -73,7 +96,7 @@ npm run cloud:dev     # stand-in ledger alone
 ```
 
 The stand-in (`server/cloud-dev.mjs`) is a JSON-file implementation of the same
-seven functions, so the whole gate → claim → sync → ranking path can be
+ten functions (the seven above plus the three daily-board ones), so the whole gate → claim → sync → ranking path can be
 exercised without a Supabase project. Its store lives in
 `.dev-data/cloud-dev.json` (git-ignored); delete that file to start from an
 empty ledger.

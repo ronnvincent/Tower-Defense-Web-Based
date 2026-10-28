@@ -10,7 +10,11 @@ import { readFileSync } from 'node:fs';
  * These tests read the three files and compare them.
  */
 
-const sql = readFileSync('supabase/migrations/0001_cloud_save.sql', 'utf8');
+// The contract spans both migrations: 0002 adds the daily board on top of the
+// players table 0001 creates, and the client calls all of it.
+const sql = ['0001_cloud_save.sql', '0002_daily_board.sql']
+  .map((file) => readFileSync(`supabase/migrations/${file}`, 'utf8'))
+  .join('\n');
 const cloudSave = readFileSync('src/systems/CloudSave.js', 'utf8');
 const clientSource = readFileSync('src/net/supabaseClient.js', 'utf8');
 const devServer = readFileSync('server/cloud-dev.mjs', 'utf8');
@@ -58,6 +62,9 @@ const calls = clientCalls(cloudSave);
 const LEDGER = [
   'check_username',
   'cloud_ping',
+  'daily_board',
+  'daily_submit',
+  'my_daily_rank',
   'leaderboard_page',
   'my_rank',
   'pull_progress',
@@ -66,7 +73,7 @@ const LEDGER = [
 ];
 
 describe('SQL ↔ client contract', () => {
-  it('defines the seven ledger functions', () => {
+  it('defines every ledger function, and no stray public ones', () => {
     for (const name of LEDGER) expect(functions.has(name), name).toBe(true);
     // And nothing else public that is not a helper.
     const extra = [...functions.keys()].filter((name) => !LEDGER.includes(name));
@@ -98,7 +105,8 @@ describe('SQL ↔ client contract', () => {
     expect(sql).toContain('revoke all on table public.players from anon, authenticated');
     expect(sql).toContain('revoke all on table public.progress from anon, authenticated');
     expect(sql).toContain('revoke all on table public.player_achievements from anon, authenticated');
-    for (const table of ['players', 'progress', 'player_achievements']) {
+    expect(sql).toContain('revoke all on table public.daily_runs from anon, authenticated');
+    for (const table of ['players', 'progress', 'player_achievements', 'daily_runs']) {
       expect(sql).toContain(`alter table public.${table} enable row level security`);
     }
     expect(sql).not.toMatch(/grant\s+(select|insert|update|delete)\s+on\s+table\s+public\./i);
@@ -112,7 +120,17 @@ describe('SQL ↔ client contract', () => {
   });
 
   it('marks every data function SECURITY DEFINER', () => {
-    for (const name of ['check_username', 'register_player', 'sync_progress', 'pull_progress', 'leaderboard_page', 'my_rank']) {
+    for (const name of [
+      'check_username',
+      'register_player',
+      'sync_progress',
+      'pull_progress',
+      'leaderboard_page',
+      'my_rank',
+      'daily_submit',
+      'daily_board',
+      'my_daily_rank',
+    ]) {
       const body = sql.slice(sql.indexOf(`function public.${name}(`), sql.indexOf(`function public.${name}(`) + 400);
       expect(body.toLowerCase(), name).toContain('security definer');
     }

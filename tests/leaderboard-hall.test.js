@@ -270,3 +270,81 @@ describe("the Champions' Hall styling", () => {
     }
   });
 });
+
+/* ------------------------------------------------------------ daily board */
+
+/**
+ * The third tab is the only board two players are genuinely comparable on:
+ * same day, same seed, same twist. It has to open on the day's real seed, say
+ * so when nobody has posted, and never invent a row.
+ */
+function fakeDailyCloud({ rows = DAILY_ROWS, total, mine = null, ok = true, reason } = {}) {
+  return {
+    ...fakeCloud(),
+    dailyBoard: vi.fn(async () => (ok ? { ok: true, rows, total: total ?? rows.length } : { ok: false, reason, rows: [], total: 0 })),
+    myDailyRank: vi.fn(async () => mine),
+  };
+}
+
+const DAILY_ROWS = [
+  { rank: 1, username: 'Borin', levelId: 'level-3', score: 9120, waves: 8 },
+  { rank: 2, username: 'Aria', levelId: 'level-3', score: 4300, waves: 8 },
+];
+
+const TODAY = { key: '2026-10-28', seed: 8842, levelId: 'level-3', levelName: 'Frostbite Reach' };
+
+describe('the hall\'s daily tab', () => {
+  it('is a third tab next to the realm and the device', () => {
+    const ui = mount(fakeDailyCloud(), { dailyRun: () => TODAY });
+    ui.show();
+    const tabs = [...document.querySelectorAll('[data-lb-tab]')].map((tab) => tab.dataset.lbTab);
+    expect(tabs).toEqual(['realm', 'daily', 'device']);
+  });
+
+  it('reads the day and the seed from the shrine, then prints the board', async () => {
+    const cloud = fakeDailyCloud();
+    const ui = mount(cloud, { dailyRun: () => TODAY });
+    ui.show();
+    document.querySelector('[data-lb-tab="daily"]').click();
+    await settle();
+
+    expect(cloud.dailyBoard).toHaveBeenCalledWith({ dayKey: '2026-10-28', seed: 8842, limit: 25 });
+    expect(cloud.myDailyRank).toHaveBeenCalledWith({ dayKey: '2026-10-28', seed: 8842 });
+
+    const text = document.getElementById('leaderboard-modal').textContent;
+    expect(text).toContain('SEED 8842');
+    expect(text).toContain('Borin');
+    expect(text).toContain('9,120');
+  });
+
+  it('never pretends a row exists on an untouched day', async () => {
+    const ui = mount(fakeDailyCloud({ rows: [] }), { dailyRun: () => TODAY });
+    ui.show();
+    document.querySelector('[data-lb-tab="daily"]').click();
+    await settle();
+
+    const text = document.getElementById('leaderboard-modal').textContent;
+    expect(text).toContain('NOBODY HAS POSTED TODAY');
+    expect(text).toContain('seed 8842');
+  });
+
+  it('explains a missing ledger instead of showing an empty table', async () => {
+    const ui = mount(fakeDailyCloud({ ok: false, reason: 'unconfigured' }), { dailyRun: () => TODAY });
+    ui.show();
+    document.querySelector('[data-lb-tab="daily"]').click();
+    await settle();
+
+    expect(document.getElementById('leaderboard-modal').textContent).toContain('NO LEDGER CONNECTED');
+  });
+
+  it('opens on today\'s board when the run that just ended was the daily', async () => {
+    const cloud = fakeDailyCloud();
+    const ui = mount(cloud, { dailyRun: () => TODAY });
+    ui.show({ status: 'victory', score: 4300, waves: 8, daily: { key: '2026-10-28' }, level: { id: 'level-3' } });
+    await settle();
+
+    expect(ui.tab).toBe('daily');
+    expect(cloud.dailyBoard).toHaveBeenCalled();
+    expect(document.querySelector('[data-lb-tab="daily"]').getAttribute('aria-selected')).toBe('true');
+  });
+});

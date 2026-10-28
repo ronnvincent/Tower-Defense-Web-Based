@@ -191,6 +191,32 @@ export class GameScene extends Phaser.Scene {
       1;
   }
 
+  /**
+   * Post a finished daily run to the shared board.
+   *
+   * The daily is the one ranking where two players are genuinely comparable —
+   * same seed, same twist, same day — so the run goes up the moment it ends,
+   * win or loss. Fire-and-forget on purpose: the local save already holds the
+   * result, and a ledger that does not answer must never cost a player the card
+   * they are reading.
+   */
+  publishDailyRun(payload = {}) {
+    if (!this.dailyKey) return;
+    const cloud = window.gameCloud;
+    if (!cloud?.submitDaily) return;
+    try {
+      void cloud.submitDaily({
+        dayKey: this.dailyKey,
+        levelId: this.levelId,
+        seed: this.runSeed,
+        score: payload.score ?? this.economy?.score ?? 0,
+        waves: payload.waves ?? this.waveManager?.wavesCompleted ?? 0,
+      });
+    } catch (error) {
+      this.reportRuntimeError?.(error);
+    }
+  }
+
   /** Fold an event into the lifetime stats (no-op without a progress store). */
   trackStats(patch, options) {
     // A duel is a private match: it must not farm campaign stats, medals or the
@@ -3806,6 +3832,7 @@ export class GameScene extends Phaser.Scene {
 
   showResult(payload) {
     this.lastResult = payload;
+    this.publishDailyRun(payload);
     // The run is over: the battle bed stops and the sting takes the scene. The
     // result screens want no ambience at all (`AMBIENCE_FOR` maps both to an
     // empty bed), so the wind does not play under the defeat card.

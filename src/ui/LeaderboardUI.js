@@ -60,6 +60,18 @@ export class LeaderboardUI {
     this.mode = 'all';
     this.tab = this.cloud ? 'realm' : 'device';
     this.realm = { state: 'idle', rows: [], total: 0, mine: null, reason: '' };
+    // The day's board: everyone who played the same seed today. Its own state
+    // object because it is fetched from its own tab, on its own terms.
+    this.daily = {
+      state: 'idle',
+      rows: [],
+      total: 0,
+      mine: null,
+      reason: '',
+      key: null,
+      seed: null,
+      levelName: '',
+    };
     this.loadingToken = 0;
     this._pendingResult = null;
   }
@@ -84,9 +96,15 @@ export class LeaderboardUI {
       const board = resolveCategory(gameResult);
       if (board && board !== 'unknown') this.mode = board;
     }
+    if (gameResult?.daily) {
+      // The run just played was today's seeded run; the board it belongs to is
+      // the one nobody else can file it on.
+      this.tab = 'daily';
+    }
     this.render(gameResult);
     this.root?.classList.remove('hidden');
     if (this.tab === 'realm') void this.loadRealm();
+    if (this.tab === 'daily') void this.loadDaily();
   }
 
   hide() {
@@ -123,6 +141,60 @@ export class LeaderboardUI {
     this.realm = board.ok
       ? { state: 'ready', rows: board.rows, total: board.total, mine, reason: '' }
       : { state: 'error', rows: [], total: 0, mine: null, reason: board.reason || 'offline' };
+    this._paint();
+  }
+
+  /**
+   * Read today's seeded board.
+   *
+   * The day and the seed come from the same module the shrine uses, so the tab
+   * can never show a board for a seed nobody is playing. A day that has not
+   * been touched yet is an empty state with the reason on it, not an error.
+   */
+  async loadDaily() {
+    const token = ++this.loadingToken;
+    const run = this.callbacks.dailyRun?.() || null;
+    this.daily = {
+      ...this.daily,
+      state: 'loading',
+      reason: '',
+      key: run?.key ?? null,
+      seed: run?.seed ?? null,
+      levelName: run?.levelName || '',
+    };
+    this._paint();
+
+    if (!this.cloud) {
+      this.daily = { ...this.daily, state: 'off', reason: 'no-ledger' };
+      this._paint();
+      return;
+    }
+    if (!run) {
+      this.daily = { ...this.daily, state: 'off', reason: 'no-day' };
+      this._paint();
+      return;
+    }
+
+    const [board, mine] = await Promise.all([
+      this.cloud.dailyBoard({ dayKey: run.key, seed: run.seed, limit: 25 }),
+      this.cloud.myDailyRank({ dayKey: run.key, seed: run.seed }),
+    ]);
+    if (token !== this.loadingToken) return; // a newer request won
+
+    if (!board.ok) {
+      const off = board.reason === 'unconfigured';
+      this.daily = {
+        ...this.daily,
+        state: off ? 'off' : 'error',
+        rows: [],
+        total: 0,
+        mine: null,
+        reason: board.reason || 'offline',
+      };
+      this._paint();
+      return;
+    }
+    this.daily = { ...this.daily, state: 'ready', rows: board.rows, total: board.total, mine, reason: '' };
     this._paint();
   }
 
@@ -294,6 +366,109 @@ export class LeaderboardUI {
       </aside>`;
   }
 
+  /* --------------------------------------------------------------- daily */
+
+  /**
+   * Today's seeded board: one row per commander, best run first.
+   *
+   * Deliberately the same table furniture as the realm roll — a board is a
+   * board — with score and waves instead of power and stars, because those are
+   * the numbers two runs on the same seed are actually comparable by.
+   */
+  _dailyBodyMarkup() {
+    const { state, rows, total, mine, reason, levelName, key } = this.daily;
+
+    if (state === 'off') {
+      const noDay = reason === 'no-day';
+      return `<div class="lb-full-frame lb-notice">
+          <p class="lb-roll-empty-title">${noDay ? "TODAY'S RUN IS LOCKED" : 'NO LEDGER CONNECTED'}</p>
+          <p class="lb-roll-empty-note">${
+            noDay
+              ? 'Clear the previous stage to open the shrine: the daily follows the campaign, so today’s run is on a map you have not reached yet.'
+              : 'Today’s board lives in the ledger, and this build has no ledger address. Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> (see <code>supabase/README.md</code>), then apply <code>0002_daily_board.sql</code>.'
+          }</p>
+        </div>`;
+    }
+
+    if (state === 'loading' || state === 'idle') {
+      return `<div class="lb-full-frame lb-notice">
+          <p class="lb-roll-empty-title">READING TODAY'S SEED…</p>
+          <p class="lb-roll-empty-note">Same seed, same twist, everyone. Fetching who has posted it.</p>
+        </div>`;
+    }
+
+    if (state === 'error') {
+      return `<div class="lb-full-frame lb-notice">
+          <p class="lb-roll-empty-title">THE LEDGER DID NOT ANSWER</p>
+          <p class="lb-roll-empty-note">${escapeHtml(
+            reason === 'offline' || reason === 'timeout'
+              ? 'The connection dropped. Today’s run is still safe on this device.'
+              : `Reason: ${reason}`
+          )}</p>
+          <button class="game-btn" id="btn-retry-daily" type="button">TRY AGAIN</button>
+        </div>`;
+    }
+
+    if (!rows.length) {
+      return `<div class="lb-full-frame lb-notice">
+          <p class="lb-roll-empty-title">NOBODY HAS POSTED TODAY</p>
+          <p class="lb-roll-empty-note">${
+            levelName ? `${escapeHtml(levelName)} is waiting on seed ${this.daily.seed}. ` : ''
+          }Play today’s run at the shrine and finish it — the first name on the board is uncontested.</p>
+        </div>`;
+    }
+
+    const body = rows
+      .map((row) => {
+        const isMe = this._isMe(row.username);
+        return `
+          <tr class="rank-row ${isMe ? 'is-me' : ''}">
+            <td class="col-rank">${rankChip(row.rank)}</td>
+            <td class="col-name">${namePlate(row.username, isMe)}</td>
+            <td class="col-power">${formatNumber(row.score)}</td>
+            <td class="col-level">${row.waves}</td>
+          </tr>`;
+      })
+      .join('');
+
+    // The standing card keeps the realm tab's shape: the plate is height-bound
+    // on a landscape phone, and a bare paragraph there was simply clipped away.
+    const standing = mine?.played
+      ? `<p class="lb-stand-eyebrow">YOUR STANDING</p>
+         <p class="lb-stand-rank"><span>#</span>${mine.rank}<small>of ${mine.total}</small></p>
+         <p class="lb-stand-name">${escapeHtml(this.username || 'KEEPER')}</p>
+         <dl class="lb-stand-grid">
+           <div><dt>SCORE</dt><dd>${formatNumber(mine.score)}</dd></div>
+           <div><dt>WAVE</dt><dd>${mine.waves}</dd></div>
+         </dl>
+         <p class="lb-stand-line">Same seed as everyone on this board. Beat the run above you.</p>`
+      : `<p class="lb-stand-eyebrow">YOUR STANDING</p>
+         <p class="lb-stand-name">${escapeHtml(this.username || 'NO NAME YET')}</p>
+         <p class="lb-stand-line">You have not posted today’s seed yet. Finish it to take a place.</p>`;
+
+    return `
+      <section class="lb-block lb-block--roll" aria-labelledby="lb-daily-title">
+        <p class="lb-block-title" id="lb-daily-title">${escapeHtml(key || 'TODAY')} · SEED ${this.daily.seed}</p>
+        <div class="table-scroll-frame lb-roll-frame">
+          <table class="game-table lb-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>COMMANDER</th>
+                <th>SCORE</th>
+                <th>WAVE</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </section>
+      <aside class="lb-block lb-block--stand" aria-label="Your standing">
+        ${standing}
+        <p class="lb-stand-note">${total} commander${total === 1 ? '' : 's'} posted today.</p>
+      </aside>`;
+  }
+
   /* -------------------------------------------------------------- device */
 
   /**
@@ -404,14 +579,13 @@ export class LeaderboardUI {
   render(gameResult = this._pendingResult) {
     this._pendingResult = gameResult;
     const isRealm = this.tab === 'realm';
+    const isDaily = this.tab === 'daily';
     const chips = this.cloud?.identity
       ? `<span class="lb-chip">${escapeHtml(this.username)}</span>
          <span class="lb-chip lb-chip-mode">${escapeHtml(this.cloud.cloudLabel)}</span>`
       : `<span class="lb-chip lb-chip-mode">NO NAME</span>`;
 
-    const sourceNote = isRealm
-      ? `RANKED BY POWER → COMMANDER LEVEL → STARS · ${escapeHtml(this.cloud?.cloudLabel || 'LOCAL')} LEDGER`
-      : 'RUNS ARE STORED ON THIS DEVICE ONLY';
+    const sourceNote = this._sourceNote();
 
     mountScreen(
       this.container,
@@ -428,20 +602,21 @@ export class LeaderboardUI {
             </div>
             <div class="lb-tabs" role="tablist" aria-label="Leaderboard source">
               <button class="lb-tab ${isRealm ? 'is-active' : ''}" type="button" role="tab" aria-selected="${isRealm}" data-lb-tab="realm">REALM</button>
-              <button class="lb-tab ${!isRealm ? 'is-active' : ''}" type="button" role="tab" aria-selected="${!isRealm}" data-lb-tab="device">THIS DEVICE</button>
+              <button class="lb-tab ${isDaily ? 'is-active' : ''}" type="button" role="tab" aria-selected="${isDaily}" data-lb-tab="daily">TODAY'S SEED</button>
+              <button class="lb-tab ${!isRealm && !isDaily ? 'is-active' : ''}" type="button" role="tab" aria-selected="${!isRealm && !isDaily}" data-lb-tab="device">THIS DEVICE</button>
             </div>
             <div class="lb-chips">${chips}</div>
             <button id="btn-close-lb" class="btn-close" aria-label="Close the hall">✕</button>
           </header>
 
           <div class="lb-body" data-tab="${this.tab}">
-            ${isRealm ? this._realmBodyMarkup() : this._deviceBodyMarkup(gameResult)}
+            ${isRealm ? this._realmBodyMarkup() : isDaily ? this._dailyBodyMarkup() : this._deviceBodyMarkup(gameResult)}
           </div>
 
           <footer class="lb-foot">
             <p class="lb-source">${sourceNote}</p>
             <div class="lb-actions">
-              ${!isRealm ? '<button id="btn-clear-lb" class="game-btn game-btn-danger" type="button">CLEAR THIS DEVICE</button>' : ''}
+              ${!isRealm && !isDaily ? '<button id="btn-clear-lb" class="game-btn game-btn-danger" type="button">CLEAR THIS DEVICE</button>' : ''}
               <button id="btn-done-lb" class="game-btn game-btn-subtle" type="button">BACK TO MENU</button>
             </div>
           </footer>
@@ -455,6 +630,24 @@ export class LeaderboardUI {
     this.bindEvents(gameResult);
   }
 
+  /**
+   * The line under the table.
+   *
+   * Read from the same state the body is drawn from, and re-painted with it: the
+   * daily tab renders before the day arrives, so a value captured once printed
+   * "TODAY'S SEED · —" under a table that already knew the seed.
+   */
+  _sourceNote() {
+    if (this.tab === 'realm') {
+      return `RANKED BY POWER → COMMANDER LEVEL → STARS · ${escapeHtml(this.cloud?.cloudLabel || 'LOCAL')} LEDGER`;
+    }
+    if (this.tab === 'daily') {
+      const seed = this.daily.seed == null ? '' : ` · SEED ${this.daily.seed}`;
+      return `TODAY'S SEED · ${escapeHtml(this.daily.key || '—')}${seed}`;
+    }
+    return 'RUNS ARE STORED ON THIS DEVICE ONLY';
+  }
+
   /** Re-render just the body after an async load. */
   _paint() {
     const body = this.root?.querySelector('.lb-body');
@@ -465,7 +658,13 @@ export class LeaderboardUI {
     const gameResult = this._pendingResult || null;
     body.dataset.tab = this.tab;
     body.innerHTML =
-      this.tab === 'realm' ? this._realmBodyMarkup() : this._deviceBodyMarkup(gameResult);
+      this.tab === 'realm'
+        ? this._realmBodyMarkup()
+        : this.tab === 'daily'
+          ? this._dailyBodyMarkup()
+          : this._deviceBodyMarkup(gameResult);
+    const source = this.root?.querySelector('.lb-source');
+    if (source) source.textContent = this._sourceNote();
     this._markScrollableFrames();
     this.bindEvents(gameResult);
   }
@@ -482,6 +681,10 @@ export class LeaderboardUI {
     for (const frame of this.container.querySelectorAll('.lb-roll-frame')) {
       const overflows = frame.scrollHeight - frame.clientHeight > 2;
       frame.classList.toggle('is-scrollable', overflows);
+      // The roll's own bottom fade hangs off the block, not the frame, so the
+      // block has to know too: on a two-row board it was dimming the last row
+      // of a table that fit.
+      frame.closest('.lb-block--roll')?.classList.toggle('is-scrollable', overflows);
     }
     for (const strip of this.container.querySelectorAll('.lb-modes')) {
       const overflows = strip.scrollWidth - strip.clientWidth > 2;
@@ -565,6 +768,7 @@ export class LeaderboardUI {
         this.tab = next;
         this.render(gameResult);
         if (next === 'realm') void this.loadRealm();
+        if (next === 'daily') void this.loadDaily();
       });
     }
   }
@@ -590,6 +794,11 @@ export class LeaderboardUI {
     document.getElementById('btn-retry-lb')?.addEventListener('click', () => {
       audio.playClick();
       void this.loadRealm();
+    });
+
+    document.getElementById('btn-retry-daily')?.addEventListener('click', () => {
+      audio.playClick();
+      void this.loadDaily();
     });
 
     // Record the run under the commander name (no more initials prompt: the
