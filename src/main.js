@@ -240,6 +240,37 @@ let lastLaunch = null;
  * `arrival` is what the battle that just ended did — the map reports those real
  * stars and rewards instead of replaying its intro like nothing happened.
  */
+/**
+ * Park or resume the Phaser loop while a DOM screen owns the screen.
+ *
+ * The world map is an opaque full-screen plate drawn *over* a live game canvas.
+ * With the loop running, Phaser renders and presents a 1280×768 WebGL frame
+ * every tick that nobody can see, and the compositor still has to account for
+ * the canvas surface underneath the map. On a phone that is the whole frame
+ * budget: measured with a real two-finger pinch at 844×390 DPR 3, the map ran
+ * at 150 ms per frame with the game ticking behind it and 17 ms with the loop
+ * parked. Even sitting still it was 3–5 fps versus ~20 fps parked.
+ *
+ * Parked means *stopped*, not paused: `TimeStep.sleep()` cancels the request
+ * animation frame outright, so Phaser does no simulation and no rendering at
+ * all. Nothing needs it while the map is up — opening the map stops GameScene
+ * and leaves no active scene behind (see `showLevelSelect`), and `startLevel`
+ * is the one path that brings one back, where this wakes it again.
+ */
+function parkGameLoop(parked) {
+  const loop = game?.loop;
+  if (!loop) return;
+  if (parked) {
+    if (loop.running) loop.sleep();
+  } else if (!loop.running) {
+    loop.wake(true);
+    // The clock was stopped for as long as the map was open. Without this the
+    // first frame back would compute a multi-second delta and the whole board
+    // would lurch forward in one step.
+    loop.resetDelta?.();
+  }
+}
+
 function showLevelSelect({ arrival = null } = {}) {
   navReturn = 'menu';
   audioDirector.setScene('realm');
@@ -252,6 +283,8 @@ function showLevelSelect({ arrival = null } = {}) {
   // (and so Deploy always boots through the same `MenuScene -> GameScene` path).
   if (battleSceneIsUp()) game.scene.getScene('GameScene')?.scene?.start?.('MenuScene');
   window.gameWorldMap?.show({ arrival });
+  // Nothing on the map is drawn by Phaser; let it stop until a level starts.
+  parkGameLoop(true);
 }
 
 function openLevelSelect() {
@@ -275,6 +308,9 @@ function quitToMap() {
  * restarted in place so Next / Replay never stack scenes.
  */
 function startLevel(levelId = 'level-1', options = {}) {
+  // A level starts from a DOM screen (the map or the menu) that may have parked
+  // the loop. Wake it before anything tries to boot a scene into it.
+  parkGameLoop(false);
   navReturn = 'menu';
   // Request 44: the board opens on the preparation bed. GameScene moves the
   // score to `battle` the moment the first wave is called, so the build phase
@@ -437,6 +473,9 @@ function leaveDuelRoom() {
 }
 
 function openMainMenu() {
+  // The menu overlay is a scrim, not a wall: the title art behind it is Phaser,
+  // so the loop has to be running here even when the map parked it.
+  parkGameLoop(false);
   audioDirector.setScene('menu');
   audioDirector.setLocation(null);
   navReturn = 'menu';
@@ -534,6 +573,10 @@ window.gameWorldMap = new WorldMapUI(
     // Champions' Hall reads the same board the LeaderboardUI shows. A getter,
     // so a run finished after the map was built is on the wall when you look.
     records: () => globalLeaderboard.getTop(3),
+    // Belt and braces: any path that leaves the map — even one added later that
+    // does not go through startLevel/openMainMenu — must give Phaser its clock
+    // back, or the next battle would boot into a parked loop.
+    onHide: () => parkGameLoop(false),
     onDeploy: (levelId) => startLevel(levelId),
     onDaily: () => launchDaily(),
     onDuel: () => window.gamePvpLobby?.show(),

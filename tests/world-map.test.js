@@ -280,7 +280,14 @@ describe('WorldMapUI', () => {
     const { ui } = mount();
     ui.show();
     const root = document.getElementById('world-map');
-    // At rest the plate is not a promoted layer — that is the whole point.
+
+    // The opening flight moves the camera, so the hint is on for its duration.
+    // (The first frame has to run before the flight can mark anything.)
+    vi.advanceTimersByTime(50);
+    expect(root.classList.contains('wm-is-panning')).toBe(true);
+    vi.advanceTimersByTime(1400);
+    // …and off once it lands, because a promoted plate bigger than the GPU
+    // will hold is what drops tiles mid-gesture.
     expect(root.classList.contains('wm-is-panning')).toBe(false);
 
     ui.markGesture();
@@ -291,6 +298,25 @@ describe('WorldMapUI', () => {
     // Leaving the map mid-gesture must not leave the hint on.
     ui.markGesture();
     ui.hide();
+    expect(root.classList.contains('wm-is-panning')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('keeps the hint up for a camera flight, which is movement too', () => {
+    vi.useFakeTimers();
+    const { ui } = mount();
+    ui.show();
+    vi.advanceTimersByTime(1400);
+    const root = document.getElementById('world-map');
+    expect(root.classList.contains('wm-is-panning')).toBe(false);
+
+    // A landmark flight pans for ~520 ms — far longer than the 220 ms gesture
+    // window, so it has to re-arm itself or the decorations would wake halfway
+    // through and start repainting under a moving camera.
+    ui.tweenTo(ui.homeCamera(), 520);
+    vi.advanceTimersByTime(400);
+    expect(root.classList.contains('wm-is-panning')).toBe(true);
+    vi.advanceTimersByTime(600);
     expect(root.classList.contains('wm-is-panning')).toBe(false);
     vi.useRealTimers();
   });

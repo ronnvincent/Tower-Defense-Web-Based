@@ -12437,6 +12437,31 @@ html.draft-open body {
   will-change: transform;
 }
 
+/* While the camera is being driven, the ambient decorations stop animating.
+   Each of these animates a plate-sized layer (mist, water, 8 embers, 3 birds,
+   7 banner sway) and every one of them forces the compositor to re-do work on
+   top of the plate that is already being transformed. Measured on a DPR-3
+   phone profile: dragging with them running peaked at 683 ms per frame; with
+   them paused for the duration of the gesture, every frame was 17 ms. They are
+   slow, subtle loops — freezing them for the 300 ms a gesture lasts is not
+   visible, and they resume the instant the camera settles, so the map at rest
+   looks exactly as it did. */
+.wm-screen.wm-is-panning .wm-mist,
+.wm-screen.wm-is-panning .wm-water,
+.wm-screen.wm-is-panning .wm-embers i,
+.wm-screen.wm-is-panning .wm-birds i,
+.wm-screen.wm-is-panning .wm-landmark--banner .wm-landmark-art,
+.wm-screen.wm-is-panning .wm-landmark-beacon {
+  animation-play-state: paused;
+}
+
+/* The map is an opaque full-screen plate on top of the game canvas; compositing
+   both costs a phone GPU a full-screen blit per frame for pixels nobody sees.
+   `visibility` keeps the box so Phaser never sees a zero-sized parent. */
+body.wm-covers-canvas #game-container canvas {
+  visibility: hidden;
+}
+
 .wm-plate {
   position: relative;
   background: #0b0f14;
