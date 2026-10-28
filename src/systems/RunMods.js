@@ -1,10 +1,10 @@
 /**
  * RunMods.js — the run-long rule set every mode can bend.
  *
- * Rogue Siege stacks cards, Anomaly Waves drop one mutation per wave and
- * Ascension raises the stakes every ten waves. All three only ever produce
- * *numbers the scene already reads*: tower damage / range / cooldown, kill gold,
- * the score multiplier, and the horde's health & speed. Keeping them in one
+ * Rogue Siege stacks draft cards, and it is the only mode that bends the bag
+ * now — every rule it can set is still generic. Cards only ever produce
+ * *numbers the scene already reads*: tower damage / range / cooldown, kill
+ * gold, the score multiplier, and the horde's health & speed. Keeping them in one
  * immutable bag means:
  *
  *   - a card can never corrupt the tower stats (`refreshTowerAuras` reads the
@@ -31,8 +31,6 @@ export const BASE_RUN_MODS = Object.freeze({
   noPowerups: false,
   twinBoss: false,
   cards: Object.freeze([]),
-  anomalies: Object.freeze([]),
-  ascension: 0,
 });
 
 const MULTIPLIERS = ['damage', 'range', 'cooldown', 'killGold', 'score', 'enemyHealth', 'enemySpeed'];
@@ -48,7 +46,7 @@ function clampMultiplier(value, fallback = 1) {
 
 /** A fresh, neutral bag (optionally seeded with overrides from a mode). */
 export function createRunMods(overrides = {}) {
-  const mods = { ...BASE_RUN_MODS, cards: [], anomalies: [] };
+  const mods = { ...BASE_RUN_MODS, cards: [] };
   for (const key of MULTIPLIERS) {
     if (overrides[key] != null) mods[key] = clampMultiplier(overrides[key]);
   }
@@ -56,7 +54,6 @@ export function createRunMods(overrides = {}) {
     if (overrides[key] != null) mods[key] = Math.max(0, Number(overrides[key]) || 0);
   }
   for (const key of FLAGS) if (overrides[key] != null) mods[key] = Boolean(overrides[key]);
-  mods.ascension = Math.max(0, Math.floor(Number(overrides.ascension) || 0));
   return mods;
 }
 
@@ -89,7 +86,7 @@ export function applyEffect(mods, effect = {}) {
  *
  * A card *wraps* its effect (`{ effect: { mods } }`) because it also carries a
  * name, rarity and blurb; a bare effect object is accepted too, so the same
- * function serves a card, an anomaly and a hand-written override.
+ * function serves a draft card and a hand-written override.
  */
 /**
  * How much of a repeat pick still lands.
@@ -139,38 +136,6 @@ export function applyCard(mods, card) {
   return next;
 }
 
-/** Fold a wave anomaly into the bag and remember it for the wave banner. */
-export function applyAnomaly(mods, anomaly) {
-  if (!anomaly) return mods;
-  const next = applyEffect(mods, anomaly.effect || anomaly);
-  next.anomalies = [...(mods?.anomalies || []), anomaly.id];
-  return next;
-}
-
-/** Remove one wave anomaly without touching the draft stack. */
-export function clearAnomaly(mods, anomaly) {
-  if (!mods) return mods;
-  const next = applyEffect(mods, {});
-  next.anomalies = (mods.anomalies || []).filter((id) => id !== anomaly?.id);
-  return next;
-}
-
-/**
- * Ascension: the Endless ladder's opt-in difficulty step.
- *
- * Each step makes the horde tougher *and* every point worth more, so climbing
- * is a choice about risk rather than a wall. Wave 10 of ascension 3 is not the
- * same fight as wave 10 of ascension 0.
- */
-export function ascend(mods) {
-  const step = Math.max(0, Math.floor(Number(mods?.ascension) || 0)) + 1;
-  const next = applyEffect(mods, {
-    mods: { enemyHealth: 1.25, enemySpeed: 1.04, score: 1.5, killGold: 1.1 },
-  });
-  next.ascension = step;
-  return next;
-}
-
 /** How much a wave's horde is scaled by the bag (health, speed). */
 export function hordeScaling(mods) {
   return {
@@ -207,6 +172,5 @@ export function summariseMods(mods) {
   if (bag.noBarricades) rows.push({ key: 'noBarricades', label: 'NO WALLS' });
   if (bag.noPowerups) rows.push({ key: 'noPowerups', label: 'NO POWERUPS' });
   if (bag.twinBoss) rows.push({ key: 'twinBoss', label: 'TWIN BOSS' });
-  if (bag.ascension > 0) rows.push({ key: 'ascension', label: `ASCENSION ${bag.ascension}` });
   return rows;
 }

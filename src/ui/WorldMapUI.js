@@ -844,7 +844,7 @@ export class WorldMapUI {
 
   warRoomMarkup() {
     return `
-      ${this.cardHead('THE BASTION · EIGHT WAYS IN', 'War Room', '8 MODES')}
+      ${this.cardHead('THE BASTION · FOUR WAYS IN', 'War Room', `${MODES.length} MODES`)}
       <p class="wm-card-blurb">The campaign is one war. These are the others — pick a door.</p>
       <ul class="wm-mode-list">
         ${MODES.map(

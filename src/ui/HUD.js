@@ -33,17 +33,13 @@ const DOCK_GROUP_KEY = 'td-dsalgo:dock-group:v1';
  * Mode ids (`GameScene#runModeLabel`) → the brass cap printed on the run rail.
  *
  * Kept here rather than in each mode's data because the HUD only ever gets the
- * id: a rail that reads "TIME-ATTACK" is a debug string, "TIME ATTACK" is UI.
+ * id: a rail that reads "ROGUE-SIEGE" is a debug string, "ROGUE SIEGE" is UI.
  */
 const RUN_MODE_LABELS = Object.freeze({
   rogue: 'ROGUE SIEGE',
-  anomaly: 'ANOMALY WAVES',
   titan: 'TITAN RUSH',
-  contracts: 'CONTRACT BOARD',
   blueprint: 'BLUEPRINT',
   puzzle: 'BLUEPRINT',
-  'time-attack': 'TIME ATTACK',
-  ascension: 'ASCENSION',
   coop: 'CO-OP SIEGE',
 });
 
@@ -71,7 +67,7 @@ export class HUD {
     this.inspectorAnchorRatio = null;
     this.contractSignature = null;
     this.setContracts?.([]);
-    this.setRunStatus?.({ chips: [], anomaly: null, clockMs: null });
+    this.setRunStatus?.({ chips: [] });
     this.lastToast = '';
     this.zoomState = { zoom: 1, min: 1, max: 3, atFit: true, canZoomIn: true, canZoomOut: false };
     this.coins = 0;
@@ -265,7 +261,6 @@ export class HUD {
         <div id="run-strip" class="run-strip hidden">
           <span class="run-strip-cap hidden" id="run-strip-cap"></span>
           <span class="run-status hidden" id="run-status" aria-live="polite"></span>
-          <span class="run-clock hidden" id="run-clock" role="timer">3:00</span>
         </div>
       </div>
 
@@ -875,21 +870,18 @@ export class HUD {
 
   /** Rename the dock for a duel so the build list never reads as a campaign. */
   /**
-   * Paint the run's rule chips (draft stack, anomaly) and the mode clock.
+   * Paint the run's rule chips (the draft stack).
    *
    * Called on build, on every card pick and at the top of every wave — never
    * per frame, because it rewrites DOM.
    *
-   * @param {{chips?:string[], anomaly?:string|null, clockMs?:number|null, mode?:string|null}} status
+   * @param {{chips?:string[], mode?:string|null}} status
    */
   setRunStatus(status = {}) {
     const el = document.getElementById('run-status');
     if (!el) return;
     const chips = Array.isArray(status.chips) ? status.chips : [];
     const parts = [];
-    // No emoji here: the anomaly used to be prefixed with its data-table icon,
-    // which Chromium renders as a hollow box in the brass rail.
-    if (status.anomaly) parts.push(`<b class="run-anomaly">ANOMALY · ${escapeStatus(status.anomaly)}</b>`);
     for (const chip of chips.slice(0, 4)) parts.push(`<span class="run-chip">${escapeStatus(chip)}</span>`);
     el.innerHTML = parts.join('');
     el.classList.toggle('hidden', parts.length === 0);
@@ -901,28 +893,9 @@ export class HUD {
       cap.classList.toggle('hidden', !label);
     }
 
-    this.setRunClock(status.clockMs ?? null);
-    this.runSignature = `${status.anomaly || ''}|${chips.join(',')}`;
-  }
-
-  /** Time Attack's clock. Repaints only when the printed second changes. */
-  setRunClock(ms) {
-    const el = document.getElementById('run-clock');
-    if (!el) return;
-    if (ms == null) {
-      el.classList.add('hidden');
-      this.clockLabel = null;
-      this.syncRunStrip();
-      return;
-    }
-    const total = Math.max(0, Math.ceil(Number(ms) / 1000));
-    const label = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-    el.classList.remove('hidden');
-    if (label !== this.clockLabel) {
-      this.clockLabel = label;
-      el.textContent = label;
-    }
-    el.classList.toggle('is-low', total <= 30);
+    this.runSignature = chips.join(',');
+    // The rail hangs under the top bar and is inert, so it only earns its plate
+    // while it has a cap or a chip to show.
     this.syncRunStrip();
   }
 
@@ -936,12 +909,10 @@ export class HUD {
     const strip = document.getElementById('run-strip');
     if (!strip) return;
     const status = document.getElementById('run-status');
-    const clock = document.getElementById('run-clock');
     const cap = document.getElementById('run-strip-cap');
     const hasChips = Boolean(status && !status.classList.contains('hidden'));
-    const hasClock = Boolean(clock && !clock.classList.contains('hidden'));
     const hasCap = Boolean(cap && !cap.classList.contains('hidden'));
-    const visible = hasChips || hasClock || hasCap;
+    const visible = hasChips || hasCap;
     strip.classList.toggle('hidden', !visible);
     // The rail is an overhang: the scout report has to duck under it, and the
     // toast lane needs re-measuring so nothing lands across the chips.

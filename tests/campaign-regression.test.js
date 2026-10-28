@@ -196,7 +196,7 @@ describe('a restart starts a fresh battle', () => {
     expect(scene.battleFrameLocked).toBe(false);
     expect(scene.lastOffer).toEqual([]);
     // Mode flags belong to the launch, not to the previous battle.
-    expect(scene.mode).toMatchObject({ rogue: false, anomaly: false, contracts: false, puzzle: false });
+    expect(scene.mode).toMatchObject({ rogue: false, puzzle: false });
     expect(scene.pvp).toBeNull();
   });
 });

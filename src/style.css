@@ -12218,8 +12218,7 @@ html.draft-open body {
 
 /* Rule chips: small brass tags, not second-class buttons. They never move a
    pixel once drawn — a chip appearing must not shove the clock sideways. */
-.run-chip,
-.run-anomaly {
+.run-chip {
   display: inline-flex;
   align-items: center;
   height: clamp(17px, 2.4vh, 21px);
@@ -12237,58 +12236,6 @@ html.draft-open body {
     inset 0 -1px 0 rgba(0, 0, 0, 0.5);
   color: var(--ink-gold);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-}
-
-.run-anomaly {
-  color: #ffcaae;
-  border-color: rgba(196, 68, 52, 0.55);
-  background:
-    linear-gradient(180deg, rgba(96, 30, 24, 0.95), rgba(28, 10, 9, 0.96));
-}
-
-.run-clock {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 58px;
-  height: clamp(19px, 2.7vh, 24px);
-  margin-left: 2px;
-  padding: 0 clamp(8px, 1vw, 12px);
-  font-family: 'Cinzel', serif;
-  font-size: clamp(11px, 1.7vh, 14px);
-  font-weight: 700;
-  letter-spacing: 1.8px;
-  color: #1b1305;
-  background:
-    linear-gradient(180deg, #f7d98a, #c89a37 62%, #9d7423);
-  border: 1px solid #f3d591;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 0 14px rgba(245, 196, 81, 0.22);
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-
-.run-clock.is-low {
-  color: #fff0e8;
-  background:
-    linear-gradient(180deg, #e8553d, #a01f14 62%, #6d120b);
-  border-color: #ff9d84;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 0 18px rgba(232, 85, 61, 0.55);
-  animation: run-clock-pulse 0.9s ease-in-out infinite;
-}
-
-@keyframes run-clock-pulse {
-  50% {
-    filter: brightness(1.35);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-clock.is-low {
-    animation: none;
-  }
 }
 
 /* A narrow window: drop the two oldest chips so the rail never wraps. */
@@ -12330,17 +12277,10 @@ html.draft-open body {
     letter-spacing: 1.2px;
     padding-right: 6px;
   }
-  .run-chip,
-  .run-anomaly {
+  .run-chip {
     height: 15px;
     font-size: 8px;
     padding: 0 6px;
-  }
-  .run-clock {
-    min-width: 50px;
-    height: 17px;
-    font-size: 10px;
-    letter-spacing: 1.2px;
   }
 }
 

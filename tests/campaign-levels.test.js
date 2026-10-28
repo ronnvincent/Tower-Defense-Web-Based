@@ -8,7 +8,6 @@ import {
   ENDLESS_LEVEL,
   ALL_LEVELS,
   TITAN_RUSH_LEVEL,
-  TIME_ATTACK_LEVEL,
   THEMES,
   getLevel,
   makeEndlessWave,
@@ -163,7 +162,7 @@ describe('campaign wave design', () => {
     }
     // Mode levels are tuned individually (Titan Rush needs a fatter core than a
     // campaign node), but they all have to be survivable and affordable.
-    for (const level of [ENDLESS_LEVEL, TITAN_RUSH_LEVEL, TIME_ATTACK_LEVEL]) {
+    for (const level of [ENDLESS_LEVEL, TITAN_RUSH_LEVEL]) {
       expect(level.startingCoins).toBeGreaterThanOrEqual(200);
       expect(level.baseHealth).toBeGreaterThanOrEqual(25);
       expect(level.enemyHealthScale).toBeGreaterThan(0);

@@ -665,49 +665,16 @@ export const TITAN_RUSH_LEVEL = {
 };
 
 /**
- * Time Attack: an endless horde on a three-minute clock.
+ * The one run mode that still needs a level shell of its own.
  *
- * `timeLimitMs` is the whole rule — the scene counts it down, opens waves on
- * its own and banks the score at zero. The core is deliberately generous: the
- * clock, not the base, is what ends the run.
- */
-export const TIME_ATTACK_LEVEL = {
-  id: 'time-attack',
-  index: 8,
-  name: 'Time Attack',
-  theme: 'desert',
-  // Dune Circuit: an oval with a chicane. Long straights plus one bottleneck is
-  // exactly the shape a three-minute score chase wants.
-  map: 'dune',
-  blurb: 'Three minutes. No wave button. Every second you do not kill is a second you lose.',
-  endless: true,
-  timeLimitMs: 180_000,
-  startingCoins: 300,
-  baseHealth: 40,
-  enemyHealthScale: 0.85,
-  reward: { gold: 0, gems: 0 },
-  stars: { two: 0.5, three: 0.85 },
-  boss: 'warlord',
-  mode: 'time-attack',
-  waves: [],
-};
-
-/**
- * One level per War Room mode.
+ * Titan Rush ships as its own level (above) because its waves are hand-built.
+ * Rogue Siege is Endless plus a card pick, so it shares Endless' economy knobs
+ * and only needs its own ground: a bog where one long causeway hides the far
+ * lane. The mode, not the map, decides how the run ends.
  *
- * Every run mode used to boot the Endless Siege field, so the War Room was
- * eight doors onto one battlefield. These give each mode its own ground: the
- * map is picked for the rule it has to carry, not for convenience —
- *
- *   Rogue Siege    a bog where one long causeway hides the far lane
- *   Anomaly Waves  a cracked hub, so a rule twist can cut a lane off
- *   Ascension      stacked shelves, so "climb" is literally what the lanes do
- *   Titan Rush     a ring around a caldera: no cover, nowhere to hide a titan
- *   Time Attack    an oval circuit: long straights to bank score on
- *   Contract Board two piers and a quay, for objectives that sit apart
- *
- * They share `endless`' economy knobs, because the mode, not the map, decides
- * how a run ends.
+ * Anomaly Waves, Ascension, Time Attack and the Contract Board were retired
+ * with their shells; their maps stay in `mapData.js` for the arena art that
+ * still uses them.
  */
 const MODE_RUN_LEVELS = [
   {
@@ -727,57 +694,6 @@ const MODE_RUN_LEVELS = [
     mode: 'rogue',
     waves: [],
   },
-  {
-    id: 'anomaly-waves',
-    index: 10,
-    name: 'Anomaly Waves',
-    theme: 'crystal',
-    map: 'shattered',
-    blurb: 'A cracked prism shelf. Every wave rewrites one rule of the fight.',
-    endless: true,
-    startingCoins: 320,
-    baseHealth: 25,
-    enemyHealthScale: 1.15,
-    reward: { gold: 0, gems: 0 },
-    stars: { two: 0.5, three: 0.85 },
-    boss: 'prismlord',
-    mode: 'anomaly',
-    waves: [],
-  },
-  {
-    id: 'ascension',
-    index: 11,
-    name: 'Ascension',
-    theme: 'highland',
-    map: 'skyward',
-    blurb: 'Stair-terraces of granite. Every ten waves the ladder asks: climb, or bank it?',
-    endless: true,
-    startingCoins: 340,
-    baseHealth: 25,
-    enemyHealthScale: 1.12,
-    reward: { gold: 0, gems: 0 },
-    stars: { two: 0.5, three: 0.85 },
-    boss: 'gravesworn',
-    mode: 'ascension',
-    waves: [],
-  },
-  {
-    id: 'contract-board',
-    index: 12,
-    name: 'Contract Board',
-    theme: 'marsh',
-    map: 'tidewatch',
-    blurb: 'Plank piers over a marsh. Three side bets ride on this run.',
-    endless: true,
-    startingCoins: 320,
-    baseHealth: 25,
-    enemyHealthScale: 1.1,
-    reward: { gold: 0, gems: 0 },
-    stars: { two: 0.5, three: 0.85 },
-    boss: 'ashwing',
-    mode: 'contracts',
-    waves: [],
-  },
 ];
 
 /** Every selectable node: campaign, Endless, and the mode levels. */
@@ -785,7 +701,6 @@ export const ALL_LEVELS = [
   ...LEVELS,
   ENDLESS_LEVEL,
   TITAN_RUSH_LEVEL,
-  TIME_ATTACK_LEVEL,
   ...MODE_RUN_LEVELS,
 ];
 

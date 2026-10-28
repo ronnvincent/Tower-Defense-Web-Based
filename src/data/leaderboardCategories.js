@@ -7,11 +7,11 @@
  * run from a different game. Nothing was wrong with the records — the ranking
  * simply mixed runs that are not comparable.
  *
- * So every mode of play now has its own board, and this module is the single
- * place that says which boards exist. The roster is derived from the modes the
- * game actually ships (`modeData.js`, `levelData.js`, `pvpArenas.js`,
- * `puzzles.js`), not invented here: if a level carries `level.mode = 'rogue'`
- * or a room is a duel, `resolveCategory` files the run on the matching board.
+ * So every kind of run now has its own board, and this module is the single
+ * place that says which boards exist. The roster is derived from what the game
+ * actually ships (`modeData.js`, `levelData.js`, `pvpArenas.js`, `puzzles.js`),
+ * not invented here: if a level carries `level.mode = 'rogue'` or a room is a
+ * duel, `resolveCategory` files the run on the matching board.
  *
  * Ids are stable strings, stored inside every leaderboard record. Do not rename
  * one: it would orphan the runs already saved under it.
@@ -45,34 +45,10 @@ export const LEADERBOARD_CATEGORIES = Object.freeze([
     blurb: 'Five titans back to back on the Caldera. Record a run to claim a place.',
   },
   {
-    id: 'timeattack',
-    label: 'TIME ATTACK',
-    title: 'TIME ATTACK',
-    blurb: 'Three minutes, one score. Record a run to open this board.',
-  },
-  {
     id: 'rogue',
     label: 'ROGUE',
     title: 'ROGUE SIEGE',
     blurb: 'Build the run on cards, then record it here.',
-  },
-  {
-    id: 'anomaly',
-    label: 'ANOMALY',
-    title: 'ANOMALY WAVES',
-    blurb: 'Answer the mutations and record the run to open this board.',
-  },
-  {
-    id: 'ascension',
-    label: 'ASCENSION',
-    title: 'ASCENSION',
-    blurb: 'Climb the ladder or cash out, then record the run here.',
-  },
-  {
-    id: 'contracts',
-    label: 'CONTRACTS',
-    title: 'CONTRACT BOARD',
-    blurb: 'Bank the bets and record the run to open this board.',
   },
   {
     id: 'duel',
@@ -123,6 +99,14 @@ const BY_ID = new Map([
  * `levelData.js` calls the clock mode `time-attack` while its id is
  * `timeattack`; `runModeLabel()` hands back whichever it found. Normalising
  * here means a run is never filed under a board nobody can open.
+ *
+ * The four retired modes (Anomaly Waves, Ascension, Time Attack, Contract
+ * Board) keep their spellings and point at the unfiled bucket. That is
+ * deliberate: a run recorded before the retirement still carries e.g.
+ * `mode: 'anomaly'`, and without these entries `normalizeCategory` would hand
+ * back an id no board answers to, so the score would still be on disk but
+ * invisible in the hall. Pointed at `unknown`, it stays readable — labelled
+ * UNFILED and ranked with the other legacy runs.
  */
 const ALIASES = Object.freeze({
   all: 'all',
@@ -133,16 +117,8 @@ const ALIASES = Object.freeze({
   endless: 'endless',
   titan: 'titan',
   titanrush: 'titan',
-  timeattack: 'timeattack',
-  timed: 'timeattack',
   rogue: 'rogue',
   roguesiege: 'rogue',
-  anomaly: 'anomaly',
-  anomalies: 'anomaly',
-  ascension: 'ascension',
-  contracts: 'contracts',
-  contract: 'contracts',
-  contractboard: 'contracts',
   duel: 'duel',
   pvp: 'duel',
   arena: 'duel',
@@ -150,6 +126,15 @@ const ALIASES = Object.freeze({
   coopsiege: 'coop',
   puzzle: 'puzzle',
   blueprint: 'puzzle',
+  // Retired modes — kept so their recorded runs stay visible, never filed anew.
+  timeattack: 'unknown',
+  timed: 'unknown',
+  anomaly: 'unknown',
+  anomalies: 'unknown',
+  ascension: 'unknown',
+  contracts: 'unknown',
+  contract: 'unknown',
+  contractboard: 'unknown',
   unknown: 'unknown',
   unk: 'unknown',
   '': 'unknown',
@@ -166,8 +151,8 @@ function canonical(raw) {
 /**
  * Map one naming of a mode onto its board id, or `null` if nothing matches.
  *
- * `'time-attack'`, `'TIME ATTACK'` and `'timeattack'` all resolve to
- * `'timeattack'`; `'pvp'` resolves to `'duel'`.
+ * `'titan-rush'`, `'Titan Rush'` and `'titanrush'` all resolve to `'titan'`;
+ * `'pvp'` resolves to `'duel'`.
  *
  * @param {string|null|undefined} raw
  * @returns {string|null}

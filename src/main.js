@@ -618,7 +618,7 @@ window.gameWorldMap = new WorldMapUI(
 /**
  * Launch one War Room mode from the map.
  *
- * Blueprint and Co-op own a picker (nine boards / the duel lobby), and those
+ * Blueprint and Co-op own a picker (six boards / the duel lobby), and those
  * pickers live inside the War Room, so those two open it and let it take over.
  * Every other mode is a straight launch, through the same `ModesUI.launch`
  * the War Room itself uses — one code path, so the map can never drift from

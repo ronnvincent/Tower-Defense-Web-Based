@@ -1,34 +1,32 @@
 /**
- * modes.test.js — the eight modes' shared substrate.
+ * modes.test.js — the War Room's shared substrate.
  *
  * Every mode is data plus a couple of scene hooks, so the bugs live where the
  * data meets the rule bag: a card that records its pick but never applies its
- * effect (the exact bug a browser pass caught), an anomaly that leaks past its
- * wave, a puzzle whose pre-placed tower stands on the road. This file pins all
- * of it without needing Phaser.
+ * effect (the exact bug a browser pass caught), a puzzle whose pre-placed tower
+ * stands on the road. This file pins all of it without needing Phaser.
+ *
+ * The roster is four modes since Anomaly Waves, Ascension, Time Attack and the
+ * Contract Board were retired; the catalogue block below pins the roster and
+ * the level list together, so a retired mode cannot creep back in half-alive.
  */
 import { describe, it, expect } from 'vitest';
 import {
   BASE_RUN_MODS,
-  applyAnomaly,
   applyCard,
   applyEffect,
-  ascend,
-  clearAnomaly,
   createRunMods,
   hordeScaling,
   repeatScale,
   summariseMods,
 } from '../src/systems/RunMods.js';
 import { DRAFT_CARDS, drawCards } from '../src/data/draftCards.js';
-import { ANOMALIES, rollAnomaly } from '../src/data/anomalies.js';
 import { MODES, MODE_KINDS, getMode } from '../src/data/modeData.js';
 import { PUZZLES, getPuzzle, puzzleLevel } from '../src/data/puzzles.js';
 import {
   getLevel,
   ALL_LEVELS,
   TITAN_RUSH_LEVEL,
-  TIME_ATTACK_LEVEL,
   ENDLESS_LEVEL,
 } from '../src/data/levelData.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
@@ -74,21 +72,8 @@ describe('RunMods — the rule bag', () => {
   it('never mutates the bag it was handed', () => {
     const bag = createRunMods();
     applyCard(bag, DRAFT_CARDS[0]);
-    applyAnomaly(bag, ANOMALIES[0]);
     expect(bag.damage).toBe(1);
     expect(bag.cards).toEqual([]);
-    expect(bag.anomalies).toEqual([]);
-  });
-
-  it('anomalies last exactly one wave', () => {
-    const card = applyCard(createRunMods(), DRAFT_CARDS.find((c) => c.id === 'whetstones'));
-    const anomaly = ANOMALIES.find((entry) => entry.id === 'ironclad');
-    const during = applyAnomaly(card, anomaly);
-    expect(during.enemyHealth).toBeCloseTo(1.15, 5);
-    const after = clearAnomaly(card, anomaly);
-    expect(after.enemyHealth).toBe(1);
-    expect(after.damage).toBeCloseTo(1.1, 5); // the card survives the wave
-    expect(after.anomalies).toEqual([]);
   });
 
   it('keeps multipliers inside a sane band', () => {
@@ -99,13 +84,12 @@ describe('RunMods — the rule bag', () => {
     expect(bag.damage).toBeGreaterThanOrEqual(0.25);
   });
 
-  it('ascension raises the horde and the score together', () => {
-    const start = createRunMods();
-    const one = ascend(start);
-    expect(one.ascension).toBe(1);
-    expect(hordeScaling(one).health).toBeCloseTo(1.25, 5);
-    expect(one.score).toBeCloseTo(1.5, 5);
-    expect(summariseMods(one).some((row) => row.label === 'ASCENSION 1')).toBe(true);
+  it('scales the horde from the same bag the towers read', () => {
+    // The draft's trade is that a card can raise the horde as well as the
+    // towers; both sides read the one bag, so they can never disagree.
+    const card = DRAFT_CARDS.find((entry) => entry.effect?.mods?.enemyHealth > 1);
+    expect(card, 'no card raises the horde any more').toBeTruthy();
+    expect(hordeScaling(applyCard(createRunMods(), card)).health).toBeGreaterThan(1);
   });
 
   it('reports flags once, however many cards set them', () => {
@@ -147,26 +131,6 @@ describe('Rogue Siege — the draft', () => {
         bag.cards.length === 1;
       expect(touchesBag, `${card.id} did nothing`).toBe(true);
     }
-  });
-});
-
-describe('Anomaly Waves', () => {
-  it('rolls deterministically per seed and wave', () => {
-    expect(rollAnomaly(5, 3).id).toBe(rollAnomaly(5, 3).id);
-  });
-
-  it('never repeats the previous wave back-to-back', () => {
-    for (const entry of ANOMALIES) {
-      for (let wave = 1; wave <= 12; wave += 1) {
-        expect(rollAnomaly(9, wave, entry.id).id).not.toBe(entry.id);
-      }
-    }
-  });
-
-  it('covers the whole pool over a run', () => {
-    const seen = new Set();
-    for (let wave = 1; wave <= 40; wave += 1) seen.add(rollAnomaly(2, wave).id);
-    expect(seen.size).toBeGreaterThanOrEqual(Math.min(5, ANOMALIES.length));
   });
 });
 
@@ -248,15 +212,8 @@ describe('mode levels', () => {
     expect(TITAN_RUSH_LEVEL.mode).toBe('titan');
   });
 
-  it('runs Time Attack on a clock, not a wave list', () => {
-    expect(TIME_ATTACK_LEVEL.endless).toBe(true);
-    expect(TIME_ATTACK_LEVEL.timeLimitMs).toBeGreaterThan(60000);
-    expect(TIME_ATTACK_LEVEL.mode).toBe('time-attack');
-    expect(TIME_ATTACK_LEVEL.waves).toEqual([]);
-  });
-
   it('keeps the mode levels out of the campaign chain', () => {
-    for (const level of [TITAN_RUSH_LEVEL, TIME_ATTACK_LEVEL, ENDLESS_LEVEL]) {
+    for (const level of [TITAN_RUSH_LEVEL, ENDLESS_LEVEL]) {
       expect(ALL_LEVELS.some((entry) => entry.id === level.id)).toBe(true);
       expect(level.id.startsWith('level-')).toBe(false);
     }
@@ -264,10 +221,19 @@ describe('mode levels', () => {
 });
 
 describe('the War Room catalogue', () => {
-  it('lists all eight modes exactly once', () => {
-    expect(MODES).toHaveLength(8);
-    expect(new Set(MODES.map((mode) => mode.id)).size).toBe(8);
-    expect(new Set(MODES.map((mode) => mode.name)).size).toBe(8);
+  it('lists the four modes exactly once', () => {
+    expect(MODES).toHaveLength(4);
+    expect(new Set(MODES.map((mode) => mode.id)).size).toBe(4);
+    expect(new Set(MODES.map((mode) => mode.name)).size).toBe(4);
+    for (const retired of ['anomaly', 'ascension', 'timeattack', 'contracts']) {
+      expect(getMode(retired), `${retired} is still on the roster`).toBe(null);
+    }
+  });
+
+  it('ships no level for a retired mode', () => {
+    for (const id of ['anomaly-waves', 'ascension', 'time-attack', 'contract-board']) {
+      expect(ALL_LEVELS.some((level) => level.id === id), `${id} still ships`).toBe(false);
+    }
   });
 
   it('points every runnable mode at a real level', () => {
@@ -275,6 +241,7 @@ describe('the War Room catalogue', () => {
       expect(mode.levelId, `${mode.id} has no levelId`).toBeTruthy();
       expect(ALL_LEVELS.some((level) => level.id === mode.levelId)).toBe(true);
     }
+    expect(MODES.filter((entry) => entry.kind === MODE_KINDS.RUN)).toHaveLength(2);
     expect(MODES.filter((entry) => entry.kind === MODE_KINDS.PUZZLE)).toHaveLength(1);
     expect(MODES.filter((entry) => entry.kind === MODE_KINDS.COOP)).toHaveLength(1);
   });

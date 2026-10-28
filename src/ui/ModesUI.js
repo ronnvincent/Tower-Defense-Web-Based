@@ -46,7 +46,7 @@ export class ModesUI {
           <p class="overlay-eyebrow" id="modes-eyebrow">THE BASTION</p>
           <h1 class="overlay-title" id="modes-title">WAR ROOM</h1>
           <p class="wallet-row modes-ledger">
-            <span class="wallet">8 MODES</span>
+            <span class="wallet">${MODES.length} MODES</span>
             <span class="wallet">2–5 TITANS</span>
             <span class="wallet">4-MINUTE RUNS</span>
           </p>

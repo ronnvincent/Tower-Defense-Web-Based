@@ -63,11 +63,7 @@ describe('the board roster', () => {
     // The War Room roster is the authority on what a "mode" is.
     const expected = {
       rogue: 'rogue',
-      anomaly: 'anomaly',
-      ascension: 'ascension',
       titan: 'titan',
-      timeattack: 'timeattack',
-      contracts: 'contracts',
       blueprint: 'puzzle',
       coop: 'coop',
     };
@@ -107,11 +103,7 @@ describe('filing a finished run', () => {
       'level-5': 'campaign',
       endless: 'endless',
       'titan-rush': 'titan',
-      'time-attack': 'timeattack',
       'rogue-siege': 'rogue',
-      'anomaly-waves': 'anomaly',
-      ascension: 'ascension',
-      'contract-board': 'contracts',
     });
   });
 
@@ -127,8 +119,8 @@ describe('filing a finished run', () => {
 
   it('trusts an explicit mode label over the level', () => {
     // `runModeLabel()` hands back the level's own spelling, hyphens and all.
-    expect(resolveCategory({ mode: 'time-attack' })).toBe('timeattack');
-    expect(resolveCategory({ mode: 'contract-board' })).toBe('contracts');
+    expect(resolveCategory({ mode: 'rogue-siege' })).toBe('rogue');
+    expect(resolveCategory({ mode: 'titan-rush' })).toBe('titan');
     expect(resolveCategory({ mode: 'puzzle' })).toBe('puzzle');
     expect(resolveCategory({ mode: 'coop', level: { pvp: true } })).toBe('coop');
     expect(resolveCategory({ mode: 'rogue', level: { id: 'level-1' } })).toBe('rogue');
@@ -144,10 +136,33 @@ describe('filing a finished run', () => {
     expect(categoryFromMode('')).toBeNull();
   });
 
-  it('holds every spelling of the clock mode on one board', () => {
-    for (const spelling of ['timeattack', 'time-attack', 'TIME ATTACK', 'Time_Attack']) {
-      expect(categoryFromMode(spelling)).toBe('timeattack');
+  it('holds every spelling of a live mode on one board', () => {
+    for (const spelling of ['titan', 'titanrush', 'Titan Rush', 'TITAN_RUSH']) {
+      expect(categoryFromMode(spelling)).toBe('titan');
     }
+    for (const spelling of ['rogue', 'roguesiege', 'Rogue Siege']) {
+      expect(categoryFromMode(spelling)).toBe('rogue');
+    }
+  });
+
+  it('folds the four retired modes into the unfiled bucket', () => {
+    // These boards were removed with their modes. A run recorded before that is
+    // still on disk, so its spelling has to land somewhere readable instead of
+    // resolving to an id no board answers to.
+    for (const spelling of ['anomaly', 'anomalies', 'ascension', 'timeattack', 'time-attack', 'Titan_Rush_old', 'contracts', 'contract-board']) {
+      if (spelling === 'Titan_Rush_old') continue;
+      expect(normalizeCategory(spelling)).toBe('unknown');
+      // …and a *new* run is never filed on a retired board.
+      expect(categoryFromMode(spelling)).toBeNull();
+    }
+  });
+
+  it('keeps a retired mode’s recorded run, filed as unfiled', () => {
+    const lb = new Leaderboard(fakeStorage(), KEY);
+    lb.addRecord(run({ name: 'Old', score: 7000, waves: 30, mode: 'anomaly' }), 1);
+    expect(lb.getTop(10, 'unknown').map((r) => r.name)).toEqual(['Old']);
+    // It is not lost from the overview either.
+    expect(lb.getTop(10).map((r) => r.name)).toEqual(['Old']);
   });
 });
 

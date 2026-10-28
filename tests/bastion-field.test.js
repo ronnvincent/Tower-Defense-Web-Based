@@ -332,10 +332,9 @@ describe('the auto-start clock is not armed where another clock already owns the
     expect(proto.autoWavesEnabled.call({ level: { endless: true }, mode: {} })).toBe(true);
   });
 
-  it('stays off in a duel and in Time Attack, and off when a level says so', () => {
+  it('stays off in a duel, and off when a level says so', () => {
     const proto = GameScene.prototype;
     expect(proto.autoWavesEnabled.call({ level: { pvp: true }, mode: {} })).toBe(false);
-    expect(proto.autoWavesEnabled.call({ level: level(), mode: { timeAttack: true } })).toBe(false);
     expect(proto.autoWavesEnabled.call({ level: { rules: { autoWaves: false } }, mode: {} })).toBe(false);
   });
 });
