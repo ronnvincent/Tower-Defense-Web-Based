@@ -26,7 +26,13 @@ import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { audioDirector } from './rendering/audioDirector.js';
 import { SettingsUI } from './ui/SettingsUI.js';
-import { bindInstallButton, createInstallPrompt, registerServiceWorker } from './systems/Offline.js';
+import {
+  bindInstallButton,
+  bindOfflineButton,
+  createInstallPrompt,
+  createOfflineVault,
+  registerServiceWorker,
+} from './systems/Offline.js';
 import { QualityManager } from './systems/QualityManager.js';
 import { DifficultyStore, DEFAULT_DIFFICULTY } from './systems/Difficulty.js';
 import { soundIcon } from './ui/soundIcon.js';
@@ -1022,6 +1028,15 @@ bindInstallButton(document.getElementById('menu-btn-install'), installPrompt, {
   onInstalled: () => audio.playVictory?.(),
 });
 void registerServiceWorker();
+
+/**
+ * The offline vault: the one control that makes "offline" mean the whole game
+ * and not just the parts you happened to open. It is a menu key, it downloads
+ * the build once, and after that every level — including ones never played —
+ * boots with no network at all.
+ */
+window.gameOffline = createOfflineVault();
+bindOfflineButton(document.getElementById('menu-btn-offline'), window.gameOffline);
 
 document.getElementById('btn-close-how')?.addEventListener('click', () => {
   audio.playClick();

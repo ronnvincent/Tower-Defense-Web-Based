@@ -3287,6 +3287,67 @@ kbd {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.85));
 }
 
+/* The offline key's badge: the percentage while it works, OK when the whole
+   build is local. It sits in the corner so the glyph never shifts. */
+.menu-icon-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(8, 9, 12, 0.94);
+  border: 1px solid rgba(245, 196, 81, 0.4);
+  color: var(--ink-gold);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  line-height: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-icon-badge:empty {
+  display: none;
+}
+
+.menu-icon {
+  position: relative;
+}
+
+.menu-icon.is-ready {
+  border-color: rgba(245, 196, 81, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 236, 190, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7),
+    0 0 12px rgba(245, 196, 81, 0.28);
+}
+
+.menu-icon.is-ready .menu-icon-badge {
+  color: #0f1209;
+  background: linear-gradient(180deg, #f7d98a, #c89a37);
+  border-color: #f3d591;
+}
+
+/* A slow breath while it downloads: no spinner, nothing to read twice. */
+.menu-icon.is-busy {
+  animation: offlineWarm 1.4s ease-in-out infinite;
+}
+
+@keyframes offlineWarm {
+  50% {
+    border-color: rgba(245, 196, 81, 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-icon.is-busy {
+    animation: none;
+    border-color: rgba(245, 196, 81, 0.7);
+  }
+}
+
 .menu-icon:hover {
   border-color: rgba(245, 196, 81, 0.72);
   box-shadow:

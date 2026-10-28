@@ -138,6 +138,9 @@ describe('Main menu — one plate, two keys', () => {
       // The install offer is a utility, not a destination: it is a no-op the
       // moment the browser has nothing to install, and it never opens a screen.
       'menu-btn-install',
+      // Saving every level for offline play is a utility too: it never opens a
+      // screen, it only asks the worker to top up the cache.
+      'menu-btn-offline',
       'menu-btn-play',
       'menu-btn-settings',
       'menu-btn-sound',

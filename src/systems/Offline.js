@@ -22,6 +22,12 @@
 
 export const SW_PATH = '/sw.js';
 
+/**
+ * The build's own file list (`scripts/build-offline-manifest.mjs` writes it).
+ * Missing in a dev build, which is why every reader treats it as optional.
+ */
+export const OFFLINE_MANIFEST_PATH = '/offline-manifest.json';
+
 /** Is there a service worker API here, on a secure origin? */
 export function serviceWorkerSupported(nav = globalThis.navigator, secure = globalThis.isSecureContext) {
   return Boolean(nav && 'serviceWorker' in nav) && secure !== false;
@@ -137,4 +143,180 @@ export function bindInstallButton(button, prompt, { onInstalled } = {}) {
     off?.();
     button.removeEventListener('click', click);
   };
+}
+
+
+/* --------------------------------------------------------------------- vault */
+
+/** Read the build's file list. Returns null rather than throwing. */
+export async function loadOfflineManifest({ fetchImpl = globalThis.fetch, path = OFFLINE_MANIFEST_PATH } = {}) {
+  if (typeof fetchImpl !== 'function') return null;
+  try {
+    const response = await fetchImpl(path, { cache: 'no-cache' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const files = Array.isArray(data?.files)
+      ? data.files.filter((url) => typeof url === 'string' && url.startsWith('/'))
+      : [];
+    if (!files.length) return null;
+    return { files, count: files.length, bytes: Number(data.bytes) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The cache warming half: ask the worker how much of the build is already on
+ * the device, and top it up on request.
+ *
+ * Passive caching means "what you played works offline". This means "the whole
+ * game works offline", which is the difference a player feels when they open
+ * the app on a train and pick a level they have never played. It is opt-in
+ * (a button in the menu) because it downloads the entire build.
+ *
+ * The worker owns the cache; the page only ever sends it a list and listens for
+ * progress, so there is one writer and no chance of the two disagreeing.
+ */
+export function createOfflineVault({
+  nav = globalThis.navigator,
+  fetchImpl = globalThis.fetch,
+  ManifestLoader = loadOfflineManifest,
+  idleMs = 30000,
+} = {}) {
+  const supported = Boolean(nav && 'serviceWorker' in nav);
+
+  async function worker() {
+    if (!supported) return null;
+    try {
+      const registration = await nav.serviceWorker.ready;
+      return registration?.active || registration?.waiting || registration?.installing || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Send one message and wait for the terminal reply.
+   *
+   * `idleMs` is a silence timeout, not a total one: 38 MB over a slow phone
+   * connection is minutes of legitimate work, but a worker that stops talking
+   * for half a minute is gone.
+   */
+  function ask(target, message, { onProgress, idleMs = 30000 } = {}) {
+    return new Promise((resolve) => {
+      let timer = null;
+      const channel = new MessageChannel();
+      const finish = (result) => {
+        clearTimeout(timer);
+        resolve(result);
+      };
+      const arm = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), idleMs);
+      };
+      channel.port1.onmessage = (event) => {
+        const data = event.data || {};
+        if (data.type === 'progress') {
+          arm();
+          onProgress?.(data);
+          return;
+        }
+        if (data.type === 'done') {
+          finish({ ok: true, cached: data.cached, failed: data.failed, total: data.total });
+          return;
+        }
+        if (data.type === 'status') {
+          finish({ ok: true, cached: data.cached, total: data.total });
+        }
+      };
+      arm();
+      try {
+        target.postMessage(message, [channel.port2]);
+      } catch {
+        finish({ ok: false, reason: 'error' });
+      }
+    });
+  }
+
+  return {
+    supported,
+    /** `{ ok, cached, total, bytes }` — how much of the build is already local. */
+    async status() {
+      const manifest = await ManifestLoader({ fetchImpl });
+      if (!manifest) return { ok: false, reason: 'no-manifest' };
+      const target = await worker();
+      if (!target) return { ok: false, reason: 'no-worker', total: manifest.count };
+      const result = await ask(target, { type: 'status', urls: manifest.files }, { idleMs });
+      return { ...result, bytes: manifest.bytes };
+    },
+    /** Cache whatever is missing. `onProgress({ cached, failed, total })`. */
+    async warm({ onProgress } = {}) {
+      const manifest = await ManifestLoader({ fetchImpl });
+      if (!manifest) return { ok: false, reason: 'no-manifest' };
+      const target = await worker();
+      if (!target) return { ok: false, reason: 'no-worker', total: manifest.count };
+      onProgress?.({ cached: 0, failed: 0, total: manifest.count });
+      const result = await ask(target, { type: 'warm', urls: manifest.files }, { onProgress, idleMs });
+      return { ...result, bytes: manifest.bytes, total: result.total ?? manifest.count };
+    },
+  };
+}
+
+/**
+ * Paint the menu's "save for offline" key.
+ *
+ * Four states, one button: unsupported (hidden), cold (plain key), warming
+ * (percentage on the key), ready (gold). A click only ever *adds* work, so the
+ * button is safe to press twice.
+ */
+export function bindOfflineButton(button, vault, { onState } = {}) {
+  if (!button || !vault) return () => {};
+  const badge = button.querySelector('[data-badge]') || null;
+  let busy = false;
+
+  const paint = (state, detail = {}) => {
+    const ready = state === 'ready';
+    button.classList.toggle('hidden', !vault.supported);
+    button.classList.toggle('is-busy', state === 'warming');
+    button.classList.toggle('is-ready', ready);
+    button.disabled = busy || ready;
+    if (badge) badge.textContent = ready ? 'OK' : detail.percent != null ? `${detail.percent}%` : '';
+    const label = ready
+      ? 'Playable offline — every level is saved on this device'
+      : state === 'warming'
+        ? `Saving for offline… ${detail.percent ?? 0}%`
+        : 'Save every level on this device for offline play';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    onState?.(state, detail);
+  };
+
+  paint('cold');
+
+  const click = async () => {
+    if (busy) return;
+    busy = true;
+    paint('warming', { percent: 0 });
+    const result = await vault.warm({
+      onProgress: ({ cached, total }) => {
+        const percent = total ? Math.min(99, Math.round((cached / total) * 100)) : 0;
+        paint('warming', { percent });
+      },
+    });
+    busy = false;
+    if (result.ok && result.failed === 0 && result.cached >= result.total) paint('ready');
+    else paint('cold', { percent: result.ok ? 100 : 0 });
+  };
+
+  button.addEventListener('click', click);
+
+  // Reflect what is already on the device, so a second visit says "ready"
+  // without downloading every file again.
+  vault.status().then((result) => {
+    if (!result.ok || !result.total) return;
+    if (result.cached >= result.total) paint('ready');
+    else if (result.cached > 0) paint('cold', { percent: Math.round((result.cached / result.total) * 100) });
+  });
+
+  return () => button.removeEventListener('click', click);
 }
