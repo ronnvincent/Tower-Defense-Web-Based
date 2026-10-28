@@ -11,15 +11,40 @@ at ebidensya lang.
 
 ---
 
-## 1. TL;DR — kung tatlo lang ang gagawin
+## 0. Status (2026-10-28)
+
+| Ano | Kalagayan |
+|---|---|
+| **Mode roster 8 → 4** | **SHIPPED** (`b49140d`). Anomaly Waves, Ascension, Time Attack, Contract Board — retired. |
+| **P2 offline shell** | **SHIPPED** (`3814c86`). Service worker + install offer. |
+| **P3 coach marks** | **SHIPPED** (`3814c86`). Tatlong linya sa unang laban. |
+| **P1 global leaderboard** | **Premisa ko ay mali** — meron nang THE REALM na Supabase-backed. Tingnan ang §5 P1. |
+
+### Ano ang natanggal at bakit
+
+| Mode | Dahilan |
+|---|---|
+| ANOMALY WAVES | Binabago ang parehong run-long numbers na binabago ng draft |
+| ASCENSION | Endless na may cash-out; tanong na sinasagot na ng Endless |
+| TIME ATTACK | 3-minutong score sprint — Titan Rush (4 min) na ang gumagawa niyon |
+| CONTRACT BOARD | Tatlong objective = sinasagot na ng daily modifier + achievements |
+
+Bunga: `ALL_LEVELS` **12 → 8**, boards **11 → 7**, `anomalies.js` at ang anomaly/ascension
+na bahagi ng `RunMods` ay wala na, at ang Time Attack clock sa HUD ay tanggal kasama ang CSS.
+**Walang score na nawala:** lahat ng retired spelling ay naka-map sa UNFILED board, kaya
+nananatiling mababasa ang mga lumang run.
+
+---
+
+## 1. TL;DR — ang natitirang tatlo
 
 | # | Ideya | Bakit ito muna | Hirap |
 |---|-------|----------------|-------|
-| **P1** | **Global leaderboard** (Supabase) para sa daily at endless | May seeded daily na **pantay sa lahat** pero **local lang** ang board — sayang ang disenyo | M (2–3 araw) |
-| **P2** | **Tile atlas + service worker** (unang load) | **921 requests / 4.06 MB** bago makarating sa menu; 259 request ay 0.3 MB lang na tiles | S (1–2 araw) |
-| **P3** | **Coach marks sa unang laban** | Walang tutorial; 13 destinasyon sa world map bago pa makapaglagay ng tore | S (1 araw) |
+| **P1′** | **Per-seed daily board** (hindi "global leaderboard" — meron na) | Seeded daily na pantay sa lahat, pero ang resulta ay napupunta lang sa local hall | M (2–3 araw) |
+| **P4** | Shareable seed link + result card | Web-native na bentahe; kailangan lang ng P1′ para may saysay | S |
+| **P5** | Run summary / "build story" | 29 card, 21 tore, 2 spec — walang nagsasabi kung bakit nanalo | S–M |
 
-Ang natitirang ideya (P4–P8) ay nasa §5, may rank ayon sa halaga ÷ hirap.
+Ang natitira (P6–P8) ay nasa §5.
 
 ---
 
@@ -28,9 +53,9 @@ Ang natitirang ideya (P4–P8) ay nasa §5, may rank ayon sa halaga ÷ hirap.
 | Bahagi | Bilang | Pinagmulan |
 |---|---|---|
 | Campaign levels | **5** (Verdant → Ashen), 7–10 wave bawat isa | `LEVELS` sa `src/data/levelData.js` |
-| Playable level defs | **12** (`ALL_LEVELS`: 5 campaign + endless + 6 run-mode shells) | `ALL_LEVELS` |
-| Run modes | **8** (`rogue`, `anomaly`, `ascension`, `titan`, `timeattack`, `contracts`, `blueprint`, `coop`) | `modeData.js` |
-| Sariling mapa ng modes | **6** (blackfen, shattered, skyward, ash-throne, dune, tidewatch) | `modeData.map` |
+| Playable level defs | **8** (`ALL_LEVELS`: 5 campaign + endless + titan + rogue) | `ALL_LEVELS` |
+| Run modes | **4** (`rogue`, `titan`, `blueprint`, `coop`) — 8 noong isinulat ang doc na ito | `modeData.js` |
+| Sariling mapa ng modes | **2** na ginagamit (blackfen, ash-throne); dune = PvP arena | `modeData.map` |
 | PvP arenas | **3** (Cinder Crown, Frostspine, Dust Meridian) na may sariling tiles | `pvpArenas.js` |
 | Blueprint puzzles | **6** (nakasulat sa card: *"NINE BOARDS"*) | `puzzles.js` |
 | Tore / upgrade | **21** base, L1–L2 + **2 specialization** (spec-a / spec-b) patungong L5 | `towerData.js` |
@@ -115,6 +140,19 @@ Mabuti't per-level ang loading (93 request lang ang laban), pero ang **menu pa l
 4 MB. Ito ang pinakamalaking "libreng" panalo sa buong listahan: walang gameplay na
 gagalawin, at **nasusukat** ang resulta.
 
+### 4.1 Pagkatapos ng P2 (service worker)
+
+| | Unang bisita | Ikalawang bisita |
+|---|---|---|
+| Asset response mula sa worker | 0 / 303 | **339 / 339** |
+| Runtime error | 0 | 0 |
+
+### 4.2 Pagkatapos ng P3 (coach mark)
+
+Sa 844×390 DPR 3, ang unang laban ay may bar sa ilalim ng top bar: *"Tap BUILD, pick a
+defence, then tap the ground to raise it"*. Nasa DOM (`display: flex`) at nasa ibabaw
+(`elementFromPoint` = `camera-hint-text`) — nag-render, hindi lang basta umiiral ang handler.
+
 ---
 
 ## 5. Mga ideya, naka-rank
@@ -130,33 +168,45 @@ gagalawin, at **nasusukat** ang resulta.
 | **P7** | Ghost/replay ng #1 daily run | ⭐⭐⭐⭐ | L | katamtaman | P1 + determinism |
 | **P8** | Codex Challenge (DSA puzzle of the day) | ⭐⭐⭐ | S–M | mababa | — (natatangi) |
 
-### P1 — Global leaderboard *(ungo na, kulang ang huling hakbang)*
+### P1′ — Per-seed daily board *(pinaliit at itinama)*
 
-**Bakit:** ang daily ay may `seedForDay()` at pareho ang seed sa lahat — disenyo para sa
-patas na labanan. Pero `Leaderboard.js` ay `localStorage` (L13) at ang "Hall" ay sarili
-mong browser. Kaya ang daily ay single-player na walang kalaban. Sa browser games, ang
-shared competition ang pangunahing dahilan ng pagbabalik.
+**Correction, 2026-10-28:** mali ang unang bersyon ng seksyong ito. **Meron nang global
+leaderboard**: `CloudSave.js` ay may `leaderboard_page` at `my_rank`, at ang Hall ay may
+tab na **THE REALM** na nagbabasa nito mula sa Supabase (`LeaderboardUI` L116–119), kasama
+ang `server/cloud-dev.mjs` na stand-in para sa lokal na pagsubok. Ang totoong kulang ay
+mas makitid: ang realm board ay **isang listahan ng "power"**, kaya ang isang daily run —
+na **pareho ang seed sa lahat** — ay walang board na naghahambing ng *parehong laban*.
 
-**Paano:**
-1. `supabase/migrations/0002_scoreboard.sql` — `scoreboard(id, player_id, board, score, waves, mode, seed, day_key, created_at)`, RLS: `select` public, `insert` authenticated, `update/delete` sarili lang.
-2. `src/net/scoreboard.js` — thin na wrapper sa umiiral na `supabaseClient.js`
-   (`rpc`/`from`), may `timeoutMs` gaya ng `cloud_ping`.
-3. `LeaderboardUI` — kung `cloud.available`, remote board; kung wala, **hindi magbabago**
-   ang local board (offline-first, walang putol na UI).
-4. Submit sa `onLeaderboard` (umiiral nang hook sa `main.js`), isang row per player per
-   `day_key` (upsert, best score lang).
-5. **Anti-cheat na mura:** tanggihan ang `waves > seedMaxWaves`, at ang `score` na lampas
-   sa theoretical cap ng board. Sapat na para sa casual; walang server simulation.
+**Bakit:** ang `seedForDay()` ay ginawa para patas; walang saysay ang pagiging patas kung
+walang ranggo ng parehong seed. Ito ang huling kulang na piraso, hindi ang buong board.
 
-**Sukatan:** may laman ang "Hall" kahit dalawang browser lang, at hindi na "local" ang
-daily.
+**Paano (mas maliit kaysa sa unang plano):**
+1. `supabase/migrations/0002_daily_board.sql` — `daily_runs(day_key, player_id, level_id, score, waves, seed, created_at)`, unique sa `(day_key, player_id)`, best-score upsert.
+2. Isang RPC: `daily_board(p_day, p_limit)` — sinusundan ang hugis ng `leaderboard_page`.
+3. Parehong RPC sa `server/cloud-dev.mjs`, para masubukan lokal bago pa mag-deploy.
+4. Isang bagong tab sa Hall: **TODAY'S SEED** (tabi ng THE REALM), na may empty state kapag wala pang ledger.
+5. Submit sa `onLeaderboard` hook; **anti-cheat:** tanggihan ang `waves > seedMaxWaves` at ang score na lampas sa theoretical cap.
 
-### P2 — Tile atlas + service worker
+**Sukatan:** dalawang browser, isang araw, isang seed — magkaiba ang pangalan sa
+parehong board.
+
+### P2 — Tile atlas + service worker · **SHIPPED** (worker + install; atlas pa)
 
 **Bakit (sinukat):** 921 requests bago ang menu; 259 dito ay tiles na 0.3 MB lang.
 Ang service worker ay nagpapabilis sa **ikalawa** at ikatlong pagbisita (returning
 players) at nagbubukas ng "Add to Home Screen" — na, ayon sa web gaming reports, ang
 pinakamalaking retention lever na meron ang web na wala ang Steam.
+
+**Resulta (sinukat sa `vite preview`, fresh profile):**
+
+| | Bago | Ngayon |
+|---|---|---|
+| Ikalawang pagbisita, `/assets` mula sa worker | 0 / 339 | **339 / 339** |
+| Runtime error | — | 0 |
+| Install button | wala | lumalabas lang kapag may tunay na `beforeinstallprompt` |
+
+Ang tile atlas (259 → ≤10 request) ay **hindi pa** nagawa: mas malaking pagbabago sa
+`BootScene` at sa texture keys, at hindi kasama sa walang-risk na batch na ito.
 
 **Paano:**
 1. `scripts/pack_tiles.py` (gaya ng umiiral na `build_arena_tiles.py`) — isang atlas kada
@@ -168,18 +218,26 @@ pinakamalaking retention lever na meron ang web na wala ang Steam.
 
 **Sukatan:** <150 requests sa unang load; **0 network** sa ikalawang load.
 
-### P3 — Coach marks sa unang laban
+### P3 — Coach marks sa unang laban · **SHIPPED**
 
 **Bakit:** walang `firstRun`/`tutorial` flag kahit saan. May `camera-hint` na (isang beses
-lang lumalabas) pero walang nagtuturo ng *paglagay ng tore*, *upgrade*, at *speed*.
+lang lumalabas) pero walang nagtuturo ng *paglagay ng tore*, *upgrade*, at *early call*.
 Ang world map ay may objective ribbon na (`currentObjective`), kaya "saan ako pupunta"
 ay solved na — ang kulang ay "ano ang gagawin ko **dito**".
 
-**Paano:** `src/systems/FirstRun.js` — 3 hakbang, naka-persist sa progress (`seenCoachMarks`),
-naka-gate sa `level-1` lang, tahimik na nawawala sa replay. Walang bagong asset, walang
-pagbabago sa balanse. **Huwag** pigilan ang player: dismissible lahat.
+**Ano ang naipatupad:** `src/systems/FirstRun.js` — tatlong hakbang na naka-gate sa
+`level-1` at sa "hindi pa tapos", bawat isa retired ng aksyon na inilalarawan (place →
+upgrade → wave). Nakaupo sa **kamera hint pill** (parehong plato at dismiss button, gold
+ang gilid), **walang timer** kaya hindi nawawala habang binabasa, at dismissible lahat.
+Naka-persist per device gaya ng camera hint.
 
-**Sukatan:** natapos ang level-1 sa unang session nang walang dead-end.
+**Bug na nahuli habang bine-verify:** sa 844×390, `@media (max-height: 620px)` ay
+nagtatago sa `camera-hint` ("nothing to spare vertically"). Tama iyon para sa camera hint,
+mali para sa tanging bar na nagtuturo ng placement — kaya ang mobile shell na ang
+nananalo sa specificity. Screenshot bago/after sa §4.
+
+**Sukatan:** nakikita ang hakbang 1 sa unang laban sa landscape phone, at nawawala pagkatapos
+ng tatlong aksyon.
 
 ### P4 — Shareable seed link + result card
 
@@ -222,15 +280,12 @@ feature na **hindi makokopya** ng kalaban. Bagay rin sa academic na pinagmulan n
 
 ## 6. Bug na nadiskubre habang nagsasaliksik
 
-**BLUEPRINT mode ay nangangako ng 9 board, 6 lang ang meron.**
-`src/data/modeData.js` L99–100: `tag: 'NINE BOARDS'`, blurb: *"Nine hand-built boards"*;
-at may parehong claim sa komento ng `src/main.js` L622. Pero `src/data/puzzles.js` ay may
-**6** lang (`narrow-gate`, `crossfire`, `frost-line`, `the-vault`, `last-stand`,
-`caldera-watch`), at `ModesUI` ay 6 lang ang nire-render.
-
-Dalawang paraan: (a) isulat sa card ang **SIX**, o (b) gumawa ng 3 bagong board.
-Recomendasyon: **(a) agad-agad** (10 minuto, walang risk), tapos (b) kapag may oras —
-mas mainam na totoo ang sinasabi ng UI kaysa malaki ang bilang.
+**BLUEPRINT mode ay nangangako ng 9 board, 6 lang ang meron.** — **NAAYOS** (`b49140d`).
+`modeData.js` ay `'NINE BOARDS'` / *"Nine hand-built boards"*, at may parehong claim sa
+komento ng `main.js`. Pero `puzzles.js` ay may **6** lang, at 6 lang ang nire-render ng
+`ModesUI`. Isinulat sa **SIX BOARDS** ang card at blurb, at ang komento sa `main.js`.
+Kung gusto mong maging siyam talaga, ang susunod na hakbang ay tatlong bagong board —
+hindi bagong UI.
 
 ---
 
