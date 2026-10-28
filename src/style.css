@@ -14739,36 +14739,30 @@ body.wm-covers-canvas #game-container canvas {
   animation: none;
 }
 
-/* ---- world map: the expensive half is the top profile's alone ------------
-   A filtered layer inside a transformed parent is re-rastered whenever the
-   camera scale changes: on a phone that is a full-plate blur, a plate-region
-   blend and thirteen drop-shadowed sprites, all repainted every frame of a
-   pinch. Everything below is a *look*, not a signal — the locked-state grey
-   stays, because that is how a locked stage reads — so the cheaper profiles
-   get a flat, unfiltered copy of the same artwork.
+/* ---- world map: what the bottom profile gives up -------------------------
+   A filtered layer inside a transformed parent is re-rastered when the camera
+   scale changes, so it was the first suspect. It is not the culprit: with the
+   camera write coalesced to one transform per frame, the same scripted pan
+   measured 84 ms/move with the filters stripped and 79 ms/move with them
+   restored (2x CPU throttle, three runs interleaved) — noise. The drop shadows
+   and the painted fog therefore stay at every profile that has any headroom,
+   because removing them was visible on the map and bought nothing.
 
-   Desktop (which resolves to `high`) renders exactly what it always did. */
-:root:not([data-quality='high']) .wm-terrain,
-:root:not([data-quality='high']) .wm-landmark-art,
-:root:not([data-quality='high']) .wm-region {
+   `performance` is the one profile that already promises no blurred backdrop,
+   so it is the one place the filters go. */
+:root[data-quality='performance'] .wm-terrain,
+:root[data-quality='performance'] .wm-landmark-art,
+:root[data-quality='performance'] .wm-region {
   filter: none;
 }
 
-/* Water is a blurred, screen-blended highlight over a big part of the plate.
-   Without the filter and the blend it is still the same soft gradient. */
-:root:not([data-quality='high']) .wm-water {
+:root[data-quality='performance'] .wm-water {
   filter: none;
   mix-blend-mode: normal;
   opacity: 0.4;
 }
 
-:root:not([data-quality='high']) .wm-landmark[data-state='next'] .wm-landmark-art,
-:root:not([data-quality='high']) .wm-landmark.is-active .wm-landmark-art {
-  filter: none;
-}
-
-/* Locked stays grey — it is the only state that is signalled by the art. */
-:root:not([data-quality='high']) .wm-landmark[data-state='locked'] .wm-landmark-art {
+:root[data-quality='performance'] .wm-landmark[data-state='locked'] .wm-landmark-art {
   filter: grayscale(0.72) brightness(0.66);
 }
 
