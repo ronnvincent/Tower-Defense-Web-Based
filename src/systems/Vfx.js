@@ -114,6 +114,12 @@ export class Vfx {
     this.enabled = Boolean(scene?.add?.particles && scene?.anims);
   }
 
+  /** The profile's particle budget, or 1 when no manager is installed. */
+  get particleScale() {
+    const scale = globalThis.window?.gameQuality?.particleScale;
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }
+
   /** Is this effect sheet loaded and animated? */
   ready(key) {
     return Boolean(this.scene?.anims?.exists?.(`${key}-play`));
@@ -127,7 +133,7 @@ export class Vfx {
     if (!this.scene.textures?.exists?.(texture)) return null;
     // One number from the graphics profile scales every burst in the game.
     // Fewer particles, same silhouette — never a blank explosion.
-    const budget = globalThis.window?.gameQuality?.particleScale ?? 1;
+    const budget = this.particleScale;
     const tuned =
       budget < 1 && Number.isFinite(config.quantity)
         ? { ...config, quantity: Math.max(1, Math.round(config.quantity * budget)) }
@@ -251,6 +257,72 @@ export class Vfx {
     if (shake && scale >= 1.6 && this.scene.cameras?.main?.shake) {
       this.scene.cameras.main.shake(70, 0.002);
     }
+    this.impactLight(x, y, element, scale);
+  }
+
+  /**
+   * Is the top graphics profile asking for the extra light?
+   *
+   * True in Node and whenever no profile is installed, so a test or a scene
+   * without the manager still gets the baseline look it always had.
+   */
+  highDetail() {
+    const quality = globalThis.window?.gameQuality;
+    if (!quality) return true;
+    return (quality.detailLevel ?? 1) >= 1;
+  }
+
+  /**
+   * The lit half of a hit — top profile only.
+   *
+   * Two things, both cheap and both bounded: a 200 ms additive flash *behind*
+   * the burst, which reads as light landing on the ground rather than as more
+   * sparks; and, on explosives, one low scorch mark that fades out over four
+   * seconds and then deletes itself. No extra particles, no extra per-frame
+   * work, and nothing that strobes — the flash is one tween and the mark is one
+   * tween.
+   */
+  impactLight(x, y, element = 'physical', scale = 1) {
+    if (!this.enabled || !this.highDetail()) return;
+    const textures = this.scene.textures;
+    const tints = ELEMENT_TINT[element] || ELEMENT_TINT.physical;
+
+    if (textures?.exists?.('fx-glow')) {
+      const flash = this.scene.add.image(x, y, 'fx-glow').setDepth(42).setBlendMode('ADD');
+      flash.setTint(tints[0]).setAlpha(0.42).setScale(0.28 * scale, 0.19 * scale);
+      this.scene.tweens?.add?.({
+        targets: flash,
+        alpha: 0,
+        scaleX: 0.62 * scale,
+        scaleY: 0.4 * scale,
+        duration: 210,
+        ease: 'Quad.easeOut',
+        onComplete: () => flash.destroy(),
+      });
+    }
+
+    // Only a blast leaves a mark. A spark does not scorch stone, and one decal
+    // per arrow hit would carpet the road in soot after two waves.
+    if (element === 'explosive' && textures?.exists?.('fx-scorch')) {
+      const spin = (((x * 31 + y * 17) % 360) + 360) % 360;
+      const mark = this.scene.add
+        .image(x, y + 6, 'fx-scorch')
+        .setDepth(4)
+        .setAlpha(0.26)
+        .setScale(0.3 * scale)
+        .setAngle(spin)
+        .setTint(0x241812);
+      this.scene.tweens?.add?.({
+        targets: mark,
+        // A short dwell, then the ground cleans itself: a permanent decal layer
+        // would grow for the whole run.
+        alpha: 0,
+        delay: 700,
+        duration: 3600,
+        ease: 'Quad.easeIn',
+        onComplete: () => mark.destroy(),
+      });
+    }
   }
 
   /** Expanding ring on the ground — reads as "area damage" instantly. */
@@ -372,8 +444,11 @@ export class Vfx {
     }
 
     // 3. Sparks, scaled with the tier: a level-2 keep gets a puff, a level-5
-    //    one gets a proper shower.
-    const count = 8 + tier * 4;
+    //    one gets a proper shower. The graphics profile gets a say too — the
+    //    emitter rescales configs that carry `quantity`, but this burst is an
+    //    explicit `explode(count)`, so it has to be scaled here or a phone on
+    //    the performance profile pays the full 28 particles for every upgrade.
+    const count = Math.max(3, Math.round((8 + tier * 4) * this.particleScale));
     const sparks = this.emitter(`tier-sparks-${tier}`, 'fx-star', {
       lifespan: { min: 300, max: 700 },
       speed: { min: 60, max: 200 + tier * 20 },

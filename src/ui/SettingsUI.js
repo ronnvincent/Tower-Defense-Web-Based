@@ -25,9 +25,9 @@ const pct = (value) => `${Math.round(value * 100)}%`;
 
 const QUALITY_COPY = {
   auto: 'Picks a profile from this device, and gives up atmosphere first if a battle drops frames.',
-  high: 'Full atmosphere: every particle, both ambience beds, drifting clouds.',
+  high: "The biome's own weather, a lit sky over the board, impact light and contact shadows.",
   balanced: 'Fifty-five percent of the particles, one ambience bed, cheaper filters.',
-  performance: 'No ambience beds, quarter particles, no blurred backdrop or parallax.',
+  performance: 'No weather, no ambience beds, quarter particles, no blurred backdrop or parallax.',
 };
 
 export class SettingsUI {

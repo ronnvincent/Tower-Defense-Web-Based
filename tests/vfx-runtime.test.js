@@ -60,6 +60,7 @@ function fakeScene() {
       setScale: vi.fn().mockReturnThis(),
       setAlpha: vi.fn().mockReturnThis(),
       setRotation: vi.fn().mockReturnThis(),
+      setAngle: vi.fn().mockReturnThis(),
       setTint: vi.fn().mockReturnThis(),
       setBlendMode: vi.fn().mockReturnThis(),
       destroy: vi.fn(function destroy() {
@@ -108,6 +109,39 @@ describe('Vfx runtime', () => {
     // A splash also drops a shockwave ring on the ground.
     const rings = scene.created.filter((node) => node.key === 'fx-shockwave');
     expect(rings).toHaveLength(1);
+  });
+
+  it('adds impact light only at the top graphics profile', () => {
+    // No manager (Node, or a scene booted before the profile exists) keeps the
+    // baseline look — no extra sprites, no extra tweens.
+    const plain = fakeScene();
+    new Vfx(plain).impact(10, 10, 'physical');
+    // One flash of light on the hit…
+    expect(plain.created.filter((node) => node.key === 'fx-glow')).toHaveLength(1);
+    // …but a spark does not scorch stone, so no decal.
+    expect(plain.created.filter((node) => node.key === 'fx-scorch')).toHaveLength(0);
+    plain.created.length = 0;
+    new Vfx(plain).impact(10, 10, 'explosive', { scale: 1.6 });
+    expect(plain.created.filter((node) => node.key === 'fx-scorch')).toHaveLength(1);
+
+    // Balanced/performance: the flash and the scorch mark are not drawn at all,
+    // and the tier-up spray is scaled by the particle budget.
+    const before = globalThis.window;
+    globalThis.window = { gameQuality: { particleScale: 0.25, detailLevel: 0, weatherDensity: 0 } };
+    try {
+      const quiet = fakeScene();
+      const vfx = new Vfx(quiet);
+      vfx.impact(10, 10, 'explosive', { scale: 1.6 });
+      expect(quiet.created.filter((node) => node.key === 'fx-glow')).toHaveLength(0);
+      expect(quiet.created.filter((node) => node.key === 'fx-scorch')).toHaveLength(0);
+
+      vfx.tierUp(64, 64, { tier: 5 });
+      const spray = quiet.explosions.find((entry) => entry.texture === 'fx-star' && entry.count);
+      expect(spray.count).toBe(Math.max(3, Math.round((8 + 5 * 4) * 0.25)));
+    } finally {
+      if (before === undefined) delete globalThis.window;
+      else globalThis.window = before;
+    }
   });
 
   it('leaves the camera alone for a small hit', () => {

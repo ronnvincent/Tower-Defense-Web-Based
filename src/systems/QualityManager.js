@@ -25,10 +25,23 @@ import { getDefaultStorage, readJSON, writeJSON } from '../utils/storage.js';
 export const QUALITY_CHOICES = ['auto', 'high', 'balanced', 'performance'];
 export const QUALITY_LEVELS = ['high', 'balanced', 'performance'];
 
+/**
+ * `weather` and `detail` are the *additive* half of the profile.
+ *
+ * `particles`/`ambience`/`parallax` only ever take things away, so "high" used
+ * to look exactly like a balanced screen with nothing removed — the top setting
+ * had no payoff at all. These two give it one of its own: `weather` is the
+ * biome's drifting motes plus the lit sky wash, `detail` is impact light, scorch
+ * marks and contact shadows under scenery.
+ *
+ * They are strictly high-only. Balanced and performance keep the screen they
+ * have always had, to the pixel, so no device is asked to pay for a setting it
+ * did not choose.
+ */
 export const QUALITY_PROFILE = Object.freeze({
-  high: { particles: 1, ambience: 2, parallax: 1, cssFilters: true },
-  balanced: { particles: 0.55, ambience: 1, parallax: 0.6, cssFilters: true },
-  performance: { particles: 0.25, ambience: 0, parallax: 0, cssFilters: false },
+  high: { particles: 1, ambience: 2, parallax: 1, cssFilters: true, weather: 1, detail: 1 },
+  balanced: { particles: 0.55, ambience: 1, parallax: 0.6, cssFilters: true, weather: 0, detail: 0 },
+  performance: { particles: 0.25, ambience: 0, parallax: 0, cssFilters: false, weather: 0, detail: 0 },
 });
 
 /**
@@ -116,6 +129,16 @@ export class QualityManager {
   /** Shared particle scale for Vfx; 1 when there is no manager (tests, node). */
   get particleScale() {
     return this.profile.particles;
+  }
+
+  /** 1 at the top profile, 0 below it: how much weather the board may draw. */
+  get weatherDensity() {
+    return this.profile.weather;
+  }
+
+  /** Extra light on impacts and shadows under scenery: 1 at high, else 0. */
+  get detailLevel() {
+    return this.profile.detail;
   }
 
   #apply() {

@@ -14673,6 +14673,48 @@ body.wm-covers-canvas #game-container canvas {
   backdrop-filter: none;
 }
 
+/* ---- battle atmosphere -------------------------------------------------
+   The top graphics profile's own reason to exist: a vignette and a wash of
+   the biome's sky over the battlefield. Drawn in the DOM, not in the scene,
+   because it is one gradient — the camera rig must not be able to scale it,
+   and a full-screen sprite in world space would be re-rastered on every zoom.
+
+   `#battle-atmosphere` sits between the canvas and the HUD, takes no pointer
+   events, and only exists while a battle is open (`clearAtmosphereSkin` hides
+   it on shutdown). The colours are written per battle by the scene from the
+   biome's own `fog` token, so the battle and its map agree. */
+
+#battle-atmosphere {
+  position: absolute;
+  z-index: 90; /* above the canvas, below #hud-container (100) */
+  /* Exactly the stage, not the whole app: a vignette centred on a page that is
+     half chrome would darken the black bars instead of the battlefield. */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--stage-width);
+  height: calc(var(--stage-width) * 3 / 5);
+  pointer-events: none;
+  /* Not painted at all unless the profile asks for it: a full-screen gradient
+     that is merely transparent still costs a composite every frame. */
+  display: none;
+  background:
+    radial-gradient(
+      112% 92% at 50% 34%,
+      rgba(0, 0, 0, 0) 38%,
+      rgba(4, 7, 12, 0.38) 74%,
+      rgba(3, 5, 9, 0.62) 100%
+    ),
+    linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 52%),
+    radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 58%);
+}
+
+/* The top profile only. Balanced and performance keep the screen they have
+   always had — the layer is not dimmed there, it is absent. */
+:root[data-quality='high'] #battle-atmosphere:not(.hidden) {
+  display: block;
+}
+
 /* Two fades that cost a full-screen composite each. */
 :root[data-quality='performance'] #main-menu-overlay,
 :root[data-quality='performance'] .screen-overlay {

@@ -19,6 +19,7 @@ import {
 } from '../systems/RunMods.js';
 import { drawCards } from '../data/draftCards.js';
 import { createCoach } from '../systems/FirstRun.js';
+import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { gateIndexForSpawn, waveGatePlan } from '../systems/SpawnGates.js';
@@ -305,7 +306,12 @@ export class GameScene extends Phaser.Scene {
       if (!quality || quality.setting !== 'auto') return;
       const fps = this.game?.loop?.actualFps;
       if (!Number.isFinite(fps) || fps >= 45) return;
-      if (quality.degrade()) audioDirector.sync?.();
+      if (quality.degrade()) {
+        audioDirector.sync?.();
+        // The motes and the wash follow the new profile; a demoted device must
+        // not keep the weather the measurement just paid for.
+        this.mountAtmosphere();
+      }
     });
 
     // Clips for the strips this battle loaded. Idempotent: a texture that was
@@ -460,6 +466,15 @@ export class GameScene extends Phaser.Scene {
     this.pendingMeteor = false;
     this.pendingFrost = false;
     this.createPortalAndBase();
+
+    // 3. Atmosphere — the biome's own weather and light.
+    //
+    // The graphics profile is read, not assumed: `weather` is 1 at high, a
+    // fraction at balanced and 0 at performance, so the same code path either
+    // paints drifting snow over the hollow or paints nothing at all. The CSS
+    // half (`#battle-atmosphere`) carries the vignette and the sky wash and is
+    // switched by the same `data-quality` attribute the settings screen writes.
+    this.mountAtmosphere();
 
     // Visual overlay graphics
     this.ghostGraphics = this.add.graphics().setDepth(30);
@@ -839,6 +854,20 @@ export class GameScene extends Phaser.Scene {
       (predicate(r + 1, c) ? 4 : 0) |
       (predicate(r, c - 1) ? 8 : 0);
 
+
+    // Contact shadows, drawn only at the top graphics profile: a soft pool of
+    // dark under every prop, which is what makes a flat tile read as ground
+    // with things standing on it. Painted once into the static board (depth
+    // between the ground and the props), so it costs nothing per frame — and
+    // never allocated at all on balanced or performance.
+    const propShadows =
+      (window.gameQuality?.detailLevel ?? 1) >= 1 ? this.add.graphics().setDepth(1.5) : null;
+    const addPropShadow = (px, py, width, height) => {
+      if (!propShadows) return;
+      propShadows.fillStyle(0x05070c, 0.26);
+      propShadows.fillEllipse(px, py, width, height);
+    };
+
     for (let r = 0; r < this.map.rows; r++) {
       for (let c = 0; c < this.map.cols; c++) {
         const x = c * TILE_SIZE;
@@ -984,6 +1013,7 @@ export class GameScene extends Phaser.Scene {
             const jx = ((hash >> 5) % 13) - 6;
             const jy = ((hash >> 9) % 11) - 5;
             this.add.image(cx + jx, cy + jy, foliageKey).setScale(0.94).setAlpha(0.97).setDepth(2);
+            addPropShadow(cx + jx, cy + jy + TILE_SIZE * 0.3, TILE_SIZE * 0.6, TILE_SIZE * 0.19);
           } else if (roll < 42) {
             const key = decorKeys[(Math.abs(hash) >> 7) % decorKeys.length];
             const jx = ((hash >> 11) % 41) - 20;
@@ -994,6 +1024,7 @@ export class GameScene extends Phaser.Scene {
               .setAlpha(0.94)
               .setDepth(2)
               .setFlipX(Boolean(hash & 1));
+            addPropShadow(cx + jx, cy + jy + TILE_SIZE * 0.24, TILE_SIZE * 0.42, TILE_SIZE * 0.14);
           }
         }
       }
@@ -1026,6 +1057,39 @@ export class GameScene extends Phaser.Scene {
     }
     for (let r = 0; r <= this.map.rows; r++) {
       tilesGraphics.lineBetween(0, r * TILE_SIZE, this.map.cols * TILE_SIZE, r * TILE_SIZE);
+    }
+  }
+
+  /**
+   * Weather + light for this battle, rebuilt whenever the profile changes.
+   *
+   * Separated from `create()` because the auto profile can demote mid-battle:
+   * the settled screen must then lose its atmosphere instead of keeping motes
+   * the device just said it could not afford.
+   */
+  mountAtmosphere() {
+    const quality = window.gameQuality;
+    this.atmosphere?.destroy?.();
+    this.atmosphere = null;
+    const density = quality?.weatherDensity ?? 1;
+    applyAtmosphereSkin(document, this.theme);
+    if (density > 0) {
+      this.atmosphere = buildAtmosphere(this, {
+        theme: this.theme,
+        map: this.map,
+        density,
+        tileSize: TILE_SIZE,
+      });
+    }
+    // One listener for the whole battle, even if `mountAtmosphere` runs twice
+    // (auto-degrade calls it again after the first mount already registered).
+    if (!this._atmosphereShutdown) {
+      this._atmosphereShutdown = () => {
+        this.atmosphere?.destroy?.();
+        this.atmosphere = null;
+        clearAtmosphereSkin(document);
+      };
+      this.events.once('shutdown', this._atmosphereShutdown);
     }
   }
 
