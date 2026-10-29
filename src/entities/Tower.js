@@ -96,7 +96,10 @@ export class Tower {
     // one; a keep without a shadow looked pasted onto the grass next to them.
     // Skipped when the texture has not streamed in yet (the boot pack), because
     // a `__MISSING` box under every tower is worse than no shadow at all.
-    if (scene.textures?.exists?.('shadow')) {
+    // `detail` is the high-profile extra (see QualityManager): contact shadows
+    // under scenery are exactly the kind of thing a phone should not pay for.
+    const wantsShadow = typeof window === 'undefined' || (window.gameQuality?.detail ?? 0) > 0;
+    if (wantsShadow && scene.textures?.exists?.('shadow')) {
       const shadow = scene.add.image(0, TILE_SIZE / 2 - 2, 'shadow');
       // Fixtures in `tests/` hand the entity a minimal image; the shadow is
       // decoration, so a stub without display sizing simply gets no shadow

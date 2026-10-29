@@ -38,6 +38,7 @@ import {
 } from '../data/tutorialScript.js';
 import { perfProbe } from '../system/perfProbe.js';
 import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
+import { moodForWave, moodVars } from '../systems/Mood.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { gateIndexForSpawn, waveGatePlan } from '../systems/SpawnGates.js';
@@ -1113,6 +1114,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Walk the light through the run: daylight, golden hour, dusk.
+   *
+   * Three custom properties on the atmosphere layer, which CSS cross-fades over
+   * 1.6 s — the compositor does the work, and `prefers-reduced-motion` makes the
+   * change instant. The layer does not exist on the lower graphics profiles, in
+   * which case this writes to nothing and costs one property set.
+   *
+   * @param {number} waveNumber the wave that is about to march
+   * @param {boolean} [boss] a boss wave is always dusk
+   */
+  applyWaveMood(waveNumber, boss = false) {
+    const layer = typeof document !== 'undefined' ? document.getElementById('battle-atmosphere') : null;
+    if (!layer) return null;
+    const mood = moodForWave(waveNumber, this.waveManager?.totalWaves ?? 6, { boss });
+    this.mood = mood;
+    for (const [prop, value] of Object.entries(moodVars(mood))) {
+      if (prop === 'data-mood') layer.dataset.mood = value;
+      else layer.style.setProperty(prop, value);
+    }
+    return mood;
+  }
+
+  /**
    * Weather + light for this battle, rebuilt whenever the profile changes.
    *
    * Separated from `create()` because the auto profile can demote mid-battle:
@@ -1473,6 +1497,10 @@ export class GameScene extends Phaser.Scene {
   syncBastionPulse() {
     const state = bastionState(this.gameState?.baseHealth, this.gameState?.maxBaseHealth);
     this.bastionState = state;
+    // The board itself reddens at the rim while the gate is critical: the bar
+    // says the number, the light says it across the room.
+    const layer = typeof document !== 'undefined' ? document.getElementById('battle-atmosphere') : null;
+    layer?.classList.toggle('is-critical', isBastionCritical(state) && !this.gameState?.isOver());
     const wants = isBastionCritical(state) && !this.gameState?.isOver();
     if (!wants) {
       this.bastionPulse?.stop?.();
@@ -2167,6 +2195,7 @@ export class GameScene extends Phaser.Scene {
         );
       }
       this.flashWaveBanner(wave, this.waveManager.currentWave.name);
+      this.applyWaveMood(wave, Boolean(this.waveManager.currentWave.bossWave || this.waveManager.currentWave.bossKey));
     }
     this.syncHUD();
     this.advanceCoach('wave');

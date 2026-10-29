@@ -26,7 +26,7 @@ they disagree — see §2):
 | 2 | Tower inspector, panels and modals | ✅ |
 | 3 | Main menu and scene transitions | ✅ |
 | 4 | Core game feel ("juice") | ✅ |
-| 5 | Atmosphere and lighting | ⬜ |
+| 5 | Atmosphere and lighting | ✅ |
 | 6 | Progression, reward and onboarding | ⬜ |
 | 7 | Audio and settings | ⬜ |
 | 8 | Accessibility, performance, QA | ⬜ |
@@ -446,3 +446,50 @@ Audit at both sizes: `clipped 0`, `spill 0`, `covered 0`.
 **Not verified:** the boss killing-blow slow motion and the build pop were not
 captured as stills (both are sub-second); they are exercised by playing the wave
 in the browser, not by an assertion.
+
+---
+
+## 11. Phase 5 — atmosphere and lighting
+
+### Changed
+
+| File | Why |
+| ---- | --- |
+| `src/systems/Mood.js` **(new)** | Which light a wave plays in, as a pure function: daylight → golden hour → dusk, boss wave always dusk. Also the CSS values per mood. |
+| `src/scenes/GameScene.js` | `applyWaveMood()` writes three custom properties on `#battle-atmosphere` at wave start; `syncBastionPulse()` toggles `.is-critical` when the gate drops under a quarter. |
+| `src/style.css` | The atmosphere layer cross-fades its background over 1.6 s; the `balanced` profile now gets the mood tint (it used to get *nothing*, so the feature only existed on the fastest device); reduced motion snaps instead of fading. |
+| `src/entities/Tower.js` | Contact shadow is a `detail`-profile extra, so a phone does not pay for it. |
+| `tests/mood.test.js` **(new, 11 tests)** | Pins the ramp, the boss override, and the CSS contract. |
+
+### What is deliberately *not* tinted
+
+The **board** keeps its own palette; only the sky wash, the low fog band and the
+rim change with the mood. A full-canvas colour matrix would also recolour the
+creeps, and this game's defence is colour-coded (fire, frost, lightning, venom).
+Measured at 1280×768 (same tile, day → dusk): `rgb(74,128,74)` → `rgb(78,111,66)`
+— the light changed, the ability to read a creep did not.
+
+### Measured
+
+| Layer | day | dusk |
+| ----- | --- | ---- |
+| top band (y = 200) | `rgba(255,244,214,0.10)` | `rgba(196,62,96,0.32)` |
+| board tint | `rgba(255,246,214,0.04)` | `rgba(120,48,108,0.20)` |
+| rim vignette | 0.34 | 0.52 |
+
+### Skipped, with reasons
+
+* **Phaser postFX bloom / colour matrix** — Phaser's WebGL post pipeline is not in
+  use anywhere in this project and adding it would sit on top of every frame for
+  every device. The portal, crystal and frost already glow through additive
+  sprites (`fx-glow`, `fx-rune`, `BlendModes.ADD`), which is a bloom that costs
+  nothing when it is off screen. Bloom stays additive-sprite-only.
+* **Foliage sway / water shimmer** — every tree and rock on this board is a tile
+  in one baked background texture, not individual sprites, so swaying them means
+  a shader over the terrain. Skipped rather than adding a full-screen pass.
+* **Rain / leaves / fog per wave** — the biome weather emitters already exist
+  (`systems/Atmosphere.js`, high profile only); a second per-wave layer would
+  double the emitter count for a mood the tint already carries.
+
+`npm run build` ✓ · `npx vitest run` → **133 files / 1740 passed**.
+Screenshots: `docs/ui-after/phase5/` at 1280×768 and 1024×640.

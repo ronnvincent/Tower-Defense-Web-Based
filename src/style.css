@@ -15528,6 +15528,12 @@ body.wm-covers-canvas #game-container canvas {
 #battle-atmosphere {
   position: absolute;
   z-index: 90; /* above the canvas, below #hud-container (100) */
+  /* The light walks through the run — daylight, golden hour, dusk — as three
+     custom properties (see systems/Mood.js). A 1.6 s ease is a cross-fade the
+     compositor does for free; reduced motion snaps instead. */
+  transition:
+    background 1.6s ease,
+    opacity 1.6s ease;
   /* Exactly the stage, not the whole app: a vignette centred on a page that is
      half chrome would darken the black bars instead of the battlefield. */
   top: 50%;
@@ -15540,20 +15546,42 @@ body.wm-covers-canvas #game-container canvas {
      that is merely transparent still costs a composite every frame. */
   display: none;
   background:
+    linear-gradient(180deg, var(--battle-tint, rgba(0, 0, 0, 0)) 0%, var(--battle-tint, rgba(0, 0, 0, 0)) 100%),
     radial-gradient(
       112% 92% at 50% 34%,
       rgba(0, 0, 0, 0) 38%,
-      rgba(4, 7, 12, 0.38) 74%,
-      rgba(3, 5, 9, 0.62) 100%
+      rgba(4, 7, 12, calc(var(--battle-vignette, 0.38) * 1)) 74%,
+      rgba(3, 5, 9, calc(var(--battle-vignette, 0.62) * 1.6)) 100%
     ),
     linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 52%),
     radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 58%);
 }
 
-/* The top profile only. Balanced and performance keep the screen they have
-   always had — the layer is not dimmed there, it is absent. */
+/* The top profile gets the full wash: the rim vignette *and* the mood tint.
+   `balanced` now gets the mood tint alone — three gradients on one composited
+   layer, no weather, no particles (Phase 5: the light has to follow the run on
+   the profile most laptops land on, or the feature only exists for the fastest
+   device in the room). `performance` keeps the screen it has always had. */
 :root[data-quality='high'] #battle-atmosphere:not(.hidden) {
   display: block;
+}
+
+:root[data-quality='balanced'] #battle-atmosphere:not(.hidden) {
+  display: block;
+  /* No rim vignette at this profile: the tint, and nothing that darkens the
+     middle of the board. */
+  background:
+    linear-gradient(180deg, var(--battle-tint, rgba(0, 0, 0, 0)) 0%, var(--battle-tint, rgba(0, 0, 0, 0)) 100%),
+    linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 46%),
+    radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 62%);
+}
+
+/* A dying gate is still legible at this profile: the rim returns, red only. */
+:root[data-quality='balanced'] #battle-atmosphere.is-critical:not(.hidden) {
+  background:
+    radial-gradient(112% 92% at 50% 34%, rgba(0, 0, 0, 0) 52%, rgba(72, 6, 14, 0.4) 100%),
+    linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 46%),
+    radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 62%);
 }
 
 /* Two fades that cost a full-screen composite each. */
@@ -16606,4 +16634,38 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   100% {
     opacity: 0;
   }
+}
+
+/* ==========================================================================
+   ATMOSPHERE · the light follows the run
+   --------------------------------------------------------------------------
+   `systems/Mood.js` decides the mood; this file only has to make the change
+   readable. The atmosphere layer already carries the biome's own fog and sky
+   wash, and now also the mood's edge strength.
+
+   Two rules keep it honest: it never covers gameplay information (it is a wash
+   at the rim and a tint from the top, with the centre of the board left alone),
+   and it is absent entirely on the lower graphics profiles.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  #battle-atmosphere {
+    transition: none;
+  }
+}
+
+/* The base crystal under a quarter of its integrity: the light on the board
+   itself reddens at the rim, so "the gate is dying" is legible without reading
+   a number. Driven by a class the scene sets from `bastionState`. */
+#battle-atmosphere.is-critical {
+  background:
+    linear-gradient(180deg, var(--battle-tint, rgba(0, 0, 0, 0)) 0%, var(--battle-tint, rgba(0, 0, 0, 0)) 100%),
+    radial-gradient(
+      112% 92% at 50% 34%,
+      rgba(0, 0, 0, 0) 34%,
+      rgba(72, 6, 14, 0.42) 74%,
+      rgba(46, 2, 10, 0.66) 100%
+    ),
+    linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 52%),
+    radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 58%);
 }
