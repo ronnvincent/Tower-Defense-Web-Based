@@ -2,9 +2,9 @@
 
 ## 1. Executive Testing Summary
 
-- **Total Automated Unit Tests:** 1,459 tests across 119 test suites (current
-  count; the newest suite is `campaign-regression`, see §30.8).
-- **Pass Rate:** **100% (1,459 / 1,459 Passed)**
+- **Total Automated Unit Tests:** 1,709 tests across 131 test suites (current
+  count; the newest suites are `tutorial` and `village-map`, see §37).
+- **Pass Rate:** **100% (1,709 / 1,709 Passed)**
 - **Test Framework:** Vitest 5.0.5 running in headless Node.js environment.
 - **Manual End-to-End Verification:** The full loop (Menu $\to$ Build $\to$ Wave Spawning $\to$ Tower Targeting $\to$ Palisade Siege $\to$ Codex Telemetry) was exercised in the browser during the UI/UX pass. The palisade redesign and the three new forge lines are covered by automated suites (`barricade-siege`, `forge-defenses`, `module-contracts`) plus the asset-existence assertions, because the CI sandbox has no GPU/browser.
 
@@ -3311,3 +3311,48 @@ brutes and one **Ironhorn Minotaur** (3000 HP, phase bar live):
   probe granted gold and placed its own line. Not a natural playthrough.
 * **Not yet verified** — a natural 8-wave run with a full perimeter, and real
   mobile touch input. Neither is claimed.
+
+---
+
+## 37. Request 58 — the opening scene (Havenbrook)
+
+### 37.1 Automated
+
+| Suite | Tests | What it proves |
+| --- | :-: | --- |
+| `tests/tutorial.test.js` | 27 | The five villagers are distinct (a child and an elder among them) and their sheets/portraits exist at the size the CSS asks for; every sheet's PNG header matches the frame grid the scene animates; every speaker has an accent; the anchor and exit spots are on the board and in the gutters; the script opens on a narrator, teaches exactly `place → upgrade → wave` in that order and ends on one `end` beat; every line is held long enough to read it and no line stalls the scene; the crowd's lines are toasts, not beats; the director never advances a step on a tap, never rewinds, skips a step whose action already happened, finishes exactly once, and has no `skip`/`stop`/`dismiss`; `needsTutorial()` lets a brand-new save in and keeps every save with stars out. |
+| `tests/village-map.test.js` | 13 | Havenbrook is the tutorial's own board and only its own; same 32 × 12 size as every other battlefield; a rock rim on all sides; three ground portals and two sky gates; one keep on the centre column; **a flood fill from every portal reaches the keep**; every road cell belongs to an authored lane (no stray paving the pathfinder can take); the build field holds no water, rock or scenery; no cottage sits on a tower square; the village palette ships its own grass/rock/water/foliage/bridge and all 16 road masks plus a world-map thumbnail; no other theme borrows the village suffix. |
+
+Full run: **131 files / 1,709 tests, 100 % pass** (`npx vitest run`), plus
+`npm run check:contrast` (68/68) and `npm run build`.
+
+### 37.2 Browser — a natural playthrough (executed)
+
+Real Chromium (SwiftShader, 1280 × 768), real pointer events, no console
+shortcuts beyond reading scene state:
+
+1. fresh save → name gate → **PLAY** lands directly in Havenbrook (no map);
+2. the village talks; the board is held — 6 s idle at `open`, the beat clock
+   advanced but no creep moved;
+3. tapping `START WAVE` out of turn is refused with *“THE VILLAGE IS STILL
+   TALKING — LISTEN FIRST”* and wave 0 stays on the HUD;
+4. **step 1** — pick a defence from the forge, tap the meadow → tower raised for
+   60 g, the step retires itself, the card comes back as Mara's line;
+5. **step 2** — tap the tower, `UPGRADE` → 50 g spent, tier 2, step retired;
+6. **step 3** — `START WAVE` → wave 1 on the road, the remaining lines arrive as
+   toasts over a live battle;
+7. wave 1 cleared at 69 s; **wave 2 opened by itself 11.6 s later** (the
+   preparation clock arms at the hand-over, not at boot);
+8. victory → **THE VILLAGE HOLDS · WAVES HELD 2 / 2 · TIME 77.4 s** with
+   `ENTER THE REALM` → the world map with no arrival banner;
+9. `profile.tutorialDone = true`, `stars = {}`, `unlocked = ['level-1']`.
+
+| Check | Result |
+| --- | --- |
+| Console | 0 page errors across every run |
+| Defeat path | core broken mid-scene → **THE VILLAGE FELL**, `TRY AGAIN` / `MAIN MENU`, flag still false; `TRY AGAIN` replays the village from the first line |
+| Returning keeper | reload after the win → PLAY opens the world map; `startLevel('level-1')` boots Verdant Marches with no director and no overlay |
+| Skip attempts | quitting to the map mid-scene clears the letterbox and the dimmed HUD; starting any level re-enters Havenbrook until the flag is set |
+| Mobile shell (`?hud=mobile`, 844 × 390) | letterbox and card fit; the objective card sits under the measured top bar; `BUILD` and `START WAVE` stay visible and clickable; phone copy used (*“Tap BUILD, pick a defence, then tap the meadow.”*) |
+
+Screenshots from these runs: `/home/user/peek/{q1..q7,d1,d2,m1..m3,b2-*}.png`.

@@ -79,6 +79,27 @@ Instead of relying on game engine built-in methods or generic web libraries for 
 
 ## 🎮 How to Play & Controls
 
+### The opening — Havenbrook
+
+The first battle a new keeper ever sees is not a campaign stage: it is a story.
+Five villagers are arguing about walls on the green when the watch spots smoke on
+the east road, and the only one who can raise a defence is the player — by the
+name they typed at the gate. The village then talks them through it: **raise a
+defence → take it a tier up → call the wave**. Each lesson waits for the real
+action (the step retires when a tower is actually built, never on a timer), the
+board is held while somebody is speaking, and the letterbox lifts for every step
+so the forge is fully lit and clickable.
+
+It cannot be skipped: there is no close button, and leaving the battle only
+returns to the same opening. It is granted once per save — any profile that has
+ever cleared a stage is left exactly where it was. Winning it opens the realm at
+Verdant Marches; losing it is a retry, with no stars, no reward and no board entry.
+
+The board itself (`Havenbrook`) is the only hand-laid battlefield in the game —
+three streets entering from the ridge at right angles and meeting on one high
+street in front of the keep — with its own thirteenth tile palette, a duck pond
+and 38 props. See `docs/opening-scene.md`.
+
 ### Campaign
 Four hand-built battles plus an endless mode, all chosen on an **explorable world
 map**: one painted continent you pan, pinch and zoom, with a banner for every
