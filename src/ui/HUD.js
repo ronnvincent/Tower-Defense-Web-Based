@@ -12,6 +12,7 @@ import { COMBO_WINDOW_MS } from '../systems/ComboMeter.js';
 import { formatPrepClock } from '../systems/WavePrep.js';
 import { BASTION_STATE, bastionState } from '../systems/Bastion.js';
 import { focusReadout } from '../systems/FocusTarget.js';
+import { complementRects, isRect } from '../systems/TutorialGate.js';
 import { applyShell, readShellOverride, resolveShell } from './shellMode.js';
 import { haptics } from '../systems/Haptics.js';
 import { targetBadge, targetLabel } from '../systems/TargetCategories.js';
@@ -71,6 +72,33 @@ export class HUD {
     this.baseHitTimer = null;
     this.toastTimer = null;
     this.hintTimer = null;
+    // The opening's press shield (see setTutorialLock). Off until a tutorial
+    // asks for it; a normal battle never mounts it.
+    this.tutorialLock = false;
+    this.gate = null;
+    this.gateBoxes = [];
+    this.nudgeTimer = null;
+    // Enter/Space on a focused control is a click: while the shield is up the
+    // keyboard has to obey the same rule as the pointer.
+    this._onGateKeydown = (event) => {
+      // A HUD that has been thrown away with the lock still on (a scene restart
+      // during the opening) must not go on eating Enter for the rest of the
+      // session: the shield's own element is the proof that this HUD is live.
+      if (!this.tutorialLock || !this.gate?.isConnected) return;
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+      const el = event.target instanceof Element ? event.target : document.activeElement;
+      if (!el) return;
+      if (
+        el.closest?.('.is-tutorial-target') ||
+        el.closest?.('#tutorial-root') ||
+        el.closest?.('#tutorial-spotlight')
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.nudgeTutorialGate();
+    };
     this.inspectorPinned = false;
     this.inspectorCollapsed = false;
     this.inspectorAnchorRatio = null;
@@ -966,6 +994,41 @@ export class HUD {
   }
 
   /**
+   * Lock the screen down to the pointed-at control, or hand it back.
+   *
+   * The spotlight says *where* to press; this says "and nowhere else". While it
+   * is on, a transparent shield covers every pixel outside the hole, so a press
+   * on another card, the wave button or the board does nothing at all — the old
+   * behaviour, where the dim was decoration and the whole HUD stayed live, let a
+   * player press the wave button ahead of the lesson and skip it.
+   *
+   * The tutorial's own card sits above the shield (it is what advances the
+   * dialogue), and the pointed control is the hole in it.
+   */
+  setTutorialLock(on) {
+    const next = Boolean(on);
+    if (next === this.tutorialLock) {
+      this.syncTutorialGate();
+      return;
+    }
+    this.tutorialLock = next;
+    if (next) {
+      document.addEventListener('keydown', this._onGateKeydown, true);
+      // The shield is laid out from live rects, and those move on their own: the
+      // inspector opens, the dock re-renders, the pause card comes and goes, a
+      // phone rotates. A slow re-sample keeps the hole over whatever the hand is
+      // pointing at without a listener on every widget in the game.
+      if (!this.gateTimer) this.gateTimer = setInterval(() => this.syncTutorialGate(), 400);
+    } else {
+      document.removeEventListener('keydown', this._onGateKeydown, true);
+      clearInterval(this.gateTimer);
+      this.gateTimer = null;
+    }
+    this.syncTutorialGate();
+    this.applyTutorialHint();
+  }
+
+  /**
    * Paint the current hint.
    *
    * The hint is no longer a gold glow on the control — a glow asks the player
@@ -1061,6 +1124,10 @@ export class HUD {
       clearInterval(this.spotlightTimer);
       this.spotlightTimer = null;
       this.spotlightRect = null;
+      // No hint: either the opening has handed the board back (shield off) or a
+      // line of dialogue is up, in which case the shield closes the whole screen
+      // and only the dialogue card can still be pressed.
+      this.syncTutorialGate();
       return;
     }
     const root = this.ensureTutorialSpotlight();
@@ -1078,8 +1145,10 @@ export class HUD {
     const rect = spot || target?.getBoundingClientRect?.();
     if (!rect || rect.width < 2 || rect.height < 2) {
       // Nothing to point at yet: the fade stays off rather than dimming a screen
-      // with no hole in it.
+      // with no hole in it, and the shield stays off with it — a closed screen
+      // with no visible way through is worse than an open one.
       root.classList.remove('is-on');
+      this.syncTutorialGate();
       return;
     }
     const pad = 8;
@@ -1107,6 +1176,7 @@ export class HUD {
       this.#placeHand(box);
     }
     root.classList.add('is-on');
+    this.syncTutorialGate();
   }
 
   /**
@@ -1204,6 +1274,180 @@ export class HUD {
   /** Keep the hand fully on screen. */
   #clampX(x, size) {
     return Math.min(window.innerWidth - size - 6, Math.max(6, x));
+  }
+
+  /* ------------------------------------------------------------ the shield */
+
+  /**
+   * Mount the press shield once, on `document.body`.
+   *
+   * A body-level element like the spotlight, and for the same reason: it has to
+   * cover the board, the HUD, the camera cluster and the tower inspector at
+   * once, and any of those could be re-rendered underneath it. Its own boxes are
+   * `pointer-events: auto` (the root is `none`), so exactly the region outside
+   * the hole swallows presses.
+   */
+  ensureTutorialGate() {
+    if (typeof document === 'undefined' || !document.body) return null;
+    if (this.gate?.isConnected) return this.gate;
+    // A new HUD per battle: drop whatever the old one left behind, or the second
+    // tutorial in a session would be drawn over by an empty shield.
+    for (const stale of document.querySelectorAll('#tutorial-gate')) stale.remove();
+    const gate = document.createElement('div');
+    gate.id = 'tutorial-gate';
+    gate.className = 'hidden';
+    gate.setAttribute('aria-hidden', 'true');
+    // A press anywhere on the shield is a miss: it never reaches the control
+    // underneath, and the hole flashes so the player can see where the hand
+    // wanted them to go.
+    const swallow = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.nudgeTutorialGate();
+    };
+    gate.addEventListener('pointerdown', swallow, true);
+    gate.addEventListener('mousedown', swallow, true);
+    gate.addEventListener('touchstart', swallow, { capture: true, passive: false });
+    gate.addEventListener('click', swallow, true);
+    // Inside `#app`, not on `body`: `#app` is its own stacking context, so a
+    // body-level shield would paint over the opening's dialogue card too and
+    // take away the one control the player is meant to press while a line is
+    // being read. At 190 inside that context it sits above the HUD (100) and
+    // the board, and below the opening's card (200).
+    (document.getElementById('app') || document.body).appendChild(gate);
+    this.gate = gate;
+    this.gateBoxes = [];
+    return gate;
+  }
+
+  /**
+   * The screen minus the pointed-at control, as rectangles.
+   *
+   * `null` means "do not block anything" — the two cases are different and both
+   * matter: while a line of dialogue is up there is no target at all and the
+   * whole screen is closed, whereas a *step* whose control has not been laid out
+   * yet (the inspector is still opening) must not trap the player in front of a
+   * shield with no hole in it.
+   */
+  gateRegion() {
+    if (!this.tutorialLock) return null;
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    if (vw < 2 || vh < 2) return null;
+    const area = { left: 0, top: 0, right: vw, bottom: vh };
+    const holes = [];
+    const hint = this.tutorialHint;
+    if (hint) {
+      if (typeof hint.spot === 'function') {
+        const spot = this.#spotRect(hint.spot);
+        if (spot) holes.push(this.#padRect(spot, 8));
+      }
+      for (const el of document.querySelectorAll('.is-tutorial-target')) {
+        const rect = el.getBoundingClientRect?.();
+        // Same 8 px as the veil's hole: a press *inside* the lit ring has to
+        // land, or the player aims at the highlighted button and hits the shield.
+        if (rect && rect.width > 2 && rect.height > 2) holes.push(this.#padRect(rect, 8));
+      }
+      // A step whose control has not been laid out yet (the inspector is still
+      // opening) must not trap the player in front of a shield with no hole.
+      if (!holes.length) return null;
+    }
+    // One deliberate exception, on every beat: pause. It is not a step and it
+    // cannot advance, skip or place anything — it opens the card that holds the
+    // settings and LEAVE BATTLE, and a scene with no way out but a page reload
+    // is a trap. The card itself is at 200, above the shield.
+    const pauseBtn = document.getElementById('btn-pause');
+    const pauseRect = pauseBtn?.getClientRects?.().length ? pauseBtn.getBoundingClientRect() : null;
+    if (pauseRect && pauseRect.width > 2 && pauseRect.height > 2) {
+      holes.push(this.#padRect(pauseRect, 4));
+    }
+    // ...and while the pause card is open, the card is the only live thing on
+    // the screen: RESUME, SETTINGS and LEAVE BATTLE sit in it. The overlay
+    // behind it is `pointer-events: none`, so without this hole the card is
+    // pressable but the board behind it would be too.
+    const pauseCard = document.querySelector('#pause-overlay:not(.hidden) .pause-card');
+    const cardRect = pauseCard?.getClientRects?.().length ? pauseCard.getBoundingClientRect() : null;
+    if (cardRect && cardRect.width > 2 && cardRect.height > 2) {
+      holes.push(this.#padRect(cardRect, 4));
+    }
+    return complementRects(area, holes);
+  }
+
+  /** `{left, top, width, height}` → the padded, viewport-clamped rect the maths wants. */
+  #padRect(rect, pad = 0) {
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    return {
+      left: Math.max(0, Number(rect.left) - pad),
+      top: Math.max(0, Number(rect.top) - pad),
+      right: Math.min(vw, Number(rect.left) + Number(rect.width) + pad),
+      bottom: Math.min(vh, Number(rect.top) + Number(rect.height) + pad),
+    };
+  }
+
+  /** Lay the shield out for the current hint. Safe to call as often as you like. */
+  syncTutorialGate() {
+    const gate = this.tutorialLock ? this.ensureTutorialGate() : this.gate;
+    if (!gate) return;
+    const rects = this.gateRegion();
+    if (!rects || !rects.length) {
+      if (!gate.classList.contains('hidden')) {
+        gate.classList.add('hidden');
+        gate.replaceChildren();
+        this.gateBoxes = [];
+        this.gateSignature = null;
+      }
+      return;
+    }
+    // Reuse the boxes, and skip the whole write when nothing moved: while a step
+    // is up the shield is re-sampled several times a second, and re-writing the
+    // same eight boxes would churn layout for no reason.
+    const signature = rects
+      .map((r) => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`)
+      .join('|');
+    if (signature === this.gateSignature && !gate.classList.contains('hidden')) return;
+    this.gateSignature = signature;
+    const boxes = this.gateBoxes || (this.gateBoxes = []);
+    while (boxes.length < rects.length) {
+      const box = document.createElement('div');
+      box.className = 'tut-blocker';
+      gate.appendChild(box);
+      boxes.push(box);
+    }
+    for (let i = 0; i < boxes.length; i += 1) {
+      const box = boxes[i];
+      const rect = rects[i];
+      if (!rect) {
+        if (box.style.display !== 'none') box.style.display = 'none';
+        continue;
+      }
+      if (box.style.display === 'none') box.style.display = '';
+      const left = Math.round(rect.left);
+      const top = Math.round(rect.top);
+      const width = Math.round(rect.right - rect.left);
+      const height = Math.round(rect.bottom - rect.top);
+      if (!isRect({ left, top, right: left + width, bottom: top + height })) {
+        box.style.display = 'none';
+        continue;
+      }
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      box.style.width = `${width}px`;
+      box.style.height = `${height}px`;
+    }
+    gate.classList.remove('hidden');
+  }
+
+  /** Flash the hole: "not that one — here". */
+  nudgeTutorialGate() {
+    const root = this.spotlight;
+    if (!root) return;
+    root.classList.remove('is-nudge');
+    // Force a reflow so a second miss in the same second replays the flash.
+    void root.offsetWidth;
+    root.classList.add('is-nudge');
+    clearTimeout(this.nudgeTimer);
+    this.nudgeTimer = window.setTimeout(() => root.classList.remove('is-nudge'), 700);
   }
 
   renderBuildCards() {
@@ -2018,6 +2262,9 @@ export class HUD {
       this.syncDensity();
       this.repositionInspector();
       this.syncInspectorScroll();
+      // The hole is measured in viewport pixels, so a rotation or a resize moves
+      // it — and the shield cut out of it has to move with it.
+      this.syncTutorialSpotlight();
     };
     this.syncDensity();
     window.addEventListener('resize', this._onResize);

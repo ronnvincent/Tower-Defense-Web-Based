@@ -391,6 +391,13 @@ function clearTutorialOverlay() {
   root?.classList.remove('is-open', 'is-speaking', 'is-ready', 'is-step', 'is-closing');
   root?.classList.add('hidden');
   window.gameTutorialUI?.clear?.();
+  // The opening's press shield is a real DOM layer over the screen. Leaving the
+  // battle mid-story, or starting a different level, must take it down with the
+  // card — a shield left behind would make the next screen unclickable.
+  game?.scene?.getScene?.('GameScene')?.hud?.setTutorialLock?.(false);
+  for (const gate of document.querySelectorAll('#tutorial-gate')) gate.remove();
+  const spotlight = document.getElementById('tutorial-spotlight');
+  spotlight?.classList.remove('is-on', 'is-nudge');
 }
 
 function showLevelSelect(options = {}) {

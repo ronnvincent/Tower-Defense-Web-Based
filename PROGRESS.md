@@ -1206,3 +1206,56 @@ published phase and the pan guard).
 Screenshots: `/tmp/field-fit.png` (before), `/tmp/f66-1280-fit.png`,
 `/tmp/f66-1280-zoom.png`, `/tmp/f66-1280-corner.png`, `/tmp/f66-844.png`,
 `/tmp/f66-844-dock.png`, `/tmp/f66-1024.png`, `/tmp/f66-desert.png`.
+
+## 10. The opening only lets you press what it points at (Request 70)
+
+**The bug.** The spotlight drew a dim screen with one lit hole and a hand, but the
+dim was *decoration*: every control underneath was still live. A new player could
+press START WAVE before the village had finished explaining which card to raise
+(the wave then started, the director's "already performed" memory retired the
+lesson, and the opening was skipped), pick a different forge card, build on any
+tile, or open the forge mid-sentence.
+
+**The fix** is the input side of that same drawing — `systems/TutorialGate.js`
+(pure geometry + key table) plus two DOM layers in the HUD:
+
+* `HUD#setTutorialLock(true)` mounts a shield in `#app` at **z-index 190**:
+  a transparent box over *every pixel outside the hole*. The hole is the same
+  box the veil cuts (the pointed control, + 8 px), so the answer is the only
+  pressable thing while a step waits, and the whole screen is closed while a
+  line is up — except the dialogue card, which is at 200 and is how a line is
+  advanced.
+* Two deliberate valves: **pause** (always, and the pause card is live while it
+  is open, so RESUME / SETTINGS / LEAVE BATTLE work) and **Escape** on a step,
+  which puts the card down instead of skipping the lesson.
+* The keyboard obeys the same rule: `GameScene#handleTutorialKey` runs while
+  `tutorialGateOn`, so only `Space` on the wave step and the pointed card's own
+  hotkey (1) do anything. Enter/Space on a focused HUD button is swallowed.
+* A miss flashes the hole rather than doing nothing, and the shield re-samples
+  every 400 ms (plus on resize, dock fold, inspector open) so the hole follows
+  the control through a phone rotation.
+* Everything tears down on wave-call, `endTutorialScene`, or leaving the battle
+  (`clearTutorialOverlay` also removes a stranded shield).
+
+**Verified in a real browser** (`pw/tutorialgate.mjs`, real presses, 1280×768
+and 1024×640):
+
+| Press | Result |
+| ----- | ------ |
+| START WAVE during a line | `waveState` stays `idle` — blocked by the shield |
+| dialogue card during a line | advances `mara-1 → doren-1` — allowed |
+| PAUSE during a line | opens the card; RESUME works; the line survives |
+| CANNON card on the build step | `selectedBuildKey` stays `null` |
+| hotkey `2` on the build step | `selectedBuildKey` stays `null` |
+| empty grass on the build step | nothing selected, nothing built |
+| ARCHER card, then the marked meadow | builds `archer:1`, step retires |
+| START WAVE on the upgrade step | `idle` — blocked |
+| the tower, then UPGRADE | `archer:1 → archer:2` |
+| START WAVE on the wave step | wave starts, lock off, gate removed (0 blockers) |
+
+`npx vitest run` → **146 files / 1881 passed** · `npm run build` ✓
+(`tests/tutorial-gate.test.js` pins the shield geometry — the boxes tile the
+screen exactly minus the hole, never overlap it, and never overlap each other —
+and the key table; `tests/tutorial-gate-dom.test.js` drives the real HUD and
+checks the boxes, the full-screen closure during a line, the no-target release
+and the Enter-key swallow.)

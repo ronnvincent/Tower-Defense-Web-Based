@@ -39,6 +39,7 @@ import {
   SPEAKER_ACCENTS,
   speakerFor,
 } from '../data/tutorialScript.js';
+import { GATE_KEY, gateKeyVerdict } from '../systems/TutorialGate.js';
 import { perfProbe } from '../system/perfProbe.js';
 import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
 import { moodForWave, moodVars } from '../systems/Mood.js';
@@ -4350,6 +4351,10 @@ export class GameScene extends Phaser.Scene {
     ui.mount();
     ui.onTap(() => this.tutorialTap());
     document.documentElement.classList.add('is-tutorial');
+    // The opening closes the screen: from this frame until the wave is called,
+    // the only pressable thing is what the hand is pointing at (or the dialogue
+    // card, which is the way through a line). See `TutorialGate`.
+    this.hud?.setTutorialLock?.(true);
     // Leaving is allowed, but it has to say what it costs: the gate is
     // single-shot, so a player who quits mid-story does not meet it again.
     this.hud?.setQuitWarning?.(
@@ -4675,6 +4680,8 @@ export class GameScene extends Phaser.Scene {
     if (event === 'wave') {
       this.tutorialCombatBegun = true;
       this.tutorialHold = false;
+      // The last gate was the wave button: from here the battle is the player's.
+      this.hud?.setTutorialLock?.(false);
     }
     this.tutorialDirector?.report(event);
     if (event === 'upgrade') {
@@ -4820,6 +4827,7 @@ export class GameScene extends Phaser.Scene {
     this.tutorialUI?.close?.();
     this.hud?.setQuitWarning?.(null);
     this.hud?.setTutorialHint?.(null);
+    this.hud?.setTutorialLock?.(false);
     document.documentElement.classList.remove('is-tutorial', 'is-line');
     if (handOver && !this.wavePrep && this.waveManager && !this.gameState?.isOver?.()) {
       this.wavePrep = createWavePrep(this.level);
@@ -5819,8 +5827,57 @@ export class GameScene extends Phaser.Scene {
     this.hud.setPowerups(this.powerups.snapshot());
   }
 
+  /**
+   * True while the opening owns the input: a scripted battle that has not
+   * reached the wave yet. The pointer half of this is the HUD's shield; this is
+   * the half a keyboard would otherwise walk around.
+   */
+  get tutorialGateOn() {
+    return Boolean(
+      this.level?.tutorial &&
+        this.tutorialDirector &&
+        !this.tutorialDirector.finished &&
+        !this.tutorialCombatBegun
+    );
+  }
+
+  /**
+   * A key press while the opening is waiting.
+   *
+   * Only the key that does what the step asks survives: the space bar on the
+   * wave step, the pointed card's own hotkey on the build step, and Escape,
+   * which puts the card down again instead of skipping the lesson.
+   */
+  handleTutorialKey(event) {
+    const buildKey = BUILD_OPTIONS.find((key) => getBuildDefinition(key)?.hotkey === event.key) || null;
+    const verdict = gateKeyVerdict({
+      beat: this.tutorialDirector?.beat,
+      key: event.key,
+      code: event.code,
+      buildKey,
+      allowedBuildKey: BUILD_OPTIONS[0] || null,
+    });
+    if (verdict === GATE_KEY.WAVE) {
+      event.preventDefault();
+      if (this.waveManager?.canStartNextWave()) this.handleStartWave();
+      return;
+    }
+    if (verdict === GATE_KEY.BUILD) {
+      this.hud?.toggleBuildSelection(buildKey);
+      return;
+    }
+    if (verdict === GATE_KEY.CANCEL) {
+      this.hud?.clearBuildSelection();
+      this.handleDeselectTower();
+    }
+  }
+
   bindKeyboardShortcuts() {
     this.input.keyboard.on('keydown', (event) => {
+      if (this.tutorialGateOn) {
+        this.handleTutorialKey(event);
+        return;
+      }
       // Hotkeys come from the tower data, so adding a defence to the dock
       // automatically gives it a working number key.
       const powerupKey = POWERUPS.find((entry) => entry.hotkey.toLowerCase() === event.key.toLowerCase());

@@ -17704,6 +17704,50 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   transition: left 180ms ease, top 180ms ease, width 180ms ease, height 180ms ease;
 }
 
+/* --------------------------------------------------------------------------
+   The press shield.
+
+   The spotlight above shows *where* the answer is; this is what makes it the
+   *only* answer. A miss lands on one of these transparent boxes and goes no
+   further, so a step cannot be walked around by pressing the wave button, a
+   different forge card, or the board itself while the village is still talking.
+
+   It sits at 190: over the board, the HUD (100), the camera cluster (110) and
+   the tower inspector — all of which are inside the HUD's own stacking context —
+   and under the opening's dialogue card (200), which is the one thing the player
+   is *supposed* to press while a line is being read.
+   -------------------------------------------------------------------------- */
+#tutorial-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  pointer-events: none;
+}
+
+#tutorial-gate.hidden {
+  display: none;
+}
+
+#tutorial-gate .tut-blocker {
+  position: fixed;
+  /* The boxes tile the screen around the hole; `auto` is the whole point. */
+  pointer-events: auto;
+  background: transparent;
+  cursor: default;
+  touch-action: none;
+}
+
+/* A miss flashes the hole instead of doing nothing: the hand is already there,
+   and a ring that brightens says "here" without adding a second marker. */
+#tutorial-spotlight.is-nudge .tut-hole {
+  box-shadow:
+    0 0 0 100vmax rgba(3, 5, 9, 0.82),
+    0 0 0 3px rgba(255, 226, 150, 0.95),
+    0 0 0 7px rgba(245, 196, 81, 0.45),
+    inset 0 0 0 1px rgba(3, 5, 9, 0.55);
+  transition: box-shadow 90ms ease;
+}
+
 .tut-hand {
   position: absolute;
   width: 50px;
