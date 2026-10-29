@@ -943,3 +943,90 @@ the off-screen guard; `tests/ui-kit.test.js` pins the two animations and that
 the poses keep `transform`).
 
 Screenshots: `/tmp/tf-1-place.png` … `/tmp/tf-5-selected.png`, `/tmp/tfm-*`.
+
+## 18. Request 64 — the frame around the battlefield is gone
+
+> *"bakit parang may blur sa likod? parang horizontal straight line pati sa
+> ilalim and sa gilid, dapat wala yan e, para syang may frame, ang pangit
+> tignan, i remove mo yan"*
+
+### What the frame actually was
+
+Not a border that somebody drew — the **camera band** showing through to the
+page.
+
+`battleFrame` gives the camera the rectangle between the top rail and the forge
+("the battlefield draws here"), because a board fitted to the whole canvas put
+the bastion's own row behind the dock. The camera therefore paints *only* inside
+that band, and everything outside it is transparent canvas — the page behind,
+which in a battle was `#app`'s backdrop: the out-of-focus grass plate from
+request 62.
+
+Measured at 1536×864, on the pixel column where the board's grass sits:
+
+| y | what was there | colour |
+| - | -------------- | ------ |
+| 0 – 81 | the page (blurred plate + 15 % band) | `(41,84,43)` flat |
+| 82 – 780 | the camera band | `(59,119,62)` … textured |
+| 780 – 864 | the forge dock | — |
+
+So the "blur behind" and the "straight line" were the same thing: a flat,
+out-of-focus green running to a razor edge where the crisp field began. Both
+horizontal edges were that seam, and the vertical ones were the same seam on the
+left and right whenever the window was wide enough that the fit zoom left side
+gutters (1920×800 leaves ~76 px each side).
+
+Two separate causes, two separate fixes.
+
+### 1. The letterbox is field, not page — `drawFieldApron`
+
+The arena is now set *in* a field instead of laid on a table: one `TileSprite`
+of the biome's own ground, three tiles deep on every side, at depth 0.5 (under
+the 64 px ground tiles), plus the same sparse props the board scatters (7 % a
+tree, then 35 % a tuft — the same hashes and the same jitter). Its cells never
+touch the board's own, so nothing is dressed twice.
+
+Three tiles is not a guess: at fit zoom the margin is `(band − board) / 2`, and
+the widest case (a short, wide window) leaves ~3 tiles of side gutter. The
+apron is static — one draw object and ~120 sprites, no per-frame cost.
+
+### 2. The strip the camera cannot paint — `publishFieldScale`
+
+Above the band nothing in the canvas can ever help, so the *page* has to be
+told what belongs there. The scene now publishes two custom properties on boot,
+on every re-frame and whenever the zoom settles:
+
+* `--battle-ground` — the biome's own ground tile (`grass-desert.png` on the
+  mesa, `grass.png` in Havenbrook);
+* `--field-tile` — the size one tile has on screen right now:
+  `64 world px × camera zoom × canvas CSS scale` (40 px at 1280×768, 48 px at
+  1536×864).
+
+`body.is-battle #app` repeats that tile at that size. Crisp grass now meets
+crisp grass at the same scale, so there is no wash and no edge — and because the
+ground is read from the level's theme, the strip is sand on Sunscorch Mesa and
+ice at Frostbite Hollow instead of always being grassland (verified on
+`level-2`).
+
+The plate itself is untouched: the menu still sits on it. `is-battle` is added
+with the camera rig and removed on scene shutdown.
+
+### Verified
+
+| Check | Result |
+| ----- | ------ |
+| 1536×864, `level-1` | strip above the band is the board's grass; no seam under the rail |
+| 1280×768, `level-1` | same; the field runs under the rail and the dock |
+| 1024×640, `level-1` | same; the page letterbox above/below the stage is field too |
+| 1920×800, `level-1` | side gutters are apron grass, not a blurred band |
+| 844×390 (phone shell) | same |
+| 1280×768, `level-2` (desert) | strip is sand + cacti, not green |
+| menu → battle → world map | `is-battle` on, `--field-tile` 40 → 64 px after a 1.6× zoom, off again on exit; `#app` back to the plate |
+| tutorial gate, natural run | `line:mara-3` → `line:doren-3` → finished, `ERRS []` |
+
+`npx vitest run` → **139 files / 1797 passed** · `npm run build` ✓ 6.65 s
+(`tests/field-apron.test.js` pins the apron's size, depth and that it never
+dresses a board cell, plus the published tile size and biome path).
+
+Screenshots: `/tmp/r64-d.png` (1536), `/tmp/r64-1280.png`, `/tmp/r64-1024.png`,
+`/tmp/r64-1920.png`, `/tmp/r64-mobile.png`, `/tmp/r64-desert.png`.

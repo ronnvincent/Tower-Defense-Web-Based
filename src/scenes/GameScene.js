@@ -127,6 +127,14 @@ const RIVER_THEME = 'grassland';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
 const GROUND_VARIANT_KEYS = ['tile-grass', 'tile-grass_2', 'tile-grass_3'];
+/**
+ * Tiles of field drawn beyond the arena on every side.
+ *
+ * Deep enough for the widest letterbox the camera can produce at fit zoom (a
+ * short, wide window leaves ~3 tiles of margin on the left and right) and no
+ * deeper: it is a margin, not a world.
+ */
+const APRON_TILES = 3;
 /** Scatter props drawn on empty grass. */
 const DECOR_KINDS = ['tuft', 'bloom', 'shard'];
 
@@ -560,10 +568,16 @@ export class GameScene extends Phaser.Scene {
       frame: this.measureBattleFrame(),
       onZoomChange: (state) => {
         this.hud?.setZoomState(state);
+        this.publishFieldScale();
         this.refreshHoverFromLastPointer();
       },
     });
     this.cameraRig.install();
+    // `is-battle` tells the page that the strip above the camera band belongs to
+    // a battlefield, so it repeats the board's own ground there instead of the
+    // menu's plate (request 64).
+    document.body?.classList.add('is-battle');
+    this.publishFieldScale();
     // The fit zoom is set by install(); publish the letterbox it leaves so the
     // Vanguard card can move into it before the first frame is drawn.
     this.publishBoardGutter();
@@ -573,6 +587,7 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       if (this.battleFrameTimer) window.clearTimeout(this.battleFrameTimer);
       this.battleFrameTimer = null;
+      document.body?.classList.remove('is-battle');
     });
     // The HUD announces every re-measure (a chip appearing, the forge folding).
     // Those must move the floating controls, not the camera: the battle band is
@@ -833,6 +848,39 @@ export class GameScene extends Phaser.Scene {
     root.style.setProperty('--board-gutter-right', `${gutter}px`);
   }
 
+  /**
+   * Publish the field's on-screen scale and its ground texture.
+   *
+   * The camera paints only inside its band (see battleFrame.js), so the strip
+   * between the band and the top of the stage is the *page* behind the canvas —
+   * `#app`. That strip used to show the menu's out-of-focus plate: a blurred
+   * green wash with a razor-straight edge where the crisp board began, which
+   * read as a frame laid over the battlefield (request 64).
+   *
+   * So the stylesheet is told what to repeat there: the biome's own ground tile
+   * (`--battle-ground`) at exactly the size one tile has on screen right now
+   * (`--field-tile`). The strip is then the same grass at the same scale as the
+   * field under it — no wash, no edge — and it follows the biome instead of
+   * always being grassland.
+   *
+   * Cheap and idempotent: two custom properties, written on boot, on a re-frame
+   * and whenever the zoom settles.
+   */
+  publishFieldScale() {
+    const scale = this.scale;
+    const cam = this.cameras?.main;
+    const root = document.documentElement;
+    if (!scale || !cam || !root?.style) return;
+    const gameHeight = scale.height || 768;
+    const canvasHeight = scale.displaySize?.height || window.innerHeight || gameHeight;
+    const factor = gameHeight ? canvasHeight / gameHeight : 1;
+    const tile = TILE_SIZE * cam.zoom * factor;
+    if (!Number.isFinite(tile) || tile <= 0) return;
+    root.style.setProperty('--field-tile', `${tile.toFixed(2)}px`);
+    const suffix = this.theme?.tileSuffix || '';
+    root.style.setProperty('--battle-ground', `url('/assets/tiles/grass${suffix}.png')`);
+  }
+
   /** Re-measure and re-fit after a rotation or a real window resize. */
   reframeBattlefield(force = false) {
     if (!this.cameraRig) return;
@@ -851,6 +899,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.cameraRig.setFrame(frame);
     this.publishBoardGutter();
+    this.publishFieldScale();
   }
 
   /**
@@ -887,6 +936,59 @@ export class GameScene extends Phaser.Scene {
     return flow;
   }
 
+  /**
+   * The field beyond the wall.
+   *
+   * The camera fits the board into the band the HUD leaves free, and a 8:3
+   * board in a band that is not 8:3 always leaves a margin on one axis — a
+   * letterbox. That margin used to be empty canvas, so the page behind it (a
+   * blurred, darkened grass wash) showed through with a razor-straight edge
+   * where the board began. On screen that read as a frame laid over the
+   * battlefield (request 64).
+   *
+   * So the arena is set *in* a field instead of laid on a table: one tiled
+   * sheet of the biome's own ground, three tiles deep on every side, plus the
+   * same sparse props the board scatters. The camera's margin is then the same
+   * grass at the same scale, and there is no edge for the eye to find — the
+   * battlefield simply runs under the HUD.
+   *
+   * One TileSprite and a handful of static props: no per-frame cost.
+   */
+  drawFieldApron(themed) {
+    const ground = GROUND_VARIANT_KEYS.map((key) => themed(key, null)).filter(Boolean);
+    if (!ground.length) return null;
+    const decor = DECOR_KINDS.map((kind) => themed(`tile-decor-${kind}`, null)).filter(Boolean);
+    const foliage = themed('tile-foliage', null);
+    const apron = APRON_TILES;
+    const width = (this.map.cols + apron * 2) * TILE_SIZE;
+    const height = (this.map.rows + apron * 2) * TILE_SIZE;
+    const sheet = this.add
+      .tileSprite((this.map.cols * TILE_SIZE) / 2, (this.map.rows * TILE_SIZE) / 2, width, height, ground[0])
+      .setDepth(0.5);
+    for (let r = -apron; r < this.map.rows + apron; r += 1) {
+      for (let c = -apron; c < this.map.cols + apron; c += 1) {
+        // Inside the arena the board already dresses every cell.
+        if (r >= 0 && r < this.map.rows && c >= 0 && c < this.map.cols) continue;
+        const hash = (r * 73856093) ^ (c * 19349663);
+        const roll = Math.abs(hash) % 100;
+        const cx = c * TILE_SIZE + TILE_SIZE / 2;
+        const cy = r * TILE_SIZE + TILE_SIZE / 2;
+        if (roll < 7 && foliage) {
+          this.add.image(cx, cy, foliage).setScale(0.94).setAlpha(0.97).setDepth(2);
+        } else if (roll < 40 && decor.length) {
+          const key = decor[(Math.abs(hash) >> 7) % decor.length];
+          this.add
+            .image(cx + ((hash >> 11) % 41) - 20, cy + ((hash >> 13) % 41) - 20, key)
+            .setDisplaySize(TILE_SIZE * 0.72, TILE_SIZE * 0.72)
+            .setAlpha(0.94)
+            .setDepth(2)
+            .setFlipX(Boolean(hash & 1));
+        }
+      }
+    }
+    return sheet;
+  }
+
   renderBattlefieldMap() {
     // The water layer is drawn first so every bridge deck lands on top of it.
     this.createRiverFlow();
@@ -904,6 +1006,8 @@ export class GameScene extends Phaser.Scene {
     const themeOf = (r, c) => this.biomeGrid?.[r]?.[c] || null;
     const groundFor = (themeId) =>
       GROUND_VARIANT_KEYS.map((key) => themed(key, themeId)).filter(Boolean);
+    // Under the board, before any cell: the field the arena stands in.
+    this.drawFieldApron(themed);
 
     const at = (r, c) => (r >= 0 && r < this.map.rows && c >= 0 && c < this.map.cols ? this.map.tiles[r][c] : -1);
     const isLane = (r, c) => {

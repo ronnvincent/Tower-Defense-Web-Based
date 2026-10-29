@@ -388,6 +388,26 @@ body::after {
   overflow: hidden;
 }
 
+/* Request 64: in a battle the field runs under the HUD.
+   The camera paints only inside its band (src/camera/battleFrame.js), so the
+   strip between the band and the top of the stage is this page, not the canvas.
+   It used to show the plate above — an out-of-focus wash whose edge against the
+   crisp board was a straight line all the way across the screen: a frame drawn
+   around the battlefield. So while a battle is open the strip repeats the
+   biome's own ground tile at the size one tile has on screen right now. Both
+   numbers come from the scene (`publishFieldScale`): crisp grass meets crisp
+   grass at the same scale, and the only edge left is the torn band.
+
+   `--field-tile` therefore has to be the *displayed* tile: 64 world px × the
+   camera's zoom × the canvas' CSS-to-game scale. Outside a battle the plate is
+   untouched. */
+body.is-battle #app {
+  background-image: var(--battle-ground, url('/assets/ui-kit/arena-plate.png'));
+  background-repeat: repeat;
+  background-position: center;
+  background-size: var(--field-tile, 48px) var(--field-tile, 48px);
+}
+
 @supports (height: 100dvh) {
   :root {
     --stage-width: min(100vw, calc(100dvh * 25 / 12));
