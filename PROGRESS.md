@@ -1030,3 +1030,79 @@ dresses a board cell, plus the published tile size and biome path).
 
 Screenshots: `/tmp/r64-d.png` (1536), `/tmp/r64-1280.png`, `/tmp/r64-1024.png`,
 `/tmp/r64-1920.png`, `/tmp/r64-mobile.png`, `/tmp/r64-desert.png`.
+
+## 19. Request 65 — the ribbon that would not stay in its box
+
+> *"sa ui naman sa mobile device natin tignan mo yung text na not recruited is
+> hindi na nakikita and lumalagpas, same sa lahat, paki fix ito"*
+
+### What was wrong
+
+The state ribbon (`NOT RECRUITED`, `LV 3`, `RANK 1 / 3`) was a child of the
+portrait, absolutely positioned and centred on it:
+
+```css
+.pet-level-badge { position:absolute; left:50%; transform:translateX(-50%); }
+```
+
+At 9 px with 1 px of tracking, "NOT RECRUITED" is **107 px of text**. The
+portrait on a phone is **52 px** and on a desktop card **104 px**, so the ribbon
+hung out over both sides of the art and printed straight through the
+companion's name beside it. Nothing clipped it — the box it was centred on was
+simply narrower than the words, which is why it read as "overflowing" at every
+size, not just mobile ("same sa lahat").
+
+Measured before, at 844×390: panel `{311,83,482,212}`, portrait `{320,89,52,52}`,
+badge `107×16` — **28 px out on each side**, name `{380,112,346,21}` underneath
+it.
+
+### The fix
+
+The ribbon is no longer a child of the art. It moved into the title block, and
+the art's column width is handed down as `--pet-portrait` so the desktop layout
+can still lay it back over the art:
+
+* desktop — `position:absolute; left:calc(var(--pet-portrait)/2); bottom:2px`
+  inside `.pets-detail-title`'s column: pixel-identical to before (badge
+  `{492,319,107,16}` over portrait `{493,233,104,104}` at 1280×768);
+* compact (`≤900 px` wide or `≤560 px` tall) — `position:static` as the header's
+  **third row** (`grid-area:3/1/4/-1`), 8 px with `0.8 px` tracking, a 52 px
+  portrait beside it: 107 px of text in 232 px of row, inside the panel, below
+  the name.
+
+Same component, same wording, in the RECRUIT, UPGRADE and VANGUARD details.
+
+### The stat labels under it
+
+With the header settled, the 614×350 case showed the four stat labels clipped
+(`DAMA…`, `COOL…`, `COOLO…`). Eliding them is not a fix — the columns have to
+actually get wider:
+
+* compact `.pets-detail-grid` split `1.5fr / 1fr` (was an even split) so the
+  stat side gets the extra 20 px;
+* `.pet-stat` padding `2px 2px`, label `7px` with no tracking, skill name
+  `0.4 px` tracking;
+* `.pet-stat-label` may now clip rather than spill (`min-width:0;
+  max-width:100%; overflow:hidden; text-overflow:ellipsis`).
+
+At 614×350 every label measures `clientW 35` against real ink widths of
+DAMAGE 24 / SLOW 17 / COOLDOWN 33 / REACH 19 — all four whole, values `40 35%
+8s 120` on one line, `SHIELD BASH` on one line. A 2×2 stat grid at ≤700 px was
+tried and **reverted**: it stranded the SKILL box below the stats.
+
+### Verified
+
+| Check | Result |
+| ----- | ------ |
+| 844×390, locked, RECRUIT | `NOT RECRUITED` static, 8 px, `clippedByPanel:false`, `inTitle:true` |
+| 844×390, owned, RECRUIT | `LV 3` same treatment |
+| 844×390, owned, VANGUARD | `RANK 1 / 3` same treatment |
+| 614×350, locked, RECRUIT | `NOT RECRUITED` inside a 232 px row; labels whole |
+| 1280×768, locked, RECRUIT | `NOT RECRUITED` absolute 9 px over the portrait column, unchanged |
+
+`npx vitest run` → **140 files / 1803 passed** · `npm run build` ✓ 6.52 s
+(`tests/muster-hall.test.js` pins the ribbon to the title block in both detail
+views, the portrait width it is told about, the three states, and the labels).
+
+Screenshots: `/tmp/muster-844.png` (before), `/tmp/m-844f.png`,
+`/tmp/m-vang.png`, `/tmp/m-614e.png`, `/tmp/m-desk2.png`.

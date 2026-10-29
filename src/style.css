@@ -9086,7 +9086,12 @@ body.is-fullscreen #app::after {
 
 .pet-level-badge {
   position: absolute;
-  left: 50%;
+  /* Centred on the *art's* column, not on the header. The card publishes that
+     width as `--pet-portrait` (52 px on a phone, 104 px on a desktop).
+     Request 65: the ribbon used to be a child of the portrait span, and "NOT
+     RECRUITED" is 107 px of text — on a phone it hung 28 px out of the 52 px
+     art on both sides and landed on the companion's name. */
+  left: calc(var(--pet-portrait, 104px) / 2);
   /* Inside the art's bottom edge: a hanging badge painted over the tab strip
      and the first stat row on a 390 px screen. */
   bottom: 2px;
@@ -9129,6 +9134,9 @@ body.is-fullscreen #app::after {
 }
 
 .pets-detail-head {
+  /* The state ribbon is positioned from here, not from the portrait: it has to
+     be able to leave the art on a phone (see `.pet-level-badge`). */
+  position: relative;
   display: flex;
   align-items: center;
   gap: clamp(8px, 1.2vw, 14px);
@@ -9216,6 +9224,14 @@ body.is-fullscreen #app::after {
   font-weight: 700;
   letter-spacing: 1.2px;
   color: var(--text-dim);
+  /* COOLDOWN is the longest word on the card, and on a narrow phone the third
+     and fourth boxes are close enough that it used to print straight over
+     "REACH". It clips inside its own box instead of spilling (request 65). */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pet-stat-unit {
@@ -9535,12 +9551,12 @@ body.is-fullscreen #app::after {
   }
 
   .pets-detail .pet-stat {
-    padding: 2px 4px;
+    padding: 2px 2px;
   }
 
   .pets-detail .pet-stat-label {
     font-size: 7px;
-    letter-spacing: 0.6px;
+    letter-spacing: 0;
   }
 
   .pets-detail .pet-stat-value {
@@ -9599,6 +9615,9 @@ body.is-fullscreen #app::after {
   }
 
   .pets-detail-grid {
+    /* Four stat boxes on the left, one skill line on the right: an even split
+       left "COOLDOWN" with 24 px of box to live in (request 65). */
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     gap: 6px;
   }
 
@@ -9644,7 +9663,7 @@ body.is-fullscreen #app::after {
   }
 
   .pets-detail .pet-skill-name {
-    letter-spacing: 1px;
+    letter-spacing: 0.4px;
   }
 
   .pets-detail-head {
@@ -9681,6 +9700,21 @@ body.is-fullscreen #app::after {
     grid-area: 2 / 2;
     justify-self: end;
     margin: 0;
+  }
+
+  /* A 52 px portrait cannot hold the ribbon: on a phone it becomes the third
+     row of the header, spanning the title block, at a size that still reads.
+     That is the whole fix for request 65 — the words stay, the overflow does
+     not. */
+  .pets-detail-title .pet-level-badge {
+    position: static;
+    grid-area: 3 / 1 / 4 / -1;
+    justify-self: start;
+    margin: 2px 0 1px;
+    padding: 1px 5px;
+    transform: none;
+    font-size: 8px;
+    letter-spacing: 0.8px;
   }
 
   /* The action plate is the one thing that must always be reachable, so it

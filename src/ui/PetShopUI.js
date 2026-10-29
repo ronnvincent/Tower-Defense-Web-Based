@@ -224,11 +224,16 @@ export class PetShopUI {
          </button>`;
     }
 
+    // The ribbon is *not* inside the portrait: "NOT RECRUITED" is 107 px of
+    // text, and a 52 px portrait on a phone let it hang out over the name
+    // (request 65). It lives in the title block now — laid back over the art's
+    // bottom edge on a desktop card (`--pet-portrait` says where that is) and
+    // become the header's third row on a phone, where it can be read.
+    const portraitSize = isCompactViewport() ? 52 : 104;
+
     return `
-      <div class="pets-detail-head">
-        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, isCompactViewport() ? 52 : 104)}">
-          <span class="pet-level-badge">${owned ? `LV ${level}` : 'NOT RECRUITED'}</span>
-        </span>
+      <div class="pets-detail-head" style="--pet-portrait:${portraitSize}px">
+        <span class="pet-hero-portrait lv-${level}" style="${portraitStyle(pet.texture, portraitSize)}"></span>
         <div class="pets-detail-title">
           <p class="pet-kind">${pet.kind}</p>
           <h2 class="pets-detail-name">${pet.name}</h2>
@@ -244,6 +249,7 @@ export class PetShopUI {
                  </ol>`
               : ''
           }
+          <span class="pet-level-badge">${owned ? `LV ${level}` : 'NOT RECRUITED'}</span>
         </div>
       </div>
       <p class="pet-blurb">${pet.blurb}</p>
@@ -426,16 +432,17 @@ export class PetShopUI {
       current.attack === 'ranged' ? 'RANGED' : 'MELEE'
     }</span>`;
 
+    const portraitSize = isCompactViewport() ? 52 : 104;
+
     return `
-      <div class="pets-detail-head">
-        <span class="pet-hero-portrait lv-${Math.min(5, rank + 2)}" style="${portraitStyle(klass.texture, isCompactViewport() ? 52 : 104)}">
-          <span class="pet-level-badge">${owned ? `RANK ${rank} / ${HERO_RANK_COUNT}` : 'NOT RECRUITED'}</span>
-        </span>
+      <div class="pets-detail-head" style="--pet-portrait:${portraitSize}px">
+        <span class="pet-hero-portrait lv-${Math.min(5, rank + 2)}" style="${portraitStyle(klass.texture, portraitSize)}"></span>
         <div class="pets-detail-title">
           <p class="pet-kind">${klass.title}</p>
           <h2 class="pets-detail-name">${klass.name}</h2>
           <p class="pet-role-chip">${klass.role}${active ? ' · IN THE FIELD' : ''}</p>
           <ol class="pet-level-ladder" aria-label="Rank ${rank} of ${HERO_RANK_COUNT}">${pips}</ol>
+          <span class="pet-level-badge">${owned ? `RANK ${rank} / ${HERO_RANK_COUNT}` : 'NOT RECRUITED'}</span>
         </div>
       </div>
       <p class="pet-blurb">${klass.blurb}</p>
