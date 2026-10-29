@@ -40,6 +40,7 @@ describe('terrain surface contrast', () => {
       'marsh',
       'moor',
       'oasis',
+      'village',
       'volcanic',
     ]);
   });

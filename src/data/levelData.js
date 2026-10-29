@@ -156,6 +156,20 @@ export const THEMES = {
     baseTint: 0xfff4dc,
     blurb: 'Bleached dunes around a turquoise oasis. Wide shelves, brutal boss lane.',
   },
+  // Havenbrook is the only *settled* battlefield: a mown green, cobbled
+  // streets, cottages and a well, instead of the wild ground every campaign
+  // stage and duel arena is cut from. It owns a generated tile set like the
+  // rest, so it can never fall back to grassland and read as a reskin.
+  village: {
+    id: 'village',
+    name: 'Havenbrook',
+    tileSuffix: '-village',
+    accent: '#9fd36c',
+    fog: 'rgba(44, 74, 40, 0.18)',
+    portalTint: 0xc98a4a,
+    baseTint: 0xfff0d6,
+    blurb: 'Cottages, a duck pond and one long high street. Somebody has to hold it.',
+  },
 };
 
 /** Campaign levels in world-map order. */
@@ -696,6 +710,58 @@ const MODE_RUN_LEVELS = [
   },
 ];
 
+/**
+ * The opening battle: Havenbrook, played once, before the campaign proper.
+ *
+ * It is a *real* level — same scene, same waves, same economy, same tower rules
+ * — with two differences that are data, not special cases:
+ *
+ *   · `tutorial: true` makes `GameScene` run the scripted director: the
+ *     villagers talk, the director arms each guided step, and the horde waits
+ *     for the player instead of the clock.
+ *   · the wave list is two short ones, so the lesson is "place, upgrade, hold"
+ *     and the player is back on the map in about two minutes.
+ *
+ * It is deliberately **not** in `ALL_LEVELS`: that list is what the map, the
+ * leaderboards and the campaign star count enumerate, and a one-off story beat
+ * is none of those. `getLevel` resolves it by id so the scene can boot it like
+ * any other stage.
+ */
+export const TUTORIAL_LEVEL = {
+  id: 'tutorial',
+  index: 0,
+  name: 'Havenbrook',
+  theme: 'village',
+  map: 'havenbrook',
+  blurb: 'The night the horde found the village, and the keeper who answered.',
+  startingCoins: 320,
+  baseHealth: 20,
+  maxTowers: 6,
+  // No preparation clock during the story: the director hands the board over
+  // when the last line is spoken, and `GameScene.endTutorialScene` arms this
+  // window at that moment. A clock running from the first frame would march the
+  // horde into a conversation.
+  wavePrep: { firstMs: 20000, betweenMs: 12000 },
+  rules: { autoWaves: false, powerups: false, blessings: false },
+  enemyHealthScale: 0.9,
+  waves: [
+    {
+      name: 'The Ridge Road',
+      groups: [{ type: 'grunt', count: 8, interval: 1500 }],
+    },
+    {
+      name: 'Second Wave',
+      groups: [
+        { type: 'grunt', count: 8, interval: 1400 },
+        { type: 'runner', count: 4, interval: 900, delay: 2200 },
+      ],
+    },
+  ],
+  reward: { gold: 0, gems: 0 },
+  stars: { two: 0.5, three: 0.85 },
+  tutorial: true,
+};
+
 /** Every selectable node: campaign, Endless, and the mode levels. */
 export const ALL_LEVELS = [
   ...LEVELS,
@@ -704,8 +770,15 @@ export const ALL_LEVELS = [
   ...MODE_RUN_LEVELS,
 ];
 
-/** Look up a level by id (defaults to the first campaign level). */
+/**
+ * Look up a level by id (defaults to the first campaign level).
+ *
+ * The tutorial is resolved here rather than through `ALL_LEVELS`, which exists
+ * to enumerate what the player may *choose*; the opening battle is not on any
+ * map, board or star count.
+ */
 export function getLevel(id) {
+  if (id === TUTORIAL_LEVEL.id) return TUTORIAL_LEVEL;
   return ALL_LEVELS.find((level) => level.id === id) || LEVELS[0];
 }
 

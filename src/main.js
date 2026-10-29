@@ -20,7 +20,8 @@ import { ForgeUI } from './ui/ForgeUI.js';
 import { PetShopUI } from './ui/PetShopUI.js';
 import { BlessingsUI } from './ui/BlessingsUI.js';
 import { DailyStore, dailyRun } from './systems/DailyChallenge.js';
-import { getNextLevel, getLevel } from './data/levelData.js';
+import { getNextLevel, getLevel, TUTORIAL_LEVEL } from './data/levelData.js';
+import { needsTutorial } from './data/tutorialScript.js';
 import { MODES, MODE_KINDS } from './data/modeData.js';
 import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
@@ -314,10 +315,27 @@ function parkGameLoop(parked) {
   }
 }
 
+/**
+ * Take the opening scene off the glass.
+ *
+ * The card, the letterbox and the dimmed HUD are document-level state owned by
+ * the battle scene. Leaving them on after the battle is stopped would put a
+ * letterbox over the world map or a 18 %-opacity HUD on the next stage, so
+ * every route out of a battle goes through here — quit, map, menu, restart.
+ */
+function clearTutorialOverlay() {
+  document.documentElement.classList.remove('is-tutorial', 'is-line');
+  const root = document.getElementById('tutorial-root');
+  root?.classList.remove('is-open', 'is-speaking', 'is-ready', 'is-step', 'is-closing');
+  root?.classList.add('hidden');
+  window.gameTutorialUI?.clear?.();
+}
+
 function showLevelSelect({ arrival = null } = {}) {
   navReturn = 'menu';
   audioDirector.setScene('realm');
   audioDirector.setLocation(null);
+  clearTutorialOverlay();
   window.gameResultScreen?.hide?.();
   menuOverlay()?.classList.add('hidden');
   hudLayer()?.classList.add('hidden');
@@ -342,7 +360,13 @@ function openLevelSelect() {
  */
 function quitToMap() {
   const gameScene = game.scene.getScene('GameScene');
-  if (gameScene?.scene?.isActive()) gameScene.scene.stop();
+  if (gameScene?.scene?.isActive()) {
+    // The village's card is part of the battle, not of the map: put it down
+    // before the scene goes, so a quit mid-sentence does not leave a letterbox
+    // over the world map.
+    gameScene.endTutorialScene?.();
+    gameScene.scene.stop();
+  }
   showLevelSelect();
 }
 
@@ -351,6 +375,17 @@ function quitToMap() {
  * restarted in place so Next / Replay never stack scenes.
  */
 function startLevel(levelId = 'level-1', options = {}) {
+  // The battle that just ended may have been the village; whatever this run is,
+  // it starts from a clean document (the scene re-adds its own state in create).
+  clearTutorialOverlay();
+  // The opening is mandatory: a save that has never cleared a stage cannot boot
+  // a campaign node before Havenbrook. The redirect lives here rather than on
+  // the map so no other entry point (a replay, a daily, a deep link) can slip
+  // past the one screen that teaches the game.
+  if (!options?.pvp && levelId !== TUTORIAL_LEVEL.id && needsTutorial(window.gameProgress?.profile)) {
+    levelId = TUTORIAL_LEVEL.id;
+    options = {};
+  }
   // A level starts from a DOM screen (the map or the menu) that may have parked
   // the loop. Wake it before anything tries to boot a scene into it.
   parkGameLoop(false);
@@ -700,14 +735,18 @@ window.gameResultScreen = new ResultScreenUI(screenContainer, {
   onMenu: () => openMainMenu(),
   onMap: (result) =>
     showLevelSelect({
-      arrival: result
-        ? {
-            levelName: result.level?.name,
-            outcome: result.outcome,
-            stars: result.stars,
-            rewards: result.rewards,
-          }
-        : null,
+      // The opening's card ends in ENTER THE REALM, not in a stage report: it
+      // has no stars to announce and no reward to count, so the map opens
+      // quietly instead of claiming a clear that never happened.
+      arrival:
+        result && !result.tutorial
+          ? {
+              levelName: result.level?.name,
+              outcome: result.outcome,
+              stars: result.stars,
+              rewards: result.rewards,
+            }
+          : null,
     }),
   // The board a run belongs on is decided from the run itself, so the mode and
   // the level travel with the numbers. Without them every run would be filed as
@@ -1009,13 +1048,27 @@ function refreshContinueCue() {
 
 let menuLeaving = false;
 
+/**
+ * Where PLAY actually goes.
+ *
+ * A brand-new keeper is taken straight into Havenbrook: the story is the first
+ * battle, so the map would only be a detour through a menu full of stages they
+ * have not seen. Every other save opens the realm, where a stage is chosen.
+ */
+function enterRealmDestination() {
+  if (needsTutorial(window.gameProgress?.profile)) {
+    startLevel(TUTORIAL_LEVEL.id);
+    return;
+  }
+  showLevelSelect();
+}
+
 /** Fade the menu out, then reveal the realm behind it. */
 function enterRealm() {
   if (menuLeaving) return;
   const overlay = menuOverlay();
-  // PLAY opens the world map; the map is where a level is actually chosen.
   if (!overlay || prefersReducedMotion()) {
-    showLevelSelect();
+    enterRealmDestination();
     return;
   }
   menuLeaving = true;
@@ -1023,7 +1076,7 @@ function enterRealm() {
   setTimeout(() => {
     overlay.classList.remove('is-leaving');
     menuLeaving = false;
-    showLevelSelect();
+    enterRealmDestination();
   }, 240);
 }
 

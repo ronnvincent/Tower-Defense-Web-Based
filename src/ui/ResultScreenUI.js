@@ -74,8 +74,71 @@ export class ResultScreenUI {
    *   newRecord?: boolean,
    * }} result
    */
+  /**
+   * The opening battle's epilogue.
+   *
+   * Havenbrook is not a campaign stage: it pays no stars, banks no reward and
+   * files nothing on a board, so the campaign card would be a lie told in gold
+   * trim. This is the one card that ends the story instead — one line of
+   * epilogue, the two numbers the run really produced, and the door into the
+   * realm. It borrows the result shell so it still *belongs* to the game.
+   */
+  showTutorial(result) {
+    this.result = result;
+    const victory = result.outcome === 'victory';
+    const seconds = ((result.timeMs || 0) / 1000).toFixed(1);
+    mountScreen(this.container, 'result-screen', `
+      <div id="result-screen" class="overlay-screen tutorial-epilogue" role="dialog" aria-label="${
+        victory ? 'Havenbrook stands' : 'Havenbrook fell'
+      }">
+        <div class="overlay-shell result-shell tutorial-epilogue-shell ${victory ? 'is-victory' : 'is-defeat'}">
+          <span class="result-shine" aria-hidden="true"></span>
+          <div class="result-body">
+            <div class="result-ribbon">${victory ? 'THE VILLAGE HOLDS' : 'THE VILLAGE FELL'}</div>
+            <h1 class="result-heading">Havenbrook</h1>
+            <div class="result-stars run-mark" aria-hidden="true">
+              <img class="result-mark-icon" src="/assets/ui-kit/glyph_${victory ? 'swords' : 'skull'}.png" alt="" />
+            </div>
+            <p class="tutorial-epilogue-line">${
+              victory
+                ? 'Mara rings the bell at dawn and nobody comes running. The ridge is quiet — for now.'
+                : 'The horde took the high street before the first tower was tall. The village is walked through again from the first line.'
+            }</p>
+            <div class="result-stats">
+              <div class="result-stat">
+                <span class="lbl">WAVES HELD</span>
+                <span class="val gold-text">${result.waves || 0} / ${result.totalWaves || 0}</span>
+              </div>
+              <div class="result-stat">
+                <span class="lbl">TIME</span>
+                <span class="val">${seconds}s</span>
+              </div>
+            </div>
+            <p class="result-unlock subtle">${
+              victory
+                ? 'The realm opens at Verdant Marches. Havenbrook will remember the keeper’s name.'
+                : 'Nothing is lost — the village is exactly as it was before the raid.'
+            }</p>
+          </div>
+          <div class="overlay-actions result-actions">
+            ${
+              victory
+                ? '<button id="result-map" class="game-btn game-btn-primary">ENTER THE REALM ▶</button>'
+                : '<button id="result-replay" class="game-btn game-btn-primary">TRY AGAIN</button><button id="result-menu" class="game-btn">MAIN MENU</button>'
+            }
+          </div>
+        </div>
+      </div>
+    `);
+    this.bind();
+  }
+
   show(result) {
     this.result = result;
+    if (result?.tutorial) {
+      this.showTutorial(result);
+      return;
+    }
     const { outcome, level, stars = 0, rewards = { gold: 0, gems: 0 } } = result;
     const victory = outcome === 'victory';
     const endless = Boolean(level?.endless);

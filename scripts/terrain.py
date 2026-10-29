@@ -194,6 +194,35 @@ ROCK_RAMPS.update({
     "ashen": [(0x18, 0x14, 0x16), (0x2C, 0x26, 0x27), (0x45, 0x3B, 0x39), (0x68, 0x5A, 0x52)],
 })
 
+# --- Havenbrook: the village the first battle defends ------------------------
+# The tutorial board is the one battlefield in the game that is not a wild
+# place, so it must not read as "Verdant Marches with cottages on it". The
+# ground is a warm spring meadow two stops lighter and yellower than the
+# grassland sheet; the lane is *laid cobble* rather than a dirt track, because
+# a village street is the one road in the game somebody built on purpose.
+RAMPS.update({
+    "village": ("-village", [(0x33, 0x5E, 0x34), (0x45, 0x7D, 0x3E), (0x5C, 0x99, 0x4C), (0x82, 0xBC, 0x64)]),
+})
+
+ROAD_RAMPS.update({
+    # Warm grey cobbles with a sandy grout. Deliberately desaturated compared to
+    # every other lane in the game: the village road should look swept and
+    # maintained next to the packed earth the horde marches on elsewhere.
+    "village": [(0x4C, 0x43, 0x36), (0x8A, 0x7E, 0x68), (0xB6, 0xA8, 0x8C), (0xE0, 0xD2, 0xB4)],
+})
+
+WATER_RAMPS.update({
+    # The duck pond: clear, shallow, green-blue rather than the deep navy of the
+    # river that splits the war maps.
+    "village": [(0x14, 0x39, 0x3E), (0x1E, 0x57, 0x5A), (0x2B, 0x77, 0x74), (0xB4, 0xEE, 0xE2)],
+})
+
+ROCK_RAMPS.update({
+    # Pale limestone: low field walls and the ridge stones, warm enough that the
+    # grey does not read as cold beside the meadow.
+    "village": [(0x46, 0x3E, 0x33), (0x6B, 0x5F, 0x4C), (0x8F, 0x80, 0x67), (0xB9, 0xA9, 0x8C)],
+})
+
 BIOMES = tuple(RAMPS)
 
 
@@ -493,6 +522,36 @@ def build_ground(theme, variant=0):
         for _ in range(2):
             _pebbles(pix, rng, rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8), ROCK_RAMPS[theme])
 
+    elif theme == "village":
+        # A mown meadow, not a wild one. Three marks, in the order a village
+        # green actually shows them: short blade clumps trodden in every
+        # direction, daisies in loose drifts (a single flower per tile reads as
+        # noise — a drift reads as a flowerbed), and the occasional bare
+        # earth patch where a cart turns.
+        for _ in range(4):
+            _blade_cluster(
+                pix,
+                rng,
+                rng.randrange(8, TILE - 8),
+                rng.randrange(10, TILE - 6),
+                ramp,
+                count=(4, 7),
+                height=(4, 8),
+            )
+        for _ in range(2):
+            cx, cy = rng.randrange(8, TILE - 10), rng.randrange(8, TILE - 10)
+            for _ in range(rng.randrange(4, 8)):
+                x = cx + rng.randrange(-5, 6)
+                y = cy + rng.randrange(-4, 5)
+                _put(pix, x, y, (0xF2, 0xEE, 0xDA))
+                _put(pix, x, y + 1, (0x2F, 0x58, 0x2C))
+                _put(pix, x, y - 1, (0xE8, 0xD2, 0x6A) if rng.random() < 0.5 else (0xF2, 0xEE, 0xDA))
+        for _ in range(2):
+            cx, cy = rng.randrange(10, TILE - 12), rng.randrange(10, TILE - 10)
+            for dx in range(rng.randrange(4, 9)):
+                _put(pix, cx + dx, cy + (dx // 4), (0x6E, 0x5E, 0x3F))
+            _put(pix, cx + 1, cy + 1, (0x86, 0x74, 0x50))
+
     return pix
 
 
@@ -649,6 +708,35 @@ def build_road(theme, mask):
                 _put(pix, fx + 1, fy, (0xB0, 0x94, 0xE4))
                 _put(pix, fx, fy + 1, (0xB0, 0x94, 0xE4))
                 _put(pix, fx + 1, fy + 1, (0x8A, 0x6E, 0xBE))
+    elif theme == "village":
+        # Laid cobbles. The joints are what make it a street: staggered courses
+        # of four-by-three stones with a dark mortar line and a lit top edge on
+        # every stone, so the lane reads as masonry from the default zoom-out
+        # instead of as a grey band. Moss collects in the joints, never on the
+        # crowns, which is where the eye expects wear.
+        for cy in range(0, TILE, 6):
+            offset = (cy // 6 % 2) * 4
+            for cx in range(-4, TILE, 8):
+                x0 = cx + offset
+                for dx in range(7):
+                    if not inside(x0 + dx, cy + 1):
+                        continue
+                    _put(pix, x0 + dx, cy + 1, road[3] if dx in (0, 1) else road[2])
+                    if inside(x0 + dx, cy + 2):
+                        _put(pix, x0 + dx, cy + 2, road[1])
+                if inside(x0 + 7, cy + 1):
+                    for dy in range(5):
+                        _put(pix, x0 + 7, cy + 1 + dy, road[0])
+            if inside(0, cy):
+                for x in range(TILE):
+                    if inside(x, cy):
+                        _put(pix, x, cy, road[0])
+        for _ in range(3):
+            mx, my = rng.randrange(8, TILE - 8), rng.randrange(8, TILE - 8)
+            if not inside(mx, my):
+                continue
+            for _ in range(rng.randrange(3, 6)):
+                _put(pix, mx + rng.randrange(-2, 3), my + rng.randrange(-1, 2), (0x4E, 0x6B, 0x3A))
     return pix
 
 
@@ -1000,6 +1088,25 @@ def build_decor(theme, kind):
                     _put(pix, x + (k // 6), base - k, stem, DECOR)
                 _put(pix, x + (h // 6), base - h, head, DECOR)
                 _put(pix, x + (h // 6), base - h - 1, head, DECOR)
+        elif theme == "village":
+            # Long unmown grass beside the street: taller than the mown ground,
+            # with a few seed heads, so the verges read as edges of the lane.
+            for _ in range(3):
+                _blade_cluster(
+                    pix,
+                    rng,
+                    rng.randint(7, DECOR - 7),
+                    rng.randint(DECOR - 8, DECOR - 3),
+                    ramp,
+                    count=(7, 11),
+                    height=(9, 16),
+                    size=DECOR,
+                )
+            for _ in range(3):
+                x, base = rng.randint(6, DECOR - 7), DECOR - 5
+                h = rng.randint(10, 16)
+                for k in range(h):
+                    _put(pix, x, base - k, (0x8C, 0xA8, 0x5E) if k < h - 3 else (0xB8, 0xBE, 0x74), DECOR)
         else:  # charred brush with embers
             col, ember = (0x14, 0x0E, 0x10), (0xD8, 0x5A, 0x1E)
             for _ in range(4):
@@ -1084,6 +1191,20 @@ def build_decor(theme, kind):
                 for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1)):
                     _put(pix, cx + dx, cy + dy, petal, DECOR)
                 _put(pix, cx, cy, centre, DECOR)
+        elif theme == "village":
+            # Daisies and buttercups: a three-stem cluster, white petals around
+            # a gold eye with one yellow bloom for colour, exactly the flowers
+            # a village green is cut around.
+            for _ in range(3):
+                cx, base = rng.randint(8, DECOR - 9), DECOR - 4
+                h = rng.randint(6, 11)
+                for k in range(h):
+                    _put(pix, cx, base - k, (0x39, 0x60, 0x30), DECOR)
+                gold = rng.random() < 0.34
+                petal = (0xF6, 0xD2, 0x5A) if gold else (0xF6, 0xF2, 0xE2)
+                for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1)):
+                    _put(pix, cx + dx, base - h + dy, petal, DECOR)
+                _put(pix, cx, base - h, (0xD8, 0x8E, 0x28) if not gold else (0xB8, 0x76, 0x1C), DECOR)
         else:  # magma crack
             glow, core = (0xC8, 0x44, 0x12), (0xFF, 0xB0, 0x54)
             x, y = 6, DECOR // 2
@@ -1166,6 +1287,50 @@ def _build_cactus(rng):
     # A bloom on the crown
     _ellipse(pix, 32, 12, 2, 2, (0xE8, 0x6A, 0x9A), FOLIAGE)
     _put(pix, 32, 11, (0xFF, 0xB2, 0xCF), FOLIAGE)
+    return pix
+
+
+def _build_broadleaf(rng):
+    """Havenbrook's landmark: an orchard apple tree, not a wild pine.
+
+    A round canopy is the one silhouette no other battlefield in the game has —
+    every other foliage prop is a spire, a shard, a cactus or a dead trunk — so
+    a village dotted with these reads as cultivated ground at a glance. The
+    fruit is three pixels each: enough to say "orchard" at the board's zoom
+    without turning into confetti.
+    """
+    pix = bytearray(FOLIAGE * FOLIAGE * 4)
+    trunk_dark, trunk, trunk_lit = (0x3A, 0x27, 0x18), (0x5A, 0x3D, 0x24), (0x7A, 0x56, 0x33)
+    deep, mid, light, glow = (0x1E, 0x46, 0x24), (0x2E, 0x60, 0x2E), (0x43, 0x7E, 0x3A), (0x6E, 0xA8, 0x4E)
+    _shadow(pix, 32, 58, 14, 4, (12, 26, 12, 90))
+    # Trunk with a lit left edge and one visible root flare.
+    _rect(pix, 29, 36, 35, 56, trunk)
+    _rect(pix, 29, 36, 30, 56, trunk_lit)
+    _rect(pix, 34, 40, 35, 56, trunk_dark)
+    _rect(pix, 26, 54, 28, 56, trunk)
+    _rect(pix, 36, 54, 38, 56, trunk)
+    # Canopy: three overlapping ellipses so the crown has a lumpy, hand-drawn
+    # edge instead of reading as a circle.
+    _ellipse(pix, 24, 30, 13, 11, mid, FOLIAGE)
+    _ellipse(pix, 40, 30, 12, 10, mid, FOLIAGE)
+    _ellipse(pix, 32, 21, 15, 12, light, FOLIAGE)
+    _ellipse(pix, 32, 27, 16, 11, mid, FOLIAGE)
+    _ellipse(pix, 28, 15, 10, 7, glow, FOLIAGE)
+    # Shade the underside and the right flank, then drop the rim to the dark
+    # green so the canopy keeps an outline against the meadow.
+    for x in range(6, 59):
+        for y in range(6, 46):
+            i = (y * FOLIAGE + x) * 4
+            if not pix[i + 3]:
+                continue
+            if y >= 36 or x >= 50:
+                pix[i : i + 3] = bytes(deep)
+            elif (x + y) % 11 == 0:
+                pix[i : i + 3] = bytes(deep if y > 26 else mid)
+    # Apples: three, hung on the lit side where a picker would see them.
+    for ax, ay in ((25, 24), (38, 20), (33, 33)):
+        _ellipse(pix, ax, ay, 2, 2, (0xC8, 0x3A, 0x30), FOLIAGE)
+        _put(pix, ax - 1, ay - 1, (0xF2, 0x7A, 0x60), FOLIAGE)
     return pix
 
 
@@ -1430,6 +1595,8 @@ def build_foliage(theme):
         return _build_cairn(rng)
     if theme == "marsh":
         return _build_willow(rng)
+    if theme == "village":
+        return _build_broadleaf(rng)
     return _build_conifer(rng)
 
 

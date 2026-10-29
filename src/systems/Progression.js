@@ -112,6 +112,11 @@ export function createProfile() {
     heroes: [DEFAULT_HERO],
     heroClass: DEFAULT_HERO,
     heroRanks: { [DEFAULT_HERO]: 1 },
+    // The opening battle has been played. Written once, never replayed: the
+    // village is a story you are told once, and an experienced save that
+    // predates the feature is recognised by its cleared stages instead
+    // (`needsTutorial` in data/tutorialScript.js).
+    tutorialDone: false,
   };
 }
 
@@ -504,6 +509,25 @@ export class ProgressStore {
     this.profile.gems += gems;
     this.save();
     return { unlocked: earned, gems };
+  }
+
+  /**
+   * The opening battle is finished.
+   *
+   * It is deliberately not a `recordVictory`: no stars, no gold, no board, no
+   * unlock. The only thing it writes is the flag that keeps the village from
+   * being replayed at every first login.
+   */
+  completeTutorial() {
+    if (this.profile.tutorialDone) return false;
+    this.profile.tutorialDone = true;
+    this.save();
+    return true;
+  }
+
+  /** Has this save played the opening battle? */
+  get tutorialDone() {
+    return Boolean(this.profile.tutorialDone);
   }
 
   /** Bank gems from achievements / milestones / dailies. */

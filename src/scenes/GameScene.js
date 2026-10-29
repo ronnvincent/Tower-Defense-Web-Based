@@ -19,6 +19,23 @@ import {
 } from '../systems/RunMods.js';
 import { drawCards } from '../data/draftCards.js';
 import { createCoach } from '../systems/FirstRun.js';
+import { createTutorialDirector } from '../systems/TutorialDirector.js';
+import { TutorialUI } from '../ui/TutorialUI.js';
+import {
+  VILLAGE_PROP_ART,
+  VILLAGER_ART,
+  drawVillageDressing,
+  queueVillageArt,
+} from '../systems/VillageDressing.js';
+import {
+  TUTORIAL_BEATS,
+  TUTORIAL_CAST,
+  TUTORIAL_HOLD_QUIPS,
+  VILLAGE_STAGE,
+  VILLAGE_EXIT,
+  SPEAKER_ACCENTS,
+  speakerFor,
+} from '../data/tutorialScript.js';
 import { perfProbe } from '../system/perfProbe.js';
 import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
 import { getBuildDefinition } from '../data/towerData.js';
@@ -121,6 +138,12 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     // The previous draft hand, so the next offer can steer away from it.
     this.lastOffer = [];
+    // The opening scene is rebuilt on every boot of the village; a restart must
+    // never inherit the previous run's director, cast or finished flag.
+    this.tutorialHold = false;
+    this.tutorialCast = [];
+    this.tutorialFinished = false;
+    this.tutorialReported = new Set();
     // The battle band is per battle: a fresh stage measures the HUD again.
     this.battleFrame = null;
     this.battleFrameLocked = false;
@@ -255,7 +278,14 @@ export class GameScene extends Phaser.Scene {
     // boot, because the realm screens do not draw either of them.
     const unitKeys = this.unitSheetKeys();
     const needsUnits = unitKeys.some((key) => !this.textures.exists(key));
-    if (!needsEnemies && !needsFx && !needsUnits) return;
+    // The village's cottages and its five villagers are loaded with the one
+    // battle that draws them, never at boot: the realm screens need no cottage.
+    const needsVillage =
+      Boolean(this.level?.tutorial) &&
+      [...Object.keys(VILLAGE_PROP_ART), ...Object.keys(VILLAGER_ART)].some(
+        (key) => !this.textures.exists(key.startsWith('npc-') ? key : `village-${key}`)
+      );
+    if (!needsEnemies && !needsFx && !needsUnits && !needsVillage) return;
 
     const overlay = document.getElementById('battle-loading');
     const fill = document.getElementById('battle-loading-fill');
@@ -277,6 +307,7 @@ export class GameScene extends Phaser.Scene {
     if (needsEnemies) queueEnemySheets(this.load, this.textures, this.level);
     if (needsFx) queueBattleFxArt(this.load, this.textures);
     if (needsUnits) queueUnitSheets(this.load, this.textures, unitKeys);
+    if (needsVillage) queueVillageArt(this.load, this.textures);
   }
 
   /**
@@ -435,6 +466,12 @@ export class GameScene extends Phaser.Scene {
 
     // 2. Render Environment Graphics
     this.renderBattlefieldMap();
+    // The village's cottages, fences and gardens are dressing, not terrain: they
+    // are painted once, between the tiles and the build pads, so they can never
+    // cover a tower square, a lane arrow or a creep.
+    if (this.level?.tutorial) {
+      this.villageProps = drawVillageDressing(this, { tileSize: TILE_SIZE });
+    }
     // Build pads sit just above the tiles and below every unit: a pad is
     // terrain, not an object standing on it.
     this.slotGraphics = this.add.graphics().setDepth(4);
@@ -584,10 +621,16 @@ export class GameScene extends Phaser.Scene {
       this.hud.setZoomState(this.cameraRig.zoomState());
       // The first battle teaches three things; every battle after it gets the
       // camera hint instead. A coached run never shows both bars at once.
-      this.coach = createCoach({ level: this.level });
-      const coachStep = this.coach.start();
-      if (coachStep) this.hud.showCoachStep(coachStep);
-      else this.hud.showCameraHintOnce();
+      // Havenbrook is the exception: its three lessons are spoken by the cast
+      // and gated on the real action, so the hint bar would be a second voice.
+      if (this.level?.tutorial) {
+        this.coach = null;
+      } else {
+        this.coach = createCoach({ level: this.level });
+        const coachStep = this.coach.start();
+        if (coachStep) this.hud.showCoachStep(coachStep);
+        else this.hud.showCameraHintOnce();
+      }
       if (this.level.pvp) {
         // Two facts a duel player must know before the first wave: this is a
         // mirror, and the arena is bigger than a campaign map (so: pull back).
@@ -615,6 +658,10 @@ export class GameScene extends Phaser.Scene {
     // card taken in an earlier run can never linger in the HUD.
     this.refreshRunMods();
 
+    // 3c. The opening scene. It runs on the real board with the real rules; the
+    // only thing it takes away is the clock, so the villagers can talk.
+    if (this.level?.tutorial) this.beginTutorial();
+
     // 4. Input Events — the rig is installed first, so it can tell the scene
     // whether a pointerup was a tap or the end of a pan/pinch.
     this.input.on('pointermove', (pointer) => this.handlePointerMove(pointer));
@@ -622,6 +669,9 @@ export class GameScene extends Phaser.Scene {
     this.bindKeyboardShortcuts();
 
     this.events.once('shutdown', () => {
+      // A quit during the opening must not leave the letterbox or a dimmed HUD
+      // on the document after the scene is gone.
+      this.endTutorialScene();
       this.hud?.hideFocus?.();
       window.removeEventListener('resize', this.onResizeFrame);
       window.removeEventListener('orientationchange', this.onResizeFrame);
@@ -2060,6 +2110,15 @@ export class GameScene extends Phaser.Scene {
   /** Start the next wave and dress it up. Shared by the player and the clock. */
   openWave() {
     if (!this.waveManager.canStartNextWave()) return;
+    // The opening owns the clock: the horde is called by the player at the step
+    // that asks for it, and never before. Without this a tap on START WAVE
+    // during the story would walk a raid into the middle of a sentence.
+    if (this.level?.tutorial && this.tutorialDirector && !this.tutorialDirector.finished) {
+      if (this.tutorialDirector.beat?.event !== 'wave') {
+        this.hud?.showToast('THE VILLAGE IS STILL TALKING — LISTEN FIRST', 'info');
+        return;
+      }
+    }
     // The wave's rule is settled *before* the first creep walks, so the banner,
     // the HUD chips and the horde can never disagree about it.
     this.beginWaveRules(this.waveManager.waveNumber + 1);
@@ -2102,6 +2161,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.syncHUD();
     this.advanceCoach('wave');
+    this.tutorialReport('wave');
   }
 
 
@@ -2540,6 +2600,9 @@ export class GameScene extends Phaser.Scene {
       this.syncHUD();
       this.updateGhostGraphics();
       this.advanceCoach('upgrade');
+      // The opening's second lesson is "feed it coin" — reported only on the
+      // branch that really spent the gold.
+      this.tutorialReport('upgrade');
     }
   }
 
@@ -2609,6 +2672,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   handlePointerUp(pointer) {
+    // Nothing on the board is clickable while the villagers are talking: a stray
+    // tap during the opening must never buy a tower or dismiss a line.
+    if (this.tutorialHold) return;
     // A pan/pinch, a press that began on the HUD, or a right-click must never
     // build a tower or steal a selection.
     if (this.cameraRig && !this.cameraRig.consumeTap()) return;
@@ -3374,6 +3440,7 @@ export class GameScene extends Phaser.Scene {
     this.updateGhostGraphics();
     if (this.isVisualizingBFS) this.drawBFSVisualization();
     this.advanceCoach('place');
+    this.tutorialReport('place');
   }
 
   /**
@@ -3389,6 +3456,375 @@ export class GameScene extends Phaser.Scene {
     if (next) this.hud?.showCoachStep?.(next);
     else this.hud?.hideCoachStep?.();
     return next;
+  }
+
+  /* ------------------------------------------------------------ the opening
+   *
+   * Havenbrook is a normal battle that happens to be directed. The scene owns
+   * the stage — villagers, bell, focus ring — and `TutorialDirector` owns the
+   * script; nothing below knows what a line says. The only rule the scene
+   * enforces is the one the brief asked for: **the simulation is held** while a
+   * line is on screen, so the horde cannot arrive in the middle of a sentence.
+   */
+
+  /** Boot the scripted scene. Runs once per battle, from create(). */
+  beginTutorial() {
+    const ui = (window.gameTutorialUI ||= new TutorialUI());
+    this.tutorialUI = ui;
+    this.tutorialHold = true;
+    this.tutorialCombatBegun = false;
+    this.registerVillagerAnims();
+    this.spawnVillagers();
+    ui.mount();
+    ui.onTap(() => this.tutorialTap());
+    document.documentElement.classList.add('is-tutorial');
+    ui.open({ chapter: 'HAVENBROOK · DUSK' });
+    this.tutorialDirector = createTutorialDirector({
+      name: this.progress?.profile?.username || '',
+      onBeat: (beat) => this.tutorialOnBeat(beat),
+      // The script's own end is the moment the village stops talking and the
+      // battle clock starts — see `endTutorialScene`.
+      onFinish: () => this.endTutorialScene({ handOver: true }),
+    });
+    this.tutorialDirector.start();
+  }
+
+  /**
+   * Register the villagers' two clips.
+   *
+   * The sheets are built two rows tall by `scripts/build_npc_sheets.py` — idle
+   * on row 0, walk on row 1 — so the walk clip starts at `cols`, not at 0. The
+   * frame counts come from the same data the loader used, never from a guess.
+   */
+  registerVillagerAnims() {
+    for (const member of TUTORIAL_CAST) {
+      if (!this.textures.exists(member.sheet)) continue;
+      const idleKey = `${member.sheet}-idle`;
+      const walkKey = `${member.sheet}-walk`;
+      if (!this.anims.exists(idleKey)) {
+        this.anims.create({
+          key: idleKey,
+          frames: this.anims.generateFrameNumbers(member.sheet, { start: 0, end: member.idle - 1 }),
+          frameRate: 7,
+          repeat: -1,
+        });
+      }
+      if (!this.anims.exists(walkKey)) {
+        this.anims.create({
+          key: walkKey,
+          frames: this.anims.generateFrameNumbers(member.sheet, {
+            start: member.cols,
+            end: member.cols + member.walk - 1,
+          }),
+          frameRate: 10,
+          repeat: -1,
+        });
+      }
+    }
+  }
+
+  /** Put the five villagers on the high street, transparent until they arrive. */
+  spawnVillagers() {
+    this.tutorialCast = [];
+    for (const member of TUTORIAL_CAST) {
+      const spot = VILLAGE_STAGE[member.id];
+      if (!spot || !this.textures.exists(member.sheet)) continue;
+      const sprite = this.add
+        .sprite(spot.col * TILE_SIZE, spot.row * TILE_SIZE, member.sheet, 0)
+        .setOrigin(0.5, 1)
+        .setScale(member.scale)
+        .setDepth(12)
+        .setAlpha(0);
+      sprite.setData('member', member);
+      if (this.anims.exists(`${member.sheet}-idle`)) sprite.play(`${member.sheet}-idle`);
+      this.tutorialCast.push(sprite);
+      // Old Doren leans on a stick; it is a separate sprite so the walk clip
+      // stays the pack's own art instead of a hand-edited every-frame patch.
+      if (member.id === 'doren' && this.textures.exists('npc-staff')) {
+        this.dorenStaff = this.add
+          .image(spot.col * TILE_SIZE - 17 * member.scale, spot.row * TILE_SIZE, 'npc-staff')
+          .setOrigin(0.5, 1)
+          .setScale(member.scale)
+          .setDepth(11.95)
+          .setAlpha(0);
+      }
+    }
+  }
+
+  /** One beat from the director: speak it, or put a step on screen. */
+  tutorialOnBeat(beat) {
+    const ui = this.tutorialUI;
+    if (!ui || !beat) return;
+    if (beat.kind === 'line') {
+      // Only the opening freezes the board. A line *after* the wave has started
+      // is a toast, not a card — see TUTORIAL_HOLD_QUIPS.
+      this.tutorialHold = !this.tutorialCombatBegun;
+      // The HUD steps out of the way while somebody is talking (and comes back
+      // for the guided steps — the player has to reach the forge). This rides on
+      // <html> so the stylesheet can scope it to the one state it belongs to.
+      document.documentElement.classList.toggle('is-line', !this.tutorialCombatBegun);
+      const speaker = speakerFor(beat.who);
+      this.highlightTutorialSpeaker(this.tutorialCombatBegun ? null : beat.who);
+      ui.speak({
+        who: beat.who,
+        name: speaker?.name || '',
+        role: speaker?.role || '',
+        portrait: speaker?.portrait || '',
+        accent: SPEAKER_ACCENTS[beat.who] || '#cbb994',
+        text: this.tutorialDirector?.text?.() || '',
+      });
+      if (beat.cue) this.tutorialCue(beat.cue);
+      return;
+    }
+    if (beat.kind === 'end') {
+      // The script is over: hand the board back. `onFinish` also fires from the
+      // director, so this only has to be harmless when it runs twice.
+      this.endTutorialScene();
+      return;
+    }
+    if (beat.kind === 'step') {
+      this.tutorialHold = false;
+      document.documentElement.classList.remove('is-line');
+      this.highlightTutorialSpeaker(null);
+      const steps = TUTORIAL_BEATS.filter((entry) => entry.kind === 'step');
+      const active = Math.max(0, steps.findIndex((entry) => entry.event === beat.event));
+      ui.ask({
+        title: beat.title,
+        text: this.hud?.isMobileShell && beat.textMobile ? beat.textMobile : beat.text,
+        steps: steps.map((entry) => entry.event),
+        active,
+      });
+      this.focusTutorialCell(beat.focus || null);
+    }
+  }
+
+  /** Scene instructions attached to a beat. */
+  tutorialCue(cue) {
+    if (cue === 'arrive') {
+      this.tutorialCast.forEach((sprite, index) => {
+        const target = sprite.y;
+        sprite.y = target + 10;
+        this.tweens.add({
+          targets: sprite,
+          alpha: 1,
+          y: target,
+          duration: 340,
+          delay: index * 90,
+          ease: 'Cubic.easeOut',
+        });
+      });
+      if (this.dorenStaff) {
+        const base = this.dorenStaff.y;
+        this.dorenStaff.y = base + 10;
+        this.tweens.add({ targets: this.dorenStaff, alpha: 1, y: base, duration: 380, delay: 300 });
+      }
+      return;
+    }
+    if (cue === 'alarm') {
+      this.tutorialUI?.flashAlarm?.();
+      audio.playWarning?.();
+      return;
+    }
+    if (cue === 'scatter') {
+      // Everybody runs for the gutters: the meadow the player is about to build
+      // on must be empty, and the village must look like it is taking cover.
+      this.highlightTutorialSpeaker(null);
+      this.tutorialCast.forEach((sprite) => {
+        const member = sprite.getData('member');
+        const exit = VILLAGE_EXIT[member?.id];
+        if (!exit) return;
+        if (this.anims.exists(`${member.sheet}-walk`)) sprite.play(`${member.sheet}-walk`);
+        this.tweens.add({
+          targets: sprite,
+          x: exit.col * TILE_SIZE,
+          y: exit.row * TILE_SIZE,
+          duration: 1500,
+          ease: 'Sine.easeInOut',
+          onComplete: () => {
+            if (this.anims.exists(`${member.sheet}-idle`)) sprite.play(`${member.sheet}-idle`);
+          },
+        });
+        if (member.id === 'doren' && this.dorenStaff) {
+          this.tweens.add({
+            targets: this.dorenStaff,
+            x: exit.col * TILE_SIZE - 17 * member.scale,
+            y: exit.row * TILE_SIZE,
+            duration: 1500,
+            ease: 'Sine.easeInOut',
+          });
+        }
+      });
+      return;
+    }
+    if (cue === 'cheer') {
+      this.tutorialCast.forEach((sprite, index) => {
+        this.tweens.add({
+          targets: sprite,
+          y: sprite.y - 9,
+          duration: 170,
+          yoyo: true,
+          repeat: 1,
+          delay: index * 70,
+          ease: 'Quad.easeOut',
+        });
+      });
+    }
+  }
+
+  /**
+   * Report a real action to the director.
+   *
+   * The three calls below are the entire coupling between the battle and the
+   * script: a tower raised, a tower upgraded, a wave called. If the player does
+   * one of those before the script asks for it, the director remembers.
+   */
+  tutorialReport(event) {
+    if (!this.level?.tutorial || !event) return;
+    this.tutorialReported.add(event);
+    if (event === 'wave') {
+      this.tutorialCombatBegun = true;
+      this.tutorialHold = false;
+    }
+    this.tutorialDirector?.report(event);
+    if (event === 'place') {
+      // The lesson moves from raising a defence to feeding it coin. Leaving the
+      // forge armed would make the next tap try to build on the square that is
+      // already occupied, and the player would read that as "the inspector is
+      // broken" — so the card is put down as the step is retired.
+      this.handleSelectBuild(null);
+      this.focusTutorialCell(null);
+    }
+    if (event === 'wave') this.fireTutorialQuips();
+  }
+
+  /** The crowd's lines while the first wave walks. Toasts, never a card. */
+  fireTutorialQuips() {
+    TUTORIAL_HOLD_QUIPS.forEach((quip, index) => {
+      window.setTimeout(() => {
+        if (!this.scene?.isActive?.()) return;
+        const speaker = speakerFor(quip.who);
+        this.hud?.showToast?.(`${(speaker?.name || 'VILLAGER').toUpperCase()}: ${quip.text}`, 'info');
+      }, 1200 + index * 4600);
+    });
+  }
+
+  /** A tap on the dialogue card. */
+  tutorialTap() {
+    this.tutorialDirector?.tap();
+  }
+
+  /**
+   * Light up whoever is talking.
+   *
+   * The villagers are one-tile pawns, so at battle zoom the only thing telling
+   * the player which of the five just spoke is the name plate. A pool of the
+   * speaker's own colour at their feet — and everybody else easing back to 72 %
+   * — answers that without a marker arrow floating over the board.
+   */
+  highlightTutorialSpeaker(who) {
+    this.tutorialSpeakerRing?.destroy?.();
+    this.tutorialSpeakerRing = null;
+    if (!this.tutorialCast?.length) return;
+    const speaker = who ? this.tutorialCast.find((sprite) => sprite.getData('member')?.id === who) : null;
+    for (const sprite of this.tutorialCast) {
+      this.tweens.add({
+        targets: sprite,
+        alpha: speaker && sprite !== speaker ? 0.72 : 1,
+        duration: 220,
+        ease: 'Sine.easeOut',
+      });
+    }
+    if (!speaker) return;
+    const accent = parseInt(String(SPEAKER_ACCENTS[who] || '#cbb994').replace('#', ''), 16);
+    const ring = this.add.graphics().setDepth(11.5);
+    ring.fillStyle(accent, 0.18);
+    ring.fillEllipse(speaker.x, speaker.y - 5, 48, 17);
+    ring.lineStyle(2, accent, 0.85);
+    ring.strokeEllipse(speaker.x, speaker.y - 5, 40, 14);
+    this.tutorialSpeakerRing = ring;
+    this.tweens.add({
+      targets: ring,
+      alpha: { from: 0.55, to: 1 },
+      duration: 820,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  /** Ring the square a step is pointing at, or clear the ring. */
+  focusTutorialCell(cell) {
+    this.tutorialFocus?.destroy?.();
+    this.tutorialFocus = null;
+    if (!cell) return;
+    const x = cell.col * TILE_SIZE;
+    const y = cell.row * TILE_SIZE;
+    const ring = this.add.graphics().setDepth(5);
+    ring.lineStyle(3, 0xffd479, 0.95);
+    ring.strokeRoundedRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12, 8);
+    ring.lineStyle(1, 0xffffff, 0.4);
+    ring.strokeRoundedRect(x + 12, y + 12, TILE_SIZE - 24, TILE_SIZE - 24, 6);
+    this.tutorialFocus = ring;
+    this.tweens.add({
+      targets: ring,
+      alpha: { from: 0.35, to: 1 },
+      duration: 760,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  /** Advance the line clock. Called from the held simulation, so a pause is a pause. */
+  tickTutorial(deltaMs) {
+    if (!this.tutorialDirector || this.tutorialDirector.finished) return;
+    this.tutorialDirector.tick(deltaMs);
+  }
+
+  /**
+   * The scripted part is over: the battle is the player's again.
+   *
+   * `handOver` is the natural end of the script (as opposed to a scene
+   * shutdown). That is the one moment the preparation clock is allowed to
+   * start: from here Havenbrook runs on the same rhythm as every other
+   * battlefield, so the second wave comes on its own instead of waiting on a
+   * button the player has only just learned about.
+   */
+  endTutorialScene({ handOver = false } = {}) {
+    this.tutorialHold = false;
+    this.focusTutorialCell(null);
+    this.highlightTutorialSpeaker(null);
+    this.tutorialUI?.clear?.();
+    this.tutorialUI?.close?.();
+    document.documentElement.classList.remove('is-tutorial', 'is-line');
+    if (handOver && !this.wavePrep && this.waveManager && !this.gameState?.isOver?.()) {
+      this.wavePrep = createWavePrep(this.level);
+      this.prepSecond = null;
+    }
+  }
+
+  /**
+   * Settle the opening battle.
+   *
+   * It is not a campaign clear: no stars, no reward, no campaign board. What it
+   * does write is `profile.tutorialDone`, so the village is walked through once
+   * per save and never again.
+   */
+  finishTutorial(outcome = 'victory') {
+    if (this.tutorialFinished) return null;
+    this.tutorialFinished = true;
+    this.endTutorialScene();
+    if (outcome === 'victory') this.progress?.completeTutorial?.();
+    this.showResult({
+      outcome,
+      tutorial: true,
+      level: this.level,
+      score: this.economy?.score || 0,
+      waves: this.waveManager?.wavesCompleted || 0,
+      totalWaves: this.waveManager?.totalWaves || 0,
+      timeMs: this.gameState?.elapsedMs || 0,
+    });
+    return this.lastResult;
   }
 
   /**
@@ -3740,6 +4176,8 @@ export class GameScene extends Phaser.Scene {
     // In a duel a broken core is a knockout, not a campaign defeat: the room
     // scores the match and the lobby decides what happens next.
     if (this.level.pvp) return this.finishDuel('ko');
+    // Losing the village is a retry, not a campaign defeat: no stats, no board.
+    if (this.level?.tutorial) return this.finishTutorial('defeat');
     // A mode run (and a puzzle) is scored, never starred: campaign progress is
     // earned on the campaign map only. `runModeLabel()` also catches Titan
     // Rush, which is a level rather than a flag.
@@ -3780,6 +4218,9 @@ export class GameScene extends Phaser.Scene {
     this.addScore(this.gameState.baseHealth * SCORE.victoryPerBaseHp);
     audio.playVictory();
     if (this.level.pvp) return this.finishDuel('cleared');
+    // Havenbrook is scored as a story beat, not a campaign clear: no stars, no
+    // reward, no board. It writes one flag and hands the player the realm.
+    if (this.level?.tutorial) return this.finishTutorial('victory');
     if (this.modeId) return this.finishModeRun('victory');
 
     const record = this.progress.recordVictory(this.level, {
@@ -4399,6 +4840,13 @@ export class GameScene extends Phaser.Scene {
     // A card pick freezes the board the same way the pause card does — no creep
     // moves, no wave clock, no powerup cooldown.
     if (this.modePaused) return;
+    // The opening scene holds the board while a villager is talking. Only the
+    // line clock runs, so the horde cannot walk into the middle of a sentence
+    // and a line can never outlast the player's patience by accident.
+    if (this.tutorialHold) {
+      this.tickTutorial(rawDelta);
+      return;
+    }
     // Cap delta to prevent huge jumps after backgrounding tab
     const clampedDelta = Math.min(rawDelta, MAX_FRAME_DELTA) * this.simSpeed;
 

@@ -162,3 +162,42 @@ alpha extent, pads every cell to a constant width, and writes one PNG per unit a
 what the script printed: `cols`, the per-clip frame count, and the measured
 **body box** inside the cell (the warrior is 78×91 at `+63+45`), which is what
 `unitMetrics()` turns into a draw scale and a feet-on-the-ground origin.
+
+## 6. The village — Havenbrook's props and its five villagers
+
+The opening battle is the only board in the game with a town on it, and a town
+is not a tile set. Everything it draws comes from one of two places, and both
+are recorded here rather than assumed.
+
+### 6.1 Set dressing — `public/assets/village/` (16 files)
+
+| What | Source | Licence |
+|---|---|---|
+| `house`, `watchtower`, `mine`, `tree-1..4`, `mushroom`, `mushroom-big`, `bush`, `pumpkin`, `pumpkin-big`, `sheep` | **Tiny Swords (Update 010) by Pixel Frog** — `Buildings/` and `Terrain/` deco cells, cropped from the 192 px grid | CC0 1.0 |
+| `well`, `fence`, `haystack` | **Drawn for this project** by `scripts/build_village_props.py` in the pack's own language (ink outline, three flat shades per material) | Project-owned |
+
+Built by `python3 scripts/build_village_props.py`; sources vendored in
+`art-source/village/` with the same `LICENSE-TinySwords-CC0.txt` as the units.
+The pack is already the source of the Vanguard and the companions, so the
+village is drawn in the same hand as the soldiers standing in it.
+
+### 6.2 The five villagers — `public/assets/units/npc-*.png`
+
+Built by `python3 scripts/build_npc_sheets.py` from the **same** CC0 pack:
+three silhouettes (hoodless peasant, bowman, helm-and-shield guard) re-paletted
+per character, so a straw hat, a grey moustache and a child's proportions are
+the identity rather than a redraw.
+
+| Sheet | Source unit | Rows | Cell |
+|---|---|---|---|
+| `npc-mara.png` (miller) | `Pawn/Blue` | idle, walk | 192 px |
+| `npc-doren.png` (elder) | `Pawn/Blue`, greyed | idle, walk | 192 px |
+| `npc-pip.png` (child) | `Pawn/Blue`, green, 0.66 scale | idle, walk | 192 px |
+| `npc-hollis.png` (hunter) | `Archer/Blue` | idle, walk | 192 px |
+| `npc-bram.png` (watch) | `Warrior/Blue` | idle, walk | 192 px |
+| `npc-staff.png` | drawn for this project | — | 24×72 |
+
+The portraits (`public/assets/ui/portrait-*.png`, 128 px) are medallions of the
+same sprites — the camera looks down, so a head-and-shoulders crop would be a
+picture of a hat. `tests/tutorial.test.js` re-reads every sheet's PNG header and
+fails if the grid the game animates ever stops matching the art on disk.

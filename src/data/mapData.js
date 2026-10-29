@@ -124,10 +124,45 @@ const ARENA_VARIANTS = {
 
 export const MAP_LAYOUT = arena(ARENA_VARIANTS.grassland);
 
+/**
+ * Havenbrook — the village the opening battle defends.
+ *
+ * Every other board in the game is generated from the arena grammar's three
+ * *winding* roads, which is why they all read as the same battlefield in a
+ * different palette. The village is the one hand-laid plan: three streets enter
+ * from the ridge, run straight to a corner, and meet on a single high street
+ * that fronts the keep. Right angles, not switchbacks.
+ *
+ * The plan is explicit rather than derived because it has to carry the set
+ * dressing: the cottages stand in the blocks between the streets, and a
+ * generated road would move under them the moment a dial in the grammar
+ * changed. `tests/village-map.test.js` re-derives the rules it still has to
+ * obey — three portals, two sky gates, three walkable lanes into the keep.
+ */
+export const HAVENBROOK_LANES = Object.freeze([
+  // West street: down from the ridge, then east along the high street.
+  [[1, 3], [5, 3], [5, 8], [9, 8], [9, 15], [10, 15]],
+  // Market lane: a short jog east, then straight down to the square.
+  [[1, 15], [3, 15], [3, 18], [8, 18], [9, 18], [9, 15], [10, 15]],
+  // East street: the long way round, past the mill.
+  [[1, 28], [5, 28], [5, 23], [9, 23], [9, 15], [10, 15]],
+]);
+
+export const HAVENBROOK_LAYOUT = arena({
+  spawnCols: [3, 15, 28],
+  frame: true,
+  lanes: HAVENBROOK_LANES,
+  // The duck pond on the green, and the mill race beside it.
+  ponds: [[2, 10], [2, 11], [3, 10], [3, 11], [2, 12]],
+  // Hedgerows and the two walled gardens that break up the enemy half.
+  rocks: [[2, 21], [3, 25], [4, 25], [4, 12], [4, 7], [2, 6]],
+});
+
 /** @type {Record<string, string[]>} — every authored board, built once. */
-export const MAPS = Object.fromEntries(
-  Object.entries(ARENA_VARIANTS).map(([id, spec]) => [id, arena(spec)])
-);
+export const MAPS = {
+  ...Object.fromEntries(Object.entries(ARENA_VARIANTS).map(([id, spec]) => [id, arena(spec)])),
+  havenbrook: HAVENBROOK_LAYOUT,
+};
 
 /**
  * Per-tile biome overlay for the endless battlefield — the only map that

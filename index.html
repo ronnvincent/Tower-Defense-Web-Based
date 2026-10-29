@@ -40,6 +40,13 @@
       <!-- HUD Mount (hidden while the main menu is open) -->
       <div id="hud-container" class="hidden"></div>
 
+      <!-- The opening scene's card (ui/TutorialUI.js).
+           DOM, not canvas: a portrait and wrapped dialogue are the browser's
+           job. It sits above the HUD and below the screens, has no close button
+           and no skip — the first battle is the one screen a new player cannot
+           click past. -->
+      <div id="tutorial-root" class="tut hidden" aria-live="polite"></div>
+
       <!-- Per-battle asset gate.
            Enemy strips load when a level starts, not at boot (systems/
            EnemyAssets.js). This is the real load progress for those files, not

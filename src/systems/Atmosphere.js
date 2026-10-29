@@ -47,6 +47,22 @@ export const WEATHER_BY_THEME = Object.freeze({
     blendMode: 'NORMAL',
     light: 'rgba(255, 236, 184, 0.16)',
   },
+  // Havenbrook at dusk: the sun is already behind the ridge, so the air carries
+  // fireflies instead of pollen — slower, warmer, and never more than a handful
+  // of them. The wash is the last of the daylight, which is what keeps the
+  // village's brighter grass reading as evening rather than as noon.
+  village: {
+    kind: 'firefly',
+    tint: 0xffd27a,
+    frequency: 620,
+    lifespan: { min: 5200, max: 9000 },
+    speedX: { min: -9, max: 9 },
+    speedY: { min: -8, max: 4 },
+    scale: { start: 0.24, end: 0.07 },
+    alpha: { start: 0.5, end: 0 },
+    blendMode: 'ADD',
+    light: 'rgba(255, 198, 132, 0.14)',
+  },
   desert: {
     kind: 'sand',
     tint: 0xf3d7a0,
