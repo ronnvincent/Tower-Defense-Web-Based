@@ -1,0 +1,97 @@
+{
+ "tag": "p4",
+ "size": "1280x768",
+ "at": "2026-10-29T06:51:38.350Z",
+ "states": {
+  "combat": {
+   "meta": null,
+   "audit": {
+    "clipped": [],
+    "spill": [],
+    "covered": [],
+    "tiny": [
+     {
+      "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+      "size": [
+       20,
+       20
+      ]
+     },
+     {
+      "el": "button#btn-zoom-out.cam-btn",
+      "size": [
+       30,
+       30
+      ]
+     },
+     {
+      "el": "button#btn-zoom-in.cam-btn",
+      "size": [
+       30,
+       30
+      ]
+     },
+     {
+      "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+      "size": [
+       30,
+       30
+      ]
+     }
+    ],
+    "counts": {
+     "clipped": 0,
+     "spill": 0,
+     "covered": 0,
+     "tiny": 4
+    }
+   },
+   "errors": []
+  },
+  "boss": {
+   "meta": null,
+   "audit": {
+    "clipped": [],
+    "spill": [],
+    "covered": [],
+    "tiny": [
+     {
+      "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+      "size": [
+       20,
+       20
+      ]
+     },
+     {
+      "el": "button#btn-zoom-out.cam-btn",
+      "size": [
+       30,
+       30
+      ]
+     },
+     {
+      "el": "button#btn-zoom-in.cam-btn",
+      "size": [
+       30,
+       30
+      ]
+     },
+     {
+      "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+      "size": [
+       30,
+       30
+      ]
+     }
+    ],
+    "counts": {
+     "clipped": 0,
+     "spill": 0,
+     "covered": 0,
+     "tiny": 4
+    }
+   },
+   "errors": []
+  }
+ }
+}

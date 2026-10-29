@@ -92,6 +92,23 @@ export class Tower {
     this.container = scene.add.container(this.x, this.y);
     this.container.setDepth(15);
 
+    // Contact shadow first, so it paints under the art. The creeps already cast
+    // one; a keep without a shadow looked pasted onto the grass next to them.
+    // Skipped when the texture has not streamed in yet (the boot pack), because
+    // a `__MISSING` box under every tower is worse than no shadow at all.
+    if (scene.textures?.exists?.('shadow')) {
+      const shadow = scene.add.image(0, TILE_SIZE / 2 - 2, 'shadow');
+      // Fixtures in `tests/` hand the entity a minimal image; the shadow is
+      // decoration, so a stub without display sizing simply gets no shadow
+      // instead of failing the whole tower.
+      if (typeof shadow.setDisplaySize === 'function') {
+        shadow.setDisplaySize(TILE_SIZE * 0.92, TILE_SIZE * 0.4);
+        shadow.setAlpha?.(0.34);
+        this.groundShadow = shadow;
+        this.container.add(shadow);
+      }
+    }
+
     this.visual = this.getVisual();
 
     if (this.isBarricade) {

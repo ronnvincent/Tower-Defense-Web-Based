@@ -16493,3 +16493,117 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     display: none;
   }
 }
+
+/* ==========================================================================
+   BATTLE FEEDBACK · the screen answers what just happened
+   --------------------------------------------------------------------------
+   Three signals, in the order they matter: the gate took damage (red at the
+   edges, the heart takes the blow), the treasury changed (the counter bounces),
+   and a defence landed (world-space, in GameScene).
+
+   All three are class-driven, so `prefers-reduced-motion` can switch them off
+   in one place and nothing here writes layout every frame.
+   ========================================================================== */
+
+/* The edge flash. Sits above the board, below the modals, and never takes a
+   pointer event: a leak must not steal the tap the player is already making. */
+.damage-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  pointer-events: none;
+  opacity: 0;
+  /* Two bands, no fill: a wash that only exists near the edge of the glass, so
+     the middle of the board (where the fight is) keeps its colour. Measured on
+     a 640x400 capture: the corner goes from rgb(8,11,18) to rgb(150,26,42). */
+  background:
+    radial-gradient(ellipse 78% 78% at 50% 50%, rgba(255, 40, 60, 0) 52%, rgba(255, 40, 60, 0.62) 100%),
+    linear-gradient(180deg, rgba(255, 32, 48, 0.34), rgba(255, 32, 48, 0) 22%);
+}
+
+.damage-vignette.is-hit {
+  animation: damageFlash 500ms ease-out;
+}
+
+@keyframes damageFlash {
+  0% {
+    opacity: calc(0.35 + var(--hit, 0.4) * 0.55);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The heart takes the blow: a short, sharp shake — not a wobble. `translate3d`
+   keeps it on the compositor so a leak during a busy wave costs no layout. */
+.hud-stat-hp.is-hit {
+  animation: baseHitShake 460ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes baseHitShake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  12% {
+    translate: -3px 1px;
+  }
+  26% {
+    translate: 3px -1px;
+  }
+  40% {
+    translate: -2px 1px;
+  }
+  56% {
+    translate: 2px 0;
+  }
+  72% {
+    translate: -1px 0;
+  }
+}
+
+/* The treasury landing. Scale only, origin at the coin, one bounce. */
+.hud-stat#stat-coins.is-bumped {
+  animation: goldBump 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes goldBump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.085);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.hud-stat#stat-coins.is-bumped .gold-text {
+  color: #ffe6a1;
+  text-shadow: 0 0 10px rgba(245, 196, 81, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .damage-vignette.is-hit {
+    animation: damageFade 500ms ease-out;
+  }
+
+  .hud-stat-hp.is-hit,
+  .hud-stat#stat-coins.is-bumped {
+    animation: none;
+  }
+
+  .hud-stat#stat-coins.is-bumped .gold-text {
+    color: #ffe6a1;
+  }
+}
+
+@keyframes damageFade {
+  0% {
+    opacity: calc(0.3 + var(--hit, 0.4) * 0.4);
+  }
+  100% {
+    opacity: 0;
+  }
+}

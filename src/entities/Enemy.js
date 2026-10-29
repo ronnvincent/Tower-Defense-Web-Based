@@ -14,6 +14,7 @@ import {
   ASSAULT_RANGE,
 } from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
+import { HP_BAR, hpBarWidths, hpBarColor } from '../systems/Juice.js';
 
 /** World px a creep walks between footstep samples (~1.1 tiles). */
 const FOOTSTEP_STRIDE = 54;
@@ -224,14 +225,20 @@ export class Enemy {
       this.createShieldBarrier();
     }
 
-    // Health bar container
+    // Health bar.
+    //
+    // One Graphics object rather than two rectangles: the bar is 6 px tall with
+    // a dark 1 px outline and rounded ends (a rounded end is what makes six
+    // pixels read as a gauge instead of a line), and it is redrawn only when
+    // the health actually changes — never per frame.
     const barWidth = Math.max(30, this.radius * 1.8);
     this.barWidth = barWidth;
-    this.hpBarBg = scene.add.rectangle(0, -this.radius - 8, barWidth + 2, 5, 0x11131a);
-    this.hpBarFill = scene.add.rectangle(-barWidth / 2, -this.radius - 8, barWidth, 3, 0x5cf2a6);
-    this.hpBarFill.setOrigin(0, 0.5);
-    this.container.add(this.hpBarBg);
-    this.container.add(this.hpBarFill);
+    this.hpBarY = -this.radius - HP_BAR.offset;
+    this.hpBarGfx = scene.add.graphics();
+    this.hpChip = 1;
+    this.hpChipTween = null;
+    this.container.add(this.hpBarGfx);
+    this.drawHealthBar(1, 1);
 
     // Shield Bar (cyan, layered above health bar if maxShield > 0)
     if (this.maxShield > 0) this.createShieldBar();
@@ -785,16 +792,75 @@ export class Enemy {
     }
   }
 
-  updateHealthBar() {
-    const pct = Math.max(0, this.health / this.maxHealth);
-    this.hpBarFill.width = this.barWidth * pct;
+  /**
+   * Paint the bar at a given health share, with the trailing chip segment.
+   *
+   * `chipPct` is the share the bar was at before the hit landed; it drains a
+   * beat later, which is what makes a heavy hit feel like it *took* something
+   * instead of the bar simply being shorter the next time the player looks.
+   */
+  drawHealthBar(pct, chipPct) {
+    const gfx = this.hpBarGfx;
+    if (!gfx?.clear) return;
+    gfx.clear();
+    // The headless fixtures in `tests/` hand the constructor a one-method
+    // graphics stub; the bar is decoration, so a scene without the drawing API
+    // is allowed to skip it instead of crashing the creature.
+    if (typeof gfx.fillRoundedRect !== 'function') return;
+    const { fill, chip, visible } = hpBarWidths({
+      barWidth: this.barWidth,
+      health: pct * this.maxHealth,
+      maxHealth: this.maxHealth,
+      chipPct,
+    });
+    gfx.setVisible?.(visible);
+    if (!visible) return;
 
-    if (pct < 0.3) {
-      this.hpBarFill.fillColor = 0xff5470;
-    } else if (pct < 0.6) {
-      this.hpBarFill.fillColor = 0xf5c451;
+    const { height, radius, border } = HP_BAR;
+    const left = -this.barWidth / 2;
+    const top = this.hpBarY - height / 2;
+    // Outline first, so the fill sits inside a hard edge on any terrain.
+    gfx.fillStyle(0x11131a, 0.92);
+    gfx.fillRoundedRect(left - border, top - border, this.barWidth + border * 2, height + border * 2, radius + border);
+    // The lost chunk, still lit, about to drain.
+    if (chip > fill) {
+      gfx.fillStyle(0xffb26b, 0.55);
+      gfx.fillRoundedRect(left, top, chip, height, radius);
+    }
+    gfx.fillStyle(hpBarColor(pct), 1);
+    if (fill > 0) gfx.fillRoundedRect(left, top, Math.max(fill, radius), height, radius);
+  }
+
+  updateHealthBar() {
+    const max = Math.max(1, this.maxHealth);
+    const pct = Math.max(0, Math.min(1, this.health / max));
+    // A heal can push the bar past the trailing segment; snap it forward rather
+    // than painting a ghost longer than the creep's own health.
+    if (pct >= this.hpChip) this.hpChip = pct;
+    this.drawHealthBar(pct, this.hpChip);
+
+    this.hpChipTween?.stop?.();
+    this.hpChipTween = null;
+    if (this.hpChip > pct + 0.001) {
+      const state = { v: this.hpChip };
+      this.hpChipTween = this.scene?.tweens?.add?.({
+        targets: state,
+        v: pct,
+        delay: HP_BAR.chipDelayMs,
+        duration: HP_BAR.chipMs,
+        ease: 'Quad.easeOut',
+        onUpdate: () => {
+          this.hpChip = state.v;
+          const live = Math.max(0, Math.min(1, this.health / max));
+          this.drawHealthBar(live, Math.max(live, state.v));
+        },
+        onComplete: () => {
+          this.hpChip = Math.max(0, Math.min(1, this.health / max));
+          this.drawHealthBar(this.hpChip, this.hpChip);
+        },
+      });
     } else {
-      this.hpBarFill.fillColor = 0x5cf2a6;
+      this.hpChip = pct;
     }
 
     // Update shield bar if present
@@ -828,11 +894,10 @@ export class Enemy {
       this.sprite.play(deathKey, true);
       this.shieldBarBg?.setVisible(false);
       this.shieldBarFill?.setVisible(false);
-      // The fields are `hpBarBg` / `hpBarFill` (see the constructor). The old
-      // names here matched nothing, so the health bar hung in the air over a
-      // corpse for the whole death animation.
-      this.hpBarBg?.setVisible(false);
-      this.hpBarFill?.setVisible(false);
+      // The bar is one Graphics object (see the constructor); hide it with the
+      // creep, or it hangs in the air over the corpse for the whole death
+      // animation.
+      this.hpBarGfx?.setVisible(false);
       this.sprite.once('animationcomplete', () => this.destroy());
       this.container.setDepth(19);
       this.callbacks.onDefeated(this);

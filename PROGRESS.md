@@ -25,7 +25,7 @@ they disagree — see §2):
 | 1 | Bugs + layout foundation (top bar, dock, UI scale) | ✅ |
 | 2 | Tower inspector, panels and modals | ✅ |
 | 3 | Main menu and scene transitions | ✅ |
-| 4 | Core game feel ("juice") | ⬜ |
+| 4 | Core game feel ("juice") | ✅ |
 | 5 | Atmosphere and lighting | ⬜ |
 | 6 | Progression, reward and onboarding | ⬜ |
 | 7 | Audio and settings | ⬜ |
@@ -400,3 +400,49 @@ Screenshots: `docs/ui-after/mobile/`.
 and the end-to-end *tap* build flow — level 1 opens with three narration lines
 that hold input, and the harness places towers through the game API instead.
 The sheet's auto-fold is therefore proven only for the API path.
+
+---
+
+## 10. Phase 4 — core game feel ("juice")
+
+Strong for the rare events, quiet for the frequent ones. No combat number moved:
+every effect here is triggered *by* a resolution the game already made.
+
+### Changed
+
+| File | Why |
+| ---- | --- |
+| `src/systems/Juice.js` **(new)** | The arithmetic behind the feedback, as pure functions: bar geometry, chip segment, damage-number classification, gold label. Testable without a canvas. |
+| `src/entities/Enemy.js` | Health bar is one `Graphics` object: 6 px, rounded ends, 1 px dark rim, and it only appears on the first hit (24 full green strips hid the road). The lost share lingers as an amber **chip segment** that drains 130 ms later, so a heavy hit looks like it *took* something. |
+| `src/entities/Projectile.js` | Damage numbers are classified: grey/small when armour ate the hit, gold/large when it took a real share of the target, firing-line colour otherwise. No crit roll was added — that would be a balance change. |
+| `src/entities/Tower.js` | Contact shadow under every keep (same `shadow` texture the creeps use), skipped when the sheet has not streamed in. |
+| `src/ui/HUD.js` | `bumpGold()` (treasury bounce) and `flashBaseHit(intensity)` (edge vignette + heart shake), both class-driven with one timer each, plus the `#damage-vignette` element. |
+| `src/scenes/GameScene.js` | Wave banner sweeps + rule + portal ring; build pop + dust; upgrade ring + shine; sell burst + float; gold float on every kill; boss killing-blow slow motion; ghost reason line. |
+| `src/style.css` | `.damage-vignette`, `baseHitShake`, `goldBump`, all with `prefers-reduced-motion` fallbacks. |
+| `tests/battle-juice.test.js` **(new, 18 tests)** | Pins the bar arithmetic and the DOM contracts. |
+
+### Decisions worth recording
+
+* **"Crit" is presentation, not a dice roll.** The prompt asks for gold crits with
+  hit-stop; a crit chance would change damage maths. Instead the *size of the
+  number* decides: ≥12 % of the target's health or ≥40 flat reads gold and large.
+  Same damage, honest emphasis.
+* **No coin arc.** An arc from the corpse to the HUD counter needs the counter's
+  screen position on every kill (a DOM read per event under a panned, zoomed
+  camera), and it flies under the 80 px top bar on a phone. The floating `+8` and
+  the counter's bounce say the same thing for one tween.
+* **No hit-stop.** Slowing the scene on every heavy hit fights the 2× speed
+  control and reads as a stutter. The only slow motion is the boss killing blow
+  (0.4 s), guarded so two bosses dying together cannot stack into a freeze.
+
+### Verified
+
+`npm run build` ✓ · `npx vitest run` → **132 files / 1729 passed**.
+
+Screenshots at **1280×768** and **1024×640** in `docs/ui-after/phase4/`:
+`combat`, `baseHit`, `ghostInvalid`, `waveBanner`, `boss`, `inspector`, `battle`.
+Audit at both sizes: `clipped 0`, `spill 0`, `covered 0`.
+
+**Not verified:** the boss killing-blow slow motion and the build pop were not
+captured as stills (both are sub-second); they are exercised by playing the wave
+in the browser, not by an assertion.

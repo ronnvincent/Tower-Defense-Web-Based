@@ -60,6 +60,11 @@ export class HUD {
     this.callbacks = callbacks || {};
     this.selectedBuildKey = null;
     this.inspectedTower = null;
+    // Handles for the two feedback timers (see bumpGold / flashBaseHit); kept
+    // so a second event can cancel the first instead of stacking timers.
+    this.goldBumpTimer = null;
+    this.vignetteTimer = null;
+    this.baseHitTimer = null;
     this.toastTimer = null;
     this.hintTimer = null;
     this.inspectorPinned = false;
@@ -572,6 +577,9 @@ export class HUD {
              show it; everywhere else setBuildPoints hides it again. -->
         <span id="dock-points" class="dock-points hidden" aria-live="polite"></span>
       </div>
+      <!-- The gate taking a hit, seen from the edge of the screen. One element,
+           driven by two CSS custom properties, so a leak costs no node. -->
+      <div id="damage-vignette" class="damage-vignette" aria-hidden="true"></div>
     `;
 
     this.renderBuildCards();
@@ -756,6 +764,52 @@ export class HUD {
   collapseDockAfterBuild() {
     if (!this.isMobileShell || this.dockCollapsed) return;
     this.setDockCollapsed(true, { persist: false });
+  }
+
+  /**
+   * The treasury just changed: bounce the counter, once.
+   *
+   * Driven by a class rather than an inline transform so `prefers-reduced-
+   * motion` can switch the bounce off in CSS, and so the animation is a
+   * compositor job instead of a per-frame DOM write.
+   */
+  bumpGold() {
+    const stat = document.getElementById('stat-coins');
+    if (!stat) return;
+    stat.classList.remove('is-bumped');
+    // Reading offsetWidth restarts the keyframes; without it a second kill in
+    // the same frame would leave the first animation running and the second
+    // invisible.
+    void stat.offsetWidth;
+    stat.classList.add('is-bumped');
+    clearTimeout(this.goldBumpTimer);
+    this.goldBumpTimer = setTimeout(() => stat.classList.remove('is-bumped'), 420);
+  }
+
+  /**
+   * A creep got through: red at the edges, and the heart takes the blow.
+   *
+   * @param {number} intensity 0.12–1 from `leakIntensity`
+   */
+  flashBaseHit(intensity = 0.5) {
+    const vignette = document.getElementById('damage-vignette');
+    const stat = document.getElementById('stat-base-hp');
+    const strength = Math.max(0.12, Math.min(1, Number(intensity) || 0.12));
+    if (vignette) {
+      vignette.style.setProperty('--hit', String(strength));
+      vignette.classList.remove('is-hit');
+      void vignette.offsetWidth;
+      vignette.classList.add('is-hit');
+      clearTimeout(this.vignetteTimer);
+      this.vignetteTimer = setTimeout(() => vignette.classList.remove('is-hit'), 520);
+    }
+    if (stat) {
+      stat.classList.remove('is-hit');
+      void stat.offsetWidth;
+      stat.classList.add('is-hit');
+      clearTimeout(this.baseHitTimer);
+      this.baseHitTimer = setTimeout(() => stat.classList.remove('is-hit'), 520);
+    }
   }
 
   /**

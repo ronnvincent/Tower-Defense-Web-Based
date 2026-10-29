@@ -1,4 +1,5 @@
 import { audio } from '../rendering/AudioSynth.js';
+import { damageNumberStyle } from '../systems/Juice.js';
 import { PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../data/towerVisuals.js';
 import { ELEMENT_BY_DAMAGE } from '../systems/Vfx.js';
 import { projectileCanHit } from '../systems/TargetCategories.js';
@@ -248,7 +249,7 @@ export class Projectile {
             splashRadius: this.stats.splash,
           });
           if (res.finalDamage > 0) {
-            this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0xff7a59);
+            this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0xff7a59, { raw: this.stats.damage, maxHealth: enemy.maxHealth });
           }
         }
       }
@@ -277,7 +278,7 @@ export class Projectile {
         else if (this.stats.damageType === 'lightning') textColor = 0xffea78; // Yellow for lightning
 
         if (res.finalDamage > 0) {
-          this.showDamageText(this.target.x, this.target.y - 10, res.finalDamage, textColor);
+          this.showDamageText(this.target.x, this.target.y - 10, res.finalDamage, textColor, { raw: this.stats.damage, maxHealth: this.target.maxHealth });
         }
 
         if (this.stats.slow && this.stats.slowMs) {
@@ -377,7 +378,7 @@ export class Projectile {
         splashRadius: radius,
       });
       if (res.finalDamage > 0) {
-        this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0x9fe6ff);
+        this.showDamageText(enemy.x, enemy.y - 10, res.finalDamage, 0x9fe6ff, { raw: Math.round(this.stats.damage * 0.4), maxHealth: enemy.maxHealth });
       }
     }
   }
@@ -428,7 +429,7 @@ export class Projectile {
       const chainDmg = Math.round(this.stats.damage * Math.pow(falloff, hitCount + 1));
       const res = next.applyDamage(chainDmg, this.stats.damageType || 'lightning');
       if (res.finalDamage > 0) {
-        this.showDamageText(next.x, next.y - 10, res.finalDamage, 0xffea78);
+        this.showDamageText(next.x, next.y - 10, res.finalDamage, 0xffea78, { raw: chainDmg, maxHealth: next.maxHealth });
       }
 
       visited.add(next);
@@ -449,21 +450,42 @@ export class Projectile {
     return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
   }
 
-  showDamageText(x, y, amount, color = 0xffffff) {
+  /**
+   * A floating number over the creep that was hit.
+   *
+   * The colour is the firing line's damage type (so a frost tower reads cyan
+   * and a sniper crimson), but two overrides matter more than the palette: a
+   * hit that armour ate reads grey and small, and a hit that took a real share
+   * of the target's health reads gold and large. See `systems/Juice.js` — this
+   * is presentation of the number that already landed, never a re-roll.
+   *
+   * @param {number} x world x
+   * @param {number} y world y
+   * @param {number} amount damage that reached health
+   * @param {number} [color] the firing line's colour
+   * @param {{ raw?: number, maxHealth?: number }} [meta] what the number is measured against
+   */
+  showDamageText(x, y, amount, color = 0xffffff, meta = null) {
+    const style = damageNumberStyle({
+      damage: amount,
+      raw: meta?.raw ?? null,
+      maxHealth: meta?.maxHealth ?? null,
+      color,
+    });
     const text = this.scene.add.text(x + (Math.random() * 12 - 6), y, `-${amount}`, {
       fontFamily: 'Rajdhani, sans-serif',
-      fontSize: '15px',
+      fontSize: `${style.size}px`,
       fontStyle: 'bold',
-      color: Projectile.cssColor(color),
+      color: Projectile.cssColor(style.color),
       stroke: '#000000',
-      strokeThickness: 3,
+      strokeThickness: style.heavy ? 4 : 3,
     });
     text.setDepth(50);
     this.scene.tweens.add({
       targets: text,
-      y: y - 24,
+      y: y - (style.heavy ? 32 : 24),
       alpha: 0,
-      duration: 550,
+      duration: style.heavy ? 720 : 550,
       ease: 'Power1',
       onComplete: () => text.destroy(),
     });

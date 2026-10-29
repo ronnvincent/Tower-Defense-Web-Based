@@ -59,6 +59,7 @@ import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js
 import { buildBounds } from '../systems/BuildZone.js';
 import { RoyalSystems } from '../systems/RoyalSystems.js';
 import { BASTION_STATE, bastionState, isBastionCritical, leakIntensity } from '../systems/Bastion.js';
+import { goldFloatLabel } from '../systems/Juice.js';
 import {
   PREP_PHASE,
   advanceWavePrep,
@@ -1689,6 +1690,7 @@ export class GameScene extends Phaser.Scene {
         audio.playVictory();
         this.hud?.showToast(`🏆 BOSS DEFEATED: ${e.def.name}!`, 'success');
         this.shockwave(e.x, e.y, { from: 0.5, to: 3.0, tint: 0xffe2a8, duration: 700 });
+        this.bossKillingBlow(e.x, e.y);
       },
       getStructureAt: (cellKey) => this.getSiegeTarget(cellKey),
       // Defences first: the horde breaks what it can reach before it
@@ -1902,6 +1904,7 @@ export class GameScene extends Phaser.Scene {
     // spark burst at the wall, and the crystal's punch.
     const intensity = leakIntensity(damage, this.gameState.maxBaseHealth);
     this.cameras?.main?.shake?.(90 + 90 * intensity, 0.002 + 0.006 * intensity);
+    this.hud?.flashBaseHit?.(intensity);
     this.flashBastion(damage);
     this.syncBastionBar();
     this.spawnDeathBurst?.(
@@ -1922,6 +1925,7 @@ export class GameScene extends Phaser.Scene {
   handleEnemyReachedBase(enemy) {
     audio.playDefeat();
     this.cameras.main.shake(160, 0.007);
+    this.hud?.flashBaseHit?.(enemy?.isBoss ? 1 : 0.62);
     // A leak breaks the chain: the combo is a reward for clean clearing.
     if (this.combo.chain > 0) {
       resetCombo(this.combo);
@@ -2006,7 +2010,12 @@ export class GameScene extends Phaser.Scene {
     audio.playCoin();
     audio.playEnemyDeath();
     if (kill.tier > 0) audio.playCombo(kill.tier);
-    this.economy.earn(bounty + comboGold + this.rewardKillAuraBonus(enemy));
+    const earned = bounty + comboGold + this.rewardKillAuraBonus(enemy);
+    this.economy.earn(earned);
+    // The bounty leaves the creep as a number and lands in the treasury: the
+    // float is the local answer to "did that pay?", the bounce is the global one.
+    this.floatGold(enemy.x, enemy.y, earned);
+    this.hud?.bumpGold?.();
     this.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
     if (this.contracts?.length) this.syncContracts();
@@ -2455,6 +2464,187 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * A "+8" that drifts off a creep and fades.
+   *
+   * Deliberately text-only and self-destroying: no pool, no list, no per-frame
+   * work. The coin that used to be asked for (an arc from the corpse to the
+   * HUD counter) needs the counter's screen position on every kill, which on a
+   * panned and zoomed camera is a DOM read per event — and it would fly under
+   * the top bar at 375 px tall. The number plus the counter's own bounce says
+   * the same thing for one tween.
+   */
+  floatGold(x, y, amount) {
+    const label = goldFloatLabel(amount);
+    if (!label || !Number.isFinite(x) || !Number.isFinite(y) || !this.add?.text) return null;
+    try {
+      const text = this.add
+        .text(x, y - 8, label, {
+          fontFamily: 'Cinzel, Georgia, serif',
+          fontSize: '14px',
+          color: '#f5c451',
+          stroke: '#120d07',
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(51);
+      this.tweens.add({
+        targets: text,
+        y: y - 34,
+        alpha: 0,
+        duration: 720,
+        ease: 'Quad.easeOut',
+        onComplete: () => text.destroy(),
+      });
+      return text;
+    } catch (error) {
+      this.reportRuntimeError(error);
+      return null;
+    }
+  }
+
+  /**
+   * The killing blow on a boss: 0.4 s of slow motion, then a gold burst.
+   *
+   * `timeScale` is the *scene clock*, so towers, creeps and tweens all slow
+   * together and nothing can fire early. It is restored by a scene timer that
+   * is created after the slowdown starts, and the guard at the top means a
+   * second boss dying in the same beat cannot stack two slow-motions into a
+   * freeze. Reduced-motion players get the burst without the slowdown.
+   */
+  bossKillingBlow(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    try {
+      if (!reduced && !this.bossSlowmoActive && this.time?.timeScale !== undefined) {
+        this.bossSlowmoActive = true;
+        this.time.timeScale = 0.35;
+        this.tweens.timeScale = 0.35;
+        // Wall-clock ms, because the scene clock is the thing being slowed.
+        setTimeout(() => {
+          if (!this.scene?.isActive?.()) return;
+          this.time.timeScale = 1;
+          this.tweens.timeScale = 1;
+          this.bossSlowmoActive = false;
+        }, 400);
+      }
+      for (let i = 0; i < 3; i += 1) {
+        this.time?.delayedCall?.(i * 90, () => {
+          this.shockwave(x, y, {
+            from: 0.3 + i * 0.2,
+            to: 1.6 + i * 0.5,
+            tint: 0xffe2a8,
+            alpha: 0.8 - i * 0.18,
+            duration: 480,
+            depth: 46,
+          });
+        });
+      }
+      const emitter = this.particleEmitter;
+      if (emitter) {
+        emitter.setParticleTint?.(0xffd166);
+        emitter.explode(26, x, y);
+      }
+      this.floatGold(x, y - 12, 250);
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
+  }
+
+  /**
+   * A raised keep arrives: a squash-and-stretch pop plus a puff of dust.
+   *
+   * The pop runs on the tower's container, which nothing else in the game
+   * scales — the inspector and the badges animate their own objects — so it
+   * cannot fight the selection state. Dust is the shared emitter, tinted to the
+   * terrain the keep was dropped on, not a second particle system.
+   */
+  spawnBuildDust(tower) {
+    if (!tower?.container || !Number.isFinite(tower.x)) return;
+    try {
+      const container = tower.container;
+      container.setScale(0.86, 0.86);
+      this.tweens.add({
+        targets: container,
+        scaleX: 1.06,
+        scaleY: 0.94,
+        duration: 120,
+        ease: 'Quad.easeOut',
+        yoyo: true,
+        onComplete: () => {
+          if (container.active) container.setScale(1, 1);
+        },
+      });
+      const emitter = this.particleEmitter;
+      if (emitter) {
+        emitter.setParticleTint?.(this.theme?.groundTint ?? 0xd8c9a3);
+        emitter.explode(10, tower.x, tower.y + 10);
+      }
+      this.shockwave(tower.x, tower.y + 8, { from: 0.12, to: 0.42, tint: 0xf6e2ac, alpha: 0.5, duration: 260, depth: 18 });
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
+  }
+
+  /**
+   * An upgrade lands: a gold ring climbs the keep and a few sparks ride it up.
+   *
+   * The ring is the same `fx-ring` the boss uses, scaled small — one texture,
+   * one tween, and it reads at every zoom because it is drawn in world space.
+   */
+  spawnUpgradeShine(tower) {
+    if (!tower || !Number.isFinite(tower.x)) return;
+    try {
+      this.shockwave(tower.x, tower.y, { from: 0.18, to: 0.72, tint: 0xffe2a8, alpha: 0.85, duration: 520, depth: 26 });
+      const emitter = this.particleEmitter;
+      if (emitter) {
+        emitter.setParticleTint?.(0xffe2a8);
+        emitter.explode(8, tower.x, tower.y - 6);
+      }
+      if (this.textures.exists('spark')) {
+        const shine = this.add
+          .image(tower.x, tower.y - 4, 'spark')
+          .setTint(0xfff0c4)
+          .setDepth(27)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setScale(0.9)
+          .setAlpha(0.9);
+        this.tweens.add({
+          targets: shine,
+          y: tower.y - 30,
+          scale: 1.5,
+          alpha: 0,
+          duration: 460,
+          ease: 'Cubic.easeOut',
+          onComplete: () => shine.destroy(),
+        });
+      }
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
+  }
+
+  /**
+   * A keep is sold: the refund leaves it as sparks and a number.
+   *
+   * The gold is already in the treasury by the time this runs (the sell path
+   * earns first), so this is purely the receipt for that change.
+   */
+  spawnSellBurst(x, y, refund) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    try {
+      const emitter = this.particleEmitter;
+      if (emitter) {
+        emitter.setParticleTint?.(0xf5c451);
+        emitter.explode(14, x, y);
+      }
+      this.floatGold(x, y - 6, refund);
+      this.hud?.bumpGold?.();
+    } catch (error) {
+      this.reportRuntimeError(error);
+    }
+  }
+
+  /**
    * Death juice: a short, biome-tinted spark burst plus a bright flash ring.
    * Stronger chains (tier 0..3) pop harder, so a 10-kill chain *feels* different
    * from a single kill without changing any damage numbers.
@@ -2519,7 +2709,59 @@ export class GameScene extends Phaser.Scene {
         .setDepth(60)
         .setAlpha(0);
 
-      this.tweens.add({ targets: title, alpha: 1, duration: 180, yoyo: true, hold: 900, onComplete: () => title.destroy() });
+      // The banner arrives by sliding down out of the rail's own shadow and
+      // leaves the same way: a fade alone reads as a caption, a short sweep
+      // reads as an announcement.
+      const homeY = 96;
+      title.y = homeY - 18;
+      title.setScale(0.94);
+      this.tweens.add({
+        targets: title,
+        y: homeY,
+        scale: 1,
+        alpha: 1,
+        duration: 220,
+        ease: 'Cubic.easeOut',
+        hold: 820,
+        yoyo: true,
+        onComplete: () => title.destroy(),
+      });
+      // The rule under the title, drawn rather than photographed: one Graphics
+      // object, swept open from the centre, destroyed with the banner.
+      const bannerWidth = this.scale.width;
+      const rule = this.add.graphics().setScrollFactor(0).setDepth(60).setAlpha(0.9);
+      const ruleY = homeY + 30;
+      const drawRule = (half) => {
+        rule.clear();
+        rule.fillStyle(0xf5c451, 0.85);
+        rule.fillRect(bannerWidth / 2 - half, ruleY, half * 2, 2);
+        rule.fillStyle(0xf5c451, 0.28);
+        rule.fillRect(bannerWidth / 2 - half * 1.35, ruleY + 3, half * 2.7, 1);
+      };
+      drawRule(0);
+      const sweep = { half: 0 };
+      this.tweens.add({
+        targets: sweep,
+        half: Math.min(210, bannerWidth * 0.22),
+        duration: 260,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => drawRule(sweep.half),
+        yoyo: true,
+        hold: 780,
+        onComplete: () => rule.destroy(),
+      });
+      // The portal answers the call: one ring, tinted to the brood colour.
+      const gate = this.map?.portal;
+      if (gate && Number.isFinite(gate.col)) {
+        this.shockwave(gate.col * TILE_SIZE + TILE_SIZE / 2, gate.row * TILE_SIZE + TILE_SIZE / 2, {
+          from: 0.3,
+          to: 1.6,
+          tint: this.spawnAccent ?? 0xb388ff,
+          alpha: 0.8,
+          duration: 620,
+          depth: 30,
+        });
+      }
     } catch (error) {
       this.reportRuntimeError(error);
     }
@@ -2596,6 +2838,7 @@ export class GameScene extends Phaser.Scene {
         this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
       }
       this.badges?.pulse(tower);
+      this.spawnUpgradeShine(tower);
       this.refreshTowerAuras();
       this.syncHUD();
       this.updateGhostGraphics();
@@ -2614,6 +2857,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshLanes?.();
 
     this.gameState.counters.towersSold++;
+    this.spawnSellBurst(tower.x, tower.y, refund);
 
     const idx = this.activeTowers.indexOf(tower);
     if (idx !== -1) this.activeTowers.splice(idx, 1);
@@ -3434,6 +3678,7 @@ export class GameScene extends Phaser.Scene {
     if (tower.isBarricade) audio.playWallBuild();
     else audio.playPlace();
 
+    this.spawnBuildDust(tower);
     this.refreshTowerAuras();
     this.syncHUD();
     this.drawBuildSlots();
@@ -3956,9 +4201,50 @@ export class GameScene extends Phaser.Scene {
     return bonus;
   }
 
+  /**
+   * The one-line reason under a red ghost square.
+   *
+   * The toast answers "why did that click fail"; this answers "why is this
+   * square red" *before* the click, which is the question a player asks while
+   * moving the pointer. Empty text hides it, so the same object serves every
+   * legal tile too.
+   *
+   * @param {string} text reason, or '' to hide
+   * @param {number} x world x of the tile centre
+   * @param {number} y world y of the tile's top edge
+   */
+  showGhostReason(text, x = 0, y = 0, above = true) {
+    if (!this.add?.text) return;
+    if (!text) {
+      this.ghostReason?.setVisible?.(false);
+      return;
+    }
+    if (!this.ghostReason) {
+      this.ghostReason = this.add
+        .text(0, 0, '', {
+          fontFamily: 'Rajdhani, sans-serif',
+          fontSize: '13px',
+          fontStyle: 'bold',
+          color: '#ffd0d6',
+          backgroundColor: '#1b0c10ee',
+          padding: { x: 7, y: 3 },
+          align: 'center',
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(31);
+    }
+    this.ghostReason.setText(text);
+    this.ghostReason.setOrigin(0.5, above ? 1 : 0);
+    this.ghostReason.setPosition(x, y);
+    this.ghostReason.setVisible(true);
+  }
+
   updateGhostGraphics() {
     this.ghostGraphics.clear();
-    if (!this.selectedBuildKey) return;
+    if (!this.selectedBuildKey) {
+      this.showGhostReason('');
+      return;
+    }
 
     const { row, col } = this.hoverTile;
     if (!this.placement.inBounds(row, col)) return;
@@ -3975,6 +4261,15 @@ export class GameScene extends Phaser.Scene {
     this.ghostGraphics.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
     this.ghostGraphics.fillStyle(color, 0.15);
     this.ghostGraphics.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+    // Why the square is red. One reusable Text object, repositioned only when
+    // the hovered tile changes (this method is called on hover change and on
+    // camera moves, never per frame), so it costs one string write and no node.
+    const reason = valid ? '' : PLACEMENT_ERRORS[this.validateBuild(this.selectedBuildKey, row, col).reason] || 'Cannot build here';
+    // Above the square by default; below it when the square is near the top of
+    // the board, where a label would land on the rock band and read as scenery.
+    const above = y > 150;
+    this.showGhostReason(reason, x + TILE_SIZE / 2, above ? y - 6 : y + TILE_SIZE + 6, above);
 
     // Attack Range circle preview
     // A wall has no range, so an undefined radius would hand Phaser a NaN
