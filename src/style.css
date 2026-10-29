@@ -15696,6 +15696,20 @@ body.wm-covers-canvas #game-container canvas {
     radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 58%);
 }
 
+/* Request 66: in a battle the atmosphere covers the whole app, not just the
+   stage. Sized to the stage it began at the canvas' top edge, where its daylight
+   wash is strongest — so the strip of page above the canvas (a 1024×640 window
+   letterboxes 13 px) met a lit canvas in a hard horizontal step. Filling the
+   app gives the page and the canvas the same light, and the only edge left is
+   the top rail's torn band. */
+body.is-battle #battle-atmosphere {
+  top: 0;
+  left: 0;
+  transform: none;
+  width: 100%;
+  height: 100%;
+}
+
 /* The top profile gets the full wash: the rim vignette *and* the mood tint.
    `balanced` now gets the mood tint alone — three gradients on one composited
    layer, no weather, no particles (Phase 5: the light has to follow the run on

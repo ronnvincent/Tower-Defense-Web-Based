@@ -63,6 +63,19 @@ describe('the band starts at the top of the canvas', () => {
   });
 });
 
+describe('the battle atmosphere covers the page, not just the stage', () => {
+  it('fills the app while a battle is open', () => {
+    // Sized to the stage it started at the canvas' top edge, where its daylight
+    // wash is strongest: the page strip above a letterboxed canvas met a lit
+    // canvas in a hard horizontal step.
+    expect(CSS).toMatch(
+      /body\.is-battle #battle-atmosphere \{[\s\S]*?width: 100%;\s*height: 100%;/
+    );
+    // Without a transform, or the `top: 0` is measured from the stage's centring.
+    expect(CSS).toMatch(/body\.is-battle #battle-atmosphere \{[\s\S]*?transform: none;/);
+  });
+});
+
 describe('the forge paints no band of its own', () => {
   it('switches both of the dock bands off', () => {
     const body = lastRuleBody('.hud-dock::before,\n.hud-dock::after');

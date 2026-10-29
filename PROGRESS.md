@@ -1148,7 +1148,14 @@ followed from that:
 3. **the apron is 5 tiles deep** — at the campaign's 0.625× fit zoom a 768 px
    canvas looks at 1229 world px for a 768 px board, so 3 tiles (192 px) did not
    reach the edge of the view at 1920×800 or 1536×864. 5 tiles (320 px) covers
-   every case the camera can produce, and it is never seen when zoomed in.
+   every case the camera can produce, and it is never seen when zoomed in;
+4. **the atmosphere covers the page too** — `#battle-atmosphere` was sized to
+   the stage, so it began at the canvas' top edge, where its daylight wash is
+   strongest. A 1024×640 window letterboxes 13 px, and the page strip above the
+   canvas met a lit canvas in a hard horizontal step (measured: page mean
+   G 102 vs canvas 123 at the seam). In a battle the layer fills `#app` now, so
+   the page and the canvas get the same light and the only edge left on screen
+   is the rail's torn band.
 
 A phone also lost its 16 px column of page down each side: the 1.25 × 5/3 stage
 cap is lifted in the compact query (`--stage-width: 100vw`), so the canvas is
@@ -1190,11 +1197,11 @@ still an entrance — the id is not remembered past the unmount.
 | Muster Hall, 12 switch samples | overlay opacity **1.00 at every frame** |
 | Forge / Blessings / Achievements / Leaderboard / world map / Codex | no drop below 1.00 while re-rendering (only *opening* a screen animates) |
 
-`npx vitest run` → **141 files / 1816 passed** · `npm run build` ✓ 7.74 s
+`npx vitest run` → **141 files / 1817 passed** · `npm run build` ✓ 7.80 s
 (`tests/field-frame.test.js` pins the band's new top, the dock's missing band,
-the strip's `pixelated` + phase, the phone's full-bleed stage and the
-`no-enter` contract; `tests/field-apron.test.js` grew to 5 tiles, the published
-phase and the pan guard).
+the strip's `pixelated` + phase, the full-bleed stage, the atmosphere's new box
+and the `no-enter` contract; `tests/field-apron.test.js` grew to 5 tiles, the
+published phase and the pan guard).
 
 Screenshots: `/tmp/field-fit.png` (before), `/tmp/f66-1280-fit.png`,
 `/tmp/f66-1280-zoom.png`, `/tmp/f66-1280-corner.png`, `/tmp/f66-844.png`,
