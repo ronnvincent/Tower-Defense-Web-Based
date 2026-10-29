@@ -16171,28 +16171,14 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
    sprites whose corners would otherwise get a dark rectangle behind them.
    ========================================================================== */
 
+/* The class is a *marker* now, not a look.
+   It used to paint a pulsing gold outline and a gold drop-shadow. In a game
+   whose interface is already gold on every button, "the shiny one" was not an
+   answer — and a glow also lights up the control's neighbours, which is the
+   opposite of pointing. The spotlight (`#tutorial-spotlight`) does the work
+   instead; the class only decides which element the hole is cut around. */
 .is-tutorial-target {
-  outline: 2px solid var(--gold-primary);
-  outline-offset: 2px;
-  animation: tutorialTargetPulse 1.7s ease-in-out infinite;
   z-index: 3;
-}
-
-@keyframes tutorialTargetPulse {
-  0%,
-  100% {
-    filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.6));
-  }
-  50% {
-    filter: drop-shadow(0 0 14px rgba(245, 196, 81, 0.95));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .is-tutorial-target {
-    animation: none;
-    filter: drop-shadow(0 0 10px rgba(245, 196, 81, 0.9));
-  }
 }
 
 /* ==========================================================================
@@ -17466,4 +17452,120 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 .set-body {
   -webkit-mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 16px), transparent 100%);
   mask-image: linear-gradient(180deg, #000 0, #000 calc(100% - 16px), transparent 100%);
+}
+
+/* ==========================================================================
+   THE SPOTLIGHT · the tutorial's fade, hole and hand
+   --------------------------------------------------------------------------
+   A request after the opening shipped: the gold glow was hard to read against
+   an interface where everything glows gold. What replaces it is the language
+   every console game uses — the room goes dark, one hole opens over the thing
+   the player has to press, and a hand taps it.
+
+   The veil is body-level (`pointer-events: none`, z-index 260) so it sits over
+   the HUD but under modals, and so the opening's "dim the HUD while a line is
+   up" rule cannot dim the veil with it. The hole is a transparent box wearing a
+   100vmax shadow: the shadow is the fade, the box is the hole, and there is no
+   second element to keep in sync.
+   ========================================================================== */
+
+#tutorial-spotlight {
+  position: fixed;
+  inset: 0;
+  /* Above the board and the HUD (100), below the opening's own speech and
+     objective cards (200), the screens (250) and the modals (300): the fade
+     must never dim the sentence that explains the step. */
+  z-index: 150;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+#tutorial-spotlight.is-on {
+  opacity: 1;
+}
+
+.tut-hole {
+  position: absolute;
+  border-radius: 14px;
+  /* The fade, the soft inner edge that keeps the cut from looking like a
+     scissors line, and one hairline of warm light so the hole reads as a hole
+     on a bright meadow. No glow: the light is 1 px. */
+  box-shadow:
+    0 0 0 100vmax rgba(3, 5, 9, 0.82),
+    /* The ring is the hole's own edge: two rings — a 2 px gold line and a 1 px
+       dark one inside it — so it stays visible on grass, on slate and on the
+       dock, without a glow that would read as "this is special" (it is not,
+       the *step* is). */
+    0 0 0 2px rgba(245, 196, 81, 0.85),
+    0 0 0 3px rgba(3, 5, 9, 0.9),
+    inset 0 0 0 1px rgba(3, 5, 9, 0.55);
+  transition: left 180ms ease, top 180ms ease, width 180ms ease, height 180ms ease;
+}
+
+.tut-hand {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  background-image: url('/assets/ui-kit/hand_point.png');
+  background-repeat: no-repeat;
+  background-size: 300px 50px;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  /* Centre origin: a mirror then keeps the element exactly where it was placed
+     and only turns the art over. Any other origin moves the box by its own
+     height, which put the hand inside the control it was pointing at. */
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+  animation: tutHandTap 1.2s steps(6) infinite;
+  transition: left 180ms ease, top 180ms ease;
+}
+
+/* Nothing below the control: the hand hangs above it and points down.
+   The mirror is about the box's TOP edge, so the element never moves — the
+   fingertip travels from one edge of the box to the other, which is what the
+   placement maths in `#placeHand` assumes. Mirroring about the default centre
+   moved the whole hand one box-height down, straight onto the control. */
+.tut-hand.is-flipped {
+  transform: scaleY(-1);
+}
+
+@keyframes tutHandTap {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -300px 0;
+  }
+}
+
+/* A phone gets the same spotlight at thumb scale. */
+@media (max-width: 900px) {
+  .tut-hand {
+    width: 44px;
+    height: 44px;
+    background-size: 264px 44px;
+  }
+
+  .tut-hole {
+    border-radius: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-hand {
+    animation: none;
+  }
+}
+
+/* Turned to point sideways at a control that has no room underneath it (see
+   `#placeHand`). 90° is the only rotation that keeps a pixel sprite on its own
+   grid, so the hand stays crisp. `is-side-right` mirrors it so a hand on the
+   control's left still points right. */
+.tut-hand.is-side {
+  transform: rotate(90deg);
+}
+
+.tut-hand.is-side-right {
+  transform: rotate(-90deg);
 }

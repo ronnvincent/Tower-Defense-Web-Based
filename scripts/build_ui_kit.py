@@ -274,6 +274,113 @@ def cursor(size: int = 32, clicked: bool = False) -> Image.Image:
     return img
 
 
+# ------------------------------------------------------------------ hand
+# The tutorial's pointing hand.
+#
+# Six frames in one row, read by `background-position` with `steps(6)`. The
+# fingerprint of a *hand* rather than an arrow is that it belongs to the world:
+# the glove is the same leather-and-bronze as the plates, and the tip of the
+# finger is the anchor the HUD lines up with the button it is asking for.
+#
+# Drawn on a 32-unit grid at 3 px per unit (96 px cells). The tip of the index
+# finger sits at the top centre of every frame (x = 16 units), so positioning it
+# is one subtraction — no per-frame offsets to keep in sync with the CSS.
+
+HAND_CELL = 96
+HAND_FRAMES = 6
+HAND_U = 3
+
+# Leather glove, lit from the upper left.
+GLOVE_DARK = (58, 40, 24, 255)
+GLOVE = (104, 74, 42, 255)
+GLOVE_LIT = (146, 108, 64, 255)
+GLOVE_EDGE = (32, 21, 12, 255)
+NAIL = (226, 208, 176, 255)
+
+
+def hand_point(frames: int = HAND_FRAMES, cell: int = HAND_CELL) -> Image.Image:
+    """A gloved hand pointing straight up, 6 frames in one horizontal strip.
+
+    Back of the hand toward the player: the index finger is up, three knuckles
+    are folded behind it and the thumb braces the right side. The cycle is a
+    tap, not a wave — the hand rises 2 units, the finger compresses 1 unit with
+    two gold flecks at the tip, then it settles back. CSS runs it at 1.2 s with
+    `steps(6)`, slow enough to read as an instruction.
+    """
+    u = HAND_U
+    strip = Image.new("RGBA", (cell * frames, cell), (0, 0, 0, 0))
+    beats = [(0, 0, False), (1, 0, False), (2, 1, True), (2, 1, True), (1, 0, False), (0, 0, False)]
+
+    for index in range(frames):
+        rise, press, sparks = beats[index % len(beats)]
+        img = Image.new("RGBA", (cell, cell), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        base = rise * u
+
+        def rect(x, y, w, h, color):
+            d.rectangle(
+                [x * u, base + y * u, (x + w) * u - 1, base + (y + h) * u - 1],
+                fill=color,
+            )
+
+        def poly(points, color):
+            d.polygon([(x * u, base + y * u) for x, y in points], fill=color)
+
+        tip = 4 + press
+
+        # outline -------------------------------------------------------------
+        rect(6, 12, 18, 17, GLOVE_EDGE)
+        rect(10, tip - 1, 7, 17 - tip + press, GLOVE_EDGE)
+        poly([(21, 16), (26, 18), (25, 24), (21, 22)], GLOVE_EDGE)
+
+        # the folded fingers step down from the index: three knuckles --------
+        rect(16, 13, 3, 2, GLOVE_EDGE)
+        rect(19, 14, 3, 2, GLOVE_EDGE)
+        rect(16, 14, 3, 3, GLOVE_DARK)
+        rect(19, 15, 3, 3, GLOVE)
+
+        # back of the hand ----------------------------------------------------
+        rect(8, 16, 13, 9, GLOVE)
+        rect(8, 16, 13, 1, GLOVE_LIT)
+        rect(8, 16, 1, 8, GLOVE_LIT)
+        rect(20, 18, 1, 7, GLOVE_DARK)
+        rect(8, 24, 13, 1, GLOVE_DARK)
+
+        # thumb, braced across the front -------------------------------------
+        poly([(19, 18), (24, 20), (23, 23), (19, 21)], GLOVE_LIT)
+        rect(22, 21, 2, 2, GLOVE)
+        rect(23, 20, 1, 1, (188, 148, 96, 255))
+
+        # index finger --------------------------------------------------------
+        rect(11, tip, 5, 15 - tip + press, GLOVE)
+        rect(11, tip, 1, 14 - tip + press, GLOVE_LIT)
+        rect(15, tip, 1, 15 - tip + press, GLOVE_DARK)
+        rect(12, tip, 2, 2, NAIL)
+        rect(10, 15, 7, 1, GLOVE_EDGE)
+
+        # bronze cuff, narrower than the fist ---------------------------------
+        rect(8, 25, 15, 4, BRONZE)
+        rect(8, 25, 15, 1, BRONZE_LIT)
+        rect(8, 28, 15, 1, BRONZE_DARK)
+        rect(11, 26, 1, 2, BRONZE_DARK)
+        rect(19, 26, 1, 2, BRONZE_DARK)
+
+        # sleeve --------------------------------------------------------------
+        rect(9, 29, 13, 2, GLOVE_DARK)
+
+        # the press -----------------------------------------------------------
+        if sparks:
+            for sx, sy in ((8, tip), (18, tip + 1), (17, tip - 2)):
+                rect(sx, sy, 1, 1, GOLD_LIT)
+            rect(9, tip - 3, 9, 1, (245, 196, 81, 80))
+        else:
+            rect(16, tip + 1, 1, 1, GOLD)
+
+        strip.alpha_composite(img, (index * cell, 0))
+
+    return strip
+
+
 # ------------------------------------------------------------------ glyphs
 # 64 px canvas drawn on a 32 px grid (2× blocks): crisp down to 16 px.
 
@@ -1009,6 +1116,8 @@ def main() -> None:
         'fx_ring.png': fx_ring(),
         'cursor.png': cursor(),
         'cursor_click.png': cursor(clicked=True),
+        # The tutorial's pointing hand: 6 frames, 96 px cells, one row.
+        'hand_point.png': hand_point(),
     }
     assets.update({f'{name}.png': img for name, img in glyphs().items()})
     assets.update(heraldic_marks())

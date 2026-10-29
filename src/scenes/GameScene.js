@@ -3997,6 +3997,11 @@ export class GameScene extends Phaser.Scene {
   tutorialOnBeat(beat) {
     const ui = this.tutorialUI;
     if (!ui || !beat) return;
+    // A step's pointer belongs to that step. A line after it (the villagers
+    // reacting to the tower) keeps the *previous* mark alive unless it is
+    // retired here — and a hand still pointing at a card the player has already
+    // used reads as "press it again", which is the one thing it must never say.
+    if (beat.kind !== 'step') this.setTutorialTarget(null);
     if (beat.kind === 'line') {
       // Only the opening freezes the board. A line *after* the wave has started
       // is a toast, not a card — see TUTORIAL_HOLD_QUIPS.

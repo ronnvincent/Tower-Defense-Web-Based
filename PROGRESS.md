@@ -29,6 +29,7 @@ they disagree — see §2):
 | 5 | Atmosphere and lighting | ✅ |
 | 6 | Progression, reward and onboarding | ✅ |
 | 6b | Top rail restyle (requested after Phase 5) | ✅ |
+| 7b | Tutorial spotlight + pointing hand (requested after Phase 7) | ✅ |
 | 7 | Audio and settings | ✅ |
 | 8 | Accessibility, performance, QA | ⬜ |
 
@@ -699,3 +700,67 @@ Screenshots: `docs/ui-after/phase7/`.
 * **Per-tower pan on every cue** — only the three cues that fire at combat rate
   (fire, impact, death) carry a pan. A UI click has no position, and panning it
   would be a lie about where it happened.
+
+---
+
+## 15. The tutorial spotlight (requested after Phase 7)
+
+> "mag fifade na black yung screen then i hahighlight lang yung button na
+> kailangan then ituturo ng parang kamay … dapat may spritesheet din dyan"
+
+### What was there
+
+`.is-tutorial-target` painted a pulsing gold outline and a gold `drop-shadow`.
+Two problems, and the request names both: the game's whole interface is gold, so
+"the glowing one" is not a direction; and a glow lights up the control's
+neighbours, which is the opposite of pointing at one thing.
+
+### What replaced it
+
+| Piece | How it works |
+| ----- | ------------ |
+| The fade | `box-shadow: 0 0 0 100vmax` on a transparent box. The shadow is the veil, the box is the hole — one element, no mask to keep in sync. |
+| The hole | Follows the marked control on a 220 ms sampler, so it lands correctly when the inspector opens, the dock unfolds or the window resizes. It refuses to open on a 0 px rect (that is what keeps it down while the upgrade step waits for the player to tap the tower). |
+| The edge | Two rings: 2 px gold, 1 px dark inside it. Enough to read on grass, slate and dock; not a glow, because the *step* is special, not the button. |
+| The hand | `public/assets/ui-kit/hand_point.png` — 6 frames × 96 px, drawn by `scripts/build_ui_kit.py` (`hand_point()`), the same deterministic Pillow pipeline as every other sprite in the kit. No third-party art, no new dependency. |
+| The animation | `background-position` stepped with `animation-timing-function: steps(6)` over 1.2 s. Only a sprite sheet scrolled by CSS, so no JS per frame and nothing to clean up. |
+| The pose | Below the control when there is room (wrist off the bottom edge, finger on the button), above it pointing down when the control sits near the bottom (the dock), and beside it turned 90° when the opening's own objective card is in the way (the wave button). |
+
+### Decisions worth recording
+
+* **The veil lives inside `#app`, at `z-index: 150`.** `#app` is its own stacking
+  context, so a body-level veil painted over the opening's dialogue and
+  objective cards — the sentence explaining the step went dark with the board.
+  Inside `#app` it dims the board and the HUD (100) and stays under the tutorial
+  card (200), the screens (250) and the modals (300).
+* **The mark class is now a marker, not a look.** The same `.is-tutorial-target`
+  decides which element the hole is cut around; it paints nothing. Every test
+  that asserts *which* control is marked still means what it meant.
+* **A phone points at the BUILD button while the forge is folded.** The card the
+  step names is not on screen until the sheet is open, so `applyTutorialHint()`
+  falls back to `#btn-toggle-dock`, and `setDockCollapsed()` repaints the hint so
+  the mark moves to the card the moment it can be seen.
+* **A step's pointer dies with the step.** `tutorialOnBeat()` now clears the
+  target on any non-step beat; before this, the hand kept pointing at a card the
+  player had already used while the villagers talked about the tower.
+* **Copy follows the art.** "Tap the glowing card…" became "Tap the card the
+  hand is pointing at…", because there is no glow any more.
+
+### Verified in the browser
+
+Driven through the real opening (`startLevel('tutorial')`), not a fixture:
+
+| Step | Target | Result |
+| ---- | ------ | ------ |
+| 1 · place | dock card ARCHER | hole 92×84 on the card, hand above it pointing down, `is-on` |
+| 1b · phone | folded BUILD button | same, at 667×375 |
+| 2 · upgrade | `#btn-upgrade-tower` | the veil stays **down** until the tower is selected, then opens on the UPGRADE card |
+| 3 · wave | `#start-wave` | hand turned 90° beside the objective card, fingertip on the button's right edge |
+| end | — | veil off, hand hidden, no page errors |
+
+`npm run build` ✓ 6.39 s · `npx vitest run` → **136 files / 1774 passed**
+(`tests/ui-kit.test.js` pins the sheet's 6×96 geometry and the CSS frame maths;
+`tests/hud-dom.test.js` pins the veil's home, its "no hole, no veil" rule and
+that it comes up when the inspector finally opens).
+
+Screenshots: `docs/ui-after/tutorial-spotlight/`.

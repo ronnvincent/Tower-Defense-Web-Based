@@ -962,15 +962,34 @@ export class HUD {
     this.applyTutorialHint();
   }
 
-  /** Paint the current hint. Safe to call after any re-render. */
+  /**
+   * Paint the current hint.
+   *
+   * The hint is no longer a gold glow on the control — a glow asks the player
+   * to find the shiny thing among a dozen shiny things in a game made of gold.
+   * It is a black fade over the whole screen with one soft hole cut over the
+   * control, and a gloved hand tapping that hole. Same gate, a much shorter
+   * search. Safe to call after any re-render.
+   */
   applyTutorialHint() {
     for (const el of document.querySelectorAll('.is-tutorial-target')) {
       el.classList.remove('is-tutorial-target');
     }
     const hint = this.tutorialHint;
-    if (!hint) return;
+    if (!hint) {
+      this.syncTutorialSpotlight();
+      return;
+    }
     const mark = (el) => el?.classList.add('is-tutorial-target');
-    if (hint.card) mark(document.querySelector(`#hud-bottom-dock .build-card[data-key="${hint.card}"]`));
+    if (hint.card) {
+      // On a phone the forge starts folded into one BUILD button, so the card
+      // the step names is not on screen yet. Point at the button that opens it
+      // instead of at nothing; the moment the sheet is open the card is the
+      // target again (`setDockCollapsed` repaints this hint).
+      const cardEl = document.querySelector(`#hud-bottom-dock .build-card[data-key="${hint.card}"]`);
+      const visible = cardEl && cardEl.getClientRects().length > 0;
+      mark(visible ? cardEl : document.getElementById('btn-toggle-dock'));
+    }
     if (hint.upgrade) {
       // The single next tier is a `.spec-card`; the level-2 fork is a row of
       // `.btn-upgrade-choice` cards. Both are "the upgrade", so both light up.
@@ -981,6 +1000,171 @@ export class HUD {
       }
     }
     if (hint.wave) mark(document.getElementById('btn-start-wave'));
+    this.syncTutorialSpotlight();
+  }
+
+  /* ------------------------------------------------------- the spotlight */
+
+  /**
+   * Mount the fade + hand once, on `document.body`.
+   *
+   * Not inside `#hud-container`: the opening dims that container's children
+   * while a line is on screen, and the veil has to survive both that and any
+   * HUD re-render. Body-level with a fixed position and `pointer-events: none`
+   * keeps every control underneath clickable, which is the whole point — the
+   * step is a gate the player presses through.
+   */
+  ensureTutorialSpotlight() {
+    if (this.spotlight?.isConnected) return this.spotlight;
+    if (typeof document === 'undefined' || !document.body) return null;
+    const root = document.createElement('div');
+    root.id = 'tutorial-spotlight';
+    root.setAttribute('aria-hidden', 'true');
+    root.innerHTML = '<div class="tut-hole"></div><div class="tut-hand"></div>';
+    // `#app` is its own stacking context (position: relative; z-index: 1), so a
+    // body-level veil would paint over the opening's own speech and objective
+    // cards — the sentence explaining the step would go dark with everything
+    // else. Inside `#app` at 150 it dims the board and the HUD (100) and stays
+    // under the tutorial card (200), the screens (250) and the modals (300).
+    const host = document.getElementById('app') || document.body;
+    host.appendChild(root);
+    this.spotlight = root;
+    this.holeEl = root.querySelector('.tut-hole');
+    this.handEl = root.querySelector('.tut-hand');
+    return root;
+  }
+
+  /**
+   * Put the hole and the hand on the control the opening is waiting for.
+   *
+   * Cheap and idempotent: it reads one rect, compares it with the last one it
+   * painted (sub-pixel jitter is ignored) and only then writes styles, so the
+   * 220 ms re-sync while a hint is up costs two reads and no writes.
+   */
+  syncTutorialSpotlight() {
+    const hint = this.tutorialHint;
+    if (!hint) {
+      this.spotlight?.classList.remove('is-on');
+      clearInterval(this.spotlightTimer);
+      this.spotlightTimer = null;
+      this.spotlightRect = null;
+      return;
+    }
+    const root = this.ensureTutorialSpotlight();
+    if (!root) return;
+    // Follow the control for as long as the step is up — even before there is
+    // one to follow. The upgrade step is pointed at while the inspector is
+    // still closed (the player has not tapped the tower yet), so the button it
+    // wants does not exist until they do; without this the hand would never
+    // arrive. The timer stops with the hint.
+    if (!this.spotlightTimer) {
+      this.spotlightTimer = setInterval(() => this.syncTutorialSpotlight(), 220);
+    }
+    const target = document.querySelector('.is-tutorial-target');
+    const rect = target?.getBoundingClientRect?.();
+    if (!rect || rect.width < 2 || rect.height < 2) {
+      // Nothing to point at yet: the fade stays off rather than dimming a screen
+      // with no hole in it.
+      root.classList.remove('is-on');
+      return;
+    }
+    const pad = 8;
+    const box = {
+      left: Math.max(2, rect.left - pad),
+      top: Math.max(2, rect.top - pad),
+      width: Math.min(window.innerWidth - 4, rect.width + pad * 2),
+      height: Math.min(window.innerHeight - 4, rect.height + pad * 2),
+    };
+    const prev = this.spotlightRect;
+    const same =
+      prev &&
+      Math.abs(prev.left - box.left) < 0.5 &&
+      Math.abs(prev.top - box.top) < 0.5 &&
+      Math.abs(prev.width - box.width) < 0.5 &&
+      Math.abs(prev.height - box.height) < 0.5;
+    if (!same && this.holeEl) {
+      this.spotlightRect = box;
+      Object.assign(this.holeEl.style, {
+        left: `${box.left}px`,
+        top: `${box.top}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+      });
+      this.#placeHand(box);
+    }
+    root.classList.add('is-on');
+  }
+
+  /**
+   * Where the hand goes.
+   *
+   * Below the control by default — the wrist runs off the bottom of the frame
+   * and the fingertip lands on the hole's lower edge. When there is no room
+   * (a dock card sits 20 px off the bottom) the hand flips to the top and
+   * points down instead. The tip is what is aligned, not the box, because the
+   * sprite's fingertip is at the top centre of every frame.
+   */
+  #placeHand(box) {
+    const hand = this.handEl;
+    if (!hand) return;
+    const size = hand.offsetWidth || 50;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // The sprite's fingertip sits ~14 % inside its own cell (the transparent
+    // margin above the nail). Every offset below is measured against the tip,
+    // because the tip is the thing that points — not the box.
+    const TIP = Math.round(size * 0.14);
+    const gap = 3;
+
+    const belowY = box.top + box.height + gap;
+    const card = document.querySelector('#tutorial-root .tut-objective:not(.hidden)');
+    const cardBox = card?.getBoundingClientRect?.() || null;
+
+    // Below the control is the pose everybody knows: the wrist comes up from
+    // off-screen and the finger lands on the button. Two things can take that
+    // space away — the bottom of the window (a dock card) and the opening's own
+    // objective card (which sits under the top bar, exactly where the wave
+    // button's hand would go). In both cases the hand steps aside instead of
+    // pointing at the wrong thing.
+    const fitsBelow = belowY + (size - TIP) <= vh - 4;
+    const blockedBelow = Boolean(
+      cardBox &&
+        box.left + box.width > cardBox.left &&
+        box.left < cardBox.right &&
+        belowY < cardBox.bottom &&
+        belowY + size > cardBox.top
+    );
+
+    if (fitsBelow && !blockedBelow) {
+      hand.classList.remove('is-flipped', 'is-side');
+      hand.style.left = `${Math.round(this.#clampX(box.left + box.width * 0.64 - size / 2, size))}px`;
+      hand.style.top = `${Math.round(belowY - TIP)}px`;
+      return;
+    }
+
+    if (belowY + (size - TIP) > vh - 4) {
+      // A dock card sits 20 px off the bottom: hang above it, pointing down.
+      hand.classList.remove('is-side');
+      hand.classList.add('is-flipped');
+      hand.style.left = `${Math.round(this.#clampX(box.left + box.width * 0.64 - size / 2, size))}px`;
+      hand.style.top = `${Math.round(box.top - gap - size + TIP)}px`;
+      return;
+    }
+
+    // Beside the control, turned to point at it sideways. Rotating by 90° is
+    // the one angle that keeps the pixels on their own grid, so the hand does
+    // not blur when it is pointing across instead of up.
+    hand.classList.remove('is-flipped');
+    hand.classList.add('is-side');
+    const toRight = box.left + box.width + gap + size <= vw - 4;
+    hand.style.left = `${Math.round(toRight ? box.left + box.width + gap : box.left - gap - size)}px`;
+    hand.style.top = `${Math.round(Math.max(4, box.top + box.height / 2 - size / 2))}px`;
+    hand.classList.toggle('is-side-right', toRight);
+  }
+
+  /** Keep the hand fully on screen. */
+  #clampX(x, size) {
+    return Math.min(window.innerWidth - size - 6, Math.max(6, x));
   }
 
   renderBuildCards() {
@@ -1210,6 +1394,10 @@ export class HUD {
       persist: false,
       clearSelection: false,
     });
+    // A new battle must not inherit the last one's spotlight: clear the hint and
+    // take the veil down (the interval is stopped with it).
+    this.tutorialHint = null;
+    this.applyTutorialHint();
     this.inspectedTower = null;
     this.selectedBuildKey = null;
     this.inspectorPinned = false;
@@ -1448,6 +1636,10 @@ export class HUD {
     if (persist) this.writeDockCollapsed(next);
     this.syncDockScrim();
     this.layout?.schedule?.();
+    // The opening's "pick a card" step points at the BUILD button while the
+    // forge is folded and at the card once it is open, so a fold has to move
+    // the mark — and only while the step is up.
+    if (this.tutorialHint) this.applyTutorialHint();
     return next;
   }
 

@@ -57,6 +57,31 @@ describe('UI kit — assets resolve', () => {
   });
 });
 
+describe('UI kit — the tutorial hand', () => {
+  // One strip, six cells, read by `background-position` with `steps(6)`. If a
+  // rebuild changes the cell count or the canvas, the CSS would show one frame
+  // sliced across the whole strip — a smear, not a hand. The stylesheet's
+  // `background-size` has to keep matching the sheet's own width/height.
+  it('is one row of six 96 px frames', () => {
+    const { width, height } = pngSize(join('public', 'assets', 'ui-kit', 'hand_point.png'));
+    expect(height).toBe(96);
+    expect(width % 96).toBe(0);
+    expect(width / 96).toBe(6);
+  });
+
+  it('is scaled by a whole number of frames in the stylesheet', () => {
+    const rule = css.slice(css.indexOf('.tut-hand {'));
+    const size = /background-size:\s*(\d+)px\s+(\d+)px/.exec(rule);
+    expect(size).toBeTruthy();
+    const [, w, h] = size;
+    expect(Number(h)).toBe(50); // the element's own box
+    expect(Number(w)).toBe(Number(h) * 6); // …× the frame count
+    const end = /to\s*\{\s*background-position:\s*-?(\d+)px/.exec(rule);
+    expect(end).toBeTruthy();
+    expect(Number(end[1])).toBe(Number(w)); // the strip scrolls exactly one sheet
+  });
+});
+
 describe('UI kit — 9-slice geometry', () => {
   // The slice values in style.css are measured against these exact canvases:
   // a sprite regenerated at another size would stretch every corner.

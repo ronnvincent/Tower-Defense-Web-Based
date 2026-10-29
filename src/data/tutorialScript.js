@@ -260,8 +260,8 @@ export const TUTORIAL_BEATS = Object.freeze([
     kind: 'step',
     event: 'place',
     title: 'RAISE A DEFENCE',
-    text: 'Tap the glowing card in the forge, then tap the marked meadow.',
-    textMobile: 'Tap the glowing card in the build bar, then tap the marked tile.',
+    text: 'Tap the card the hand is pointing at, then tap the marked meadow.',
+    textMobile: 'Tap the card the hand is pointing at, then tap the marked tile.',
     // Two rows up and three columns left of the keep: inside the meadow the
     // villagers have just cleared, within reach of the market lane as it drops
     // past the well, and clear of the core's health bar.
@@ -279,8 +279,8 @@ export const TUTORIAL_BEATS = Object.freeze([
     kind: 'step',
     event: 'upgrade',
     title: 'RAISE IT A TIER',
-    text: 'Tap the tower you raised, then take it to the next tier — its panel glows.',
-    textMobile: 'Tap your tower, then tap the glowing UPGRADE.',
+    text: 'Tap the tower you raised, then take it to the next tier. The hand shows the UPGRADE.',
+    textMobile: 'Tap your tower, then tap the UPGRADE the hand points at.',
     focus: null,
   },
   {

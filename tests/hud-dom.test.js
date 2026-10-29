@@ -467,4 +467,51 @@ describe('HUD tutorial targets', () => {
     expect(document.getElementById('btn-sell-tower').classList.contains('is-tutorial-target')).toBe(false);
     hud.destroy?.();
   });
+
+  // The glow was the old answer and the request retired it: in an interface
+  // where every control is gold, "the shiny one" is not a direction. The marker
+  // class stays, but what the player actually sees is the veil with a hole in
+  // it and a hand on the control.
+  it('mounts the veil inside #app, and only turns it on over a real target', () => {
+    const app = document.createElement('div');
+    app.id = 'app';
+    document.body.appendChild(app);
+    const hud = mountHud({});
+    hud.update(STATE);
+
+    hud.setTutorialHint({ wave: true });
+    const veil = document.getElementById('tutorial-spotlight');
+    expect(veil).toBeTruthy();
+    // Body-level would paint over the opening's own cards (they live in #app,
+    // which is a stacking context of its own).
+    expect(veil.parentElement.id).toBe('app');
+    expect(veil.querySelector('.tut-hole')).toBeTruthy();
+    expect(veil.querySelector('.tut-hand')).toBeTruthy();
+
+    hud.setTutorialHint(null);
+    expect(veil.classList.contains('is-on')).toBe(false);
+    hud.destroy?.();
+  });
+
+  it('keeps following the step while the inspector is still closed', () => {
+    const hud = mountHud({ onUpgradeTower: vi.fn() });
+    hud.update(STATE);
+    // The upgrade step is set before the player taps the tower, so there is no
+    // UPGRADE button yet — the veil must stay down, not go up with no hole.
+    hud.setTutorialHint({ upgrade: true });
+    const veil = document.getElementById('tutorial-spotlight');
+    expect(veil.classList.contains('is-on')).toBe(false);
+
+    hud.inspectTower(makeTower());
+    // jsdom has no layout (every rect is 0×0), and the sampler refuses to
+    // spotlight a 0 px target — that guard is the point of the test above.
+    // Give the button the rect it has in a browser and the veil must come up.
+    const upgrade = document.getElementById('btn-upgrade-tower');
+    const rect = { left: 500, top: 400, width: 200, height: 60, right: 700, bottom: 460 };
+    upgrade.getBoundingClientRect = () => ({ ...rect, x: rect.left, y: rect.top, toJSON: () => rect });
+    hud.syncTutorialSpotlight();
+    expect(veil.classList.contains('is-on')).toBe(true);
+    expect(veil.querySelector('.tut-hole').style.width).toBe('216px');
+    hud.destroy?.();
+  });
 });
