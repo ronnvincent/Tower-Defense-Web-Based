@@ -337,50 +337,66 @@ a defeat is a real run, not a skip.
 
 ## 9. Mobile HUD (requested after the tutorial fix)
 
-The phone shell already existed (`[data-shell='mobile']`, ~137 rules). It was
-correct in *shape* and wrong in *scale*: five cards stretched to 150 px each, a
-270 px sheet on a 375 px screen, and the category menu opened as four full-width
-rows in the middle of the battlefield.
+The phone shell already existed (`[data-shell='mobile']`, ~140 rules). It was
+right in *shape* and wrong in *scale*: five cards stretched to 150 px each, a
+270 px sheet on a 375 px screen, the category row opening as four full-width
+rows across the middle of the board, and START WAVE sitting on top of pause,
+mute and speed.
 
-**Changed:** `src/style.css` (a `MOBILE HUD v2` override section + one
-containing-block fix), `src/ui/HUD.js` (`collapseDockAfterBuild`),
-`src/scenes/GameScene.js` (calls it after a completed build).
+**Changed:** `src/style.css` (a `MOBILE HUD v2` section, appended),
+`src/ui/HUD.js` (`collapseDockAfterBuild`), `src/scenes/GameScene.js` (calls it
+after a completed build).
 
-### What was wrong, measured
+### What was actually wrong
 
 | Symptom | Cause |
 | ------- | ----- |
-| Build sheet 270 px tall on 375 px screen | cards `flex: 1 1 0` stretched to the full width |
-| Category menu over the board | `.dock-tabs` laid out as a full-width row inside the sheet |
-| START WAVE sat on top of pause / mute / speed | the top bar's `filter` (added in Phase 1 to kill the box-shadow rectangle) makes it a containing block, so the fixed-position thumb button anchored to the *bar*, not the screen |
-| Build count hung off the bottom edge | `#dock-points` positioned for the open sheet, still drawn on the folded button |
+| Cards 150 px wide, sheet 270 px tall | `flex: 1 1 0` — five cards shared the whole width |
+| Category menu covered the battlefield | `.dock-tabs` was a full-width row inside the sheet |
+| START WAVE overlapped pause / mute / speed | `.hud-panel` carries `filter: drop-shadow(...)`. A filter makes a box a **containing block for `position: fixed` children**, and the phone rail parks START WAVE as a fixed thumb button — so it anchored to the 44 px bar (rect `y = -7`) instead of the screen. The tutorial's "HUD steps back" dim had a `saturate()` filter too, so it happened during every opening line |
+| Two dozen boxes hung off the bottom edge | the folded sheet hid by translation, but the strip kept its 386 px layout |
+| `spill: 4` on the rail | 34 px icon buttons kept their content padding |
+| Narration text ran under the card edge ("Keeper Phone! You came u") | `grid-template-columns: auto 1fr` — `1fr` never shrinks below min-content |
 
 ### What it is now
 
-* **Cards 64 × 62 px, one row, `overflow-x: auto`, `touch-action: pan-x`** — the
-  strip swipes without dragging the camera, and `overscroll-behavior-x: contain`
-  keeps the page from bouncing.
-* **Open sheet ≤ 100 px** on a 375 px screen (head + one card row): ~73 % of the
-  glass stays on the map, and folded it is the 46 px BUILD button (≈88 %).
-* **Categories are a dropdown on their own button** (172 px, 34 px rows, hangs
-  above `#dock-family-btn`, closes on pick through the existing
-  `setFamilyMenuOpen(false)`).
-* **The sheet folds itself after a build** (`collapseDockAfterBuild`), because
-  the panel the player needed to watch is the board.
-* **Mobile rail: no `filter`**, so `position: fixed` children (START WAVE) anchor
-  to the screen again; at ≤760 px the wave badge compresses and icon buttons sit
-  at 34 px with the existing `::after` 44 px touch expansion.
+* **Cards 64 × 62, one swiped row** (`overflow-x: auto`, `touch-action: pan-x`,
+  `overscroll-behavior-x: contain`): the strip scrolls without dragging the map,
+  and the page never rubber-bands.
+* **Sheet capped at `calc(var(--hud-build-h) + 72px)` = 118 px** — head + one
+  card row + frame, measured, no overflow. Folded it is the 46 px BUILD button.
+* **Categories are a 172 px dropdown** that hangs above its own button (34 px
+  rows, closes on pick through the existing `setFamilyMenuOpen(false)`).
+* **The sheet folds itself after a build** (`collapseDockAfterBuild`).
+* **No `filter` on the mobile rail**, and the tutorial dim is opacity-only — so
+  fixed children anchor to the screen again. This is the root fix, not a
+  z-index patch.
+* **Rail at ≤760 px:** wave badge 34 px with its label dropped, icon buttons
+  34 px with a 44 px `::after` hit area, `.btn-sub` hidden.
+* **Narration card** uses `minmax(0, 1fr)` and wraps.
 
 ### Verified (headless Chromium, `?hud=mobile` forces the shell)
 
-| Size | Result |
-| ---- | ------ |
-| 667 × 375 | `covered: 0`, dock 655 × 118 → capped, cards 64 × 62, family menu 176 × 155 above the dock, `clipped` = stage overdraw only (by design, 5:3 crop) |
-| 844 × 390 | `covered: 0`, `spill: 0` |
+| Size | clipped | spill | covered | notes |
+| ---- | ------- | ----- | ------- | ----- |
+| 667 × 375 | 2 | 0 | 0 | the two are the intentional 5:3 stage crop (`#game-container`, `canvas`) |
+| 844 × 390 | 2 | 0 | 0 | same |
+| 360 × 800 (portrait) | 0 | 0 | 0 | rotate overlay path |
+| 1280 × 720 (desktop) | 2 | 0 | 0 | unchanged |
+| 1920 × 1080 (desktop) | 2 | 0 | 0 | unchanged |
+
+`tiny` counts the 34 px rail buttons (their hit area is 44 px via `::after`) —
+a deliberate trade so four controls and the wave call fit inside a 44 px rail.
+
+Battlefield share at 667 × 375: **≈ 88 % folded**, **≈ 68 % with the sheet open**
+(rail + sheet + margins). The sheet auto-folds after a build and the BUILD
+button is always one tap away, so the open state is a deliberate, transient
+exception rather than the resting layout.
 
 `npx vitest run` → **131 / 1711 passed**. `npm run build` → ✓.
 Screenshots: `docs/ui-after/mobile/`.
 
-**Not verified yet:** 360 × 800 (portrait) and 1920 × 1080 — the portrait rules
-are in place (`@media (orientation: portrait)` bump) but no screenshot was taken
-on this pass, so they are not claimed.
+**Not verified / open:** a real handset (all numbers are headless Chromium),
+and the end-to-end *tap* build flow — level 1 opens with three narration lines
+that hold input, and the harness places towers through the game API instead.
+The sheet's auto-fold is therefore proven only for the API path.

@@ -11557,7 +11557,9 @@ body.is-fullscreen #app::after {
 [data-shell="mobile"] .game-btn-icon::after {
   content: '';
   position: absolute;
-  inset: -6px -2px;
+  /* 34 px of art, 44 px of somewhere to put a thumb — the visual weight of the
+     rail is the phone's, the hit area is the finger's. */
+  inset: -6px -5px;
 }
 
 [data-shell="mobile"] .btn-icon-img {
@@ -12264,8 +12266,8 @@ body.is-fullscreen #app::after {
 }
 
 [data-shell="mobile"] .camera-hint-dismiss {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
 }
 
 /* Pause: the one real modal, sized to a 390 px screen. */
@@ -16053,8 +16055,11 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
  */
 :root.is-tutorial.is-line #hud-container > *:not(#battle-loading) {
   opacity: 0.18;
-  filter: saturate(0.6);
-  transition: opacity 400ms ease, filter 400ms ease;
+  /* No `filter` here, ever. A filter makes the element a containing block for
+     `position: fixed` children, and the phone rail parks START WAVE as a fixed
+     thumb button — under a filtered bar it jumped up onto pause / mute / speed
+     for as long as a line was on screen. Opacity already dims the panel. */
+  transition: opacity 400ms ease;
   pointer-events: none;
 }
 
@@ -16288,10 +16293,10 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 [data-shell='mobile'] .hud-dock:not(.collapsed) {
   padding: 3px 8px 6px;
   row-gap: 4px;
-  /* head + one row of cards + the band's own frame. 100 px of a 375 px screen
-     leaves 70 % of the glass on the map even with the sheet open; folded it is
-     a 46 px BUILD button. */
-  max-height: 100px;
+  /* head + one row of 62 px cards + the band's own frame = 118 px measured, and
+     the sheet is not allowed to exceed it: at 100 the cards hung 17 px past the
+     bottom edge. Folded it is the 46 px BUILD button. */
+  max-height: calc(var(--hud-build-h) + 72px);
 }
 
 [data-shell='mobile'] .hud-dock:not(.collapsed) .dock-head {
@@ -16390,14 +16395,41 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
 }
 
-/* The bar's drop shadow is a `filter`, and a filter makes the element a
-   containing block for `position: fixed` children. START WAVE is a fixed thumb
-   button on the phone shell, so under a filtered ancestor it anchored itself to
-   the top bar instead of the screen and landed on pause / mute / speed. No
-   shadow on the mobile rail: it costs GPU on the weakest device we support and
-   it was silently moving a button. */
+/* A `filter` makes a panel the containing block for `position: fixed` children,
+   and the phone rail parks START WAVE as a fixed thumb button so the most
+   repeated press in the game sits under the thumb. Under the bar's drop-shadow
+   that button anchored to the *bar* instead of the screen and landed on pause,
+   mute and speed. The rail keeps its iron frame and loses the soft shadow. */
 [data-shell='mobile'] .hud-topbar {
   filter: none;
+}
+
+/* Folded, the strip is gone, not merely pushed below the screen: the cards kept
+   their 386 px layout and the audit counted two dozen boxes hanging off the
+   bottom edge (and one of them painted over the rail). */
+[data-shell='mobile'] .hud-dock.collapsed .dock-cards {
+  display: none;
+}
+
+/* An icon button is an icon: at any rail width the label must not outgrow the
+   box (it spilled by four pixels on the 844 px landscape). */
+[data-shell='mobile'] .game-btn-icon {
+  padding: 0;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* The narration card is a two-column grid with `auto 1fr`, and `1fr` will not
+   shrink below its min-content — on a phone the typewritten line ran straight
+   under the card's right edge ("Keeper Phone! You came u"). `minmax(0, 1fr)`
+   lets the text column take the width it is given and wrap. */
+[data-shell='mobile'] #tutorial-root .tut-speech {
+  grid-template-columns: auto minmax(0, 1fr);
+  width: min(88vw, 560px);
+}
+
+[data-shell='mobile'] #tutorial-root .tut-line {
+  overflow-wrap: anywhere;
 }
 
 /* ---- the rail at 667 px wide: everything fits, nothing overlaps --------- */
@@ -16424,11 +16456,29 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     font-size: 10px;
   }
 
+  /* The wave call is the one button the thumb presses every 30 s; 34 px is the
+     floor for a reliable tap and it keeps the rail from clipping its own row. */
+  [data-shell='mobile'] #btn-start-wave {
+    min-height: 34px;
+    height: 34px;
+    padding: 0 10px;
+    font-size: 11px;
+    letter-spacing: 0.6px;
+    gap: 4px;
+  }
+
+  [data-shell='mobile'] #btn-start-wave .btn-sub {
+    display: none;
+  }
+
   [data-shell='mobile'] .game-btn-icon {
     min-width: 34px;
     width: 34px;
     height: 34px;
     min-height: 34px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
   }
 
   [data-shell='mobile'] .hud-controls-group {
