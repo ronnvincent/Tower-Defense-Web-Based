@@ -143,6 +143,7 @@ function enemy(overrides = {}) {
     applyDamage: vi.fn(),
     applySlow: vi.fn(),
     applyDot: vi.fn(),
+    applyStun: vi.fn(),
     ...overrides,
   };
 }
@@ -302,6 +303,57 @@ describe('BastionGuardian', () => {
     const hits = [lonely, knotA, knotB, knotC].filter((e) => e.applyDamage.mock.calls.length > 0);
     expect(hits.length).toBeGreaterThanOrEqual(3);
     expect(knotA.applyDot).toHaveBeenCalled();
+  });
+
+  it('storms the pack: the bolt forks, and every fork hits softer', () => {
+    const primary = enemy({ x: 405, y: 600 });
+    const first = enemy({ x: 440, y: 610 });
+    const second = enemy({ x: 470, y: 620 });
+    const { guardian, scene } = makeGuardian({ enemies: [primary, first, second] });
+    guardian.upgrade();
+    scene.flush();
+    expect(guardian.upgrade('bastion-storm')).toBe(true);
+    guardian.fire(primary);
+    const hit = (target) => target.applyDamage.mock.calls[0]?.[0] ?? 0;
+    expect(hit(primary)).toBeGreaterThan(0);
+    expect(hit(first)).toBeGreaterThan(0);
+    expect(hit(first)).toBeLessThan(hit(primary));
+    expect(hit(second)).toBeLessThan(hit(first));
+  });
+
+  it('suns the road: the shell splashes, and the ground keeps burning', () => {
+    const inside = enemy({ x: 410, y: 600 });
+    const outside = enemy({ x: 720, y: 600 });
+    const { guardian, scene } = makeGuardian({ enemies: [inside, outside] });
+    guardian.upgrade();
+    scene.flush();
+    expect(guardian.upgrade('bastion-sunforge')).toBe(true);
+    guardian.fire(inside);
+    scene.flush();
+    expect(inside.applyDamage).toHaveBeenCalled();
+    expect(outside.applyDamage).not.toHaveBeenCalled();
+    //  The shell leaves fire behind: a pool that ticks the lane, then dies.
+    expect(guardian.pools.length).toBe(1);
+    const before = inside.applyDamage.mock.calls.length;
+    guardian.update(400);
+    expect(inside.applyDamage.mock.calls.length).toBeGreaterThan(before);
+    guardian.updatePools(3000);
+    expect(guardian.pools.length).toBe(0);
+  });
+
+  it('stuns the gate yard when the Maelstrom lands', () => {
+    const close = enemy({ x: 405, y: 590, assaulting: true });
+    const { guardian, scene } = makeGuardian({ enemies: [close] });
+    for (let i = 0; i < 2; i += 1) {
+      guardian.upgrade();
+      scene.flush();
+    }
+    guardian.upgrade('bastion-storm');
+    scene.flush();
+    guardian.sigTimer = 0;
+    guardian.update(16);
+    expect(close.applyStun).toHaveBeenCalled();
+    expect(guardian.stats.nova.bolts).toBeGreaterThanOrEqual(8);
   });
 
   it('holds the signature while a wave is still out of reach', () => {

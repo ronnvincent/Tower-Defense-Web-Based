@@ -54,35 +54,35 @@ export const BASTION_ART = Object.freeze({
   1: Object.freeze({
     key: 'bastion-l1',
     path: 'assets/arena/bastion-l1.png',
-    sheet: [442, 366],
+    sheet: [352, 339],
     foot: 22,
     socket: { x: 0.0, y: 10 },
   }),
   2: Object.freeze({
     key: 'bastion-l2',
     path: 'assets/arena/bastion-l2.png',
-    sheet: [498, 412],
+    sheet: [388, 374],
     foot: 22,
     socket: { x: 0.0, y: 10 },
   }),
   3: Object.freeze({
     key: 'bastion-l3-storm',
     path: 'assets/arena/bastion-l3-storm.png',
-    sheet: [542, 426],
+    sheet: [424, 409],
     foot: 22,
     socket: { x: 0.0, y: 10 },
   }),
   4: Object.freeze({
     key: 'bastion-l4-storm',
     path: 'assets/arena/bastion-l4-storm.png',
-    sheet: [577, 450],
+    sheet: [459, 436],
     foot: 22,
     socket: { x: 0.0, y: 10 },
   }),
   5: Object.freeze({
     key: 'bastion-l5-storm',
     path: 'assets/arena/bastion-l5-storm.png',
-    sheet: [606, 477],
+    sheet: [518, 464],
     foot: 22,
     socket: { x: 0.0, y: 10 },
   }),
@@ -101,21 +101,21 @@ export const BASTION_BRANCH_ART = Object.freeze({
     3: Object.freeze({
     key: 'bastion-l3-sun',
     path: 'assets/arena/bastion-l3-sun.png',
-    sheet: [542, 424],
+    sheet: [518, 405],
     foot: 22,
     socket: { x: 0.0, y: 10 },
     }),
     4: Object.freeze({
     key: 'bastion-l4-sun',
     path: 'assets/arena/bastion-l4-sun.png',
-    sheet: [577, 450],
+    sheet: [567, 443],
     foot: 22,
     socket: { x: 0.0, y: 10 },
     }),
     5: Object.freeze({
     key: 'bastion-l5-sun',
     path: 'assets/arena/bastion-l5-sun.png',
-    sheet: [606, 473],
+    sheet: [616, 480],
     foot: 22,
     socket: { x: 0.0, y: 10 },
     }),
@@ -165,6 +165,11 @@ export const BASTION_WEAPONS = Object.freeze({
     colour: 0xffcf72,
   },
 });
+
+/** Effect art the bastion's own abilities draw with. */
+export const BASTION_FX_ART = Object.freeze([
+  Object.freeze({ key: 'bastion-meteor', path: 'assets/arena/bastion-meteor.png' }),
+]);
 
 /** Every weapon texture the battlefield has to have. */
 export const BASTION_WEAPON_ART = Object.freeze(
@@ -234,12 +239,12 @@ export const BASTION_BRANCHES = Object.freeze({
     title: 'Storm Bastion',
     cardTitle: 'STORM',
     weapon: 'wardCrystal',
-    description: 'Chain lightning and a Thunderclap that slows the whole gate yard.',
+    description: 'Bolts fall out of the sky, fork through the pack, and stun the yard.',
     levels: {
       3: {
         title: 'Storm Bastion',
         cost: 260,
-        description: 'Chain up to four creeps; Thunderclap slows the gate yard every 6s.',
+        description: 'Every bolt forks through four creeps and stuns them briefly.',
         ability: { label: 'Thunderclap', nova: true },
         stats: {
           damage: 52,
@@ -253,13 +258,14 @@ export const BASTION_BRANCHES = Object.freeze({
           chainTargets: 4,
           chainRange: 104,
           chainFalloff: 0.86,
-          nova: { damage: 68, radius: 156, slow: 0.30, slowMs: 950, cooldownMs: 6000 },
+          strike: 'sky',
+          nova: { damage: 68, radius: 156, slow: 0.30, slowMs: 950, stunMs: 700, bolts: 8, cooldownMs: 6000 },
         },
       },
       4: {
         title: 'Tempest Bastion',
         cost: 420,
-        description: 'The chain reaches five, and the Thunderclap bites harder.',
+        description: 'Forks reach five deep, and the Thunderclap holds longer.',
         ability: { label: 'Thunderclap', nova: true },
         stats: {
           damage: 70,
@@ -273,13 +279,14 @@ export const BASTION_BRANCHES = Object.freeze({
           chainTargets: 5,
           chainRange: 114,
           chainFalloff: 0.88,
-          nova: { damage: 95, radius: 176, slow: 0.40, slowMs: 1200, cooldownMs: 5500 },
+          strike: 'sky',
+          nova: { damage: 95, radius: 176, slow: 0.40, slowMs: 1200, stunMs: 900, bolts: 10, cooldownMs: 5500 },
         },
       },
       5: {
         title: 'Maelstrom Bastion',
         cost: 700,
-        description: 'Six-target chain, and a Maelstrom that catches the whole yard in a gale.',
+        description: 'A six-deep fork and a Maelstrom that locks the whole yard.',
         ability: { label: 'Maelstrom', nova: true },
         stats: {
           damage: 92,
@@ -293,7 +300,8 @@ export const BASTION_BRANCHES = Object.freeze({
           chainTargets: 6,
           chainRange: 126,
           chainFalloff: 0.90,
-          nova: { damage: 140, radius: 210, slow: 0.50, slowMs: 1700, cooldownMs: 5000 },
+          strike: 'sky',
+          nova: { damage: 140, radius: 210, slow: 0.50, slowMs: 1700, stunMs: 1100, bolts: 12, cooldownMs: 5000 },
         },
       },
     },
@@ -310,7 +318,7 @@ export const BASTION_BRANCHES = Object.freeze({
       3: {
         title: 'Sunforge Bastion',
         cost: 260,
-        description: 'Shells splash and set the lane alight; Solar Flare hits the biggest cluster.',
+        description: 'Shells fall from the sky, splash, and leave the lane burning.',
         ability: { label: 'Solar Flare', flare: true },
         stats: {
           damage: 90,
@@ -323,13 +331,15 @@ export const BASTION_BRANCHES = Object.freeze({
           targetsAir: true,
           splash: 72,
           dot: { kind: 'burn', damage: 10, tickMs: 500, durationMs: 2600 },
-          flare: { damage: 90, splash: 108, cooldownMs: 7000 },
+          strike: 'meteor',
+          pool: { ms: 2400, tickMs: 400, radiusScale: 0.8, damageScale: 0.6 },
+          flare: { damage: 90, splash: 108, meteors: 5, cooldownMs: 7000 },
         },
       },
       4: {
         title: 'Pyre Bastion',
         cost: 420,
-        description: 'A wider shell, a hotter burn, and a Solar Flare that leaves fire on the road.',
+        description: 'Wider shells, a hotter burn, and a Flare that sets the road on fire.',
         ability: { label: 'Solar Flare', flare: true },
         stats: {
           damage: 126,
@@ -342,13 +352,15 @@ export const BASTION_BRANCHES = Object.freeze({
           targetsAir: true,
           splash: 84,
           dot: { kind: 'burn', damage: 13, tickMs: 500, durationMs: 3000 },
-          flare: { damage: 130, splash: 124, cooldownMs: 6800 },
+          strike: 'meteor',
+          pool: { ms: 2600, tickMs: 380, radiusScale: 0.82, damageScale: 0.6 },
+          flare: { damage: 130, splash: 124, meteors: 6, cooldownMs: 6800 },
         },
       },
       5: {
         title: 'Dawnforge Bastion',
         cost: 700,
-        description: 'Dawnbreaker shells, a five-second burn, and a Flare that clears a whole lane.',
+        description: 'Dawnbreaker shells rain from the sky and leave the road alight.',
         ability: { label: 'Dawnbreaker', flare: true },
         stats: {
           damage: 172,
@@ -361,7 +373,9 @@ export const BASTION_BRANCHES = Object.freeze({
           targetsAir: true,
           splash: 98,
           dot: { kind: 'burn', damage: 17, tickMs: 500, durationMs: 3400 },
-          flare: { damage: 200, splash: 148, cooldownMs: 6000 },
+          strike: 'meteor',
+          pool: { ms: 2800, tickMs: 360, radiusScale: 0.84, damageScale: 0.6 },
+          flare: { damage: 200, splash: 148, meteors: 7, cooldownMs: 6000 },
         },
       },
     },

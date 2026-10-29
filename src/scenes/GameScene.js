@@ -1,7 +1,7 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { ARENA_ART, PORTAL_ANIM, KEEP_PAD_RATIO } from '../data/arenaArt.js';
-import { BASTION_FORM_ART, BASTION_WEAPON_ART, BASTION_ART } from '../config/baseUpgrades.js';
+import { BASTION_FORM_ART, BASTION_WEAPON_ART, BASTION_ART, BASTION_FX_ART } from '../config/baseUpgrades.js';
 import { BastionGuardian } from '../entities/BastionGuardian.js';
 import { createArenaAnims, missingArenaArt, queueArenaArt } from '../systems/ArenaArt.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
@@ -314,7 +314,7 @@ export class GameScene extends Phaser.Scene {
     // The five forms of the bastion (Request 67) and its two gun heads. Small
     // files, but the keep is the one landmark a battle cannot start without —
     // and a levelled castle shown on the wrong tier's art would be a lie.
-    const bastionArt = [...BASTION_FORM_ART, ...BASTION_WEAPON_ART];
+    const bastionArt = [...BASTION_FORM_ART, ...BASTION_WEAPON_ART, ...BASTION_FX_ART];
     const needsBastion = bastionArt.some((art) => !this.textures.exists(art.key));
     if (!needsEnemies && !needsFx && !needsUnits && !needsVillage && !needsArena && !needsBastion)
       return;

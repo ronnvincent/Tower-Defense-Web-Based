@@ -3,8 +3,8 @@
     "key": "bastion-l1",
     "path": "assets/arena/bastion-l1.png",
     "sheet": [
-      442,
-      366
+      352,
+      339
     ],
     "foot": 22,
     "socket": {
@@ -16,8 +16,8 @@
     "key": "bastion-l2",
     "path": "assets/arena/bastion-l2.png",
     "sheet": [
-      498,
-      412
+      388,
+      374
     ],
     "foot": 22,
     "socket": {
@@ -29,8 +29,8 @@
     "key": "bastion-l3-storm",
     "path": "assets/arena/bastion-l3-storm.png",
     "sheet": [
-      542,
-      426
+      424,
+      409
     ],
     "foot": 22,
     "socket": {
@@ -42,8 +42,8 @@
     "key": "bastion-l3-sun",
     "path": "assets/arena/bastion-l3-sun.png",
     "sheet": [
-      542,
-      424
+      518,
+      405
     ],
     "foot": 22,
     "socket": {
@@ -55,8 +55,8 @@
     "key": "bastion-l4-storm",
     "path": "assets/arena/bastion-l4-storm.png",
     "sheet": [
-      577,
-      450
+      459,
+      436
     ],
     "foot": 22,
     "socket": {
@@ -68,8 +68,8 @@
     "key": "bastion-l4-sun",
     "path": "assets/arena/bastion-l4-sun.png",
     "sheet": [
-      577,
-      450
+      567,
+      443
     ],
     "foot": 22,
     "socket": {
@@ -81,8 +81,8 @@
     "key": "bastion-l5-storm",
     "path": "assets/arena/bastion-l5-storm.png",
     "sheet": [
-      606,
-      477
+      518,
+      464
     ],
     "foot": 22,
     "socket": {
@@ -94,8 +94,8 @@
     "key": "bastion-l5-sun",
     "path": "assets/arena/bastion-l5-sun.png",
     "sheet": [
-      606,
-      473
+      616,
+      480
     ],
     "foot": 22,
     "socket": {

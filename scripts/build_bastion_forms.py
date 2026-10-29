@@ -58,17 +58,17 @@ KEEP = os.path.join(ASSETS, 'bastion-fortress.png')
 # dark brick roof. The first pass used cream stone with a grey line and read as
 # a different artist's work pasted behind the keep — at 0.44 scale the line is
 # under a pixel, so only its value survives.
-INK = '#241f1c'
+INK = '#6b5b4c'
 STONE = '#c6c6c6'
 STONE_LIGHT = '#dedede'
 STONE_DARK = '#9a9a9a'
 ROOF = '#8f2a19'
 ROOF_LIGHT = '#a83820'
 ROOF_DARK = '#6d1d10'
-GOLD = '#dcae52'
-GOLD_DARK = '#a67f2c'
+GOLD = '#d9a441'
+GOLD_DARK = '#a3762a'
 WIN = '#d09060'
-IRON = '#565351'
+IRON = '#4a4139'
 
 STORM = '#3f74c8'
 STORM_DARK = '#274a86'
@@ -262,19 +262,35 @@ def iso_tower(size, height, roof_h, *, slate=None, finial=GOLD, windows=1) -> st
     return (width, height_px, body, pad - minx, pad - miny)
 
 
-def banner(width: int = 104, height: int = 244, colour: str = ROOF) -> str:
+def banner(width: int = 84, height: int = 200, colour: str = ROOF) -> str:
+    """A swallow-tail banner on a gold staff, sized to its own canvas.
+
+    The first version was drawn for a 104x244 canvas and rendered into an 84x200
+    one, so the cloth was clipped into a flat rectangle — which is exactly what
+    the player saw poking out of the walls.
+    """
     cx = width / 2
-    cloth = (f'M{cx + 2:.1f} 26 L{cx + 58:.1f} 44 L{cx + 45:.1f} 88 '
-             f'L{cx + 58:.1f} 132 L{cx + 2:.1f} 114 Z')
+    top = 24
+    fly = width - cx - 6
+    cloth = (f'M{cx + 1:.1f} {top:.1f} '
+             f'L{cx + fly:.1f} {top + 12:.1f} '
+             f'L{cx + fly - 13:.1f} {top + 40:.1f} '
+             f'L{cx + fly:.1f} {top + 68:.1f} '
+             f'L{cx + 1:.1f} {top + 80:.1f} Z')
+    fold = (f'M{cx + 4:.1f} {top + 6:.1f} '
+            f'L{cx + fly - 6:.1f} {top + 16:.1f} '
+            f'L{cx + fly - 14:.1f} {top + 34:.1f} '
+            f'L{cx + 4:.1f} {top + 24:.1f} Z')
     return '\n  '.join([
-        f'<line x1="{cx:.1f}" y1="{height - 6}" x2="{cx:.1f}" y2="14" stroke="{GOLD_DARK}" '
-        f'stroke-width="6" stroke-linecap="round"/>',
-        f'<circle cx="{cx:.1f}" cy="12" r="8" fill="{GOLD}" stroke="{INK}" stroke-width="2"/>',
-        f'<path d="{cloth}" fill="{colour}" stroke="{INK}" stroke-width="3" '
+        f'<line x1="{cx:.1f}" y1="{height - 4}" x2="{cx:.1f}" y2="{top - 10}" '
+        f'stroke="{GOLD_DARK}" stroke-width="5" stroke-linecap="round"/>',
+        f'<circle cx="{cx:.1f}" cy="{top - 13}" r="6.5" fill="{GOLD}" '
+        f'stroke="{GOLD_DARK}" stroke-width="1.6"/>',
+        f'<path d="{cloth}" fill="{colour}" stroke="{GOLD_DARK}" stroke-width="1.8" '
         f'stroke-linejoin="round"/>',
-        f'<path d="M{cx + 8:.1f} 36 L{cx + 50:.1f} 49 L{cx + 40:.1f} 66 L{cx + 8:.1f} 55 Z" '
-        f'fill="{GOLD}" opacity="0.38"/>',
-        f'<circle cx="{cx + 22:.1f}" cy="84" r="9" fill="none" stroke="{GOLD}" stroke-width="3"/>',
+        f'<path d="{fold}" fill="#ffffff" opacity="0.16"/>',
+        f'<circle cx="{cx + 15:.1f}" cy="{top + 40:.1f}" r="7" fill="none" '
+        f'stroke="{GOLD}" stroke-width="2.2" opacity="0.9"/>',
     ])
 
 
@@ -320,82 +336,6 @@ def weapon_svg(body: str, name: str) -> str:
 
 
 def emplacement() -> str:
-    """The stone deck both guns sit on — the keep's own battlements."""
-    return f'''
-  <ellipse cx="85" cy="222" rx="58" ry="11" fill="#181513" opacity="0.24"/>
-  <polygon points="45,222 125,222 136,174 34,174" fill="{STONE_DARK}" stroke="{INK}" stroke-width="2.2" stroke-linejoin="round"/>
-  <polygon points="52,214 118,214 126,182 44,182" fill="{STONE}" opacity="0.55"/>
-  <rect x="28" y="162" width="114" height="17" rx="4" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="2"/>
-  <rect x="32" y="159" width="106" height="7" rx="3.5" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.3"/>
-  <rect x="34" y="144" width="17" height="19" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.8"/>
-  <rect x="61" y="144" width="17" height="19" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.8"/>
-  <rect x="92" y="144" width="17" height="19" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.8"/>
-  <rect x="119" y="144" width="17" height="19" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.8"/>
-'''
-
-
-def ward_crystal() -> str:
-    """Storm's gun: a levitating shard inside a gilt armillary.
-
-    The two branch guns are named after what the castle *does*, so they cannot
-    share a silhouette: the storm line is a floating crystal and an open gold
-    ring, the sun line a heavy brass mortar. Both pivot at the deck.
-    """
-    body = emplacement() + f'''
-  <ellipse cx="85" cy="120" rx="50" ry="14" fill="{CRYSTAL}" opacity="0.16"/>
-  <ellipse cx="85" cy="132" rx="40" ry="12" fill="none" stroke="{GOLD}" stroke-width="5"/>
-  <ellipse cx="85" cy="132" rx="40" ry="12" fill="none" stroke="#ffe6a8" stroke-width="1.4" opacity="0.8"/>
-  <path d="M45 130 C42 100 58 76 80 70" fill="none" stroke="{GOLD}" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M125 130 C128 100 112 76 90 70" fill="none" stroke="{GOLD}" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M85 22 L118 72 L85 138 L52 72 Z" fill="{CRYSTAL}" stroke="{CRYSTAL_DARK}" stroke-width="2.8" stroke-linejoin="round"/>
-  <path d="M85 22 L118 72 L85 138 Z" fill="#c8f6ff" opacity="0.5"/>
-  <path d="M85 22 L52 72 L85 138 Z" fill="{CRYSTAL_DARK}" opacity="0.4"/>
-  <path d="M85 46 L104 72 L85 116 L66 72 Z" fill="#f2fdff" opacity="0.6"/>
-  <line x1="85" y1="22" x2="85" y2="138" stroke="{CRYSTAL_DARK}" stroke-width="1.2" opacity="0.35"/>
-  <circle cx="74" cy="56" r="4.5" fill="#ffffff" opacity="0.95"/>
-  <circle cx="118" cy="74" r="6" fill="{CRYSTAL}" stroke="{CRYSTAL_DARK}" stroke-width="1.6"/>
-  <circle cx="52" cy="74" r="6" fill="{CRYSTAL}" stroke="{CRYSTAL_DARK}" stroke-width="1.6"/>
-  <circle cx="85" cy="146" r="5" fill="#eafcff" opacity="0.85"/>
-'''
-    return weapon_svg(body, 'bastion weapon: ward crystal')
-
-
-def sun_cannon() -> str:
-    """Sunforge's gun: a brass mortar with a sun disc on the breech."""
-    rays = '\n  '.join(
-        f'<line x1="85" y1="98" x2="85" y2="106" stroke="{GOLD_DARK}" stroke-width="2.6" '
-        f'transform="rotate({a} 85 122)"/>' for a in (0, 45, 90, 135, 180, 225, 270, 315))
-    body = emplacement() + f'''
-  <ellipse cx="85" cy="132" rx="34" ry="9" fill="#ffb054" opacity="0.12"/>
-  <rect x="58" y="92" width="54" height="72" rx="8" fill="{GOLD_DARK}" stroke="{INK}" stroke-width="2.6"/>
-  <rect x="64" y="96" width="13" height="64" rx="6" fill="#f0cd7c" opacity="0.55"/>
-  <rect x="52" y="102" width="66" height="11" rx="4" fill="{IRON}" stroke="{INK}" stroke-width="1.8"/>
-  <rect x="52" y="132" width="66" height="11" rx="4" fill="{IRON}" stroke="{INK}" stroke-width="1.8"/>
-  <circle cx="85" cy="122" r="11" fill="#c2551f" stroke="{INK}" stroke-width="2.2"/>
-  <circle cx="85" cy="122" r="5" fill="{SUN}"/>
-  {rays}
-  <path d="M54 92 L116 92 L126 62 L44 62 Z" fill="{GOLD}" stroke="{INK}" stroke-width="2.6" stroke-linejoin="round"/>
-  <path d="M60 88 L110 88 L114 70 L56 70 Z" fill="#e8bd63" opacity="0.5"/>
-  <ellipse cx="85" cy="62" rx="41" ry="12" fill="#40200f" stroke="{INK}" stroke-width="2.4"/>
-  <ellipse cx="85" cy="62" rx="27" ry="7.5" fill="#ff9a3c" opacity="0.85"/>
-  <ellipse cx="85" cy="62" rx="14" ry="4" fill="#ffe6a8"/>
-  <path d="M64 160 q21 10 42 0" fill="{IRON}" stroke="{INK}" stroke-width="2"/>
-  <circle cx="85" cy="40" r="7" fill="{SUN}" opacity="0.55"/>
-'''
-    return weapon_svg(body, 'bastion weapon: sun cannon')
-
-
-def weapon_svg(body: str, name: str) -> str:
-    return (
-        f'<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="170" height="230" '
-        f'viewBox="0 0 170 230">\n'
-        f'  <!-- {name} — generated by scripts/build_bastion_forms.py -->\n'
-        f'{body}</svg>\n'
-    )
-
-
-def emplacement() -> str:
     return f'''
   <ellipse cx="85" cy="222" rx="56" ry="10" fill="#181513" opacity="0.26"/>
   <polygon points="47,222 123,222 134,176 36,176" fill="{STONE_DARK}" stroke="{INK}" stroke-width="2" stroke-linejoin="round"/>
@@ -428,24 +368,31 @@ def ward_crystal() -> str:
 
 
 def sun_cannon() -> str:
+    """Sunforge's gun: a brass bombard with a sun disc on the breech.
+
+    The first version flared out into a lampshade and read as a street lamp
+    standing in the courtyard. A cannon has to look like a barrel: straight
+    sides, a muzzle ring, and a bore you can see down.
+    """
     rays = '\n  '.join(
-        f'<line x1="85" y1="96" x2="85" y2="105" stroke="{GOLD}" stroke-width="2.4" '
-        f'transform="rotate({a} 85 120)"/>' for a in (0, 45, 90, 135, 180, 225, 270, 315))
+        f'<line x1="85" y1="102" x2="85" y2="112" stroke="{SUN_DARK}" stroke-width="2.4" '
+        f'transform="rotate({a} 85 126)"/>' for a in (0, 45, 90, 135, 180, 225, 270, 315))
     body = emplacement() + f'''
-  <circle cx="85" cy="128" r="34" fill="#ffc861" opacity="0.13"/>
-  <rect x="61" y="76" width="48" height="86" rx="7" fill="{GOLD_DARK}"/>
-  <rect x="67" y="78" width="14" height="80" rx="6" fill="#f0cd7c" opacity="0.6"/>
-  <rect x="55" y="96" width="60" height="12" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
-  <rect x="55" y="130" width="60" height="12" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
-  <polygon points="55,38 115,38 128,78 42,78" fill="{SUN}" stroke="{SUN_DARK}" stroke-width="2.2" stroke-linejoin="round"/>
-  <polygon points="58,44 112,44 120,70 50,70" fill="#f6c877" opacity="0.55"/>
-  <ellipse cx="85" cy="40" rx="36" ry="10" fill="#3a1d0e"/>
-  <ellipse cx="85" cy="40" rx="23" ry="6.4" fill="{EMBER}"/>
-  <ellipse cx="85" cy="40" rx="12" ry="3.4" fill="#ffe6a8"/>
-  <circle cx="85" cy="118" r="11" fill="{EMBER}" stroke="{SUN_DARK}" stroke-width="1.8"/>
-  <circle cx="85" cy="118" r="5" fill="{SUN}"/>
+  <circle cx="85" cy="126" r="36" fill="#ffc861" opacity="0.12"/>
+  <rect x="64" y="58" width="42" height="104" rx="6" fill="{GOLD_DARK}"/>
+  <rect x="69" y="62" width="12" height="96" rx="5" fill="#f0cd7c" opacity="0.6"/>
+  <rect x="60" y="50" width="50" height="14" rx="4" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.8"/>
+  <rect x="52" y="60" width="66" height="15" rx="4" fill="{GOLD}" stroke="{SUN_DARK}" stroke-width="2"/>
+  <rect x="57" y="46" width="56" height="9" rx="4" fill="{SUN}" stroke="{SUN_DARK}" stroke-width="1.6"/>
+  <ellipse cx="85" cy="46" rx="24" ry="6.5" fill="#3a1d0e" stroke="{SUN_DARK}" stroke-width="1.6"/>
+  <ellipse cx="85" cy="46" rx="15" ry="4" fill="{EMBER}"/>
+  <ellipse cx="85" cy="46" rx="7" ry="2" fill="#ffe6a8"/>
+  <rect x="58" y="92" width="54" height="10" rx="4" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="58" y="140" width="54" height="10" rx="4" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
+  <circle cx="85" cy="122" r="13" fill="{EMBER}" stroke="{SUN_DARK}" stroke-width="2"/>
+  <circle cx="85" cy="122" r="6" fill="{SUN}"/>
   {rays}
-  <path d="M66 176 q19 12 38 0" fill="{ROOF_DARK}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="72" y="158" width="26" height="12" rx="3" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
 '''
     return weapon_svg(body, 'bastion weapon: sun cannon')
 
@@ -461,9 +408,9 @@ PROPS = {
     #  Ornaments only: the castle bodies are the hand-drawn arena art (see
     #  `compose`), so nothing here is asked to be architecture. A banner is a
     #  pole and a cloth, a brazier a bowl of fire, a crown a band of gold.
-    'banner-red': (svg(84, 200, banner(colour=ROOF), 'bastion banner red'), 84, 200),
-    'banner-storm': (svg(84, 200, banner(colour=STORM), 'bastion banner storm'), 84, 200),
-    'banner-sun': (svg(84, 200, banner(colour=SUN), 'bastion banner sun'), 84, 200),
+    'banner-red': (svg(84, 200, banner(84, 200, ROOF), 'bastion banner red'), 84, 200),
+    'banner-storm': (svg(84, 200, banner(84, 200, STORM), 'bastion banner storm'), 84, 200),
+    'banner-sun': (svg(84, 200, banner(84, 200, SUN), 'bastion banner sun'), 84, 200),
     'brazier': (svg(70, 130, brazier(), 'bastion brazier'), 70, 130),
     'brazier-storm': (svg(70, 130, brazier(flame='#9ef0ff', glow='#2d87a8'), 'bastion brazier storm'), 70, 130),
     'brazier-sun': (svg(70, 130, brazier(flame='#ffd88a', glow='#d2622a'), 'bastion brazier sun'), 70, 130),
@@ -472,42 +419,49 @@ PROPS = {
 
 
 FORMS = {
-    #  The ladder is drawn from the arena's own hand-drawn castles, because
-    #  procedural boxes cannot fake a drawn castle: `heart` is the keep the
-    #  walls are built around, `city` the walled compound that grows around it
-    #  (`None` = unwalled), and the ornaments accumulate on top of that.
+    #  Every tier is built from the arena's own hand-drawn buildings — a
+    #  procedural box cannot fake a drawn castle, which is what the first
+    #  attempt at this got wrong.
     #
-    #    1  Warden's Keep      the fortress, unwalled
-    #    2  Bastion Watch      the fortress, walls raised, red banners
-    #    3  Storm Bastion      a dark citadel inside those walls, storm banners
-    #       Sunforge Bastion   the white keep inside those walls, sun banners
-    #    4  Tempest / Pyre     braziers at the gate, a flare of colour behind
-    #    5  Maelstrom / Dawn   crowned, walls wide, the hall itself lit
-    #    1  Warden's Keep      the fortress, unwalled
-    #    2  Bastion Watch      the fortress raised, red banners
-    #    3  Storm Bastion      a dark citadel inside a walled compound
-    #       Sunforge Bastion   the white keep inside those walls
-    #    4  Tempest / Pyre     braziers at the gate, a flare of colour behind
-    #    5  Maelstrom / Dawn   crowned, the compound at its widest
+    #  THE TWO HEARTS
+    #  -------------
+    #  `keep`  the dark citadel: tall, spired, lit windows. The base ladder and
+    #          the Storm branch are built on it, so the keep the player starts
+    #          with is the one that grows.
+    #  `city`  the walled town: wide, low, red roofs. The Sunforge branch is
+    #          built on it — a *different building*, not the citadel in gold.
+    #          That is what separates the specialisations at a glance: tall and
+    #          cold against wide and warm.
     #
-    #  Every tier is taller than the one below it: a castle that shrinks when
-    #  you pay for it reads as a downgrade, whatever the skyline says.
-    ('1', None): dict(heart='fortress', heart_scale=0.88, city=None,
-                      banners=None, braziers=False, crown=False, glow=None),
-    ('2', None): dict(heart='fortress', heart_scale=1.0, city=None,
-                      banners='red', braziers=False, crown=False, glow=None),
-    ('3', 'storm'): dict(heart='keep', heart_scale=1.15, city=1.05,
-                         banners='storm', braziers=False, crown=False, glow='#4fb8dd'),
-    ('3', 'sunforge'): dict(heart='fortress', heart_scale=1.0, city=1.05,
-                            banners='sun', braziers=False, crown=False, glow='#d99a3a'),
-    ('4', 'storm'): dict(heart='keep', heart_scale=1.22, city=1.12,
-                         banners='storm', braziers='storm', crown=False, glow='#5fd0f2'),
-    ('4', 'sunforge'): dict(heart='fortress', heart_scale=1.06, city=1.12,
-                            banners='sun', braziers='sun', crown=False, glow='#f0b455'),
-    ('5', 'storm'): dict(heart='keep', heart_scale=1.30, city=1.18,
-                         banners='storm', braziers='storm', crown=False, four_banners=True, glow='#7fe3ff'),
-    ('5', 'sunforge'): dict(heart='fortress', heart_scale=1.12, city=1.18,
-                            banners='sun', braziers='sun', crown=False, four_banners=True, glow='#ffd27a'),
+    #  `bastion-fortress.png` (the pale keep) is no longer used: at 0.44 scale
+    #  it read as an empty white box with a red roof, and the player's verdict
+    #  was "ang pangit ng base natin".
+    #
+    #    1  Warden's Keep      the citadel alone
+    #    2  Bastion Watch      citadel + a first ring of walls, red banners
+    #    3  Storm Bastion      citadel inside the full compound, storm banners
+    #       Sunforge Bastion   the walled town, gold banners, gate braziers
+    #    4  Tempest / Pyre     braziers, a wider compound, a stronger aura
+    #    5  Maelstrom / Dawn   four banners, the widest compound, the brightest
+    #
+    #  Every tier is taller *and* wider than the one below it: a castle that
+    #  shrinks when you pay for it reads as a downgrade.
+    ('1', None): dict(heart='keep', heart_scale=0.90, city=None,
+                      banners=None, braziers=False, glow=None),
+    ('2', None): dict(heart='keep', heart_scale=1.00, city=0.64,
+                      banners='red', braziers=False, glow=None),
+    ('3', 'storm'): dict(heart='keep', heart_scale=1.10, city=0.78,
+                         banners='storm', braziers=False, glow='#4fb8dd'),
+    ('3', 'sunforge'): dict(heart='city', heart_scale=1.00, city=None,
+                            banners='sun', braziers='sun', glow='#d99a3a'),
+    ('4', 'storm'): dict(heart='keep', heart_scale=1.18, city=0.88,
+                         banners='storm', braziers='storm', glow='#5fd0f2'),
+    ('4', 'sunforge'): dict(heart='city', heart_scale=1.10, city=None,
+                            banners='sun', braziers='sun', glow='#f0b455'),
+    ('5', 'storm'): dict(heart='keep', heart_scale=1.26, city=1.00,
+                         banners='storm', braziers='storm', four_banners=True, glow='#7fe3ff'),
+    ('5', 'sunforge'): dict(heart='city', heart_scale=1.20, city=None,
+                            banners='sun', braziers='sun', four_banners=True, glow='#ffd27a'),
 }
 
 
@@ -559,6 +513,28 @@ def loaded(name: str) -> Image.Image:
     return Image.open(os.path.join(ASSETS, ASSETS_BY_NAME[name])).convert('RGBA')
 
 
+def settled(im: Image.Image, amount: float = 0.58) -> Image.Image:
+    """Pull a white-walled sheet into the arena's stone value, and warm it.
+
+    `bastion-city.png` is drawn in bright white. Next to the arena's grass and
+    the dark citadel it read as a cut-out — and at 0.44 scale, which is what the
+    player actually sees, it was just a white box with a red roof. Multiplying
+    the stone down and pushing it warm turns it into a sunlit sandstone town,
+    which is what the Sunforge branch is meant to look like. Every line, roof
+    and window survives; nothing is recoloured away.
+    """
+    px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            px[x, y] = (min(255, int(r * amount * 1.16)),
+                        min(255, int(g * amount * 1.02)),
+                        min(255, int(b * amount * 0.86)), a)
+    return im
+
+
 def scaled(im: Image.Image, factor: float) -> Image.Image:
     return im.resize((int(round(im.width * factor)), int(round(im.height * factor))),
                      Image.LANCZOS)
@@ -586,15 +562,16 @@ def glow_layer(width: int, height: int, cx: int, cy: int, radius: int, colour: s
 
 def compose(level: str, spec: str | None) -> dict:
     form = FORMS[(level, spec)]
-    heart = scaled(loaded(form['heart']), form['heart_scale'])
-    city = scaled(loaded('city'), form['city']) if form['city'] else None
+    heart = scaled(settled(loaded(form['heart'])) if form['heart'] == 'city' else loaded(form['heart']),
+                   form['heart_scale'])
+    city = scaled(settled(loaded('city')), form['city']) if form['city'] else None
 
     pad = 14
     bottom = 22
     width = max(heart.width, city.width if city else 0) + pad * 2
     city_above = foot_of(city) - top_of(city) if city else 0
     heart_above = foot_of(heart) - top_of(heart)
-    height = max(city_above, heart_above) + bottom + (44 if form['crown'] else 8)
+    height = max(city_above, heart_above) + bottom + (44 if form.get('crown') else 8)
     canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     foot_y = height - bottom
 
