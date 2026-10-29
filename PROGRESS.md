@@ -23,7 +23,7 @@ they disagree — see §2):
 | ----- | ----- | ----- |
 | 0 | Baseline (tests, screenshots, extra observations) | ✅ |
 | 1 | Bugs + layout foundation (top bar, dock, UI scale) | ✅ |
-| 2 | Tower inspector, panels and modals | ⬜ |
+| 2 | Tower inspector, panels and modals | ✅ |
 | 3 | Main menu and scene transitions | ⬜ |
 | 4 | Core game feel ("juice") | ⬜ |
 | 5 | Atmosphere and lighting | ⬜ |
@@ -130,6 +130,34 @@ tall inside a 640 px screen).
   on click; refusing the *selection* would also remove the ghost preview and the
   range ring, which is a behaviour change I am not allowed to make. So the price
   shakes, the denied tick plays, and the card arms as it always did.
+**Phase 2**
+
+* **The inspector's actions sit outside the scrolling body.** The upgrade and
+  sell buttons were the last two children of `.inspector-body`; a level-1 tower
+  at 1024×640 pushed SELL 17 px below the viewport and no amount of scrolling
+  reached it because the panel itself was not capped. The panel is now a capped
+  flex column (header · scrolling body · actions footer) and `.inspector-shell`
+  owns that column — capping the outer box alone just let the shell paint
+  outside it.
+* **Touch targets stay 44 px; type stays 14 px.** Where a control could not be
+  both, the control kept its size and the *label* moved into `title`/`aria-label`
+  or into the tooltip card.
+* **The How-to modal is four tabs, and the tab state is remembered for the
+  session** (default GOAL). Six stacked sections in one scroll meant the player
+  reading "how do I build" scrolled past the objective, the tower table and the
+  daily rules first.
+* **The Codex drawer stays a drawer, but stops eating the HUD.** It now starts
+  below `--topbar-clearance` and ends above `--dock-clearance`, so the pause,
+  speed, mute, fullscreen and wave controls stay reachable while it is open —
+  the point of a *live* telemetry panel. It also gained the shared 9-slice
+  frame; it was the one panel that was still a flat gradient with a 2 px
+  `border-left`.
+* **Modal prose is 14 px, not 11–13 px.** `--fs-small` bottoms out at 11 px,
+  which is under the design system's own floor; `.modal-body`, `.modal-list`,
+  `.modal-note` and the codex body copy now set 14 px directly.
+* **Dialogs trap focus.** Tab/Shift+Tab cycle inside `#instructions-modal` and
+  `#credits-modal` instead of walking out into the menu behind them.
+
 * **`--ui-scale` drives geometry, not type.** Type sits at its 14 px floor
   already; scaling it down would break the design system's own rule, so the
   scale factor tightens padding/gaps and `data-density="compact"` (≤1100 px wide
@@ -156,21 +184,74 @@ tall inside a 640 px screen).
   Root fix needs a horizontal inset in `CameraRig.setFrame` + pointer mapping;
   deferred to Phase 8 QA where the input maths can be re-verified.
 
+**Phase 2**
+
+* **Inspector action footer (fixed).** See §3 — SELL was unreachable at
+  1024×640 on a fresh tower.
+* **How-to modal overflowed its own card (fixed).** `.modal-body` was
+  `overflow-y: auto` but its flex parent had no `min-height: 0`, so the card
+  clamped at 92 % and the content kept drawing past the footer. Header, tabs and
+  footer are now `flex: 0 0 auto`, the body is the only flexible child.
+* **`FINAL SCORE undefined · WAVES CLEARED undefined · ELAPSED TIME NaNs`
+  (fixed).** `LeaderboardUI.show()` is also reached with no run to report (the
+  harness did exactly that, and so does any route that reopens the hall), and
+  `_resultMarkup` printed whatever it was handed. `LeaderboardUI.describesRun()`
+  now gates the summary block, and an absent clock reads `—` instead of a
+  made-up number. The browser harness was passing `{ status: 'victory' }`; it
+  now passes a complete result object.
+* **Coach/camera hint cut mid-sentence (fixed).** A shrink-to-fit pill centred
+  with `left: 50%` measures itself against the half-screen to its right and
+  ellipsised its own last words. `width: max-content` + a `max-width` cap.
+  It also stands down while the codex drawer is open, because the drawer owns
+  that half of the glass.
+* **Inspector was still the one blue panel (fixed).** The inner shell's cyan
+  border became the brass line the rest of the UI uses.
+
 ## 5. Still open
 
-* Codex at 1024×640 still overflows its own telemetry grid (pre-existing, was in
-  the baseline audit) — Phase 2 rebuilds the modal shell.
-* The inspector at 1024×640 is tall but contained; it is rebuilt as an anchored
-  popover in Phase 2.
+* `victory` reports 4 text "spills" — all four are `.result-star-slot` measured
+  *during* its `scale()` entrance animation, not an overflow. Re-measuring after
+  the 460 ms animation reports 0.
+* The map screen still reports 8–10 clipped `.wm-*` nodes at both sizes; those
+  are the parallax layer (intentional overdraw, pre-existing).
+* `defeat` / `victory` / `leaderboard` report "covered" HUD controls: those are
+  full-screen overlays, which is the design.
+* The powerup rail / outer grass column overlap from Phase 1 is unchanged.
+  Root fix (horizontal inset in `CameraRig.setFrame` + pointer mapping) is
+  still scheduled for Phase 8.
+
 
 ---
 
-## 4. Bugs found while working
+## 6. Phase 2 — inspector, panels and modals (done)
 
-_(filled in as phases land)_
+**Changed:** `src/style.css`, `src/ui/HUD.js`, `src/ui/LeaderboardUI.js`,
+`index.html`, `src/main.js`.
 
----
+* Inspector: upgrade previews as green `→ next` deltas (damage, range, attack
+  speed, DPS) with `.is-down` reserved for a real loss; targeted only when a
+  single next tier exists, so the level-2 fork shows no arrow that could lie.
+* Inspector: brass accent instead of the cyan shell, a pointer arrow on the
+  side the panel was actually placed on, capped height, sticky action footer.
+* Targeting priority is a segmented control (brass fill on the active mode).
+* One modal system: same 9-slice plate, `filter: drop-shadow`, fade + 0.96→1
+  entrance (`modalIn`), an exit keyframe, a scrollable body between fixed header
+  and footer, focus trap, Esc and backdrop close.
+* How-to-Play is four tabs — GOAL / TOWERS / ALGORITHMS / HOTKEYS — with arrow /
+  Home / End keys and `aria-selected` kept in sync.
+* Codex drawer: sits between the two HUD bands, framed like every other panel,
+  body copy at 14 px.
+* Leaderboard summary block only renders for a run that has a score and a wave
+  count; missing clock reads `—`.
 
-## 5. Still open
+**Verified (headless Chromium, real flows, `docs/ui-after/phase2/`):**
 
-_(filled in as phases land)_
+| State | 1280×768 | 1024×640 |
+| ----- | -------- | -------- |
+| battle / ghost / battleMid / pause / tutorial | 0 clipped, 0 spill | same |
+| inspector | 0 clipped, 0 covered | **0 clipped** (was 4, SELL unreachable) |
+| codex | 0 covered (was 4) | 0 covered |
+| howTo / howToAlgo / credits | card clamped, body scrolls | same |
+| victory | 4 "spills" = entrance-animation transforms | same |
+
+`npx vitest run` → **131 files / 1709 passed**. `npm run build` → ✓.

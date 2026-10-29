@@ -548,7 +548,7 @@ export class LeaderboardUI {
       : '';
 
     return `
-      ${gameResult ? this._resultMarkup(gameResult) : ''}
+      ${LeaderboardUI.describesRun(gameResult) ? this._resultMarkup(gameResult) : ''}
       <section class="lb-block lb-block--device" aria-label="Records on this device">
         <div class="lb-device-head">
           <p class="lb-block-title">RECORDS ON THIS DEVICE</p>
@@ -709,6 +709,20 @@ export class LeaderboardUI {
     }
   }
 
+  /**
+   * Does this object describe an actual run?
+   *
+   * `show()` is also reached from places that have no run to report — a reload
+   * into the hall, a mode board opened from the map — and the summary block
+   * happily printed "FINAL SCORE undefined / ELAPSED TIME NaNs" for them. A
+   * score and a wave count are the two things every real result carries; if
+   * either is missing there is nothing to file, so the block is not drawn.
+   */
+  static describesRun(gameResult) {
+    if (!gameResult || typeof gameResult !== 'object') return false;
+    return Number.isFinite(Number(gameResult.score)) && Number.isFinite(Number(gameResult.waves));
+  }
+
   /** The run that just ended, recorded under the commander's name. */
   _resultMarkup(gameResult) {
     const isVictory = gameResult.status === 'victory';
@@ -720,6 +734,10 @@ export class LeaderboardUI {
     const waves = Number.isFinite(totalWaves) && totalWaves > 0
       ? `${gameResult.waves} / ${totalWaves}`
       : String(gameResult.waves);
+    // A result object without a clock is a result from an older save, not a run
+    // that took zero seconds. Say "unknown" rather than inventing a number.
+    const timeMs = Number(gameResult.timeMs);
+    const elapsed = Number.isFinite(timeMs) ? `${(timeMs / 1000).toFixed(1)}s` : '—';
     return `
       <div class="result-summary-box ${isVictory ? 'victory-box' : 'defeat-box'}">
         <div class="lb-result-head">
@@ -729,7 +747,7 @@ export class LeaderboardUI {
         <div class="result-stats">
           <div><span class="lbl">FINAL SCORE</span><span class="val gold-text">${gameResult.score}</span></div>
           <div><span class="lbl">WAVES CLEARED</span><span class="val">${waves}</span></div>
-          <div><span class="lbl">ELAPSED TIME</span><span class="val">${(gameResult.timeMs / 1000).toFixed(1)}s</span></div>
+          <div><span class="lbl">ELAPSED TIME</span><span class="val">${elapsed}</span></div>
         </div>
         <div class="submit-form" id="submit-score-form">
           <p class="lb-record-as">RECORDED AS <strong>${escapeHtml(name)}</strong></p>

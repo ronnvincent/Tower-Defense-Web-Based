@@ -2213,6 +2213,12 @@ body.is-fullscreen::before {
   bottom: var(--dock-clearance);
   left: 50%;
   transform: translateX(-50%);
+  /* A shrink-to-fit pill centred with `left: 50%` measures itself against the
+     half of the screen to its right and cuts its own last words off. Say the
+     width out loud and cap it. */
+  width: max-content;
+  max-width: min(680px, calc(100vw - 40px));
+  white-space: normal;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2238,6 +2244,16 @@ body.is-fullscreen::before {
    button, one step at a time. It gets a gold edge and a gold icon instead of the
    camera's cyan one, so a new player can tell "this one is for me" from "this is
    the camera". */
+/* The codex drawer owns the right half of the glass. A pill centred on the
+   screen would slide under it and be read as a cut-off sentence, so the hint
+   steps out of the way while the drawer is open — it is not the thing the
+   player is looking at. */
+body:has(.codex-drawer.open) .camera-hint {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+
 .camera-hint.is-coach {
   border-color: rgba(245, 196, 81, 0.5);
   background: linear-gradient(180deg, rgba(28, 23, 12, 0.94), rgba(9, 14, 18, 0.92));
@@ -2546,6 +2562,13 @@ body.is-fullscreen::before {
   z-index: 160;
   width: clamp(248px, 23vw, 318px);
   max-width: 92%;
+  /* The panel is a popover, so its height has to be a promise the viewport can
+     keep: header + targeting + body + actions, capped between the two HUD
+     bands. Before this, a level-1 tower at 1024×640 pushed SELL past the
+     bottom edge and the button could not be reached at all. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--topbar-clearance) - var(--dock-clearance) - var(--sp-4));
   background: transparent;
   border: none;
   border-image-source: var(--ui-panel-inset);
@@ -2555,9 +2578,17 @@ body.is-fullscreen::before {
   border-style: solid;
   border-radius: 0;
   padding: 9px;
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.75);
+  filter: drop-shadow(0 10px 34px rgba(0, 0, 0, 0.75));
   pointer-events: auto;
   animation: inspectorIn 0.16s ease-out;
+}
+
+.inspector-shell > .inspector-header {
+  flex: 0 0 auto;
+}
+
+[data-shell='mobile'] .inspector-shell {
+  flex: 0 0 auto;
 }
 
 @keyframes inspectorIn {
@@ -2579,10 +2610,64 @@ body.is-fullscreen::before {
  * Dark glass inside the teal frame: every text token in here is measured
  * against this surface, so labels stay readable even on top of the map.
  */
+/* A pointer arrow, so the panel reads as attached to the tower it describes.
+   `data-side` is which side of the tower the panel was placed on, so the arrow
+   lives on the opposite edge and points back at it. */
+.hud-inspector::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 9px solid transparent;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+.hud-inspector[data-side='right']::after {
+  left: -18px;
+  top: 50%;
+  margin-top: -9px;
+  border-right-color: rgba(198, 158, 88, 0.75);
+}
+
+.hud-inspector[data-side='left']::after {
+  right: -18px;
+  top: 50%;
+  margin-top: -9px;
+  border-left-color: rgba(198, 158, 88, 0.75);
+}
+
+.hud-inspector[data-side='below']::after {
+  top: -18px;
+  left: 50%;
+  margin-left: -9px;
+  border-bottom-color: rgba(198, 158, 88, 0.75);
+}
+
+.hud-inspector[data-side='above']::after {
+  bottom: -18px;
+  left: 50%;
+  margin-left: -9px;
+  border-top-color: rgba(198, 158, 88, 0.75);
+}
+
+[data-shell='mobile'] .hud-inspector::after {
+  display: none;
+}
+
 .inspector-shell {
+  /* The panel's one child, and the box that owns the flex column: capping the
+     outer box without capping this one let the sell button paint below the
+     panel it belongs to. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-md);
   background: linear-gradient(180deg, rgba(16, 24, 30, 0.96), rgba(9, 14, 18, 0.97));
-  border: 1px solid rgba(78, 225, 255, 0.22);
+  /* The inspector was the one blue panel in a wood-and-gold game; the accent
+     line is brass like everything else. Cyan stays for live DSA readouts. */
+  border: 1px solid rgba(198, 158, 88, 0.34);
   padding: 10px 11px 11px;
   color: var(--text-main);
 }
@@ -2687,6 +2772,8 @@ body.is-fullscreen::before {
 }
 
 .inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: min(52vh, 430px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -2716,42 +2803,49 @@ body.is-fullscreen::before {
 }
 
 .targeting-buttons {
+  /* A segmented control: four choices that are one setting. The old row was
+     four loose buttons 4 px apart, and the active one was a slightly different
+     sprite — at play scale nobody could tell which mode was live. */
   display: flex;
-  gap: 4px;
+  gap: 0;
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(6, 9, 14, 0.6);
 }
 
 .target-btn {
   flex: 1;
   font-family: var(--font-body);
-  font-size: var(--fs-micro);
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  padding: 5px 0;
-  min-height: 26px;
+  letter-spacing: 0.4px;
+  padding: 0 var(--sp-1);
+  min-height: 34px;
   background: transparent;
   border: none;
-  border-image-source: var(--ui-btn);
-  border-image-slice: 28 50 28 50 fill;
-  border-image-width: 9px 12px 9px 12px;
-  border-image-repeat: stretch;
-  border-style: solid;
+  border-right: 1px solid rgba(198, 158, 88, 0.25);
   border-radius: 0;
-  color: var(--ink-strong);
+  color: var(--ink-muted);
   cursor: var(--ui-cursor) 12 4, pointer;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.target-buttons > .target-btn:last-child,
+.targeting-buttons > .target-btn:last-child {
+  border-right: none;
 }
 
 .target-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  background: rgba(245, 196, 81, 0.14);
+  color: var(--ink-strong);
 }
 
 .target-btn.active {
-  border-image-source: var(--ui-slot-sel);
-  border-image-slice: 20 20 20 20 fill;
-  border-image-width: 9px;
-  color: var(--ink-strong);
-  box-shadow: inset 0 0 0 1px var(--cyan-primary);
+  /* The live mode is a lit segment, not a differently-shaped sprite. */
+  background: linear-gradient(180deg, #f0cd83, #c69a4b);
+  color: #21160a;
+  box-shadow: none;
 }
 
 .inspector-stats-grid {
@@ -2795,6 +2889,19 @@ body.is-fullscreen::before {
   white-space: nowrap;
 }
 
+/* The "what the next tier pays" arrow. Green for a gain, muted red for a
+   loss (a faster cooldown is a gain even though the number goes down, so the
+   caller decides which is which). */
+.stat-cell .stat-delta {
+  color: var(--ink-green);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stat-cell .stat-delta.is-down {
+  color: var(--ink-red);
+}
+
 .stat-cell .val {
   font-size: var(--fs-small);
   font-weight: 700;
@@ -2805,9 +2912,13 @@ body.is-fullscreen::before {
 }
 
 .inspector-actions {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding-top: var(--sp-2);
+  margin-top: var(--sp-1);
+  border-top: 1px solid rgba(198, 158, 88, 0.22);
 }
 
 /* --- specialisation cards -------------------------------------------------
@@ -3142,19 +3253,48 @@ body.is-fullscreen::before {
   border-radius: 0;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 50px rgba(0, 0, 0, 0.9);
+  /* A flex column whose middle child has `min-height: auto` refuses to shrink:
+     the card clamped at 92 % while its content kept going and spilled out from
+     under the footer. The body is the only flexible child, and it scrolls. */
+  min-height: 0;
+  /* The 9-slice plate has transparent corners; a box-shadow painted a dark
+     rectangle behind them. `filter` follows the sprite's alpha instead. */
+  filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.85));
   color: var(--ink-strong); /* everything on the wood card is inked */
-  animation: modalIn 0.18s ease-out;
+  animation: modalIn var(--t-med) var(--ease-out);
 }
 
+/* Entrances only ever do two things: fade and grow from 96 % (or slide 8 px).
+   Exits run the other way and are shorter, because waiting for a dialog to
+   leave is waiting. */
 @keyframes modalIn {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
+    transform: translateY(8px) scale(0.96);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes screenIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
   }
 }
 
@@ -3164,6 +3304,7 @@ body.is-fullscreen::before {
 
 .modal-header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -3179,13 +3320,65 @@ body.is-fullscreen::before {
   line-height: 1.2;
 }
 
+/* ---------------------------------------------------------- field manual tabs
+   Six sections in one scroll was a wall: the player looking for "how do I
+   build a tower" had to scroll past the objective, the tower table and the
+   daily-challenge rules. Four tabs put the four questions in four places. */
+.how-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-4) 0;
+  border-bottom: 1px solid rgba(198, 158, 88, 0.22);
+}
+
+.how-tab-btn {
+  flex: 1 1 0;
+  height: 40px;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+
+.how-tab-btn:hover {
+  color: var(--ink-strong);
+  background: rgba(245, 196, 81, 0.1);
+}
+
+.how-tab-btn:focus-visible {
+  outline: 2px solid var(--cyan-primary);
+  outline-offset: 2px;
+}
+
+.how-tab-btn.active {
+  color: #21160a;
+  background: linear-gradient(180deg, #f0cd83, #c69a4b);
+  border-color: rgba(255, 230, 174, 0.7);
+}
+
 .modal-body {
-  padding: 16px 20px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--sp-4) var(--sp-6);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--sp-4);
   color: var(--ink);
+  /* 14 px floor: this is the one place in the game that is *prose*, and it
+     was set at 11–12 px. */
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .modal-body h3 {
@@ -3199,6 +3392,7 @@ body.is-fullscreen::before {
 
 .modal-footer {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 22px;
@@ -3206,12 +3400,12 @@ body.is-fullscreen::before {
 }
 
 .modal-list {
-  padding-left: 18px;
+  padding-left: var(--sp-6);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: var(--fs-small);
-  line-height: 1.5;
+  gap: var(--sp-2);
+  font-size: 14px;
+  line-height: 1.55;
   color: var(--ink);
 }
 
@@ -3220,9 +3414,9 @@ body.is-fullscreen::before {
 }
 
 .modal-note {
-  font-size: var(--fs-small);
+  font-size: 14px;
   color: var(--ink-muted);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 kbd {
@@ -3321,7 +3515,7 @@ kbd {
   border-image-repeat: stretch;
   border-radius: 0;
   background: transparent;
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.78);
+  filter: drop-shadow(0 26px 60px rgba(0, 0, 0, 0.75));
   animation: nameGateIn 0.28s ease both;
 }
 
@@ -5988,9 +6182,13 @@ kbd {
 
 .codex-drawer {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  /* The drawer keeps the battle alive behind it, so it must not eat the two
+     bands the player still needs: the top bar (pause, speed, mute, fullscreen,
+     the wave badge) and the dock. Before this it covered both, and the only way
+     to pause a running wave was to close the codex first. */
+  top: calc(var(--topbar-clearance) + var(--sp-1));
+  right: var(--sp-2);
+  bottom: calc(var(--dock-clearance) + var(--sp-1));
   width: min(560px, 92%);
   display: flex;
   pointer-events: auto;
@@ -6009,9 +6207,11 @@ kbd {
   width: 100%;
   height: 100%;
   background: linear-gradient(180deg, rgba(13, 20, 26, 0.97), rgba(8, 12, 16, 0.98));
-  border-left: 2px solid var(--gold-line);
-  box-shadow: -18px 0 50px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(198, 158, 88, 0.45);
+  border-radius: var(--radius-md);
+  filter: drop-shadow(0 10px 32px rgba(0, 0, 0, 0.7));
   color: var(--text-main);
+  overflow: hidden;
 }
 
 .codex-header {
@@ -6112,6 +6312,20 @@ kbd {
 
 .codex-body .telemetry-grid {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.codex-body .telemetry-desc,
+.codex-body .tel-val {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.codex-body .telemetry-header h3 {
+  font-size: 15px;
+}
+
+.codex-body .tel-lbl {
+  font-size: 12px;
 }
 
 .codex-body code {
@@ -6233,9 +6447,8 @@ body.is-fullscreen #app::after {
   border-image-slice: 50;
   border-image-width: 16px;
   border-image-repeat: stretch;
-  box-shadow:
-    0 26px 70px rgba(0, 0, 0, 0.78),
-    inset 0 1px 0 rgba(255, 233, 201, 0.08);
+  filter: drop-shadow(0 26px 56px rgba(0, 0, 0, 0.75));
+  box-shadow: inset 0 1px 0 rgba(255, 233, 201, 0.08);
   animation: gateCardRise 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.18);
 }
 
@@ -6729,7 +6942,8 @@ body.is-fullscreen #app::after {
   }
 
   .codex-drawer {
-    width: 100%;
+    left: var(--sp-2);
+    width: auto;
   }
 
   .codex-body .telemetry-grid {
@@ -7131,6 +7345,7 @@ body.is-fullscreen #app::after {
 .overlay-screen {
   position: absolute;
   inset: 0;
+  animation: screenIn var(--t-med) var(--ease-out);
   display: flex;
   align-items: center;
   justify-content: center;

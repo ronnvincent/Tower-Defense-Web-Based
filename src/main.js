@@ -1139,6 +1139,49 @@ document.getElementById('btn-done-how')?.addEventListener('click', () => {
   document.getElementById('instructions-modal')?.classList.add('hidden');
 });
 
+// ------------------------------------------------------------ field manual
+// Four tabs (GOAL / TOWERS / ALGORITHMS / HOTKEYS) over the six sections the
+// manual always had. Same panels, same ids, one scroll each instead of six.
+{
+  const modal = document.getElementById('instructions-modal');
+  const tabs = modal ? [...modal.querySelectorAll('.how-tab-btn')] : [];
+  const panels = modal ? [...modal.querySelectorAll('.how-tab')] : [];
+  const select = (key, { focus = false } = {}) => {
+    for (const tab of tabs) {
+      const active = tab.dataset.tab === key;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+      if (active && focus) tab.focus();
+    }
+    for (const panel of panels) panel.hidden = panel.dataset.tab !== key;
+    const body = modal.querySelector('.modal-body');
+    if (body) body.scrollTop = 0;
+  };
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      audio.playClick();
+      select(tab.dataset.tab);
+    });
+    tab.addEventListener('keydown', (event) => {
+      const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      const index = tabs.indexOf(tab);
+      const next =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? tabs.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      select(tabs[next].dataset.tab, { focus: true });
+    });
+  }
+  // The chosen tab is remembered for the session, the way a browser remembers
+  // which tab of a manual you were reading. GOAL is the default on a cold boot,
+  // which is what the markup ships with.
+  select(document.querySelector('.how-tab-btn.active')?.dataset.tab || 'goal');
+}
+
 document.getElementById('btn-close-credits')?.addEventListener('click', () => {
   audio.playClick();
   document.getElementById('credits-modal')?.classList.add('hidden');
@@ -1174,6 +1217,29 @@ window.addEventListener('keydown', (event) => {
     document.getElementById(id)?.classList.add('hidden');
   }
 });
+
+// A dialog that opens must be able to be left with the keyboard, and Tab must
+// not walk out of it into the menu behind. Two modals, one handler.
+for (const id of ['instructions-modal', 'credits-modal']) {
+  const overlay = document.getElementById(id);
+  if (!overlay) continue;
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') return;
+    const focusable = [
+      ...overlay.querySelectorAll('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ].filter((el) => el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+}
 
 // Global user interaction listener to unlock Web Audio on first gesture
 window.addEventListener('pointerdown', () => audio.unlock(), { once: true });

@@ -215,6 +215,14 @@
             <button id="btn-close-how" class="btn-close" aria-label="Close">✕</button>
           </div>
           <div class="modal-body">
+          <div class="how-tabs" role="tablist" aria-label="Field manual sections">
+            <button class="how-tab-btn active" type="button" role="tab" data-tab="goal" aria-selected="true">GOAL</button>
+            <button class="how-tab-btn" type="button" role="tab" data-tab="towers" aria-selected="false">TOWERS</button>
+            <button class="how-tab-btn" type="button" role="tab" data-tab="algorithms" aria-selected="false">ALGORITHMS</button>
+            <button class="how-tab-btn" type="button" role="tab" data-tab="controls" aria-selected="false">HOTKEYS</button>
+          </div>
+
+            <div class="how-tab" data-tab="goal" role="tabpanel" aria-label="Goal">
             <section>
               <h3>OBJECTIVE</h3>
               <p class="modal-note">
@@ -225,6 +233,29 @@
               </p>
             </section>
 
+            <section>
+              <h3>CHAINS, EARLY CALLS &amp; THE DAILY</h3>
+              <ul class="modal-list">
+                <li><strong>Kill chains:</strong> kills inside 2.6 s of each other build a chain — 3 kills pays
+                  ×1.25, 6 pays ×1.5, 10 pays ×2 on gold and score. A leak (an enemy reaching the core) or the
+                  end of the wave breaks it, and the wave pays a bonus for your best chain.</li>
+                <li><strong>Early call:</strong> while the last stragglers are still walking, <em>START WAVE</em>
+                  becomes <em>CALL EARLY +Ng</em>. It starts the next wave on top of the leftovers and pays
+                  6–70 gold depending on how many are left — a tempo trade, not a free button.</li>
+                <li><strong>Daily Challenge:</strong> the menu button starts one date-seeded battle with a rule
+                  twist (extra gold, a fragile core, a tougher horde…). The same day is the same challenge for
+                  everyone; clearing it pays gems and keeps your 🔥 streak alive.</li>
+                <li><strong>Forge &amp; blessings:</strong> gems from wins, dailies and achievements buy permanent
+                  relics in <em>THE FORGE</em>. In battle, the pause card's <em>BLESSINGS</em> trades gold for an
+                  immediate swing — damage, gold, a core repair or faster firing.</li>
+                <li><strong>Endless:</strong> every 5 waves pays a checkpoint (gold + gems) and the wave badge shows
+                  your personal best, flipping to <em>NEW BEST</em> when you pass it.</li>
+              </ul>
+            </section>
+
+            </div>
+
+            <div class="how-tab hidden" data-tab="towers" role="tabpanel" aria-label="Towers">
             <section>
               <h3>TOWER TYPES</h3>
               <ul class="modal-list">
@@ -265,26 +296,6 @@
             </section>
 
             <section>
-              <h3>CHAINS, EARLY CALLS &amp; THE DAILY</h3>
-              <ul class="modal-list">
-                <li><strong>Kill chains:</strong> kills inside 2.6 s of each other build a chain — 3 kills pays
-                  ×1.25, 6 pays ×1.5, 10 pays ×2 on gold and score. A leak (an enemy reaching the core) or the
-                  end of the wave breaks it, and the wave pays a bonus for your best chain.</li>
-                <li><strong>Early call:</strong> while the last stragglers are still walking, <em>START WAVE</em>
-                  becomes <em>CALL EARLY +Ng</em>. It starts the next wave on top of the leftovers and pays
-                  6–70 gold depending on how many are left — a tempo trade, not a free button.</li>
-                <li><strong>Daily Challenge:</strong> the menu button starts one date-seeded battle with a rule
-                  twist (extra gold, a fragile core, a tougher horde…). The same day is the same challenge for
-                  everyone; clearing it pays gems and keeps your 🔥 streak alive.</li>
-                <li><strong>Forge &amp; blessings:</strong> gems from wins, dailies and achievements buy permanent
-                  relics in <em>THE FORGE</em>. In battle, the pause card's <em>BLESSINGS</em> trades gold for an
-                  immediate swing — damage, gold, a core repair or faster firing.</li>
-                <li><strong>Endless:</strong> every 5 waves pays a checkpoint (gold + gems) and the wave badge shows
-                  your personal best, flipping to <em>NEW BEST</em> when you pass it.</li>
-              </ul>
-            </section>
-
-            <section>
               <h3>MIRROR ARENA (1v1)</h3>
               <ul class="modal-list">
                 <li><strong>How a duel runs:</strong> host a room from <strong>DUEL · 1v1 LOBBY</strong>, send the
@@ -302,6 +313,21 @@
               </ul>
             </section>
 
+            </div>
+
+            <div class="how-tab hidden" data-tab="algorithms" role="tabpanel" aria-label="Algorithms">
+            <section>
+              <h3>DATA STRUCTURES &amp; ALGORITHMS IN ACTION</h3>
+              <ul class="modal-list">
+                <li><strong>Circular Queue (O(1)):</strong> powers wave spawning and the BFS frontier without <code>Array.shift()</code> penalties.</li>
+                <li><strong>Adjacency List Graph:</strong> represents walkable road cells and orthogonal movement links.</li>
+                <li><strong>Breadth-First Search (BFS):</strong> computes the shortest route every enemy marches, and the codex visualises it live.</li>
+                <li><strong>Merge Sort (O(n log n)):</strong> ranks the local leaderboard with a student-written sort.</li>
+              </ul>
+            </section>
+            </div>
+
+            <div class="how-tab hidden" data-tab="controls" role="tabpanel" aria-label="Hotkeys">
             <section>
               <h3>CONTROLS</h3>
               <ul class="modal-list">
@@ -321,15 +347,8 @@
               </ul>
             </section>
 
-            <section>
-              <h3>DATA STRUCTURES &amp; ALGORITHMS IN ACTION</h3>
-              <ul class="modal-list">
-                <li><strong>Circular Queue (O(1)):</strong> powers wave spawning and the BFS frontier without <code>Array.shift()</code> penalties.</li>
-                <li><strong>Adjacency List Graph:</strong> represents walkable road cells and orthogonal movement links.</li>
-                <li><strong>Breadth-First Search (BFS):</strong> computes the shortest route every enemy marches, and the codex visualises it live.</li>
-                <li><strong>Merge Sort (O(n log n)):</strong> ranks the local leaderboard with a student-written sort.</li>
-              </ul>
-            </section>
+            </div>
+
           </div>
           <div class="modal-footer">
             <button id="btn-done-how" class="game-btn game-btn-primary">UNDERSTOOD</button>

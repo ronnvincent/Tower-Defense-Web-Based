@@ -510,9 +510,12 @@ export class HUD {
             </div>
 
             <div id="inspect-stats" class="inspector-stats-grid"></div>
-
-            <div id="inspector-actions-container" class="inspector-actions"></div>
           </div>
+
+          <!-- Upgrade and sell sit OUTSIDE the scrolling body: they are the two
+               things the panel exists for, and a level-2 tower's stat sheet is
+               tall enough to push them below the fold on a 640 px window. -->
+          <div id="inspector-actions-container" class="inspector-actions"></div>
         </div>
       </div>
 
@@ -1722,11 +1725,28 @@ export class HUD {
       this.renderTargetingGroup(tower);
       const s = tower.stats;
       const special = this.describeSpecial(s);
+      // What the next tier would pay. Only when the next step is a single
+      // option: at level 2 the player is choosing between two specialisations,
+      // and one green arrow next to two different futures is a lie.
+      const next = tower.nextUpgrades?.length === 1 ? tower.nextUpgrades[0] : null;
+      const delta = (current, incoming, unit = '') => {
+        if (!next || !Number.isFinite(incoming) || incoming === current) return '';
+        const worse = incoming < current && unit !== 's';
+        return ` <span class="stat-delta${worse ? ' is-down' : ''}">→ ${incoming}${unit}</span>`;
+      };
+      const nextDps = next && Number.isFinite(next.damage) && Number.isFinite(next.cooldown)
+        ? Math.round(dps(next))
+        : null;
+      const nextRate = next && Number.isFinite(next.cooldown) ? next.cooldown : null;
       statsGrid.innerHTML = `
-        <div class="stat-cell"><span class="lbl">DAMAGE</span><span class="val">${s.damage}</span></div>
-        <div class="stat-cell"><span class="lbl">RANGE</span><span class="val">${s.range}px</span></div>
-        <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s</span></div>
-        <div class="stat-cell"><span class="lbl">DPS</span><span class="val">${this.describeDps(s)}</span></div>
+        <div class="stat-cell"><span class="lbl">DAMAGE</span><span class="val">${s.damage}${delta(s.damage, next?.damage)}</span></div>
+        <div class="stat-cell"><span class="lbl">RANGE</span><span class="val">${s.range}px${delta(s.range, next?.range, 'px')}</span></div>
+        <div class="stat-cell"><span class="lbl">ATTACK SPEED</span><span class="val">${(s.cooldown / 1000).toFixed(2)}s${
+          nextRate ? ` <span class="stat-delta">→ ${(nextRate / 1000).toFixed(2)}s</span>` : ''
+        }</span></div>
+        <div class="stat-cell"><span class="lbl">DPS</span><span class="val">${this.describeDps(s)}${
+          nextDps ? ` <span class="stat-delta">→ ${nextDps}</span>` : ''
+        }</span></div>
         <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
         <div class="stat-cell"><span class="lbl">TARGETS</span><span class="val targets-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}">${targetLabel(tower.def)}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
