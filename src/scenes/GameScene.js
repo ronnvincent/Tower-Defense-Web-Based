@@ -1,6 +1,7 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { ARENA_ART, PORTAL_ANIM, KEEP_PAD_RATIO } from '../data/arenaArt.js';
+import { createArenaAnims, missingArenaArt, queueArenaArt } from '../systems/ArenaArt.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
 import { getPuzzle, puzzleLevel } from '../data/puzzles.js';
 import {
@@ -289,7 +290,14 @@ export class GameScene extends Phaser.Scene {
       [...Object.keys(VILLAGE_PROP_ART), ...Object.keys(VILLAGER_ART)].some(
         (key) => !this.textures.exists(key.startsWith('npc-') ? key : `village-${key}`)
       );
-    if (!needsEnemies && !needsFx && !needsUnits && !needsVillage) return;
+    // The portal gate, its vortex and the bastion keep are part of this board,
+    // so this board is allowed to fetch them. Boot still queues them (the realm
+    // screens want nothing to do with them, but they are four files); the point
+    // here is that a boot that lost them — a dropped request, a slow first visit
+    // — costs one extra download instead of a portal-less battlefield for the
+    // rest of the page's life. See systems/ArenaArt.js.
+    const needsArena = missingArenaArt(this).length > 0;
+    if (!needsEnemies && !needsFx && !needsUnits && !needsVillage && !needsArena) return;
 
     const overlay = document.getElementById('battle-loading');
     const fill = document.getElementById('battle-loading-fill');
@@ -312,6 +320,7 @@ export class GameScene extends Phaser.Scene {
     if (needsFx) queueBattleFxArt(this.load, this.textures);
     if (needsUnits) queueUnitSheets(this.load, this.textures, unitKeys);
     if (needsVillage) queueVillageArt(this.load, this.textures);
+    if (needsArena) queueArenaArt(this);
   }
 
   /**
@@ -354,6 +363,14 @@ export class GameScene extends Phaser.Scene {
     // already on the TextureManager from an earlier battle keeps its clips.
     createEnemyAnims(this, enemyTexturesForLevel(this.level));
     createBattleFxAnims(this);
+    // The vortex clip is registered by BootScene, but a battlefield that had to
+    // fetch the sheet itself (or that started while it was still streaming) has
+    // to register it here, before the gate tries to play it.
+    createArenaAnims(this);
+    // Landmarks built before their art arrived queue themselves here; see
+    // `trackArenaSprite` / `repairArenaArt`.
+    this.arenaArtPending = [];
+    this.arenaArtCheckedAt = 0;
 
     // 1. Initialize Systems & Managers — all scoped to the selected level.
     this.map = parseMap(this.level.mapLayout || getMapLayout(this.level.map));
@@ -1216,11 +1233,14 @@ export class GameScene extends Phaser.Scene {
       // The stone keeps its own warm colour — only the magic inside it is
       // tinted, which is what makes a purple gate in a green field read as an
       // intruder.
-      const arch = this.add
-        .image(spawnX, spawnY + 35 * scale, 'portal-arch')
-        .setOrigin(0.5, 0.8)
-        .setDepth(10)
-        .setScale(0.48 * scale);
+      const arch = this.trackArenaSprite(
+        this.add
+          .image(spawnX, spawnY + 35 * scale, 'portal-arch')
+          .setOrigin(0.5, 0.8)
+          .setDepth(10)
+          .setScale(0.48 * scale),
+        ARENA_ART.portalArch.key
+      );
 
       let vortex;
       if (this.anims?.exists?.(PORTAL_ANIM)) {
@@ -1232,8 +1252,19 @@ export class GameScene extends Phaser.Scene {
           .play(PORTAL_ANIM);
       } else {
         // Fallback: the old procedural texture, so a failed atlas load is a
-        // smaller portal, never a missing one.
-        vortex = this.add.image(spawnX, spawnY, 'portal').setDepth(11);
+        // smaller portal, never a missing one. It is a *sprite* so the sheet can
+        // still be swapped in and played if it arrives after this frame.
+        vortex = this.trackArenaSprite(
+          this.add.sprite(spawnX, spawnY, 'portal').setDepth(11),
+          ARENA_ART.portalVortex.key,
+          (sprite) => {
+            sprite.setTexture(ARENA_ART.portalVortex.key);
+            sprite.setPosition(spawnX, spawnY - 4);
+            sprite.setScale(0.52 * scale);
+            sprite.setBlendMode('ADD');
+            if (this.anims?.exists?.(PORTAL_ANIM)) sprite.play(PORTAL_ANIM);
+          }
+        );
       }
 
       const glow = this.add
@@ -1269,13 +1300,16 @@ export class GameScene extends Phaser.Scene {
     this.skyGates = (this.map.airGates || []).map((gate) => {
       const gx = gate.col <= 0 ? TILE_SIZE * 0.55 : this.map.cols * TILE_SIZE - TILE_SIZE * 0.55;
       const gy = gate.row * TILE_SIZE + TILE_SIZE / 2;
-      const arch = this.add
-        .image(gx, gy, 'portal-arch')
-        .setOrigin(0.5, 0.8)
-        .setDepth(10)
-        .setScale(0.3)
-        .setTint(0x9fc7ff)
-        .setAlpha(0.95);
+      const arch = this.trackArenaSprite(
+        this.add
+          .image(gx, gy, 'portal-arch')
+          .setOrigin(0.5, 0.8)
+          .setDepth(10)
+          .setScale(0.3)
+          .setTint(0x9fc7ff)
+          .setAlpha(0.95),
+        ARENA_ART.portalArch.key
+      );
       const glow = this.add
         .image(gx, gy + 8, 'fx-glow')
         .setDepth(9)
@@ -1319,11 +1353,14 @@ export class GameScene extends Phaser.Scene {
     // floating a shadow's width above the grass — the "lumulutang" read. Origin
     // 0.9 puts the building's own foot exactly on the ground line, with the
     // painted shadow falling onto the tiles in front of it.
-    this.bastionKeep = this.add
-      .image(baseX, keepFoot, ARENA_ART.bastion.key)
-      .setOrigin(0.5, 1 - KEEP_PAD_RATIO)
-      .setDepth(12)
-      .setScale(keepScale);
+    this.bastionKeep = this.trackArenaSprite(
+      this.add
+        .image(baseX, keepFoot, ARENA_ART.bastion.key)
+        .setOrigin(0.5, 1 - KEEP_PAD_RATIO)
+        .setDepth(12)
+        .setScale(keepScale),
+      ARENA_ART.bastion.key
+    );
     if (this.theme?.baseTint) this.bastionKeep.setTint(this.theme.baseTint);
 
     // The core crystal stays the "heart" of the keep: every existing reaction
@@ -1396,6 +1433,54 @@ export class GameScene extends Phaser.Scene {
     this.bastionPulse = null;
     this.bastionState = bastionState(this.gameState?.baseHealth, this.gameState?.maxBaseHealth);
     this.syncBastionBar();
+  }
+
+  /**
+   * Remember a landmark sprite that had to be built without its texture.
+   *
+   * The battlefield now asks for the arena art itself (see `preload`), but a
+   * request can still land late: the boot pack may have been streaming the same
+   * file when this battle started, in which case nothing is queued here and the
+   * sprite is created against a texture that does not exist yet. Tracking it
+   * means `repairArenaArt` can swap the real art in the moment it arrives,
+   * instead of leaving the portal gate and the keep invisible until a reload.
+   */
+  trackArenaSprite(sprite, key, apply = null) {
+    if (!sprite || this.textures?.exists?.(key)) return sprite;
+    if (!Array.isArray(this.arenaArtPending)) this.arenaArtPending = [];
+    this.arenaArtPending.push({ sprite, key, apply });
+    return sprite;
+  }
+
+  /**
+   * Swap in any landmark art that landed after this board was built.
+   *
+   * Polled from `update` at 400 ms: the TextureManager has no per-key event this
+   * scene can subscribe to without leaking listeners across scene restarts, and
+   * the list is empty for every normal battle — the check costs one `.length`.
+   */
+  repairArenaArt() {
+    if (!this.arenaArtPending?.length) return;
+    const now = this.time?.now || 0;
+    if (this.arenaArtCheckedAt && now - this.arenaArtCheckedAt < 400) return;
+    this.arenaArtCheckedAt = now;
+    createArenaAnims(this);
+    const stillMissing = [];
+    for (const entry of this.arenaArtPending) {
+      // A restart tears the old sprites down; drop them rather than touch one.
+      if (!entry.sprite || !entry.sprite.scene) continue;
+      if (!this.textures.exists(entry.key)) {
+        stillMissing.push(entry);
+        continue;
+      }
+      try {
+        if (entry.apply) entry.apply(entry.sprite);
+        else entry.sprite.setTexture(entry.key);
+      } catch (error) {
+        stillMissing.push(entry);
+      }
+    }
+    this.arenaArtPending = stillMissing;
   }
 
   /** World-space bastion health bar. Repainted only when the number moves. */
@@ -5359,6 +5444,8 @@ export class GameScene extends Phaser.Scene {
       this.cameraRig?.update(rawDelta);
       this.badges?.update(this.cameras.main);
       this.syncLaneHint();
+      // Only does work when a landmark was built ahead of its texture.
+      this.repairArenaArt();
       // Two texture offsets per frame — that is the whole cost of a flowing
       // river, and it keeps running while the battle is paused.
       if (this.riverFlow) this.riverFlow.tilePositionX += rawDelta * 0.055;

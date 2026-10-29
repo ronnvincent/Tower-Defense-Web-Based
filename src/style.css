@@ -309,19 +309,26 @@ body {
    darkened tiling of the game's own grass art plus a warm vignette, so the
    stage reads as a framed table rather than a letterboxed video.
    -------------------------------------------------------------------------- */
-body::before {
-  content: '';
-  position: fixed;
-  inset: -8%;
-  z-index: 0;
-  background-image: url('/assets/tiles/grass.png');
-  background-size: 112px 112px;
-  background-position: center;
-  image-rendering: pixelated;
-  filter: blur(16px) saturate(0.8) brightness(0.34);
-  opacity: 0.6;
-  pointer-events: none;
-}
+/* Request 62: the battlefield's letterbox is a plate of the board's own turf,
+   not a slab of black — the camera keeps a band clear for the rail and the
+   forge, the canvas is transparent over that band, and what shows through is
+   the grass the board is made of.
+
+   It is an element inside #app, not `body::before`. That pseudo-element was
+   fixed, oversized and blurred, and in the real build Chromium dropped its
+   raster on the first invalidation — and the graphics profile invalidates it
+   the moment a battle opens (and again on the fullscreen toggle). The plate
+   then covered the viewport and painted nothing, so both HUD bands sat on flat
+   navy, which is what read as "too vivid black". A plain element in the app's
+   own stacking order does not have that problem, and with the blur baked into
+   the texture by scripts/build_arena_plate.py it costs one texture instead of a
+   full-screen 16 px filter every frame. */
+/* The plate lives on #app itself (see the rule above) rather than on a layer of
+   its own. A `body::before` pseudo and then a dedicated `#stage-backdrop` div
+   were both tried: each painted once and then went blank the first time anything
+   invalidated it — a filter write from the graphics profile, a fullscreen
+   toggle, a background change — leaving a fully transparent layer over the
+   letterbox. The app's own background has no such layer to lose. */
 
 body::after {
   content: '';
@@ -332,12 +339,18 @@ body::after {
   background:
     radial-gradient(ellipse 70% 55% at 50% 38%, rgba(245, 196, 81, 0.09), transparent 70%),
     radial-gradient(ellipse 60% 50% at 50% 115%, rgba(78, 225, 255, 0.07), transparent 70%),
-    linear-gradient(180deg, rgba(8, 11, 18, 0.55) 0%, rgba(8, 11, 18, 0.86) 100%);
+    /* Lighter than it was: the plate behind the letterbox is now the board's
+       own turf (Request 62), and a heavy wash here put a visible brightness
+       step along the canvas edge — a straight line, which is the one thing the
+       torn band is there to avoid. */
+    linear-gradient(180deg, rgba(8, 11, 18, 0.08) 0%, rgba(8, 11, 18, 0.22) 100%);
 }
 
-body.is-fullscreen::before {
-  filter: blur(22px) saturate(0.7) brightness(0.26);
-}
+/* Fullscreen used to darken the plate itself — first with a `filter`, then with a
+   second background stack. Both had to go: rewriting this layer's background at
+   runtime is what makes Chromium drop its raster (see the note above), and the
+   inset vignette on `body.is-fullscreen #app::after` already keeps the board the
+   only bright thing on the screen. */
 
 /*
  * The game is authored at 1280×768 (5:3).
@@ -361,9 +374,17 @@ body.is-fullscreen::before {
   height: 100vh;
   max-width: 100vw;
   max-height: 100vh;
-  /* Transparent, so a stage that is narrower than the screen (portrait, 4:3)
-     reveals the blurred battlefield backdrop instead of black bars. */
-  background: transparent;
+  /* Request 62: the letterbox is a plate of the board's own turf, out of focus,
+     so the area the camera keeps clear for the rail and the forge reads as the
+     table the board sits on rather than as black bars. It is one baked,
+     seamlessly tiling texture (scripts/build_arena_plate.py) under a light
+     vertical wash — no CSS `filter: blur()` and no separate layer: the blur used
+     to be a runtime filter on a fixed pseudo-element, which blanked the whole
+     thing the moment the graphics profile rewrote it, and a full-screen 16 px
+     blur is a per-frame composite the `balanced` profile cannot afford. */
+  background:
+    linear-gradient(180deg, rgba(8, 11, 18, 0.08) 0%, rgba(8, 11, 18, 0.22) 100%),
+    url('/assets/ui-kit/arena-plate.png') center / 512px 512px repeat;
   overflow: hidden;
 }
 
@@ -379,6 +400,8 @@ body.is-fullscreen::before {
 
 #game-container {
   position: absolute;
+  /* Above the letterbox plate every time, whatever the biomes do. */
+  z-index: 1;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -1107,14 +1130,70 @@ body.is-fullscreen::before {
   flex-direction: row;
   align-items: center;
   gap: var(--sp-2);
-  /* 84 = 1 px border ×2 + 6 px padding ×2 + the 68 px card, exactly. */
+  /* 84 = 6 px padding ×2 + the 68 px card, exactly. */
   padding: 6px var(--sp-3);
-  background: linear-gradient(180deg, rgba(20, 24, 32, 0.82), rgba(8, 11, 16, 0.93));
-  border: 1px solid rgba(198, 158, 88, 0.34);
-  border-radius: 12px;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  /* Request 62: the forge is not a plate. What is left is the same thin 15 %
+     black band as the top rail — torn along its top edge — with the cards
+     drawn straight on the battlefield. The cards keep their own frames; the
+     sheet behind them was the loudest rectangle on screen and it was saying
+     nothing the cards had not already said. The dock stays `position: absolute`
+     (from `.hud-panel`): that is what makes it the containing block for the
+     band below. */
+  background: none;
+  border: none;
+  border-radius: 0;
+  filter: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/*
+ * The band itself.
+ *
+ * A pseudo-element so it can bleed past the dock's content-sized box to the
+ * edges of the stage, and a torn mask (scripts/build_hud_bands.py) so its top
+ * edge is ripped paper rather than a rule. `z-index: -1` keeps it behind every
+ * card: the dock is a containing block (it is transformed on desktop), so this
+ * never drops behind the canvas.
+ */
+.hud-dock::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  /* Exactly the mask's own height, one to one: the tear is drawn 64 px tall by
+     scripts/build_hud_bands.py, and stretching it over the whole band pushed
+     the rip under the cards where nobody could see it. The strip ends where the
+     dock starts; `::after` carries the tint from there to the bottom of the
+     screen. */
+  top: -64px;
+  height: 64px;
+  width: 100vw;
+  transform: translateX(-50%);
+  z-index: -1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.15);
+  -webkit-mask-image: url('/assets/ui-kit/band-tear-top.png');
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: url('/assets/ui-kit/band-tear-top.png');
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+}
+
+/* The solid half of the band: the dock's own height, plus enough below it to
+   reach the bottom of the screen. Its top edge is hidden under the opaque end of
+   the torn strip above, so the only edge the eye can find is the rip. */
+.hud-dock::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: -18px;
+  width: 100vw;
+  transform: translateX(-50%);
+  z-index: -1;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 /*
@@ -15465,9 +15544,9 @@ body.wm-covers-canvas #game-container canvas {
 
 /* ---- balanced: cheaper full-screen effects ------------------------------ */
 
-:root[data-quality='balanced'] body::before {
-  filter: blur(10px) saturate(0.8) brightness(0.34);
-}
+/* The plate is one baked texture, so the balanced profile has nothing to
+   cheapen here. It used to swap the CSS blur for a smaller radius — which is
+   exactly the runtime filter write that blanked the layer (Request 62). */
 
 :root[data-quality='balanced'] .wm-panel {
   filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.66));
@@ -15484,9 +15563,11 @@ body.wm-covers-canvas #game-container canvas {
 
 /* The blurred tiling behind the stage is a 16 px filter over the whole screen.
    Dropping it to a flat plate keeps the framing and costs nothing. */
-:root[data-quality='performance'] body::before {
-  display: none;
-}
+/* The bottom profile keeps the plate. It used to drop it for the cost of the
+   16 px blur that used to live here; the blur is baked into the texture now, so
+   what is left is one repeated image and no per-frame composite — and not
+   touching `#app`'s background at runtime is what keeps Chromium's raster of it
+   from vanishing on a profile switch (see the note above). */
 
 :root[data-quality='performance'] body {
   background: radial-gradient(120% 100% at 50% 0%, #10151f 0%, #070a10 60%, #04060a 100%);
@@ -16918,20 +16999,27 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 .hud-topbar::before {
   content: '';
   position: absolute;
-  inset: calc(-1 * var(--safe-top) - 10px) -26px -22px -26px;
+  /* Full bleed: the bar is inset by its own gutter, so the band has to reach
+     back out to the edges of the stage to read as the frame's shadow at all. */
+  top: calc(-1 * (clamp(4px, 1vh, 8px) + var(--safe-top)));
+  left: calc(-1 * (clamp(8px, 1.4vw, 16px) + var(--safe-left)));
+  right: calc(-1 * (clamp(8px, 1.4vw, 16px) + var(--safe-right)));
+  bottom: -9px;
   z-index: -1;
   pointer-events: none;
-  /* Downward fade, so the board inside the frame keeps its own colour and the
-     band reads as the shadow of the top edge rather than a painted bar. */
-  background: linear-gradient(
-    180deg,
-    rgba(3, 5, 9, 0.92) 0%,
-    rgba(3, 5, 9, 0.78) 34%,
-    rgba(3, 5, 9, 0.46) 68%,
-    rgba(3, 5, 9, 0) 100%
-  );
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  /* Request 62: plain black at 15 %, not a painted gradient. The band exists
+     only to separate the readings from the grass, so it is as tall as the rail
+     plus a breath — about 73 px at 1280×768 instead of the old ~110. */
+  background: rgba(0, 0, 0, 0.15);
+  /* Torn paper, not a ruler line: the mask is drawn by scripts/build_hud_bands.py
+     (a deterministic rip with three straight fold creases). Stretched to the
+     band, so it reads at any width. */
+  -webkit-mask-image: url('/assets/ui-kit/band-tear-bottom.png');
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: url('/assets/ui-kit/band-tear-bottom.png');
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
 }
 
 /* No closing line. A gold rule at the bar's bottom edge used to collide with
@@ -17201,15 +17289,10 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   color: rgba(255, 143, 164, 0.85);
 }
 
-/* A phone's rail is 44 px and the fade would swallow two thirds of it. */
+/* A phone's rail is 44 px: the same 15 % band, only as tall as that rail needs. */
 [data-shell='mobile'] .hud-topbar::before {
-  inset: calc(-1 * var(--safe-top) - 6px) -16px -14px -16px;
-  background: linear-gradient(
-    180deg,
-    rgba(3, 5, 9, 0.94) 0%,
-    rgba(3, 5, 9, 0.7) 55%,
-    rgba(3, 5, 9, 0) 100%
-  );
+  top: calc(-1 * (4px + var(--safe-top)));
+  bottom: -7px;
 }
 
 [data-shell='mobile'] .hud-stat {

@@ -6,7 +6,8 @@ import { DECOR_ART } from '../data/towerDecor.js';
 import { PRESENCE_ART } from '../data/towerPresenceArt.js';
 import { TIERED_PROJECTILES } from '../data/projectileArt.js';
 import { THEMES } from '../data/levelData.js';
-import { ARENA_ART, PORTAL_ANIM } from '../data/arenaArt.js';
+import { ARENA_ART } from '../data/arenaArt.js';
+import { createArenaAnims } from '../systems/ArenaArt.js';
 
 /** Ground tile variants per biome (grass, grass_2, grass_3). */
 const GROUND_VARIANTS = ['', '_2', '_3'];
@@ -202,20 +203,18 @@ export class BootScene extends Phaser.Scene {
     generateAllTextures(this);
     this.createTowerAnimations();
     this.createArenaAnimations();
+    // The art a battlefield is built from is resident from here on. `main.js`
+    // waits for this before it lets a launch run — a PLAY pressed while the pack
+    // was still streaming used to build a field without its portal or its keep
+    // (see systems/ArenaArt.js), and the boot's own hand-off to `MenuScene` then
+    // put the title card back over the live battle.
+    this.game?.events?.emit('boot-complete');
     this.scene.start('MenuScene');
   }
 
   /** The portal vortex: one looping clip, 30 fps, so it breathes instead of spins. */
   createArenaAnimations() {
-    if (!this.textures.exists(ARENA_ART.portalVortex.key)) return;
-    if (this.anims.exists(PORTAL_ANIM)) return;
-    const { frames } = ARENA_ART.portalVortex;
-    this.anims.create({
-      key: PORTAL_ANIM,
-      frames: this.anims.generateFrameNumbers(ARENA_ART.portalVortex.key, { start: 0, end: frames - 1 }),
-      frameRate: 30,
-      repeat: -1,
-    });
+    return createArenaAnims(this);
   }
 
   /** One looping "idle" (resting pose) and one-shot "fire" clip per tower slot. */

@@ -16,7 +16,15 @@ export class MenuScene extends Phaser.Scene {
     // its title card and un-hide the overlay on top of the loading field. Any
     // GameScene in STARTING / LOADING / CREATING / RUNNING / PAUSED counts as a
     // battle that owns the screen.
-    const gameScene = window.game?.scene?.getScene?.('GameScene');
+    //
+    // The scene comes from *this* game, never from `window.game`: that handle is
+    // a dev/QA convenience (`main.js` only sets it under `import.meta.env.DEV`
+    // or an explicit `?probe=1`), so a production build read `undefined` here,
+    // decided no battle was live, and dropped the title card and its overlay on
+    // top of a running field the moment the boot finished — the reported "it
+    // goes back to the main menu on my first battle".
+    const gameScene = this.game?.scene?.getScene?.('GameScene')
+      || window.game?.scene?.getScene?.('GameScene');
     const status = gameScene?.sys?.settings?.status;
     const battleLive = Boolean(gameScene?.scene?.isActive?.())
       || (typeof status === 'number' && status >= 2 && status <= 6);

@@ -67,7 +67,14 @@ const phaserConfig = {
   parent: 'game-container',
   width: GAME_WIDTH,
   height: GAME_HEIGHT,
-  backgroundColor: '#080b12',
+  // A transparent clear, so the battlefield's letterbox — the band the camera
+  // keeps clear for the rail and the forge — shows the page's own backdrop (the
+  // blurred tiling of the grass, framed by a vignette) instead of a slab of
+  // `#080b12`. Request 62: the black behind the top HUD is 15 % black, not this.
+  // Every other scene paints its own full-canvas plate (the menu's gradient,
+  // the boot screen, the map is DOM), so nothing behind them changes.
+  transparent: true,
+  backgroundColor: 'rgba(0, 0, 0, 0)',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -192,6 +199,50 @@ window.gameLeaderboardUI = new LeaderboardUI(modalContainer, globalLeaderboard, 
 const menuOverlay = () => document.getElementById('main-menu-overlay');
 const hudLayer = () => document.getElementById('hud-container');
 
+/* ------------------------------------------------------------ the boot gate
+ *
+ * `BootScene` streams the whole art set before `MenuScene` exists — every tile,
+ * every tower, the portal gate and the keep. The main menu, the name gate and
+ * the world map, though, are plain DOM, and they are live while that download
+ * is still running. A first-time player names themselves and presses PLAY
+ * straight into the campaign's opening battle, which is launched from the menu
+ * itself (`enterRealmDestination`), so the battlefield could be built against a
+ * pack that had not arrived yet:
+ *
+ *   • the arena landmarks were the last thing boot queued, so the gate, the
+ *     vortex and the bastion keep were created with a texture that did not
+ *     exist — and, because nothing ever queued them again, they stayed blank
+ *     for the life of the page (systems/ArenaArt.js now also repairs this, so a
+ *     failed download heals itself);
+ *   • when the pack finally landed, `BootScene.create()` handed over to
+ *     `MenuScene`, which re-revealed the main menu over the live battle. That is
+ *     the "it goes back to the main menu, then the second try is fine" report.
+ *
+ * The fix is one rule, in one place: nothing launches a battle, and nothing
+ * reveals the menu, until the boot pack is resident. A request that arrives
+ * earlier waits for it and then runs untouched.
+ */
+let bootComplete = false;
+let pendingLaunch = null;
+let menuRevealWaitingForBoot = false;
+
+function runBootWaiters() {
+  bootComplete = true;
+  const launch = pendingLaunch;
+  pendingLaunch = null;
+  if (launch) {
+    // The same call the player made, replayed now that the art is there.
+    startLevelNow(launch.levelId, launch.options);
+    return;
+  }
+  if (menuRevealWaitingForBoot) {
+    menuRevealWaitingForBoot = false;
+    revealMainMenu();
+  }
+}
+
+game.events.once('boot-complete', runBootWaiters);
+
 /**
  * Where a sub-screen should return to when it closes.
  *
@@ -217,6 +268,16 @@ function restoreAfterPanel({ refresh = true } = {}) {
 
 /** Reveal the main menu without touching the ledger or the map. */
 function revealMainMenu() {
+  // The menu is a scrim over the title art, never over a battle: a late identity
+  // check (or anything else that resolves after a launch) must stand down
+  // instead of hiding the HUD behind the title card.
+  if (battleSceneIsUp()) return;
+  // Until the boot pack lands there is nothing behind the menu to look at, and a
+  // clickable PLAY would launch a battle against art that is still in flight.
+  if (!bootComplete) {
+    menuRevealWaitingForBoot = true;
+    return;
+  }
   const overlay = menuOverlay();
   if (!overlay) return;
   overlay.classList.remove('hidden', 'is-leaving');
@@ -414,6 +475,13 @@ function startLevel(levelId = 'level-1', options = {}) {
 }
 
 function startLevelNow(levelId = 'level-1', options = {}) {
+  // A battlefield is drawn out of the boot pack. Launching before it is resident
+  // is what left the first battle without its portal or its keep, so the request
+  // waits for the pack instead of racing it (see "the boot gate" above).
+  if (!bootComplete) {
+    pendingLaunch = { levelId, options };
+    return;
+  }
   // The battle that just ended may have been the village; whatever this run is,
   // it starts from a clean document (the scene re-adds its own state in create).
   clearTutorialOverlay();

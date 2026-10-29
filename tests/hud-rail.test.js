@@ -34,18 +34,23 @@ function allRuleBodies(selector) {
 }
 
 describe('the top rail', () => {
-  it('replaces the bar frame with a fade that can bleed past its own box', () => {
+  it('replaces the bar frame with a thin 15 % band that can bleed past its own box', () => {
     const bar = lastRuleBody('.hud-topbar');
     expect(bar).toMatch(/border:\s*none/);
     expect(bar).toMatch(/border-image:\s*none/);
     expect(bar).toMatch(/background:\s*transparent/);
 
-    const fade = lastRuleBody('.hud-topbar::before');
-    expect(fade).toMatch(/linear-gradient/);
-    expect(fade).toMatch(/mask-image/);
-    // A pseudo-element, so the dissolve is not clipped to the bar's height.
-    expect(fade).toMatch(/position:\s*absolute/);
-    expect(fade).toMatch(/z-index:\s*-1/);
+    const band = lastRuleBody('.hud-topbar::before');
+    // Request 62: plain black at 15 %, not a painted gradient.
+    expect(band).toMatch(/background:\s*rgba\(0,\s*0,\s*0,\s*0\.15\)/);
+    expect(band).not.toMatch(/linear-gradient/);
+    // Torn paper edge, from scripts/build_hud_bands.py.
+    expect(band).toMatch(/mask-image:\s*url\('\/assets\/ui-kit\/band-tear-bottom\.png'\)/);
+    // A pseudo-element, so the band is not clipped to the bar's height.
+    expect(band).toMatch(/position:\s*absolute/);
+    expect(band).toMatch(/z-index:\s*-1/);
+    // Thin: the rail's own gutter + height plus a breath, never a 100 px slab.
+    expect(band).toMatch(/bottom:\s*-9px/);
   });
 
   it('paints no plate behind the readings', () => {

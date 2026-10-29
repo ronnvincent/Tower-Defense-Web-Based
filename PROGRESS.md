@@ -764,3 +764,103 @@ Driven through the real opening (`startLevel('tutorial')`), not a fixture:
 that it comes up when the inspector finally opens).
 
 Screenshots: `docs/ui-after/tutorial-spotlight/`.
+
+---
+
+## 16. Request 62 — the bands, the letterbox, and the first battle
+
+> "masyadong matingkad yung kulay ng black, parang yung opacity lang is dapat
+> nasa 15 % … dapat hindi straight yung edges nya sa ilalim, parang random edge
+> like parang papel na natupi … wag masyadong makapal yung width … sa battlefield
+> na ako tapos yung portal natin and base ay hindi nakikita i mean yung assets,
+> then mag baback sya and babalik sa main menu"
+
+### The bands
+
+| Piece | Before | Now |
+| ----- | ------ | --- |
+| Top rail | 9-slice frame + a ~110 px black gradient, hard bottom edge | one `rgba(0,0,0,0.15)` band, 73 px at 1280×768, torn along its bottom edge |
+| Forge dock | engraved glass plate, `backdrop-filter`, border, shadow | no plate at all — cards straight on the battlefield, backed by a 15 % band |
+| The tear | — | `public/assets/ui-kit/band-tear-{bottom,top}.png`, 1024×64 alpha masks from `scripts/build_hud_bands.py` (seed 20251029, three deliberate straight fold creases) |
+
+The masks are stretched to the band (`mask-size: 100% 100%`), so the rip reads at
+any width. The dock's band is **two** boxes: `::before` is exactly the mask's own
+64 px (the torn strip above the cards) and `::after` carries the tint from the
+dock's top down past the screen edge. One box was tried first and the math is
+what killed it — stretched over the dock's 114 px the rip started 72 px down,
+under the cards, where nobody could see it.
+
+### The bug under it: the letterbox plate never painted
+
+Everything the bands sat on was flat navy, which is what made 15 % black read as
+"too vivid". The plate behind the letterbox was `body::before` — a fixed,
+oversized pseudo-element with `filter: blur(20px) …`. Measured in the real
+build:
+
+| State | Pixel at (640, 10) |
+| ----- | ------------------ |
+| filter left alone | plate visible |
+| after the graphics profile rewrote that filter (every battle start) | nothing painted |
+| after a fullscreen toggle / an `inset` write | nothing painted, and it stays that way |
+| background overridden to magenta | magenta paints — the box is there, the raster is not |
+
+Chromium loses that layer's raster on the first invalidation. A dedicated
+`#stage-backdrop` div was tried next and lost it the same way (its background
+went blank the moment it was rewritten). What works is the **app's own
+background**: `#app` carries the plate, written once by the stylesheet and never
+rewritten at runtime.
+
+So the blur is baked instead of composited: `scripts/build_arena_plate.py` tiles
+`assets/tiles/grass.png`, adds periodic light and shade (whole cycles, so the
+tile is seamless), blurs it with wrap and writes a 512×512
+`public/assets/ui-kit/arena-plate.png`. The browser draws one repeated texture —
+no `filter`, no per-frame composite on the profile most laptops land on, and
+nothing to invalidate. The `performance` profile and the fullscreen toggle no
+longer rewrite that background; fullscreen already darkens the frame with the
+inset vignette on `#app::after`.
+
+### The first battle: missing arena art, and the bounce
+
+* `src/systems/ArenaArt.js` is the one list of arena landmarks and their texture
+  keys (`portal-arch`, `bastion-fortress`, `river-flow`, `portal-vortex`) plus
+  `hasArenaArt` / `missingArenaArt` / `queueArenaArt` / `createArenaAnims`.
+* `BootScene` used to be the only place that loaded them, so a battle opened
+  before boot finished had no portal and no keep. `GameScene.preload` now queues
+  whatever is still missing, `create` tracks the sprites it will need, and
+  `repairArenaArt` re-applies the texture when the load lands — a first battle is
+  never left with invisible landmarks, and no page reload is needed.
+* `MenuScene` refuses to reveal the menu over a live battle (status
+  2–6 — starting/loading/creating/running/paused), `src/main.js` holds the menu
+  behind `boot-complete` (`revealMainMenu` waits for boot, and stands down
+  entirely if a battle is live), and `startLevelNow` is the only path into a
+  level.
+
+### Deliberate decisions
+
+* **15 % black and nothing else.** No gradient, no blur, no border, no shadow on
+  either band. `tests/hud-rail.test.js` pins the value and the mask.
+* **The dock stays `position: absolute`.** Making it `relative` (to host the
+  band) moved the whole row; the band lives on its pseudos instead.
+* **The plate may be darker than the board, never a different colour.** Plate
+  average (53, 107, 56) against the board's (72, 136, 70). A brightness step at
+  the canvas edge is a straight line you can see, which is exactly what the torn
+  band exists to avoid.
+* **No `filter` on anything full-screen.** Two separate layers proved it.
+
+### Verified in the browser
+
+`/tmp/f-1280.png`, `/tmp/f-1024.png`, `/tmp/f-844.png` (desktop 1280×768, desktop
+1024×640, phone shell 844×390), driven through the real level:
+
+| Check | Result |
+| ----- | ------ |
+| Plate at (20, 5) / (20, 700) | (64, 94, 57) / (40, 79, 43) — grass, not navy |
+| Plate after a 1280→1024→1280 resize | still grass |
+| Plate after `body.is-fullscreen` on/off | darker in fullscreen, back to grass after |
+| Menu | unchanged (opaque key art) |
+| Layout harness | `clipped=0 spill=0 covered=0 tiny=4` |
+| Prod arena art (`dbgprod.mjs`, `slow 9000`) | menu at 7770 ms, `bounced:false`, 40/40 requests ok |
+
+`npm run build` ✓ 6.38 s · `npx vitest run` → **138 files / 1788 passed**
+(`tests/arena-art.test.js`, `tests/menu-battle-guard.test.js`, and the rewritten
+first case in `tests/hud-rail.test.js`).

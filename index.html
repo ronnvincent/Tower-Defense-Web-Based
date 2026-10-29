@@ -34,7 +34,10 @@
     <div id="scene-curtain" class="scene-curtain" aria-hidden="true"></div>
 
     <div id="app">
-      <!-- Phaser 3 Canvas Mount -->
+      <!-- Phaser 3 Canvas Mount. The letterbox plate (Request 62) is #app's own
+           background — see `#app` in src/style.css. A separate fixed layer for
+           it was tried and had to be dropped: Chromium lost that layer's raster
+           on the first invalidation and the plate painted nothing at all. -->
       <div id="game-container"></div>
 
       <!-- Battle atmosphere: the biome's vignette and sky wash.
