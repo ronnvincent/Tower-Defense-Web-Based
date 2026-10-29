@@ -439,11 +439,16 @@ export class HUD {
           <p class="pause-title">SIMULATION PAUSED</p>
           <div class="pause-actions">
             <button id="btn-resume" class="game-btn game-btn-primary">RESUME</button>
+            <button id="btn-restart" class="game-btn game-btn-gold" title="Start this level again from wave 1">RESTART</button>
+            <button id="btn-pause-settings" class="game-btn game-btn-gold" title="Sound, graphics, shake, damage numbers">SETTINGS</button>
             <button id="btn-reset-view" class="game-btn game-btn-gold" title="Fit the whole map (0)">RESET VIEW</button>
             <button id="btn-blessings" class="game-btn game-btn-gold" title="Spend gold on a blessing for this battle">BLESSINGS</button>
             <button id="btn-codex" class="game-btn game-btn-gold" title="Algorithm codex (C)">CODEX</button>
             <button id="btn-menu" class="game-btn game-btn-danger">LEAVE BATTLE</button>
           </div>
+          <p id="restart-warning" class="pause-warning hidden">
+            Restarting discards this battle — tap again to confirm.
+          </p>
           <p id="pause-status" class="pause-status" aria-live="polite"></p>
           <div id="pause-contracts" class="pause-contracts hidden" aria-live="polite"></div>
           <p id="quit-warning" class="pause-warning hidden">
@@ -1530,6 +1535,9 @@ export class HUD {
     clearTimeout(this.quitDisarmTimer);
     document.getElementById('btn-menu')?.classList.remove('armed');
     document.getElementById('quit-warning')?.classList.add('hidden');
+    clearTimeout(this.restartDisarmTimer);
+    document.getElementById('btn-restart')?.classList.remove('armed');
+    document.getElementById('restart-warning')?.classList.add('hidden');
   }
 
   bindEvents() {
@@ -1648,6 +1656,30 @@ export class HUD {
       clearTimeout(this.quitDisarmTimer);
       this.disarmQuit();
       this.callbacks.onOpenMenu?.();
+    });
+
+    // Restarting is destructive in the same way leaving is — the wave, the
+    // keeps and the gold all go — so it arms exactly like LEAVE BATTLE does.
+    const restartBtn = document.getElementById('btn-restart');
+    const restartWarning = document.getElementById('restart-warning');
+    restartBtn?.addEventListener('click', () => {
+      audio.playClick();
+      if (!restartBtn.classList.contains('armed')) {
+        restartBtn.classList.add('armed');
+        restartWarning?.classList.remove('hidden');
+        clearTimeout(this.restartDisarmTimer);
+        this.restartDisarmTimer = setTimeout(() => this.disarmQuit(), 4000);
+        return;
+      }
+      this.disarmQuit();
+      this.callbacks.onRestart?.();
+    });
+
+    // Settings open *over* a paused battle. The card is not dismissed first:
+    // the player closes the panel and is back exactly where they left off.
+    document.getElementById('btn-pause-settings')?.addEventListener('click', () => {
+      audio.playClick();
+      this.callbacks.onOpenSettings?.();
     });
 
     const muteBtn = document.getElementById('btn-mute');

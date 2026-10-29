@@ -49,8 +49,24 @@ export function hpBarWidths({ barWidth, health, maxHealth, chipPct = null }) {
   };
 }
 
-/** Colour of the health fill, matching the bastion bar's own three states. */
-export function hpBarColor(pct) {
+/**
+ * Colour of the health fill, matching the bastion bar's own three states.
+ *
+ * `colourAssist` swaps the red/green axis for a blue → orange → deep-orange one
+ * (the Okabe–Ito pair, the usual choice for deuteranopia and protanopia). The
+ * three steps are also three *luminance* steps, so the bar still reads as "this
+ * one is nearly dead" in a greyscale screenshot of the page. The value itself is
+ * never carried by colour alone: the fill is the length of the bar.
+ *
+ * @param {number} pct 0 … 1
+ * @param {{ colourAssist?: boolean }} [options]
+ */
+export function hpBarColor(pct, { colourAssist = false } = {}) {
+  if (colourAssist) {
+    if (pct < 0.3) return 0xd55e00;
+    if (pct < 0.6) return 0xe69f00;
+    return 0x56b4e9;
+  }
   if (pct < 0.3) return 0xff5470;
   if (pct < 0.6) return 0xf5c451;
   return 0x5cf2a6;

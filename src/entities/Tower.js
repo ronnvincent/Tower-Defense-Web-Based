@@ -1239,7 +1239,9 @@ export class Tower {
   fire(target) {
     if (!target || target.isDead) return;
 
-    audio.playShoot(this.typeKey);
+    // The voice sits where the tower stands: a volley across a wide board
+    // lands left-to-right instead of in the middle of the player's head.
+    audio.playShoot(this.typeKey, { pan: audio.panFor(this.x, this.scene?.cameras?.main) });
     this.context.gameState.counters.projectilesFired++;
 
     // Play the pack's attack animation (it ends back on the resting pose).

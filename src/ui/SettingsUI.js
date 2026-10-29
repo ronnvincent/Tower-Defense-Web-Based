@@ -1,5 +1,6 @@
 /**
- * SettingsUI — the four faders, the mute switch and the graphics profile.
+ * SettingsUI — the four faders, the mute switch, the graphics profile and the
+ * three field switches (shake, damage numbers, colour-vision palette).
  *
  * Mounted on `document.body` rather than in `#modal-container`, because several
  * screens replace that container's markup wholesale; a settings panel that can
@@ -12,6 +13,7 @@
 
 import { AUDIO_BUSES, audio as defaultAudio } from '../rendering/AudioSynth.js';
 import { QUALITY_CHOICES } from '../systems/QualityManager.js';
+import { uxSettings as defaultUx } from '../config/uxSettings.js';
 
 /** Fader rows, in signal order. */
 const ROWS = [
@@ -19,6 +21,32 @@ const ROWS = [
   { bus: 'music', label: 'MUSIC', hint: 'Menu, realm, forge, battle' },
   { bus: 'sfx', label: 'EFFECTS', hint: 'Towers, impacts, interface' },
   { bus: 'ambient', label: 'AMBIENCE', hint: 'Wind, water, fire, birds' },
+];
+
+/**
+ * The three switches that are not about sound.
+ *
+ * Each one is a preference about *this* player's eyes and hands, so each one is
+ * a default-on/off that can be changed at any time and is remembered:
+ * shake off for motion sensitivity, damage numbers off for a quiet board,
+ * colour assist on when red-on-green is not a difference you can see.
+ */
+const UX_ROWS = [
+  {
+    key: 'shake',
+    label: 'SCREEN SHAKE',
+    hint: 'Impacts nudge the camera. Off keeps the frame still.',
+  },
+  {
+    key: 'damageNumbers',
+    label: 'DAMAGE NUMBERS',
+    hint: 'Floating numbers over a hit. Off leaves the health bars alone.',
+  },
+  {
+    key: 'colourAssist',
+    label: 'COLOUR ASSIST',
+    hint: 'Blue and orange readings instead of red and green.',
+  },
 ];
 
 const pct = (value) => `${Math.round(value * 100)}%`;
@@ -34,13 +62,20 @@ export class SettingsUI {
   /**
    * @param {{ audio?: object, onChange?: (state: {muted:boolean, volumes:object}) => void }} [options]
    */
-  constructor({ audio = defaultAudio, quality = null, onChange = null } = {}) {
+  constructor({ audio = defaultAudio, quality = null, ux = defaultUx, onChange = null } = {}) {
     this.audio = audio;
     this.quality = quality;
+    this.ux = ux;
     this.onChange = onChange;
     this.el = null;
     this.returnFocus = null;
     this.onKeyDown = this.#handleKey.bind(this);
+    // Anything else that moves a switch (a hotkey, the console, a future
+    // onboarding card) repaints the panel while it is open, so it can never
+    // show a state the game is not in.
+    this.ux?.subscribe?.(() => {
+      if (this.open) this.refresh();
+    });
   }
 
   /* ------------------------------------------------------------------ markup */
@@ -53,8 +88,9 @@ export class SettingsUI {
       <div class="set-card" role="dialog" aria-modal="true" aria-labelledby="set-title">
         <p class="set-eyebrow">THE CONTROL DESK</p>
         <h2 class="set-title" id="set-title">Settings</h2>
-        <p class="set-note">Music and ambience are synthesised live in the browser — nothing is streamed or downloaded.</p>
+        <p class="set-note">Sound is synthesised live, with a few recorded cues.</p>
 
+        <div class="set-body">
         <div class="set-rows">
           ${ROWS.map(
             (row) => `
@@ -79,6 +115,18 @@ export class SettingsUI {
             ).join('')}
           </div>
           <p class="set-quality-note" id="set-quality-note"></p>
+        </div>
+
+        <div class="set-ux" role="group" aria-label="Field settings">
+          <p class="set-quality-title">FIELD</p>
+          ${UX_ROWS.map(
+            (row) => `
+            <button class="set-switch" type="button" role="switch" aria-checked="false" data-ux="${row.key}">
+              <span class="set-switch-copy"><b>${row.label}</b><i>${row.hint}</i></span>
+              <span class="set-switch-track" aria-hidden="true"><span class="set-switch-knob"></span></span>
+            </button>`
+          ).join('')}
+        </div>
         </div>
 
         <div class="set-actions">
@@ -116,6 +164,11 @@ export class SettingsUI {
       const note = this.el.querySelector('#set-quality-note');
       if (note) note.textContent = QUALITY_COPY[quality.setting] || '';
     }
+    for (const button of this.el.querySelectorAll('.set-switch')) {
+      const on = Boolean(this.ux?.get?.(button.dataset.ux));
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-checked', String(on));
+    }
     const mute = this.el.querySelector('#set-mute');
     if (mute) {
       mute.textContent = this.audio.muted ? 'SOUND OFF' : 'SOUND ON';
@@ -125,7 +178,11 @@ export class SettingsUI {
   }
 
   #emit() {
-    this.onChange?.({ muted: Boolean(this.audio.muted), volumes: this.audio.volumes });
+    this.onChange?.({
+      muted: Boolean(this.audio.muted),
+      volumes: this.audio.volumes,
+      ux: this.ux?.all ?? null,
+    });
   }
 
   /* ------------------------------------------------------------------ events */
@@ -150,6 +207,15 @@ export class SettingsUI {
       this.refresh();
       this.#emit();
     });
+    for (const button of el.querySelectorAll('.set-switch')) {
+      button.addEventListener('click', () => {
+        const changed = this.ux?.toggle?.(button.dataset.ux);
+        if (changed?.changed) this.audio?.playToggle?.();
+        else this.audio?.playClick?.();
+        this.refresh();
+        this.#emit();
+      });
+    }
     for (const button of el.querySelectorAll('.set-quality-opt')) {
       button.addEventListener('click', () => {
         this.quality?.set(button.dataset.quality);

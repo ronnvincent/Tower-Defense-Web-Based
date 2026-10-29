@@ -15,6 +15,7 @@ import {
 } from '../systems/BarricadeCombat.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { HP_BAR, hpBarWidths, hpBarColor } from '../systems/Juice.js';
+import { uxEnabled } from '../config/uxSettings.js';
 
 /** World px a creep walks between footstep samples (~1.1 tiles). */
 const FOOTSTEP_STRIDE = 54;
@@ -827,7 +828,7 @@ export class Enemy {
       gfx.fillStyle(0xffb26b, 0.55);
       gfx.fillRoundedRect(left, top, chip, height, radius);
     }
-    gfx.fillStyle(hpBarColor(pct), 1);
+    gfx.fillStyle(hpBarColor(pct, { colourAssist: uxEnabled('colourAssist') }), 1);
     if (fill > 0) gfx.fillRoundedRect(left, top, Math.max(fill, radius), height, radius);
   }
 

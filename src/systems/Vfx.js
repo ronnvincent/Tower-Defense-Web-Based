@@ -254,8 +254,11 @@ export class Vfx {
     }
 
     if (splash > 0) this.shockwave(x, y, Math.min(1.7, 0.55 + splash / 130), element);
-    if (shake && scale >= 1.6 && this.scene.cameras?.main?.shake) {
-      this.scene.cameras.main.shake(70, 0.002);
+    if (shake && scale >= 1.6) {
+      // The scene owns the preference (`settings → screen shake`); a scene that
+      // does not have the helper — a stub in a test — keeps the raw call.
+      if (this.scene.shakeCamera) this.scene.shakeCamera(70, 0.002);
+      else this.scene.cameras?.main?.shake?.(70, 0.002);
     }
     this.impactLight(x, y, element, scale);
   }

@@ -261,18 +261,66 @@ export class AudioSynth {
   }
 
   #persist() {
+    // The settings record has two owners: the mixer (`muted`, `volumes`) and
+    // `config/uxSettings.js` (`ux`). Whoever writes must keep the other's
+    // fields, or moving a fader would silently reset the player's switches.
+    const record = readJSON(this.storage, STORAGE_KEYS.settings)?.value ?? {};
     writeJSON(this.storage, STORAGE_KEYS.settings, {
+      ...record,
       muted: this.muted,
       volumes: { ...this.levels },
     });
   }
 
-  #gain(v = 1) {
+  /**
+   * One effect's own gain node, already routed to the effects bus.
+   *
+   * `pan` is -1 (left) … 1 (right) and is only used by cues that know where on
+   * the board they happened. A StereoPanner sits *after* the envelope, so the
+   * voice costs one extra node and the cue sounds identical when panned to the
+   * centre (the graph is still built, the knob just sits at 0).
+   */
+  #gain(v = 1, pan = 0) {
     if (!this.ctx || this.muted) return null;
     const g = this.ctx.createGain();
     g.gain.value = Math.max(0, v);
-    g.connect(this.sfx);
+    const panned = Number.isFinite(pan) && Math.abs(pan) > 0.01 && this.ctx.createStereoPanner;
+    if (panned) {
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.value = Math.max(-1, Math.min(1, pan));
+      g.connect(panner);
+      panner.connect(this.sfx);
+    } else {
+      g.connect(this.sfx);
+    }
     return g;
+  }
+
+  /**
+   * A tiny random detune for a cue that fires many times a second.
+   *
+   * Eight archers firing on the same frame with the same oscillator is a chirp,
+   * not a volley: ±4 % on the pitch and the time of each shot turns it back into
+   * a crowd. Deterministic cues (UI, music, the alarm) never use this.
+   */
+  #jitter(amount = 0.04) {
+    return 1 + (Math.random() * 2 - 1) * amount;
+  }
+
+  /**
+   * World x → stereo pan, for the cues that know where they happened.
+   *
+   * The frame is what matters, not the map: a tower at the right edge of the
+   * screen should be heard on the right even when the camera is parked over the
+   * left lane. Clamped to ±0.7 so nothing is ever fully deaf in one ear.
+   */
+  panFor(worldX, camera = null) {
+    const view = camera?.worldView;
+    const width = view?.width || camera?.width;
+    if (!Number.isFinite(worldX) || !Number.isFinite(width) || width <= 0) return 0;
+    const left = Number.isFinite(view?.x) ? view.x : 0;
+    const ratio = (worldX - left) / width;
+    return Math.max(-0.7, Math.min(0.7, (ratio * 2 - 1) * 0.7));
   }
 
   playClick() {
@@ -416,14 +464,24 @@ export class AudioSynth {
     tick.stop(now + 0.06);
   }
 
-  playShoot(type) {
+  /**
+   * A tower fires.
+   * @param {string} type the firing line
+   * @param {{ pan?: number }} [options] where it happened on screen
+   */
+  playShoot(type, options = {}) {
     this.unlock();
     // Request 44: every line owns a recording of its own weapon. The legacy
     // foley chain below stays as the fallback for a tower whose sample has not
     // decoded yet, and the oscillator at the end of this method is the last
     // resort — so a missing file costs texture, never silence.
+    //
+    // Every route below is one shot of a weapon that fires several times a
+    // second, so each one gets the same treatment: a few percent of pitch
+    // jitter (a volley is a crowd, not a chirp) and, when the caller knows
+    // where the tower is, a stereo position.
     const sample = TOWER_SAMPLES[type];
-    if (sample && this.samples.play(sample)) return;
+    if (sample && this.samples.play(sample, { pan: options.pan, jitter: 0.05 })) return;
     if (type === 'archer' && this.playBuffer('wood', 0.5, 1.6)) return;
     if (type === 'cannon' && this.playBuffer('wood', 0.75, 0.6)) return;
     if (type === 'frost' && this.playBuffer('glass', 0.5, 1.3)) return;
@@ -484,9 +542,9 @@ export class AudioSynth {
     }
   }
 
-  playExplosion() {
+  playExplosion(options = {}) {
     this.unlock();
-    const g = this.#gain(0.45);
+    const g = this.#gain(0.45, options.pan);
     if (!g) return;
     const now = this.ctx.currentTime;
     // Noise burst
@@ -536,11 +594,12 @@ export class AudioSynth {
     osc2.stop(now + 0.2);
   }
 
-  playEnemyHit() {
+  /** @param {{ pan?: number }} [options] */
+  playEnemyHit(options = {}) {
     this.unlock();
-    if (this.samples.play('enemy.hit')) return;
+    if (this.samples.play('enemy.hit', { pan: options.pan, jitter: 0.06 })) return;
     if (this.playBuffer('metal', 0.4, 1.25)) return;
-    const g = this.#gain(0.18);
+    const g = this.#gain(0.18, options.pan);
     if (!g) return;
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();
@@ -654,6 +713,33 @@ export class AudioSynth {
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
   }
 
+  /**
+   * The bastion is under a quarter: one soft heartbeat, played on a timer by
+   * the scene while the gate stays critical.
+   *
+   * Deliberately quiet — 0.13 of the effects bus — because it repeats roughly
+   * every two seconds for as long as the player is losing. Two thumps a beat
+   * apart: a heartbeat, not a klaxon. A deep sine can carry the message without
+   * masking the towers that are still firing.
+   */
+  playLowHealth() {
+    this.unlock();
+    const g = this.#gain(0.13);
+    if (!g) return;
+    const now = this.ctx.currentTime;
+    [0, 0.24].forEach((offset, index) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(index === 0 ? 78 : 66, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(index === 0 ? 58 : 48, now + offset + 0.18);
+      osc.connect(g);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.2);
+    });
+    g.gain.setValueAtTime(0.13, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+  }
+
   playWarning() {
     this.unlock();
     if (this.samples.play('ui.warning')) return;
@@ -693,11 +779,11 @@ export class AudioSynth {
    * A wall or barricade took a hit.
    * @param {'wood'|'stone'|'metal'} material which structure was struck
    */
-  playWallHit(material = 'wood') {
+  playWallHit(material = 'wood', options = {}) {
     this.unlock();
     const id =
       material === 'metal' ? 'wall.metalHit' : material === 'stone' ? 'wall.stoneHit' : 'wall.woodHit';
-    if (this.samples.play(id)) return;
+    if (this.samples.play(id, { pan: options.pan, jitter: 0.05 })) return;
     this.playBuffer('wood', 0.5, material === 'stone' ? 0.7 : 1);
   }
 
@@ -717,10 +803,10 @@ export class AudioSynth {
   }
 
   /** A creep died. */
-  playEnemyDeath() {
+  playEnemyDeath(options = {}) {
     this.unlock();
-    if (this.samples.play('enemy.death')) return;
-    this.playEnemyHit();
+    if (this.samples.play('enemy.death', { pan: options.pan, jitter: 0.06 })) return;
+    this.playEnemyHit(options);
   }
 
   /** A boss walked onto the board. */

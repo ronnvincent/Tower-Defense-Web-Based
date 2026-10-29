@@ -120,7 +120,10 @@ export class AudioSamples {
    * Play one catalogue entry.
    *
    * @param {string} id key in `AUDIO_LIBRARY`
-   * @param {{ gain?: number, rate?: number, detune?: number }} [options]
+   * @param {{ gain?: number, rate?: number, detune?: number, pan?: number,
+   *           jitter?: number }} [options]
+   *   `pan` places the voice across the stereo field (-1 … 1), `jitter` gives
+   *   this one shot a random ±n pitch so a volley is a crowd and not a chirp.
    * @returns {boolean} true when a sound actually started
    */
   play(id, options = {}) {
@@ -150,13 +153,26 @@ export class AudioSamples {
     try {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-      source.playbackRate.value = Math.max(0.25, (entry.rate ?? 1) * (options.rate ?? 1));
+      // Jitter is per shot, and only ever a few percent: enough that eight
+      // archers on one frame do not phase into a single tone, small enough that
+      // the cue still reads as the same weapon.
+      const jitter = Number(options.jitter) > 0 ? 1 + (Math.random() * 2 - 1) * options.jitter : 1;
+      source.playbackRate.value = Math.max(0.25, (entry.rate ?? 1) * (options.rate ?? 1) * jitter);
       if (options.detune) source.detune.value = options.detune;
 
       const gain = ctx.createGain();
       gain.gain.value = Math.max(0, (entry.gain ?? family.gain) * (options.gain ?? 1));
       source.connect(gain);
-      gain.connect(this.synth.sfx);
+      const pan = Number(options.pan);
+      let panner = null;
+      if (Number.isFinite(pan) && Math.abs(pan) > 0.01 && ctx.createStereoPanner) {
+        panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, pan));
+        gain.connect(panner);
+        panner.connect(this.synth.sfx);
+      } else {
+        gain.connect(this.synth.sfx);
+      }
 
       const stopAt = now + buffer.duration / source.playbackRate.value;
       this.#addVoice(id, now, stopAt);
@@ -166,6 +182,7 @@ export class AudioSamples {
         this.active.delete(source);
         try {
           gain.disconnect();
+          panner?.disconnect?.();
           source.disconnect();
         } catch {
           /* already torn down */

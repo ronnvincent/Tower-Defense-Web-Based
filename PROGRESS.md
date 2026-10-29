@@ -29,7 +29,7 @@ they disagree — see §2):
 | 5 | Atmosphere and lighting | ✅ |
 | 6 | Progression, reward and onboarding | ✅ |
 | 6b | Top rail restyle (requested after Phase 5) | ✅ |
-| 7 | Audio and settings | ⬜ |
+| 7 | Audio and settings | ✅ |
 | 8 | Accessibility, performance, QA | ⬜ |
 
 ---
@@ -203,6 +203,37 @@ tall inside a 640 px screen).
 * **44 px targets stay 44 px** (34 px on the phone rail, the project's existing
   touch floor) — only the paint was removed, never the hit box; hover answers
   with a gold halo and `:focus-visible` draws one thin ring.
+
+**Phase 7 — audio and settings**
+
+* **The pause card gains exactly two buttons, and both are destructive-safe.**
+  RESUME was the only way back, so a run that had gone wrong had no recovery
+  short of LEAVE BATTLE → the map → the level again. RESTART replays the *same
+  launch* through `gameFlow.restartBattle()` (level, difficulty, mode flags),
+  so a restart in an endless run or a daily is that run again, not the bare
+  campaign level. It arms on the first tap and acts on the second, like LEAVE.
+* **Settings opens over the paused battle** rather than dismissing it: the
+  player closes the panel and is exactly where they left off.
+* **Three new switches live in the settings record, not in a second key.**
+  `muted`/`volumes` belong to the mixer, `ux` belongs to
+  `config/uxSettings.js`; both now spread the existing record when they write.
+  Before this a fader move silently reset the switches (a test pins it).
+* **Colour assist is a real palette swap, not a filter.** The creep health bar
+  (`hpBarColor`) and the HUD integrity meter (`--hp-good/--hp-warn/--hp-bad`)
+  move to the Okabe–Ito blue → orange → deep-orange axis. Colour is never the
+  only cue anyway: the bar is also its own length.
+* **Pitch variation and panning are applied at the one funnel that already
+  existed.** `AudioSamples.play()` took a `rate`; it now takes `jitter` and
+  `pan`, and `AudioSynth.panFor(worldX, camera)` turns a world position into
+  ±0.7 using the camera's `worldView` (screen position, not map position). The
+  three loudest positional cues — tower fire, impact, death — pass it.
+* **The low-integrity alarm is a heartbeat, not a klaxon.** Two soft sine
+  thumps every ~1.9 s on the simulation clock, only while the gate is under a
+  quarter and the run is live. It shares `tickLowHealthAlarm` with the rest of
+  the scene clock so pausing, 2× speed and the tutorial hold all behave.
+* **Music "layers" were already built** (proc beds + recorded tracks with
+  crossfades, `intense`/`boss` aliases). Nothing was rebuilt; that part of the
+  phase was an audit, and it is recorded as such rather than re-implemented.
 
 ## 4. Bugs found while working
 
@@ -610,3 +641,61 @@ the ends with it. A background on the bar itself would be clipped to the bar.
 (`tests/hud-rail.test.js` pins the six negative rules so a later style pass
 cannot quietly put a plate back).
 Shots: `docs/ui-after/phase6/rail-*.png`.
+
+---
+
+## 14. Phase 7 — audio and settings
+
+### Changed
+
+| File | Why |
+| ---- | --- |
+| `src/config/uxSettings.js` **(new)** | The three field switches, persisted in the shared settings record, painted on `<html>` as `data-ux-*`. |
+| `src/ui/SettingsUI.js` | FIELD section with SCREEN SHAKE / DAMAGE NUMBERS / COLOUR ASSIST as `role="switch"` rows; a scrollable body with the actions pinned; the panel repaints when anything else moves a switch. |
+| `src/ui/HUD.js` | RESTART (two-tap arm) and SETTINGS in the pause card, plus `#restart-warning`. |
+| `src/scenes/GameScene.js` | `shakeCamera()` (one gate for all eight camera shakes), `tickLowHealthAlarm()`, `handleRestartBattle()`, and — the fix below — the missing `tickOnboardingHint()` call. |
+| `src/entities/Projectile.js` | Damage numbers respect the switch; explosion and impact cues pan. |
+| `src/entities/Enemy.js` | Health bar follows the colour-vision palette. |
+| `src/entities/Tower.js` | Firing cue pans by the tower's screen position. |
+| `src/rendering/AudioSynth.js` | `#gain(v, pan)`, `#jitter()`, `panFor()`, `playLowHealth()`; `#persist()` keeps the record's other fields. |
+| `src/rendering/AudioSamples.js` | `play(id, { pan, jitter })`, with the panner disconnected on `ended`. |
+| `src/systems/Vfx.js` | Its 70 ms impact shake goes through the scene's gate. |
+| `src/systems/Juice.js` | `hpBarColor(pct, { colourAssist })`. |
+| `src/main.js` | `gameFlow.restartBattle()`, `window.gameUx`. |
+| `src/style.css` | Switch rows, the armed RESTART state, the colour-vision variables, and the panel's scroll body. |
+| `tests/ux-settings.test.js` **(new, 8 tests)** | Defaults, persistence, no-op sets, the painted attributes, and the mixer-vs-panel record ownership. |
+
+### Bug found while working (and fixed)
+
+* **The Phase-6 onboarding nudges never ran.** `tickOnboardingHint()` was
+  written, tested and documented, but nothing called it — the method sat next to
+  `openWave()` and `stepSimulation()` never invoked it. It is now called on the
+  simulation clock beside `tickWavePrep()` and the new alarm tick. This is
+  exactly the "a handler is not a feature" failure the brief warns about; the
+  fix is one line and the feature is now audible/visible in play.
+* **`ui-harness.mjs`'s `settings` state called a getter.** `SettingsUI.open` is
+  a boolean getter, not a method, so the old `open?.()` threw and the state had
+  silently been taking the fallback path. It calls `show()` now.
+
+### Verified in the browser (not just in jsdom)
+
+| Check | Result |
+| ----- | ------ |
+| Pause card, 7 actions, 1280×768 / 1024×640 / 667×375 | all 7 fit, no clipping (`docs/ui-after/phase7/pause-*`) |
+| RESTART arm → act | first click arms + shows the warning, second restarts the launched run, scene active, unpaused, no page errors |
+| SCREEN SHAKE off | `data-ux-shake="off"`, `localStorage …ux.shake=false`, `shakeCamera()` leaves `shakeEffect.isRunning` false; back on → true |
+| COLOUR ASSIST on | `--hp-good` flips `#5cf2a6` → `#56b4e9`; the switch repaints to on |
+| Settings at 1280×768 | fits without scrolling (client 687 px = scroll 687 px); at 1024×640 the body scrolls with CLOSE always visible |
+
+`npm run build` ✓ 6.66 s · `npx vitest run` → **136 files / 1770 passed**.
+Screenshots: `docs/ui-after/phase7/`.
+
+### Skipped, with reasons
+
+* **A separate boss music layer** — the recorded `intense`/`boss` tracks and
+  the oscillator bed already crossfade between the same states, and both are
+  driven by `audioDirector.sync()`. Adding a third layer would double-play the
+  same harmony; the audit is recorded in §3 instead.
+* **Per-tower pan on every cue** — only the three cues that fire at combat rate
+  (fire, impact, death) carry a pan. A UI click has no position, and panning it
+  would be a lie about where it happened.

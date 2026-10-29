@@ -27,6 +27,7 @@ import { ACHIEVEMENTS } from './data/achievements.js';
 import { audio } from './rendering/AudioSynth.js';
 import { audioDirector } from './rendering/audioDirector.js';
 import { SettingsUI } from './ui/SettingsUI.js';
+import { uxSettings } from './config/uxSettings.js';
 import {
   bindInstallButton,
   bindOfflineButton,
@@ -621,6 +622,18 @@ function openMainMenu() {
   // not needed because the menu was never torn down.
 }
 
+/**
+ * RESTART from the pause card: the same level, the same difficulty, the same
+ * mode flags as the run in progress. `lastLaunch` is written by `startLevel`
+ * for exactly this reason — Replay and Retry already read it.
+ */
+function restartBattle() {
+  if (!lastLaunch?.levelId) return false;
+  const { levelId: _id, ...options } = lastLaunch.options || {};
+  startLevel(lastLaunch.levelId, options);
+  return true;
+}
+
 window.gameFlow = {
   openLevelSelect,
   openWorldMap: (options = {}) => showLevelSelect(options),
@@ -629,6 +642,7 @@ window.gameFlow = {
   quitToMap,
   quitDuel,
   leaveDuelRoom,
+  restartBattle,
   pauseBattle,
   stopDuelScene,
   openModes: () => window.gameModes?.show(),
@@ -1294,4 +1308,8 @@ audioDirector.arm();
 // Debug handles: the editor console and the browser checks read the live mixer
 // and the scene the director thinks it is playing.
 window.gameAudio = audio;
+// The three field switches (shake / damage numbers / colour assist), exposed for
+// the panel, the console and the browser checks. Reading them is free; nothing
+// here can move a creep or a number.
+window.gameUx = uxSettings;
 window.gameAudioDirector = audioDirector;

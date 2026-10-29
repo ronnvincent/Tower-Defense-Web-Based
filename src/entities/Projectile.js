@@ -1,5 +1,6 @@
 import { audio } from '../rendering/AudioSynth.js';
 import { damageNumberStyle } from '../systems/Juice.js';
+import { uxEnabled } from '../config/uxSettings.js';
 import { PROJECTILE_TEXTURES, IMPACT_TEXTURES } from '../data/towerVisuals.js';
 import { ELEMENT_BY_DAMAGE } from '../systems/Vfx.js';
 import { projectileCanHit } from '../systems/TargetCategories.js';
@@ -215,7 +216,7 @@ export class Projectile {
     // silently drop their area damage.
     if (this.stats.splash > 0) {
       // Area of effect detonation
-      audio.playExplosion();
+      audio.playExplosion({ pan: audio.panFor(impactX, this.scene?.cameras?.main) });
 
       // The blast used to be a flat orange circle. It is now the effect
       // library's ground burst plus a scorch ring, sized to the real splash
@@ -261,7 +262,7 @@ export class Projectile {
       }
     } else {
       // Single target impact
-      audio.playEnemyHit();
+      audio.playEnemyHit({ pan: audio.panFor(impactX, this.scene?.cameras?.main) });
 
       if (this.target && !this.target.isDead && projectileCanHit(this.stats, this.target)) {
         // A splash shell already damaged this target in the loop above; do not
@@ -466,6 +467,10 @@ export class Projectile {
    * @param {{ raw?: number, maxHealth?: number }} [meta] what the number is measured against
    */
   showDamageText(x, y, amount, color = 0xffffff, meta = null) {
+    // The floating number is a preference, not a readout: the health bar above
+    // the creep already carries the damage, so a player who turned the numbers
+    // off loses no information.
+    if (!uxEnabled('damageNumbers')) return;
     const style = damageNumberStyle({
       damage: amount,
       raw: meta?.raw ?? null,

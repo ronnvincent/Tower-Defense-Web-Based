@@ -61,6 +61,7 @@ import { PlacementSystem, PLACEMENT_ERRORS } from '../systems/PlacementSystem.js
 import { buildBounds } from '../systems/BuildZone.js';
 import { RoyalSystems } from '../systems/RoyalSystems.js';
 import { BASTION_STATE, bastionState, isBastionCritical, leakIntensity } from '../systems/Bastion.js';
+import { uxEnabled } from '../config/uxSettings.js';
 import { goldFloatLabel } from '../systems/Juice.js';
 import {
   PREP_PHASE,
@@ -603,6 +604,8 @@ export class GameScene extends Phaser.Scene {
         onTogglePause: () => this.handleTogglePause(),
         onOpenCodex: () => this.handleOpenCodex(),
         onOpenMenu: () => this.handleOpenMenu(),
+        onRestart: () => this.handleRestartBattle(),
+        onOpenSettings: () => window.gameSettings?.show?.(),
         onSelectBuild: (key) => this.handleSelectBuild(key),
         onUpgradeTower: (t, choiceKey) => this.handleUpgradeTower(t, choiceKey),
         onSellTower: (t) => this.handleSellTower(t),
@@ -1707,7 +1710,7 @@ export class GameScene extends Phaser.Scene {
           this.hud?.updateBossPhase(e, phase);
           this.hud?.updateBossBar(e);
         }
-        this.cameras.main.shake(300, 0.012);
+        this.shakeCamera(300, 0.012);
         audio.playWarning();
         this.hud?.showToast(`⚡ ${e.def.name} Phase Shift: ${phase.name}!`, 'warning');
       },
@@ -1805,7 +1808,7 @@ export class GameScene extends Phaser.Scene {
         yoyo: true,
         onComplete: () => bars.forEach((bar) => bar.destroy()),
       });
-      cam.shake(420, 0.011);
+      this.shakeCamera(420, 0.011);
       cam.flash(260, 255, 138, 60, false);
       // Screen centre -> world centre: the ring is a world-space image, so a
       // panned camera would otherwise pop it in the top-left quadrant.
@@ -1879,7 +1882,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.bossPulse(boss.x, boss.y, radius, 0xffb45c);
-    this.cameras.main.shake(160, 0.004);
+    this.shakeCamera(160, 0.004);
     if (affected > 0) {
       this.hud?.showToast(`🌪️ ${boss.def.name}: ${affected} enemies hastened!`, 'warning');
     }
@@ -1901,7 +1904,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.bossPulse(boss.x, boss.y, radius, 0x7fd4ff);
-    this.cameras.main.shake(160, 0.004);
+    this.shakeCamera(160, 0.004);
     if (affected > 0) {
       // Frozen banners stop projecting their aura until they thaw.
       this.refreshTowerAuras();
@@ -1954,7 +1957,7 @@ export class GameScene extends Phaser.Scene {
 
   handleEnemyReachedBase(enemy) {
     audio.playDefeat();
-    this.cameras.main.shake(160, 0.007);
+    this.shakeCamera(160, 0.007);
     this.hud?.flashBaseHit?.(enemy?.isBoss ? 1 : 0.62);
     // A leak breaks the chain: the combo is a reward for clean clearing.
     if (this.combo.chain > 0) {
@@ -2185,6 +2188,41 @@ export class GameScene extends Phaser.Scene {
       this.idleClock = 0;
       this.hud?.showNudge?.('TAP A RAISED KEEP TO UPGRADE IT', 'upgrade');
     }
+  }
+
+  /**
+   * The low-integrity heartbeat.
+   *
+   * The board already reddens its rim and the crystal pulses, but both are
+   * things you have to be looking at. This is the one channel that reaches a
+   * player who is watching a lane at the far end of the map: a quiet two-thump
+   * heartbeat every ~1.9 s while the gate is under a quarter — and only then.
+   * It shares the simulation clock, so pause, 2× speed and the tutorial hold
+   * all behave.
+   */
+  tickLowHealthAlarm(deltaMs) {
+    const critical = !this.gameState?.isOver?.() && isBastionCritical(this.bastionState);
+    if (!critical) {
+      this.heartbeatClock = 0;
+      return;
+    }
+    this.heartbeatClock = (this.heartbeatClock || 0) + (Number(deltaMs) || 0);
+    if (this.heartbeatClock < 1900) return;
+    this.heartbeatClock = 0;
+    audio.playLowHealth?.();
+  }
+
+  /**
+   * Camera shake, gated by the player's own preference.
+   *
+   * `settings → FIELD → SCREEN SHAKE` exists for motion sensitivity and for
+   * playing on a laptop in a meeting; every impact that used to call
+   * `cameras.main.shake()` goes through here instead, so the switch cannot be
+   * half-applied.
+   */
+  shakeCamera(duration, intensity) {
+    if (!uxEnabled('shake')) return;
+    this.cameras?.main?.shake?.(duration, intensity);
   }
 
   /** Start the next wave and dress it up. Shared by the player and the clock. */
@@ -2881,6 +2919,19 @@ export class GameScene extends Phaser.Scene {
    * world map is the destination so the player keeps their campaign context
    * instead of being dropped back at the title screen.
    */
+  /**
+   * RESTART, from the pause card.
+   *
+   * It replays the *same launch* — level, difficulty, mode flags — through the
+   * flow that started it, so a restart in an endless run or a daily is that run
+   * again and not the bare campaign level. `scene.restart()` is the fallback for
+   * a scene booted without the flow (a test, or a direct scene start).
+   */
+  handleRestartBattle() {
+    if (window.gameFlow?.restartBattle?.()) return;
+    this.scene.restart();
+  }
+
   handleOpenMenu() {
     // Quitting a duel is a forfeit, not a trip to the campaign map.
     if (this.level?.pvp && window.gameFlow?.quitDuel) {
@@ -3229,7 +3280,7 @@ export class GameScene extends Phaser.Scene {
 
     if (id === 'strike') {
       audio.playEnemyHit?.();
-      this.cameras.main.shake(140, 0.004);
+      this.shakeCamera(140, 0.004);
       this.vfx?.impact?.(hero.x, hero.y, 'explosive', {
         scale: 1.05,
         splash: Math.min(hero.config.strike.radius, 120),
@@ -3334,7 +3385,7 @@ export class GameScene extends Phaser.Scene {
     skull.setScale(0.7);
     skull.play(anim);
     skull.once('animationcomplete', () => skull.destroy());
-    this.cameras.main.shake(120, 0.003);
+    this.shakeCamera(120, 0.003);
   }
 
   /** The companion's one flourish, matched to what its ability actually did. */
@@ -3663,7 +3714,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     audio.playExplosion?.();
-    this.cameras.main.shake(180, 0.006);
+    this.shakeCamera(180, 0.006);
     if (this.particleEmitter) {
       this.particleEmitter.explode(14, structure.x, structure.y - TILE_SIZE * 0.4);
     }
@@ -5396,6 +5447,12 @@ export class GameScene extends Phaser.Scene {
     // 0a. The preparation window — campaign, endless and solo modes open the
     // next wave themselves once it runs out (see `tickWavePrep`).
     this.tickWavePrep(clampedDelta);
+
+    // 0a-bis. Onboarding hints and the low-integrity alarm share the same
+    // simulation clock: a paused game says nothing, a 2x game does not nag
+    // twice as fast, and both stop the moment the run is over.
+    this.tickOnboardingHint(clampedDelta);
+    this.tickLowHealthAlarm(clampedDelta);
 
     // 0b. Enemy support. A Hex Adept wards its escort on its own clock, on the
     // same simulation time as everything else (so a pause or a 2x toggle moves
