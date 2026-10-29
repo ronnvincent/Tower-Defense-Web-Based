@@ -285,3 +285,50 @@ tall inside a 640 px screen).
 
 `npx vitest run` → **131 files / 1709 passed**. `npm run build` → ✓.
 Screenshots: `docs/ui-after/phase3/{menu,loading,battle}-{1280x768,1024x640}.png`.
+
+---
+
+## 8. Tutorial fixes (requested after Phase 3)
+
+**Changed:** `src/data/levelData.js`, `src/data/tutorialScript.js`,
+`src/scenes/GameScene.js`, `src/ui/HUD.js`, `src/main.js`, `src/style.css`,
+`tests/hud-dom.test.js`.
+
+Four defects, all reported from play:
+
+1. **The opening could dead-end on an upgrade.** `startingCoins: 320` bought one
+   ballista (60) and left 60 — not enough for any tier-2 step — and the upgrade
+   is a *step gate*, so the script waited forever on a button the player could
+   never afford. The war chest is now **2000**: every defence on the shelf can be
+   raised and taken to tier 2, twice over for the dearer ones.
+2. **The system now points at the thing it is waiting for.** A step gate is only
+   fair if the target is findable:
+   * *place* — a gold ring **and the words "RAISE IT HERE"** on the suggested
+     tile (the label rides the cell in the game's own face, so it moves with the
+     camera), plus a glowing outline on the recommended forge card;
+   * *upgrade* — the ring lands on **the tower the player actually built**
+     (not the scripted cell, because they may have built elsewhere), the label
+     says "TAP THE TOWER", and when the panel opens the **UPGRADE card glows**;
+   * *wave* — the **START WAVE** button glows.
+   Marks are painted by `HUD.setTutorialHint()` / `applyTutorialHint()` and are
+   repainted after any re-render, cleared the moment the action lands.
+3. **Leaving no longer bypasses *or* re-traps.** `quitToMap()` now writes the
+   same `profile.tutorialDone` flag a finished run writes. Before this, quitting
+   mid-story wrote nothing: the player "escaped" once and then got dragged back
+   into the village on every later battle. The gate is now single-shot per
+   player — finished **or** left, it never fires again — and the pause card says
+   so in advance ("Leaving now ends the opening for this keeper").
+4. **The step copy matches the marks** ("Tap the glowing card in the forge, then
+   tap the marked meadow").
+
+**Verified in a real browser** (`docs/ui-after/tutorial-fix/`): fresh save →
+Havenbrook opens with **GOLD 2000**, the marked tile and the glowing card;
+building at the marked cell advances to *upgrade*; `#btn-upgrade-tower` carries
+`.is-tutorial-target` when the panel opens; `quitToMap()` sets `tutorialDone`,
+and after a reload **PLAY opens the world map, not the tutorial**.
+
+New tests: `tests/hud-dom.test.js` — the hint marks exactly one control, clears
+it, and marks the UPGRADE card (never SELL). Full suite **131 files / 1711**.
+
+Left as is on purpose: losing the opening still lets the player try it again —
+a defeat is a real run, not a skip.

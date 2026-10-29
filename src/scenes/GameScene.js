@@ -3478,6 +3478,11 @@ export class GameScene extends Phaser.Scene {
     ui.mount();
     ui.onTap(() => this.tutorialTap());
     document.documentElement.classList.add('is-tutorial');
+    // Leaving is allowed, but it has to say what it costs: the gate is
+    // single-shot, so a player who quits mid-story does not meet it again.
+    this.hud?.setQuitWarning?.(
+      'Leaving now ends the opening for this keeper — the village will not call again.'
+    );
     ui.open({ chapter: 'HAVENBROOK · DUSK' });
     this.tutorialDirector = createTutorialDirector({
       name: this.progress?.profile?.username || '',
@@ -3594,7 +3599,44 @@ export class GameScene extends Phaser.Scene {
         steps: steps.map((entry) => entry.event),
         active,
       });
-      this.focusTutorialCell(beat.focus || null);
+      this.setTutorialTarget(beat);
+    }
+  }
+
+  /**
+   * Point at the thing this step is waiting for.
+   *
+   * The steps are gates: the script cannot move until the player performs the
+   * action. A gate is only fair if the player can see which control opens it, so
+   * each step lights up its own target — the cell to build on, the tower to
+   * upgrade (and, once its panel is open, the UPGRADE button), the START WAVE
+   * button — and the highlight is taken down the moment the action lands.
+   */
+  setTutorialTarget(beat) {
+    if (!beat || beat.kind !== 'step') {
+      this.focusTutorialCell(null);
+      this.hud?.setTutorialHint?.(null);
+      return;
+    }
+    if (beat.event === 'place') {
+      this.focusTutorialCell(beat.focus || null, 'RAISE IT HERE');
+      // The shelf is a dozen cards across three tabs; the first entry of the
+      // roster is the one the opening's own copy describes.
+      this.hud?.setTutorialHint?.({ card: BUILD_OPTIONS[0] });
+      return;
+    }
+    if (beat.event === 'upgrade') {
+      // The tower they just raised, wherever they raised it — not the cell the
+      // script suggested, because they may have built somewhere else entirely.
+      const tower = this.activeTowers?.[this.activeTowers.length - 1] || null;
+      const cell = tower ? { col: tower.col, row: tower.row } : null;
+      this.focusTutorialCell(cell, 'TAP THE TOWER');
+      this.hud?.setTutorialHint?.({ upgrade: true });
+      return;
+    }
+    if (beat.event === 'wave') {
+      this.focusTutorialCell(null);
+      this.hud?.setTutorialHint?.({ wave: true });
     }
   }
 
@@ -3686,6 +3728,10 @@ export class GameScene extends Phaser.Scene {
       this.tutorialHold = false;
     }
     this.tutorialDirector?.report(event);
+    if (event === 'upgrade') {
+      this.focusTutorialCell(null);
+      this.hud?.setTutorialHint?.(null);
+    }
     if (event === 'place') {
       // The lesson moves from raising a defence to feeding it coin. Leaving the
       // forge armed would make the next tap try to build on the square that is
@@ -3694,7 +3740,10 @@ export class GameScene extends Phaser.Scene {
       this.handleSelectBuild(null);
       this.focusTutorialCell(null);
     }
-    if (event === 'wave') this.fireTutorialQuips();
+    if (event === 'wave') {
+      this.hud?.setTutorialHint?.(null);
+      this.fireTutorialQuips();
+    }
   }
 
   /** The crowd's lines while the first wave walks. Toasts, never a card. */
@@ -3753,21 +3802,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Ring the square a step is pointing at, or clear the ring. */
-  focusTutorialCell(cell) {
+  focusTutorialCell(cell, label = '') {
     this.tutorialFocus?.destroy?.();
     this.tutorialFocus = null;
     if (!cell) return;
-    const x = cell.col * TILE_SIZE;
-    const y = cell.row * TILE_SIZE;
-    const ring = this.add.graphics().setDepth(5);
+    const cx = cell.col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = cell.row * TILE_SIZE + TILE_SIZE / 2;
+    const half = TILE_SIZE / 2;
+    const ring = this.add.graphics();
     ring.lineStyle(3, 0xffd479, 0.95);
-    ring.strokeRoundedRect(x + 6, y + 6, TILE_SIZE - 12, TILE_SIZE - 12, 8);
+    ring.strokeRoundedRect(-half + 6, -half + 6, TILE_SIZE - 12, TILE_SIZE - 12, 8);
     ring.lineStyle(1, 0xffffff, 0.4);
-    ring.strokeRoundedRect(x + 12, y + 12, TILE_SIZE - 24, TILE_SIZE - 24, 6);
-    this.tutorialFocus = ring;
+    ring.strokeRoundedRect(-half + 12, -half + 12, TILE_SIZE - 24, TILE_SIZE - 24, 6);
+    const parts = [ring];
+    // The ring alone said "somewhere around here"; a new player reads a glowing
+    // square as decoration. The words ride on the cell, in the game's own face,
+    // so the answer to "where?" is on the board and not in a paragraph above it.
+    if (label) {
+      const text = this.add
+        .text(0, -half - 10, label, {
+          fontFamily: 'Rajdhani, Segoe UI, sans-serif',
+          fontSize: '15px',
+          fontStyle: 'bold',
+          color: '#ffe6a3',
+          stroke: '#120d06',
+          strokeThickness: 4,
+          align: 'center',
+        })
+        .setOrigin(0.5, 1);
+      parts.push(text);
+    }
+    this.tutorialFocus = this.add.container(cx, cy, parts).setDepth(6);
     this.tweens.add({
-      targets: ring,
-      alpha: { from: 0.35, to: 1 },
+      targets: this.tutorialFocus,
+      alpha: { from: 0.45, to: 1 },
       duration: 760,
       yoyo: true,
       repeat: -1,
@@ -3796,6 +3864,8 @@ export class GameScene extends Phaser.Scene {
     this.highlightTutorialSpeaker(null);
     this.tutorialUI?.clear?.();
     this.tutorialUI?.close?.();
+    this.hud?.setQuitWarning?.(null);
+    this.hud?.setTutorialHint?.(null);
     document.documentElement.classList.remove('is-tutorial', 'is-line');
     if (handOver && !this.wavePrep && this.waveManager && !this.gameState?.isOver?.()) {
       this.wavePrep = createWavePrep(this.level);

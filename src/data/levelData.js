@@ -734,7 +734,14 @@ export const TUTORIAL_LEVEL = {
   theme: 'village',
   map: 'havenbrook',
   blurb: 'The night the horde found the village, and the keeper who answered.',
-  startingCoins: 320,
+  // The opening pays for the lesson. 320 gold bought one ballista and left 60 —
+  // not enough for any tier-2 upgrade — so a player who picked the most
+  // expensive defence on the shelf hit "RAISE IT A TIER" with no way to pay and
+  // the script had no exit: a step gate with a price in front of it. 2000 is a
+  // war chest, not a budget: every defence on the shelf can be raised *and* fed
+  // to tier 2 (the dearer ones twice), and the leftover is the first taste of
+  // having gold to spend.
+  startingCoins: 2000,
   baseHealth: 20,
   maxTowers: 6,
   // No preparation clock during the story: the director hands the board over

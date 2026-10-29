@@ -745,6 +745,54 @@ export class HUD {
    * two tabs, seven and five cards — so every card keeps a legible icon and a
    * 44 px tap target at every breakpoint.
    */
+  /**
+   * The line the pause card shows above LEAVE BATTLE.
+   *
+   * During the opening that line was "Leaving now discards this battle", which
+   * is true of a campaign run and a half-truth here: leaving ends the story for
+   * this keeper. `null` restores the default.
+   */
+  setQuitWarning(text) {
+    const el = document.getElementById('quit-warning');
+    if (!el) return;
+    this.defaultQuitWarning ||= el.textContent;
+    el.textContent = text || this.defaultQuitWarning;
+  }
+
+  /**
+   * Light up the control the opening is waiting for.
+   *
+   * A tutorial step is a gate: the script will not move until the player does
+   * the thing. A gate is only fair if the thing is findable, so the scene tells
+   * the HUD which control it is waiting on and the HUD keeps it glowing until
+   * the beat retires. `null` clears every mark.
+   */
+  setTutorialHint(hint) {
+    this.tutorialHint = hint || null;
+    this.applyTutorialHint();
+  }
+
+  /** Paint the current hint. Safe to call after any re-render. */
+  applyTutorialHint() {
+    for (const el of document.querySelectorAll('.is-tutorial-target')) {
+      el.classList.remove('is-tutorial-target');
+    }
+    const hint = this.tutorialHint;
+    if (!hint) return;
+    const mark = (el) => el?.classList.add('is-tutorial-target');
+    if (hint.card) mark(document.querySelector(`#hud-bottom-dock .build-card[data-key="${hint.card}"]`));
+    if (hint.upgrade) {
+      // The single next tier is a `.spec-card`; the level-2 fork is a row of
+      // `.btn-upgrade-choice` cards. Both are "the upgrade", so both light up.
+      for (const el of document.querySelectorAll(
+        '#btn-upgrade-tower, #inspector-actions-container .btn-upgrade-choice'
+      )) {
+        mark(el);
+      }
+    }
+    if (hint.wave) mark(document.getElementById('btn-start-wave'));
+  }
+
   renderBuildCards() {
     const container = document.getElementById('dock-cards-container');
     const tabs = document.getElementById('dock-tabs');
@@ -815,6 +863,7 @@ export class HUD {
     }).join('');
 
     this.applyDockGroup();
+    this.applyTutorialHint();
   }
 
   /** Read the remembered tab (falls back to the keeps). */
@@ -1758,6 +1807,9 @@ export class HUD {
     const actionsContainer = document.getElementById('inspector-actions-container');
     actionsContainer.innerHTML = this.renderUpgradeActions(tower);
     this.bindUpgradeActions(tower);
+    // The panel is rebuilt from scratch here, so a tutorial mark on its
+    // UPGRADE button has to be repainted whenever it opens.
+    this.applyTutorialHint();
     this.updateActionAffordability(tower);
     // A fresh tower means a fresh (shorter) body: start at the top, where the
     // action lives, and re-measure the fade from there.

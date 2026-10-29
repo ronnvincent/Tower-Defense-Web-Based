@@ -16129,6 +16129,40 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 /* ==========================================================================
+   TUTORIAL TARGETS
+   --------------------------------------------------------------------------
+   A step gate is only fair if the control behind it is findable. The scene
+   names the target, the HUD marks it here: one gold ring and one slow breath,
+   on the card, the button or the wave call the script is waiting for. `filter`
+   rather than `box-shadow` because two of the three targets are 9-slice
+   sprites whose corners would otherwise get a dark rectangle behind them.
+   ========================================================================== */
+
+.is-tutorial-target {
+  outline: 2px solid var(--gold-primary);
+  outline-offset: 2px;
+  animation: tutorialTargetPulse 1.7s ease-in-out infinite;
+  z-index: 3;
+}
+
+@keyframes tutorialTargetPulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px rgba(245, 196, 81, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(245, 196, 81, 0.95));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-tutorial-target {
+    animation: none;
+    filter: drop-shadow(0 0 10px rgba(245, 196, 81, 0.9));
+  }
+}
+
+/* ==========================================================================
    PHASE 3 · THE TITLE AND THE CURTAIN
    --------------------------------------------------------------------------
    The menu already had the keep, the parallax and the gold title; what it did

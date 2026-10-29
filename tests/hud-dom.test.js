@@ -433,3 +433,38 @@ describe('Algorithm codex drawer (non-blocking)', () => {
     expect(panel.isOpen()).toBe(false);
   });
 });
+
+/* ==================================================== TUTORIAL TARGETS */
+
+describe('HUD tutorial targets', () => {
+  it('marks exactly the control the opening is waiting for, and clears it', () => {
+    const hud = mountHud({});
+    hud.update(STATE);
+
+    hud.setTutorialHint({ wave: true });
+    expect(document.getElementById('btn-start-wave').classList.contains('is-tutorial-target')).toBe(true);
+
+    // One target at a time: naming a new one takes the mark off the old one.
+    hud.setTutorialHint({ card: BUILD_OPTIONS[0] });
+    expect(document.getElementById('btn-start-wave').classList.contains('is-tutorial-target')).toBe(false);
+    expect(document.querySelectorAll('.is-tutorial-target').length).toBe(1);
+
+    hud.setTutorialHint(null);
+    expect(document.querySelectorAll('.is-tutorial-target').length).toBe(0);
+    hud.destroy?.();
+  });
+
+  it('marks the UPGRADE card when the inspector opens mid-step', () => {
+    const hud = mountHud({ onUpgradeTower: vi.fn() });
+    hud.update(STATE);
+    hud.setTutorialHint({ upgrade: true });
+    hud.inspectTower(makeTower());
+    const upgrade = document.getElementById('btn-upgrade-tower');
+    expect(upgrade).toBeTruthy();
+    expect(upgrade.classList.contains('is-tutorial-target')).toBe(true);
+    // SELL is never a tutorial target — selling the tower the script just asked
+    // for would dead-end the step.
+    expect(document.getElementById('btn-sell-tower').classList.contains('is-tutorial-target')).toBe(false);
+    hud.destroy?.();
+  });
+});

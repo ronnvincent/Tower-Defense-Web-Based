@@ -365,6 +365,11 @@ function openLevelSelect() {
 function quitToMap() {
   const gameScene = game.scene.getScene('GameScene');
   if (gameScene?.scene?.isActive()) {
+    // Walking out of the opening is a decision, not a glitch, and the opening is
+    // one per player. Writing the same flag here that a finished run writes is
+    // what makes the gate single-shot: before this the player "escaped" the
+    // tutorial once and was dragged back into it on the next battle, forever.
+    if (gameScene.level?.tutorial) window.gameProgress?.completeTutorial?.();
     // The village's card is part of the battle, not of the map: put it down
     // before the scene goes, so a quit mid-sentence does not leave a letterbox
     // over the world map.
