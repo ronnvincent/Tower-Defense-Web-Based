@@ -244,6 +244,12 @@ export const TUTORIAL_BEATS = Object.freeze([
     cue: 'scatter',
   },
   {
+    id: 'pip-2',
+    kind: 'line',
+    who: 'pip',
+    text: 'You are the keeper! They say you turned a whole raid at the ford. You have to save us!',
+  },
+  {
     id: 'doren-2',
     kind: 'line',
     who: 'doren',

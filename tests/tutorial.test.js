@@ -222,7 +222,7 @@ describe('the director: a script that cannot be skipped', () => {
     const { director } = drive();
     director.start();
     director.report('place'); // an eager builder, mid-conversation
-    for (let i = 0; i < 40; i += 1) director.tick(1000);
+    for (let i = 0; i < 400 && !director.waiting && !director.finished; i += 1) director.tick(1000);
     // The place step is skipped, not re-shown: the player already built.
     expect(director.beat.id).toBe('step-upgrade');
   });
