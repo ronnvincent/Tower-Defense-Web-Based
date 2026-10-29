@@ -54,37 +54,37 @@ export const BASTION_ART = Object.freeze({
   1: Object.freeze({
     key: 'bastion-l1',
     path: 'assets/arena/bastion-l1.png',
-    sheet: [490, 492],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [442, 366],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
   }),
   2: Object.freeze({
     key: 'bastion-l2',
     path: 'assets/arena/bastion-l2.png',
-    sheet: [490, 574],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [498, 412],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
   }),
   3: Object.freeze({
     key: 'bastion-l3-storm',
     path: 'assets/arena/bastion-l3-storm.png',
-    sheet: [490, 627],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [542, 426],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
   }),
   4: Object.freeze({
     key: 'bastion-l4-storm',
     path: 'assets/arena/bastion-l4-storm.png',
-    sheet: [490, 677],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [577, 450],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
   }),
   5: Object.freeze({
     key: 'bastion-l5-storm',
     path: 'assets/arena/bastion-l5-storm.png',
-    sheet: [578, 742],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [606, 477],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
   }),
 });
 
@@ -101,23 +101,23 @@ export const BASTION_BRANCH_ART = Object.freeze({
     3: Object.freeze({
     key: 'bastion-l3-sun',
     path: 'assets/arena/bastion-l3-sun.png',
-    sheet: [490, 524],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [542, 424],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
     }),
     4: Object.freeze({
     key: 'bastion-l4-sun',
     path: 'assets/arena/bastion-l4-sun.png',
-    sheet: [490, 584],
-    foot: 60,
-    socket: { x: 10.0, y: 250 },
+    sheet: [577, 450],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
     }),
     5: Object.freeze({
     key: 'bastion-l5-sun',
     path: 'assets/arena/bastion-l5-sun.png',
-    sheet: [601, 666],
-    foot: 60,
-    socket: { x: 10.5, y: 250 },
+    sheet: [606, 473],
+    foot: 22,
+    socket: { x: 0.0, y: 10 },
     }),
   }),
 });
@@ -155,13 +155,13 @@ export const BASTION_WEAPONS = Object.freeze({
   wardCrystal: {
     key: 'bastion-ward-crystal',
     path: 'assets/arena/bastion-ward-crystal.png',
-    muzzle: { x: 0, y: -216 },
+    muzzle: { x: 0, y: -208 },
     colour: 0x7fe3ff,
   },
   sunCannon: {
     key: 'bastion-sun-cannon',
     path: 'assets/arena/bastion-sun-cannon.png',
-    muzzle: { x: 0, y: -192 },
+    muzzle: { x: 0, y: -168 },
     colour: 0xffcf72,
   },
 });
@@ -484,5 +484,8 @@ export function bastionWeaponKey(view) {
  * generator measured.
  */
 export function bastionWeaponScale(level) {
-  return 0.94 + 0.04 * (Math.min(BASTION_MAX_LEVEL, Math.max(1, level || 1)) - 1);
+  // The gun rides the keep's battlements, so it has to stay in proportion with
+  // a 200-px-wide castle: at 0.94 the old crystal was the size of the gatehouse
+  // and the castle read as its plinth.
+  return 0.56 + 0.045 * (Math.min(BASTION_MAX_LEVEL, Math.max(1, level || 1)) - 1);
 }

@@ -3,104 +3,104 @@
     "key": "bastion-l1",
     "path": "assets/arena/bastion-l1.png",
     "sheet": [
-      490,
-      492
+      442,
+      366
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l2": {
     "key": "bastion-l2",
     "path": "assets/arena/bastion-l2.png",
     "sheet": [
-      490,
-      574
+      498,
+      412
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l3-storm": {
     "key": "bastion-l3-storm",
     "path": "assets/arena/bastion-l3-storm.png",
     "sheet": [
-      490,
-      627
+      542,
+      426
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l3-sun": {
     "key": "bastion-l3-sun",
     "path": "assets/arena/bastion-l3-sun.png",
     "sheet": [
-      490,
-      524
+      542,
+      424
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l4-storm": {
     "key": "bastion-l4-storm",
     "path": "assets/arena/bastion-l4-storm.png",
     "sheet": [
-      490,
-      677
+      577,
+      450
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l4-sun": {
     "key": "bastion-l4-sun",
     "path": "assets/arena/bastion-l4-sun.png",
     "sheet": [
-      490,
-      584
+      577,
+      450
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l5-storm": {
     "key": "bastion-l5-storm",
     "path": "assets/arena/bastion-l5-storm.png",
     "sheet": [
-      578,
-      742
+      606,
+      477
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.0,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   },
   "bastion-l5-sun": {
     "key": "bastion-l5-sun",
     "path": "assets/arena/bastion-l5-sun.png",
     "sheet": [
-      601,
-      666
+      606,
+      473
     ],
-    "foot": 60,
+    "foot": 22,
     "socket": {
-      "x": 10.5,
-      "y": 250
+      "x": 0.0,
+      "y": 10
     }
   }
 }

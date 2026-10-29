@@ -233,9 +233,11 @@ describe('BastionGuardian', () => {
   });
 
   it('shoots the creep closest to the gate, at air or ground alike', () => {
+    //  The gun now stands at the gate on the ground, so "closest" is measured
+    //  from the gate: the flier at the gate mouth beats the walker a tile out.
     const near = enemy({ x: 420, y: 600 });
     const far = enemy({ x: 520, y: 600 });
-    const flying = enemy({ x: 430, y: 590, flying: true });
+    const flying = enemy({ x: 404, y: 612, flying: true });
     const { guardian, scene } = makeGuardian({ enemies: [far, near, flying] });
     expect(guardian.acquireTarget()).toBe(flying);
     guardian.update(1000);
