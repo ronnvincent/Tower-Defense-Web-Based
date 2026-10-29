@@ -8,7 +8,13 @@
  * rasterisation of a vector source (no resampling artefacts, no blur).
  *
  * Usage:
- *   node scripts/svg-to-png.mjs <in.svg> <out.png> <width> [padFraction]
+ *   node scripts/svg-to-png.mjs <in.svg> <out.png> <width> [padFraction] [--exact]
+ *
+ * `--exact` keeps the document's own `viewBox` and size instead of cropping to
+ * the drawing's bounding box. Assets that are composed as a *family* — the five
+ * bastion forms, which have to keep the same ground line and centre so the
+ * sprite can be swapped without moving — need their canvas, not their ink, to
+ * define the sheet.
  *
  * Requires the sandbox Chromium used by the screenshot harness; pass
  * `CHROME_PATH` (default `/tmp/chrome/chromium`).
@@ -21,7 +27,9 @@ const require = createRequire(import.meta.url);
 const puppeteerPath = process.env.PUPPETEER_CORE || '/tmp/browser/node_modules/puppeteer-core';
 const puppeteer = require(puppeteerPath);
 
-const [inPath, outPath, widthArg, padArg] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const exact = args.includes('--exact');
+const [inPath, outPath, widthArg, padArg] = args.filter((a) => a !== '--exact');
 if (!inPath || !outPath) {
   console.error('usage: node scripts/svg-to-png.mjs <in.svg> <out.png> <width> [pad]');
   process.exit(2);
@@ -42,16 +50,26 @@ try {
     `<!doctype html><html><head><style>html,body{margin:0;background:transparent}</style></head><body>${raw}</body></html>`,
     { waitUntil: 'load' }
   );
-  const box = await page.evaluate(() => {
+  const box = await page.evaluate((keepCanvas) => {
     const svg = document.querySelector('svg');
     if (!svg) return null;
+    if (keepCanvas) {
+      // The author drew the canvas on purpose (`viewBox="0 0 W H"`).
+      const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+      if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+        return { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
+      }
+      const w = Number(svg.getAttribute('width'));
+      const h = Number(svg.getAttribute('height'));
+      if (w > 0 && h > 0) return { x: 0, y: 0, w, h };
+    }
     const b = svg.getBBox();
     return { x: b.x, y: b.y, w: b.width, h: b.height };
-  });
+  }, exact);
   if (!box || !box.w || !box.h) throw new Error(`${inPath}: nothing to draw`);
 
-  const padX = box.w * pad;
-  const padY = box.h * pad;
+  const padX = exact ? 0 : box.w * pad;
+  const padY = exact ? 0 : box.h * pad;
   const vb = `${box.x - padX} ${box.y - padY} ${box.w + padX * 2} ${box.h + padY * 2}`;
   const outW = Math.round(width);
   const outH = Math.round((width * (box.h + padY * 2)) / (box.w + padX * 2));

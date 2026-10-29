@@ -2,6 +2,7 @@ import { TILE_SIZE, SELL_REFUND_RATIO, DEFENCE_HEALTH } from '../config/gameConf
 import { TOWER_TYPES, BARRICADE } from '../data/towerData.js';
 import { MAX_LEVEL, ascensionTier, nextAscension } from '../data/towerAscension.js';
 import { canTarget, defenceTargets, isFlying } from '../systems/TargetCategories.js';
+import { defenceRole, roleStyleFor } from '../data/defenceRoles.js';
 import { TARGETING_MODE, sortTargets } from './TowerTargeting.js';
 import {
   TOWER_VISUALS,
@@ -63,6 +64,11 @@ export class Tower {
 
     this.isBarricade = typeKey === 'barricade';
     this.def = this.isBarricade ? BARRICADE : TOWER_TYPES[typeKey];
+    // What this building is for, in one colour (green ground / red air / blue
+    // support, split for a line that covers both). Presentation only — see
+    // `data/defenceRoles.js`; the targeting rules stay in `canEngage`.
+    this.defenceRole = defenceRole(this.def);
+    this.roleStyle = roleStyleFor(this.defenceRole);
 
     this.level = 1;
     this.specialization = null; // 'rapid' | 'sniper' | 'siege' | 'artillery' | 'blizzard' | 'lightning'
@@ -176,6 +182,11 @@ export class Tower {
     // pennants grow out of the silhouette, `decorFront` sits over it for the
     // braziers and the orbiting crystals. Both are rebuilt on every upgrade.
     this.buildDecorations();
+
+    // The role gem: the one mark on the board that says what this defence can
+    // hit. It is drawn after the masonry so it reads as a crest on the steps,
+    // and rebuilt never — the role of a line cannot change.
+    this.buildRoleMarker();
 
     // Range display graphic (hidden by default)
     this.rangeCircle = scene.add.graphics();
@@ -490,6 +501,63 @@ export class Tower {
    *   4  twin braziers with a flickering flame
    *   5  two shards orbiting above the keep
    */
+  /**
+   * The colour mark every defensive building wears.
+   *
+   * Two layers, both cheap and both static:
+   *
+   *   - a soft colour pool on the tile under the structure, so a lane of keeps
+   *     reads as "three green, one blue" from across the map;
+   *   - a small gem on the doorstep, split green/red for a line that covers both
+   *     categories (drawn as two half-diamonds rather than a fourth colour —
+   *     "both" has to look like both, not like "special").
+   *
+   * The range ring the inspector shows stays cyan (selection), because a ring
+   * that changes hue would read as a stat change rather than a selection.
+   */
+  buildRoleMarker() {
+    const add = this.scene?.add;
+    if (!add || !this.container || typeof add.graphics !== 'function') return;
+    const [left, right] = this.roleStyle.colours.length > 1
+      ? this.roleStyle.colours
+      : [this.roleStyle.colours[0], this.roleStyle.colours[0]];
+    const footY = TILE_SIZE / 2 - 4;
+
+    const pad = add.graphics();
+    if (pad && typeof pad.fillEllipse === 'function') {
+      pad.fillStyle(left, 0.13);
+      pad.fillEllipse(0, footY, TILE_SIZE * 1.0, TILE_SIZE * 0.46);
+      pad.fillStyle(right, 0.09);
+      pad.fillEllipse(0, footY, TILE_SIZE * 0.74, TILE_SIZE * 0.34);
+      pad.lineStyle(1, left, 0.32);
+      pad.strokeEllipse(0, footY, TILE_SIZE * 1.0, TILE_SIZE * 0.46);
+      this.container.addAt(pad, 0);
+      this.rolePad = pad;
+    }
+
+    const gem = add.graphics();
+    if (gem && typeof gem.fillTriangle === 'function') {
+      const cy = footY;
+      const r = 5.6;
+      // Dark backing so the gem keeps its edge over any masonry tone.
+      gem.fillStyle(0x08131f, 0.86);
+      gem.fillTriangle(0, cy - r - 2.4, -r - 2.6, cy, 0, cy + r + 2.4);
+      gem.fillTriangle(0, cy - r - 2.4, r + 2.6, cy, 0, cy + r + 2.4);
+      gem.fillStyle(left, 1);
+      gem.fillTriangle(0, cy - r, -r, cy, 0, cy + r);
+      gem.fillStyle(right, 1);
+      gem.fillTriangle(0, cy - r, r, cy, 0, cy + r);
+      gem.lineStyle(1, 0x05090f, 0.9);
+      gem.strokeTriangle(0, cy - r - 2, -r - 2, cy, 0, cy + r + 2);
+      gem.strokeTriangle(0, cy - r - 2, r + 2, cy, 0, cy + r + 2);
+      // One highlight facet, so the gem reads as a stone and not a flat arrow.
+      gem.fillStyle(0xffffff, 0.3);
+      gem.fillTriangle(0, cy - r + 1.6, -r + 2.4, cy - 0.6, 0, cy - 0.6);
+      this.container.add(gem);
+      this.roleGem = gem;
+    }
+  }
+
   buildDecorations() {
     if (this.isBarricade || !this.scene?.add) return;
     this.decorBack = this.scene.add.container(0, 0);

@@ -1,6 +1,8 @@
 import { TILE_SIZE, STARTING_COINS, STARTING_BASE_HEALTH, SCORE, WAVE_CLEAR_COINS, MAX_FRAME_DELTA } from '../config/gameConfig.js';
 import { parseMap, getMapLayout, getMapBiomes, TILE } from '../data/mapData.js';
 import { ARENA_ART, PORTAL_ANIM, KEEP_PAD_RATIO } from '../data/arenaArt.js';
+import { BASTION_FORM_ART, BASTION_WEAPON_ART, BASTION_ART } from '../config/baseUpgrades.js';
+import { BastionGuardian } from '../entities/BastionGuardian.js';
 import { createArenaAnims, missingArenaArt, queueArenaArt } from '../systems/ArenaArt.js';
 import { getLevel, THEMES, makeEndlessWave } from '../data/levelData.js';
 import { getPuzzle, puzzleLevel } from '../data/puzzles.js';
@@ -309,7 +311,13 @@ export class GameScene extends Phaser.Scene {
     // — costs one extra download instead of a portal-less battlefield for the
     // rest of the page's life. See systems/ArenaArt.js.
     const needsArena = missingArenaArt(this).length > 0;
-    if (!needsEnemies && !needsFx && !needsUnits && !needsVillage && !needsArena) return;
+    // The five forms of the bastion (Request 67) and its two gun heads. Small
+    // files, but the keep is the one landmark a battle cannot start without —
+    // and a levelled castle shown on the wrong tier's art would be a lie.
+    const bastionArt = [...BASTION_FORM_ART, ...BASTION_WEAPON_ART];
+    const needsBastion = bastionArt.some((art) => !this.textures.exists(art.key));
+    if (!needsEnemies && !needsFx && !needsUnits && !needsVillage && !needsArena && !needsBastion)
+      return;
 
     const overlay = document.getElementById('battle-loading');
     const fill = document.getElementById('battle-loading-fill');
@@ -333,6 +341,11 @@ export class GameScene extends Phaser.Scene {
     if (needsUnits) queueUnitSheets(this.load, this.textures, unitKeys);
     if (needsVillage) queueVillageArt(this.load, this.textures);
     if (needsArena) queueArenaArt(this);
+    if (needsBastion) {
+      for (const art of bastionArt) {
+        if (!this.textures.exists(art.key)) this.load.image(art.key, art.path);
+      }
+    }
   }
 
   /**
@@ -489,6 +502,10 @@ export class GameScene extends Phaser.Scene {
     this.simSpeed = 1;
     this.selectedBuildKey = null;
     this.selectedTower = null;
+    this.selectedBastion = null;
+    this.bastion = null;
+    this.bastionBase = null;
+    this.bastionNudged = false;
     this.hoverTile = { row: -1, col: -1 };
     this.isVisualizingBFS = false;
     // Focus fire: the creep every tower that can reach it must shoot first.
@@ -651,7 +668,7 @@ export class GameScene extends Phaser.Scene {
         onTargetCategoryChanged: (t) => {
           t?.drawRangeCircle?.(0x4ee1ff);
           this.refreshTowerAuras?.();
-          this.badges?.sync?.(this.activeTowers, this.economy.coins);
+          this.badges?.sync?.(this.badgeTargets(), this.economy.coins);
         },
         onDeselectTower: () => this.handleDeselectTower(),
         onZoomIn: () => this.cameraRig.zoomBy(1.25),
@@ -1507,21 +1524,49 @@ export class GameScene extends Phaser.Scene {
     // rasterised from vector at 420 px). 0.44 → ~185 px wide: three tiles,
     // which still reads as the place being defended without towering over the
     // courtyard it stands in (0.54 was 227 px and swallowed two lanes).
-    // The sheet is padded by a tenth of its height on every side, and the
-    // builder paints the contact shadow *into* that bottom padding. Anchored at
-    // origin 1 the whole padded texture sat on the ground, which left the walls
-    // floating a shadow's width above the grass — the "lumulutang" read. Origin
-    // 0.9 puts the building's own foot exactly on the ground line, with the
-    // painted shadow falling onto the tiles in front of it.
-    this.bastionKeep = this.trackArenaSprite(
-      this.add
-        .image(baseX, keepFoot, ARENA_ART.bastion.key)
-        .setOrigin(0.5, 1 - KEEP_PAD_RATIO)
-        .setDepth(12)
-        .setScale(keepScale),
-      ARENA_ART.bastion.key
-    );
+    // The sheet is padded by a fraction of its height, and the builder paints
+    // the contact shadow *into* that bottom padding. Anchored at origin 1 the
+    // whole padded texture sat on the ground, which left the walls floating a
+    // shadow's width above the grass — the "lumulutang" read. The form's own
+    // `foot` (Request 67: every tier has its own sheet, and they differ in
+    // height) puts the building's foot exactly on the ground line.
+    // The tier-1 sheet (Request 67) is the same fortress the board has always
+    // drawn, so a battle that never upgrades looks exactly as it did. When the
+    // sheet has not streamed in yet, fall back to the old texture and let
+    // `BastionGuardian.applyForm` retry — a keep with the previous art beats no
+    // keep at all.
+    const form1 = BASTION_ART[1];
+    const keepReady = this.textures?.exists?.(form1.key);
+    this.bastionKeep = this.add
+      .image(baseX, keepFoot, keepReady ? form1.key : ARENA_ART.bastion.key)
+      .setOrigin(0.5, keepReady ? 1 - form1.foot / form1.sheet[1] : 1 - KEEP_PAD_RATIO)
+      .setDepth(12)
+      .setScale(keepScale);
+    if (!keepReady) {
+      this.trackArenaSprite(this.bastionKeep, ARENA_ART.bastion.key, (sprite) => {
+        // The tier art wins over the placeholder as soon as it lands.
+        if (this.textures.exists(form1.key)) sprite.setTexture(form1.key);
+      });
+    }
     if (this.theme?.baseTint) this.bastionKeep.setTint(this.theme.baseTint);
+
+    // The keep's own gun (Request 67). It owns the weapon sprite, the tier art
+    // and the branch, but not the building: the scene keeps drawing the health
+    // bar, the assault ring and the leak effects off `bastionKeep`.
+    this.bastion = new BastionGuardian(this, {
+      x: baseX,
+      y: baseY,
+      footY: keepFoot,
+      body: this.bastionKeep,
+      scale: keepScale,
+      context: {
+        economy: this.economy,
+        gameState: this.gameState,
+        activeEnemies: this.activeEnemies,
+        activeProjectiles: this.activeProjectiles,
+      },
+    });
+    this.bastionBase = { x: baseX, y: baseY, footY: keepFoot };
 
     // The core crystal stays the "heart" of the keep: every existing reaction
     // (flash, pulse, shatter) targets it, so the new art inherits the juice.
@@ -1554,14 +1599,10 @@ export class GameScene extends Phaser.Scene {
     // the world bar invisible for the whole battle.
     this.bastionBarShown = null;
     this.bastionBar = this.add.graphics().setDepth(24);
-    // Anchor the bar above the *battlements*, not above the texture. The PNG is
-    // the fortress plus a tenth of its height of transparent padding on each
-    // side (scripts/build_arena_art.sh adds it for the contact shadow), so the
-    // texture's top edge is empty air — anchoring to it floated the bar up into
-    // the river. `KEEP_PAD_RATIO` is that padding as a fraction of the sheet.
-    const keepTop = this.bastionKeep.getBounds().top;
-    const keepVisibleTop = keepTop + this.bastionKeep.displayHeight * KEEP_PAD_RATIO;
-    this.bastionBarY = keepVisibleTop - 20;
+    // Anchor the bar above the *battlements*, not above the texture: each tier's
+    // sheet is taller than the last and carries its own transparent margins, so
+    // `layoutBastionBar` measures the drawn castle through the guardian.
+    this.layoutBastionBar();
     this.bastionBarLabel = this.add
       .text(baseX, this.bastionBarY - 4, '', {
         fontFamily: 'Rajdhani, "Segoe UI", sans-serif',
@@ -1641,6 +1682,28 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.arenaArtPending = stillMissing;
+  }
+
+  /**
+   * Seat the keep's health bar above the battlements of the *current* form.
+   *
+   * Request 67 makes the castle taller with every tier, so a bar anchored once
+   * would end up buried in the new tower the player just bought. The art height
+   * comes from the sprite itself (SHEET − foot), which is the only number that
+   * cannot drift away from the picture.
+   */
+  layoutBastionBar() {
+    if (!this.bastion) return;
+    const footY = this.bastionBase?.footY ?? this.bastion.footY;
+    this.bastionBarY = footY - this.bastion.artHeight - 26;
+    this.bastionBarLabel?.setY?.(this.bastionBarY - 4);
+    // Force the next `syncBastionBar` to repaint at the new seat.
+    this.bastionBarShown = null;
+  }
+
+  /** Everything that wears an upgrade badge: every defence, plus the keep. */
+  badgeTargets() {
+    return this.bastion ? [...this.activeTowers, this.bastion] : this.activeTowers;
   }
 
   /** World-space bastion health bar. Repainted only when the number moves. */
@@ -3202,6 +3265,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleUpgradeTower(tower, choiceKey = null) {
+    // The keep is not a tower: its upgrade changes the whole castle, so it has
+    // its own branch (see `handleUpgradeBastion`).
+    if (tower?.isBastion) {
+      this.handleUpgradeBastion(tower, choiceKey);
+      return;
+    }
     if (tower.upgrade(choiceKey)) {
       // Request 44: only on the branch that actually spent the gold — a refused
       // upgrade already played the error tone. A palisade latches; a tower sings.
@@ -3223,6 +3292,46 @@ export class GameScene extends Phaser.Scene {
       // branch that really spent the gold.
       this.tutorialReport('upgrade');
     }
+  }
+
+  /**
+   * Buy a bastion tier.
+   *
+   * Request 67: the castle changes shape, so the health bar has to re-seat, the
+   * art swap has to be celebrated, and the open panel has to show the tier that
+   * was just bought. The gold is spent inside `BastionGuardian.upgrade` — the
+   * same contract `Tower.upgrade` uses, so a refused purchase costs nothing and
+   * plays the error tone once.
+   */
+  /**
+   * One nudge per battle, and only when it can be acted on: the keep is a
+   * building you raise, but a player who has spent five minutes on tower cards
+   * has no reason to guess that tapping their own castle opens a panel.
+   */
+  maybeNudgeBastion() {
+    if (this.bastionNudged || !this.bastion || this.gameState?.isOver?.()) return;
+    const next = this.bastion.nextUpgrades?.[0];
+    if (!next) return;
+    if (this.economy.coins < next.upgradeCost) return;
+    this.bastionNudged = true;
+    this.hud?.showNudge?.('The keep can be raised — tap the castle', 'bastion-upgrade');
+  }
+
+  handleUpgradeBastion(bastion, choiceKey = null) {
+    if (!bastion?.upgrade(choiceKey)) return;
+    audio.playUpgrade('tower');
+    this.trackStats({ upgradesBought: 1 });
+    this.layoutBastionBar();
+    this.syncBastionBar();
+    this.badges?.pulse?.(bastion);
+    this.spawnUpgradeShine(bastion);
+    if (this.hud?.inspectedTower === bastion) {
+      this.hud?.inspectTower(bastion, this.anchorRatioFor(bastion));
+    }
+    this.syncHUD();
+    this.updateGhostGraphics();
+    this.advanceCoach?.('upgrade');
+    this.tutorialReport?.('upgrade');
   }
 
   handleSellTower(tower) {
@@ -3252,6 +3361,10 @@ export class GameScene extends Phaser.Scene {
     if (this.selectedTower) {
       this.selectedTower.setSelected(false);
       this.selectedTower = null;
+    }
+    if (this.selectedBastion) {
+      this.selectedBastion.setSelected(false);
+      this.selectedBastion = null;
     }
     this.badges?.setSelected(null);
     // Closing the inspector puts the UPGRADE button away with it; the hand goes
@@ -3416,15 +3529,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 2. Otherwise inspect an existing occupant on this tile
+    // 2. Otherwise inspect an existing occupant on this tile. A defence standing
+    // in front of the keep stays clickable: the castle's hit box covers the
+    // grass behind it, and a raising a tower there must not make it unselectable.
     const occupant = this.placement.getOccupant(row, col);
     if (occupant) {
       audio.playClick();
       this.selectTower(occupant);
-    } else {
-      this.handleDeselectTower();
-      this.hud?.closeInspector();
+      return;
     }
+
+    // 3. The keep itself. Placed after the build branch (an armed card still
+    // raises its defence on the apron) and after the occupant check, but before
+    // the empty-tile branch — tapping the castle is never "deselect".
+    if (this.hitBastion(worldX, worldY)) {
+      audio.playClick();
+      this.selectBastion();
+      return;
+    }
+
+    this.handleDeselectTower();
+    this.hud?.closeInspector();
   }
 
   /**
@@ -3748,9 +3873,57 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Open the bastion's own panel.
+   *
+   * Kept separate from `selectTower` because the two buildings answer different
+   * questions — a tower's range circle is a stat, the keep's is the yard it
+   * defends — but they must never both be selected at once.
+   */
+  selectBastion() {
+    if (!this.bastion) return;
+    if (this.selectedTower) {
+      this.selectedTower.setSelected(false);
+      this.selectedTower = null;
+    }
+    if (this.selectedBuildKey) this.handleSelectBuild(null);
+    this.selectedBastion = this.bastion;
+    this.bastion.setSelected(true);
+    this.badges?.setSelected(this.bastion);
+    this.hud?.inspectTower(this.bastion, this.anchorRatioFor(this.bastion));
+    this.refreshTutorialPointer?.();
+  }
+
+  /**
+   * Is this world point on the castle?
+   *
+   * The hit area is the castle's own art box (the drawn width, from the foot up
+   * to the current tier's battlements), not the tile: the keep is three tiles
+   * wide and a player tapping the walls is talking about the keep.
+   */
+  hitBastion(worldX, worldY) {
+    if (!this.bastion || !this.bastionBase) return false;
+    const { x, footY } = this.bastionBase;
+    // The drawn castle, not the tile: the keep is three tiles wide and a player
+    // tapping the walls is talking about the keep. `artHeight` grows with the
+    // tier, so a level-5 castle is still tappable on its new battlements.
+    const drawn = this.bastionKeep?.displayWidth || TILE_SIZE * 3;
+    const halfWidth = Math.max(TILE_SIZE * 1.35, drawn * 0.46);
+    const top = footY - this.bastion.artHeight + 12;
+    return worldX >= x - halfWidth && worldX <= x + halfWidth && worldY >= top && worldY <= footY + 8;
+  }
+
   /** Select a tower, show its range, focus the camera if it is off-screen. */
   selectTower(tower) {
     if (!tower) return;
+    if (tower.isBastion) {
+      this.selectBastion();
+      return;
+    }
+    if (this.selectedBastion) {
+      this.selectedBastion.setSelected(false);
+      this.selectedBastion = null;
+    }
     if (this.selectedTower && this.selectedTower !== tower) {
       this.selectedTower.setSelected(false);
     }
@@ -5459,7 +5632,8 @@ export class GameScene extends Phaser.Scene {
           }
         : null,
     });
-    this.badges?.sync(this.activeTowers, this.economy.coins);
+    this.badges?.sync(this.badgeTargets(), this.economy.coins);
+    this.maybeNudgeBastion();
     // Heals (blessings, relics) go through the same bar as damage.
     this.syncBastionBar();
     this.hud?.setBuildPoints?.(this.usedBuildPoints(), this.maxTowers);
@@ -5887,6 +6061,11 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < this.activeTowers.length; i++) {
       this.activeTowers[i].update(clampedDelta);
     }
+
+    // 3a. The keep's gun (Request 67). Same clock as the towers, and its shots
+    // join the same projectile list, so the two can never disagree about what
+    // is on the field this frame.
+    this.bastion?.update(clampedDelta);
 
     // 3b. Royal field effects: obelisk wards, workshop repairs and trap
     // triggers. One clock for all three (see systems/RoyalSystems.js) — they

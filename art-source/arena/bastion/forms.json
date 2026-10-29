@@ -1,0 +1,57 @@
+{
+  "1": {
+    "level": 1,
+    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l1.png",
+    "width": 518,
+    "height": 480,
+    "foot_from_bottom": 44,
+    "socket": {
+      "x": 105.0,
+      "y": 136
+    }
+  },
+  "2": {
+    "level": 2,
+    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l2.png",
+    "width": 518,
+    "height": 524,
+    "foot_from_bottom": 44,
+    "socket": {
+      "x": 105.0,
+      "y": 136
+    }
+  },
+  "3": {
+    "level": 3,
+    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l3.png",
+    "width": 518,
+    "height": 622,
+    "foot_from_bottom": 44,
+    "socket": {
+      "x": 105.0,
+      "y": 136
+    }
+  },
+  "4": {
+    "level": 4,
+    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l4.png",
+    "width": 518,
+    "height": 682,
+    "foot_from_bottom": 44,
+    "socket": {
+      "x": 105.0,
+      "y": 136
+    }
+  },
+  "5": {
+    "level": 5,
+    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l5.png",
+    "width": 518,
+    "height": 740,
+    "foot_from_bottom": 44,
+    "socket": {
+      "x": 105.0,
+      "y": 136
+    }
+  }
+}

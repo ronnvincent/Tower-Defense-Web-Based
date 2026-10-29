@@ -241,6 +241,12 @@ export class UpgradeBadges {
 
   anchorFor(tower) {
     const artHeight = typeof tower.artHeight === 'number' ? tower.artHeight : TILE_SIZE;
+    // A tower's tile already gives the ground line. The keep is taller than its
+    // tile and stands with its foot below the tile centre, so it reports the top
+    // of its own drawing (`artTop`) instead of having one guessed for it.
+    if (typeof tower.artTop === 'number') {
+      return Math.max(BADGE.minY, tower.artTop - BADGE.gap);
+    }
     return badgeAnchorY(tower.y - TILE_SIZE / 2, artHeight);
   }
 

@@ -1900,50 +1900,107 @@ body.is-battle #app > * {
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================================================
+   DEFENCE ROLES — green ground · red air · blue support
+   --------------------------------------------------------------------------
+   What a defence can hit decides a build more often than its damage number:
+   "this kills the wraith" and "this watches it fly past" are the difference
+   between a held lane and a lost bastion. The three colours are fixed by the
+   brief and are declared once here as custom properties, then consumed by
+   every surface that shows a role (the dock strip, the inspector chip, the
+   tooltip line). `src/data/defenceRoles.js` owns the same three hex values for
+   the canvas side, and its `ROLE_STYLE` is the source the tests compare to.
+
+   A line that covers both categories is not given a fourth colour: the strip
+   and the gem are split green/red, which reads as "both" without a legend.
+   ========================================================================== */
+.role-ground {
+  --role-a: #54c95f;
+  --role-b: #54c95f;
+  --role-ink: #8df494;
+  --role-edge: rgba(84, 201, 95, 0.55);
+  --role-wash: rgba(24, 58, 26, 0.62);
+}
+
+.role-air {
+  --role-a: #e8503f;
+  --role-b: #e8503f;
+  --role-ink: #ff9186;
+  --role-edge: rgba(232, 80, 63, 0.55);
+  --role-wash: rgba(62, 22, 18, 0.62);
+}
+
+.role-both {
+  --role-a: #54c95f;
+  --role-b: #e8503f;
+  --role-ink: #ffe0a8;
+  --role-edge: rgba(240, 180, 95, 0.5);
+  --role-wash: rgba(58, 42, 18, 0.62);
+}
+
+.role-support {
+  --role-a: #4f9bff;
+  --role-b: #4f9bff;
+  --role-ink: #9cc8ff;
+  --role-edge: rgba(79, 155, 255, 0.55);
+  --role-wash: rgba(18, 36, 64, 0.62);
+}
+
+/* The strip is the only role mark that fits a 68 px card face. It lives in the
+   card's own padding gutter so it never covers the icon, the hotkey or the
+   price shelf. */
+.card-role {
+  position: absolute;
+  left: 2px;
+  top: 6px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 3px;
+  background: linear-gradient(to bottom, var(--role-a) 0 50%, var(--role-b) 50% 100%);
+  box-shadow: inset 0 0 0 1px rgba(4, 8, 12, 0.5), 0 0 6px -1px var(--role-a);
+  pointer-events: none;
+}
+
 /* What a defence can actually hit, printed on its dock card.
-   Two creeps of the same lane can look nothing alike at a glance, and the
-   difference between "this kills the wraith" and "this watches it fly past" is
-   the difference between a won wave and a lost bastion. Colour carries the
-   split (sky blue = air, earth green = ground, gold = both) so a card reads at
-   dock size without a legend; the text carries it for anyone who cannot. */
+   The text badge is still rendered — the tooltip, the aria-label and the
+   inspector all read it — but it is hidden on the 68 px card face: at 9 px it
+   was the least legible thing in the dock. The colour strip above carries the
+   same information at a glance. */
 .card-target {
-  /* The category badge is still rendered — the tooltip, the aria-label and the
-     inspector all read it — but it is hidden on the 68 px card face. At 9 px it
-     was the least legible thing in the dock and it duplicated GROUND / BOTH,
-     which the tooltip now says in words. */
   display: none;
 }
 
 .card-target.target-both {
-  color: #ffe6b0;
-  border-color: rgba(198, 158, 88, 0.4);
+  color: #ffe0a8;
+  border-color: rgba(240, 180, 95, 0.4);
   background: rgba(58, 42, 18, 0.55);
 }
 
 .card-target.target-ground {
-  color: #b6e6a0;
-  border-color: rgba(96, 158, 72, 0.45);
-  background: rgba(24, 48, 20, 0.55);
+  color: #8df494;
+  border-color: rgba(84, 201, 95, 0.45);
+  background: rgba(24, 58, 26, 0.55);
 }
 
 .card-target.target-air {
-  color: #9ddcf5;
-  border-color: rgba(74, 152, 190, 0.45);
-  background: rgba(16, 38, 52, 0.55);
+  color: #ff9186;
+  border-color: rgba(232, 80, 63, 0.45);
+  background: rgba(62, 22, 18, 0.55);
 }
 
-/* The inspector spells the same rule out in words: the dock badge is an
-   abbreviation for the dock, the panel has the room to be a sentence. */
-.val.targets-ground {
-  color: #b6e6a0;
+.card-target.target-support {
+  color: #9cc8ff;
+  border-color: rgba(79, 155, 255, 0.45);
+  background: rgba(18, 36, 64, 0.55);
 }
 
-.val.targets-air {
-  color: #9ddcf5;
-}
-
-.val.targets-both {
-  color: #ffe6b0;
+/* The inspector spells the same rule out in words: the dock strip is a colour
+   for the dock, the panel has the room for the sentence. */
+.val.role-ground,
+.val.role-air,
+.val.role-both,
+.val.role-support {
+  color: var(--role-ink);
 }
 
 /* On a phone the dock card is an icon with a price; a third text line pushes
@@ -2820,21 +2877,10 @@ body:has(.codex-drawer.open) .camera-hint {
   white-space: nowrap;
   padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(198, 158, 88, 0.4);
-  background: rgba(58, 42, 18, 0.55);
-  color: #ffe6b0;
-}
-
-.inspector-targets.target-ground {
-  color: #b6e6a0;
-  border-color: rgba(96, 158, 72, 0.45);
-  background: rgba(24, 48, 20, 0.55);
-}
-
-.inspector-targets.target-air {
-  color: #9ddcf5;
-  border-color: rgba(74, 152, 190, 0.45);
-  background: rgba(16, 38, 52, 0.55);
+  /* Coloured by the role class the HUD puts on the chip (see DEFENCE ROLES). */
+  border: 1px solid var(--role-edge, rgba(198, 158, 88, 0.4));
+  background: var(--role-wash, rgba(58, 42, 18, 0.55));
+  color: var(--role-ink, #ffe6b0);
 }
 
 .inspector-header-btns {

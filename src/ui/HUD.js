@@ -15,6 +15,7 @@ import { focusReadout } from '../systems/FocusTarget.js';
 import { applyShell, readShellOverride, resolveShell } from './shellMode.js';
 import { haptics } from '../systems/Haptics.js';
 import { targetBadge, targetLabel } from '../systems/TargetCategories.js';
+import { defenceRole, roleClass, roleLabel, roleTitle } from '../data/defenceRoles.js';
 
 /** "1.25" / "2" — never "1.50", which reads like a precision bug. */
 function formatMultiplier(value) {
@@ -311,7 +312,7 @@ export class HUD {
       <span class="build-tip-name">${def.name}</span>
       ${stats.length ? `<span class="build-tip-stats">${stats.join('')}</span>` : ''}
       <span class="build-tip-desc">${def.description || ''}</span>
-      <span class="build-tip-price">${def.cost} gold · hits ${targetLabel(def).toLowerCase()} creeps</span>
+      <span class="build-tip-price">${def.cost} gold · <span class="${roleClass(def)}">${roleTitle(def)}</span></span>
     `;
     tip.hidden = false;
     // Centre the card on the card that owns it, clamped inside the dock so it
@@ -695,7 +696,9 @@ export class HUD {
   renderTargetingGroup(tower) {
     const group = document.getElementById('inspect-targeting');
     if (!group) return;
-    if (tower.def?.supportOnly || tower.def?.trap) {
+    // The keep has no priority to pick and no category to narrow: it shoots the
+    // creep closest to its own gate, at whatever is flying or walking.
+    if (tower.isBastion || tower.def?.supportOnly || tower.def?.trap) {
       group.style.display = 'none';
       return;
     }
@@ -1255,8 +1258,13 @@ export class HUD {
       const group = groupForBuild(key);
       return `
         <button class="build-card ${isBarricade ? 'barricade-card' : ''}" data-key="${key}" data-group="${group.key}" id="card-${key}"
-                title="${def.description}" aria-label="Build ${def.name} for ${def.cost} gold. Hits ${targetLabel(def).toLowerCase()} creeps">
+                data-role="${defenceRole(def)}"
+                title="${def.description} — ${roleTitle(def)}" aria-label="Build ${def.name} for ${def.cost} gold. ${roleTitle(def)}">
           <div class="card-hotkey" aria-hidden="true">${def.hotkey}</div>
+          <!-- The role strip: green = ground, red = air, blue = support, and a
+               two-tone strip for a line that covers both. It is the one mark on
+               a 68 px card face that survives the thumbnail scale. -->
+          <span class="card-role ${roleClass(def)}" aria-hidden="true"></span>
           <div class="card-icon-frame">
             <div class="card-sprite sprite-${key}"></div>
           </div>
@@ -2158,7 +2166,13 @@ export class HUD {
     // ★3 would have labelled a maxed tower as a fresh specialisation. It says
     // the level only — the title next to it already carries the ascension name,
     // and "SIEGE BALLISTA ★5 Siege Ballista" was the same words twice.
-    const titleStr = tower.def?.royal
+    // The bastion prints its tier name as the *name* line (below), so the chip
+    // next to it only carries the rank — the same shape as a maxed tower.
+    const titleStr = tower.isBastion
+      ? tower.level >= MAX_LEVEL
+        ? `★${tower.level} · MAX`
+        : `★${tower.level}`
+      : tower.def?.royal
       ? `★${tower.level} · ${String(tower.stats?.title || '').toUpperCase()}`
       : tower.specialization
       ? tower.level >= MAX_LEVEL
@@ -2174,10 +2188,10 @@ export class HUD {
     if (targetChip) {
       // A palisade damages only what walks into it; a battery that fires at the
       // sky says so. Same helper as the dock card, so the two can never disagree.
-      const label = targetLabel(tower.def);
+      const label = roleLabel(tower.def);
       targetChip.textContent = label;
-      targetChip.className = `inspector-targets target-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}`;
-      targetChip.title = `Can hit ${label.toLowerCase()} creeps`;
+      targetChip.className = `inspector-targets ${roleClass(tower.def)}`;
+      targetChip.title = roleTitle(tower.def);
     }
 
     const statsGrid = document.getElementById('inspect-stats');
@@ -2242,7 +2256,7 @@ export class HUD {
           nextDps ? ` <span class="stat-delta">→ ${nextDps}</span>` : ''
         }</span></div>
         <div class="stat-cell"><span class="lbl">DAMAGE TYPE</span><span class="val">${(s.damageType || 'Physical').toUpperCase()}</span></div>
-        <div class="stat-cell"><span class="lbl">TARGETS</span><span class="val targets-${targetBadge(tower.def).toLowerCase().replace(/[^a-z]/g, '')}">${targetLabel(tower.def)}</span></div>
+        <div class="stat-cell"><span class="lbl">TARGETS</span><span class="val ${roleClass(tower.def)}">${roleLabel(tower.def)}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SPECIAL PERK</span><span class="val">${special}</span></div>
         <div class="stat-cell full-width"><span class="lbl">SIGNATURE</span><span class="val">${this.describeAbility(s)}</span></div>
         <div class="stat-cell full-width"><span class="lbl">STRUCTURE</span><span class="val" id="inspect-structure-hp">${Math.max(0, Math.round(tower.health ?? 0))} / ${Math.max(1, Math.round(tower.maxHealth ?? 1))} HP</span></div>
@@ -2377,6 +2391,9 @@ export class HUD {
     if (s.armorBreak) return `Armour break −${s.armorBreak} for ${(s.armorBreakMs / 1000).toFixed(1)}s`;
     if (s.armorPenetration) return `Armour penetration ${Math.round(s.armorPenetration * 100)}%`;
     if (s.chainTargets > 1) return `Chain lightning · ${s.chainTargets} targets`;
+    if (s.retribution) {
+      return `Retribution · ${s.retribution.damagePerSecond} dmg/s to anything that attacks the gate`;
+    }
     return '—';
   }
 
@@ -2390,6 +2407,15 @@ export class HUD {
   describeAbility(s) {
     const ability = s?.ability;
     if (!ability) return '—';
+    // The keep's signature is a timed area attack, and its numbers are the
+    // reason to buy the tier — printed from the same stats the ability runs on.
+    const timed = s?.nova && typeof s.nova === 'object' ? s.nova : s?.flare;
+    if (timed) {
+      const every = `${(timed.cooldownMs / 1000).toFixed(1)}s`;
+      const radius = timed.radius || timed.splash;
+      const slow = timed.slow ? `, −${Math.round(timed.slow * 100)}% speed for ${(timed.slowMs / 1000).toFixed(1)}s` : '';
+      return `${ability.label} · ${timed.damage} dmg in ${radius}px every ${every}${slow}`;
+    }
     const bits = [];
     if (ability.shots > 1) bits.push(`${ability.shots} shots per attack`);
     if (ability.nova) bits.push(`${ability.nova}px frost nova on hit`);
@@ -2512,7 +2538,7 @@ export class HUD {
   /** One specialisation, as a card. */
   specCard(opt, tower) {
     const lane = opt.branch === 'spec-b' ? 'b' : 'a';
-    const art = this.upgradeArt(tower, opt.branch);
+    const art = opt.preview || this.upgradeArt(tower, opt.branch);
     const artHtml = art
       ? `<img class="spec-card-art" src="${art}" alt="" draggable="false" />`
       : '<span class="spec-card-art spec-card-art-blank" aria-hidden="true">◆</span>';
@@ -2522,7 +2548,7 @@ export class HUD {
           ${artHtml}
           <span class="spec-card-ident">
             <span class="spec-card-path">PATH ${lane === 'a' ? 'I' : 'II'}</span>
-            <span class="spec-card-title">${opt.title}</span>
+            <span class="spec-card-title">${opt.cardTitle || opt.title}</span>
             <span class="spec-card-role">${this.describeRole(opt)}</span>
           </span>
         </span>
@@ -2539,10 +2565,13 @@ export class HUD {
   renderUpgradeActions(tower) {
     const opts = tower.nextUpgrades;
     let html = '';
+    // The bastion has no tower line to look its next tier up in, so its options
+    // carry the art of the castle they buy.
+    const artFor = (opt) => opt?.preview || this.upgradeArt(tower, opt?.branch || this.nextSlot(tower));
 
     if (opts.length === 1) {
       const opt = opts[0];
-      const art = this.upgradeArt(tower, this.nextSlot(tower));
+      const art = artFor(opt);
       const artHtml = art
         ? `<img class="spec-card-art" src="${art}" alt="" draggable="false" />`
         : '<span class="spec-card-art spec-card-art-blank" aria-hidden="true">▲</span>';
@@ -2555,7 +2584,7 @@ export class HUD {
             ${artHtml}
             <span class="spec-card-ident">
               <span class="spec-card-path">NEXT TIER</span>
-              <span class="spec-card-title">${opt.title || tower.def?.name || 'Upgrade'}</span>
+              <span class="spec-card-title">${opt.cardTitle || opt.title || tower.def?.name || 'Upgrade'}</span>
               ${ability}
             </span>
           </span>
@@ -2582,11 +2611,13 @@ export class HUD {
       html = `<div class="max-spec-badge"><span class="max-spec-stars">★★★★★</span><span>FULLY UPGRADED</span></div>`;
     }
 
-    html += `
-      <button id="btn-sell-tower" class="game-btn game-btn-sell">
-        SELL · +<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-sell-refund">${tower.sellRefund}</span>
-      </button>
-    `;
+    if (!tower.isBastion) {
+      html += `
+        <button id="btn-sell-tower" class="game-btn game-btn-sell">
+          SELL · +<img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> <span id="inspect-sell-refund">${tower.sellRefund}</span>
+        </button>
+      `;
+    }
     return html;
   }
 
