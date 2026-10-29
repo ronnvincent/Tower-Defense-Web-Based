@@ -3036,6 +3036,9 @@ export class GameScene extends Phaser.Scene {
       this.handleDeselectTower();
     }
     this.updateGhostGraphics();
+    // The opening's hand moves off the card and onto the meadow the moment a
+    // defence is in hand (and back again if it is put down).
+    this.refreshTutorialPointer();
   }
 
   handleUpgradeTower(tower, choiceKey = null) {
@@ -3091,6 +3094,9 @@ export class GameScene extends Phaser.Scene {
       this.selectedTower = null;
     }
     this.badges?.setSelected(null);
+    // Closing the inspector puts the UPGRADE button away with it; the hand goes
+    // back to the tower rather than pointing at a hole where a button used to be.
+    this.refreshTutorialPointer();
   }
 
   /** Screen (canvas) px → tile row/col, honouring camera pan + zoom. */
@@ -3593,6 +3599,8 @@ export class GameScene extends Phaser.Scene {
     this.badges?.setSelected(tower);
     this.ensureTowerVisible(tower);
     this.hud?.inspectTower(tower, this.anchorRatioFor(tower));
+    // The tower is found: the hand can finally point at the UPGRADE it unlocks.
+    this.refreshTutorialPointer();
   }
 
   /** Tower position as a 0..1 fraction of the battlefield (zoom-safe). */
@@ -4147,9 +4155,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (beat.event === 'place') {
       this.focusTutorialCell(beat.focus || null, 'RAISE IT HERE');
-      // The shelf is a dozen cards across three tabs; the first entry of the
-      // roster is the one the opening's own copy describes.
-      this.hud?.setTutorialHint?.({ card: BUILD_OPTIONS[0] });
+      this.refreshTutorialPointer();
       return;
     }
     if (beat.event === 'upgrade') {
@@ -4158,13 +4164,87 @@ export class GameScene extends Phaser.Scene {
       const tower = this.activeTowers?.[this.activeTowers.length - 1] || null;
       const cell = tower ? { col: tower.col, row: tower.row } : null;
       this.focusTutorialCell(cell, 'TAP THE TOWER');
-      this.hud?.setTutorialHint?.({ upgrade: true });
+      this.refreshTutorialPointer();
       return;
     }
     if (beat.event === 'wave') {
       this.focusTutorialCell(null);
       this.hud?.setTutorialHint?.({ wave: true });
     }
+  }
+
+  /**
+   * Point the opening's hand at the *next* thing, not at the thing it started on.
+   *
+   * A step is not one target, it is a little chain: the shelf card, then the
+   * meadow it should go on, then the tower that appeared, then the UPGRADE it
+   * has earned, then the wave. The old hint named only the first link and the
+   * player was left to guess the rest — with the card still ringed while the
+   * board waited, and nothing at all over the tower they had just raised.
+   *
+   * Everything on the board is handed over as a getter, so the hole follows the
+   * cell through a pan or a zoom instead of freezing where it was drawn.
+   */
+  refreshTutorialPointer() {
+    const beat = this.tutorialDirector?.beat;
+    if (!this.level?.tutorial || !beat || beat.kind !== 'step') return;
+
+    if (beat.event === 'place') {
+      const cell = beat.focus || null;
+      // Armed: the forge has done its job, the meadow is the question now.
+      if (this.selectedBuildKey && cell) {
+        this.hud?.setTutorialHint?.({ spot: () => this.cellScreenRect(cell) });
+        return;
+      }
+      // The shelf is a dozen cards across three tabs; the first entry of the
+      // roster is the one the opening's own copy describes.
+      this.hud?.setTutorialHint?.({ card: BUILD_OPTIONS[0] });
+      return;
+    }
+
+    if (beat.event === 'upgrade') {
+      const tower = this.activeTowers?.[this.activeTowers.length - 1] || null;
+      if (!tower) {
+        this.hud?.setTutorialHint?.({ upgrade: true });
+        return;
+      }
+      // Not selected yet: the hand has to find the tower first, or the UPGRADE
+      // button the step asks for does not exist.
+      if (this.selectedTower !== tower) {
+        this.hud?.setTutorialHint?.({
+          spot: () => this.cellScreenRect({ col: tower.col, row: tower.row }),
+        });
+        return;
+      }
+      this.hud?.setTutorialHint?.({ upgrade: true });
+    }
+  }
+
+  /** Game-canvas coordinates → CSS pixels, so DOM chrome can point at the board. */
+  worldToClient(worldX, worldY) {
+    const canvas = this.game?.canvas;
+    const rig = this.cameraRig;
+    if (!canvas || !rig) return null;
+    const screen = rig.worldToScreen(worldX, worldY);
+    const box = canvas.getBoundingClientRect();
+    return {
+      x: box.left + (screen.x / this.scale.width) * box.width,
+      y: box.top + (screen.y / this.scale.height) * box.height,
+    };
+  }
+
+  /** The on-screen box of one tile, zoom and pan included. */
+  cellScreenRect(cell) {
+    if (!cell) return null;
+    const a = this.worldToClient(cell.col * TILE_SIZE, cell.row * TILE_SIZE);
+    const b = this.worldToClient((cell.col + 1) * TILE_SIZE, (cell.row + 1) * TILE_SIZE);
+    if (!a || !b) return null;
+    return {
+      left: Math.min(a.x, b.x),
+      top: Math.min(a.y, b.y),
+      width: Math.abs(b.x - a.x),
+      height: Math.abs(b.y - a.y),
+    };
   }
 
   /** Scene instructions attached to a beat. */
@@ -4264,6 +4344,11 @@ export class GameScene extends Phaser.Scene {
       // forge armed would make the next tap try to build on the square that is
       // already occupied, and the player would read that as "the inspector is
       // broken" — so the card is put down as the step is retired.
+      //
+      // Through the HUD's own `clearBuildSelection`, not just the scene's field:
+      // the scene call left the card lit and the "PLACING … ESC to cancel" pill
+      // on screen while the hand was already pointing at the tower (Request 63).
+      this.hud?.clearBuildSelection?.(true);
       this.handleSelectBuild(null);
       this.focusTutorialCell(null);
     }

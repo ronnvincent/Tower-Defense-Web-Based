@@ -514,4 +514,40 @@ describe('HUD tutorial targets', () => {
     expect(veil.querySelector('.tut-hole').style.width).toBe('216px');
     hud.destroy?.();
   });
+
+  // Request 63: a step is a chain, not one control. After the forge hands the
+  // player a defence the next thing to press is a *place on the board*, and
+  // after the tower exists it is the UPGRADE it unlocks. Neither is a DOM
+  // element, so the scene hands over a getter and the veil follows it.
+  it('can point at the board itself, and follows the spot when it moves', () => {
+    const hud = mountHud({});
+    hud.update(STATE);
+
+    let rect = { left: 400, top: 300, width: 60, height: 60 };
+    hud.setTutorialHint({ spot: () => rect });
+    const veil = document.getElementById('tutorial-spotlight');
+    hud.syncTutorialSpotlight();
+    const hole = veil.querySelector('.tut-hole');
+    expect(veil.classList.contains('is-on')).toBe(true);
+    // The same 8 px of breathing room every control target gets.
+    expect(hole.style.left).toBe('392px');
+    expect(hole.style.width).toBe('76px');
+    // No element carries the mark: the rect came from the scene.
+    expect(document.querySelectorAll('.is-tutorial-target').length).toBe(0);
+
+    // The player pans the board: the hole has to travel with the cell.
+    rect = { left: 520, top: 260, width: 60, height: 60 };
+    hud.syncTutorialSpotlight();
+    expect(hole.style.left).toBe('512px');
+    expect(hole.style.top).toBe('252px');
+
+    // A spot that has been scrolled out of view takes the veil down instead of
+    // pinning a hole to the edge of the screen.
+    rect = { left: 5000, top: 300, width: 60, height: 60 };
+    hud.syncTutorialSpotlight();
+    expect(veil.classList.contains('is-on')).toBe(false);
+
+    hud.setTutorialHint(null);
+    hud.destroy?.();
+  });
 });

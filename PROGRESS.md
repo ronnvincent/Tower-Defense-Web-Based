@@ -864,3 +864,82 @@ inset vignette on `#app::after`.
 `npm run build` ✓ 6.38 s · `npx vitest run` → **138 files / 1788 passed**
 (`tests/arena-art.test.js`, `tests/menu-battle-guard.test.js`, and the rewritten
 first case in `tests/hud-rail.test.js`).
+
+---
+
+## 17. Request 63 — the hand that walks the player through the first two steps
+
+> "dapat yung kamay na nagtuturo is nag shishrink and lumalaki then kapag naka
+> tap na ng defense ay ituturo naman sa spot ng lalapagan ng defense then pag
+> tapos ay ituturo naman sa icon na upgrade ng tower para full guided talaga"
+
+### What was wrong
+
+A step was one target, and only the first one. `step-place` pointed the hand at
+the shelf card and left it there: after the card was tapped the hand kept
+pointing at the card the player had already used, and the meadow it was meant to
+go on was only ringed. `step-upgrade` asked for the UPGRADE button before the
+tower that opens it had been tapped, so for the whole first half of the step
+there was nothing to point at and the veil stayed down — the one moment the
+player could get lost was the one moment the hand had nothing to say.
+
+### What it does now
+
+| Moment | Where the hand points |
+| ------ | -------------------- |
+| `step-place`, nothing armed | the ARCHER card on the dock |
+| `step-place`, card tapped | **the marked meadow cell** — the same tile the ring labels "RAISE IT HERE" |
+| tower placed, `step-upgrade` | **the tower that was just raised**, whichever tile it went on |
+| tower tapped | the UPGRADE card in the inspector |
+| `step-wave` | START WAVE (unchanged) |
+
+Two new pieces under that:
+
+* **`refreshTutorialPointer()`** in `GameScene` is the one place that decides the
+  target, and it runs again when the forge arms (`handleSelectBuild`), when a
+  tower is picked up or put down (`selectTower` / `handleDeselectTower`) and when
+  a step opens (`setTutorialTarget`).
+* **`{ spot: () => rect }`** in the HUD. A board cell is not an element, so the
+  scene hands over a getter and the 220 ms sampler asks again on every tick:
+  `worldToClient()` → `cellScreenRect()` turn the tile into CSS pixels through
+  the canvas rect and the camera rig, so the hole follows the cell through a pan
+  or a zoom. A cell that is off screen returns `null` and the veil goes down
+  rather than pinning a hole to the window edge.
+
+**The pulse.** `.tut-hand` now runs two loops on the same 1.2 s clock:
+`tutHandTap` (the six-frame sheet, as before) and `tutHandPulse` (scale
+1 → 1.15 → 1). It animates the `scale` property, not `transform`, because the
+poses (`is-flipped`, `is-side`) own `transform` — an animation that took it
+would undo the mirror mid-tap. Measured live: scale 1.00 → 1.15 across the beat,
+`background-position` still stepping −50 px per frame.
+
+### A bug this exposed, fixed
+
+`tutorialReport('place')` put the forge down by calling the *scene's*
+`handleSelectBuild(null)`, which never told the HUD. For the whole upgrade step
+the ARCHER card stayed lit and the "PLACING BALLISTA TOWER — click a grass tile
+· ESC to cancel" pill stayed on screen, telling the player to do the thing they
+had just done. It now goes through `HUD.clearBuildSelection(true)` as well.
+
+### Verified in the browser (real opening, real buttons)
+
+Driven through `startLevel('tutorial')` at 1280×768 and at 844×390 (phone
+shell); screenshot after every press:
+
+| Step | Target | Hole | Hand |
+| ---- | ------ | ---- | ---- |
+| place | `card-archer` | 92×84 on the card | above it, pointing down |
+| card tapped | board cell 12,7 | 56×56 on the tile | below it, pointing up |
+| placed | — (line beat) | veil down | hidden |
+| upgrade opens | the raised tower | 56×56 on the tower | below it, pointing up |
+| tower tapped | `btn-upgrade-tower` | 262×124 in the inspector | below it, pointing up |
+
+No page errors in either run. `prefers-reduced-motion: reduce` turns both loops
+off (the hand still points, it just stops moving).
+
+`npx vitest run` → **138 files / 1790 passed** · `npm run build` ✓ 6.40 s
+(`tests/hud-dom.test.js` pins the board-spot hint — placement, following, and
+the off-screen guard; `tests/ui-kit.test.js` pins the two animations and that
+the poses keep `transform`).
+
+Screenshots: `/tmp/tf-1-place.png` … `/tmp/tf-5-selected.png`, `/tmp/tfm-*`.

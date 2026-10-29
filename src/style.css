@@ -17600,7 +17600,14 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
      height, which put the hand inside the control it was pointing at. */
   transform-origin: 50% 50%;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
-  animation: tutHandTap 1.2s steps(6) infinite;
+  /* Two loops on the same 1.2 s clock: the sheet steps through six frames of
+     the tap, and the whole hand breathes in and out with them so the eye finds
+     it against a board full of moving things. `scale` and not `transform`: the
+     poses below (`is-flipped`, `is-side`) own `transform`, and the individual
+     transform properties compose with it instead of overwriting it. */
+  animation:
+    tutHandTap 1.2s steps(6) infinite,
+    tutHandPulse 1.2s ease-in-out infinite;
   transition: left 180ms ease, top 180ms ease;
 }
 
@@ -17619,6 +17626,21 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
   to {
     background-position: -300px 0;
+  }
+}
+
+/* Request 63: the hand shrinks and grows while it points. A static sprite on a
+   busy meadow reads as decoration; the pulse is what makes it the one thing on
+   the board that is alive. Small (≈ 15 %) and slow (1.2 s, the length of the tap
+   loop it rides on) — a bouncing arrow would fight the game it is pointing at. */
+@keyframes tutHandPulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  50% {
+    scale: 1.15;
   }
 }
 

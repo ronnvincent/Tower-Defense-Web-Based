@@ -981,6 +981,16 @@ export class HUD {
       return;
     }
     const mark = (el) => el?.classList.add('is-tutorial-target');
+    // A step can point at the board instead of at a control — "raise it here",
+    // "tap the tower you just built". The scene owns that geometry: it is the
+    // only thing that knows where the camera is looking, and the answer has to
+    // change when the player pans or zooms. So it hands over a getter and the
+    // sampler asks again on every tick, rather than a rect that is stale the
+    // moment the board moves under it.
+    if (typeof hint.spot === 'function') {
+      this.syncTutorialSpotlight();
+      return;
+    }
     if (hint.card) {
       // On a phone the forge starts folded into one BUILD button, so the card
       // the step names is not on screen yet. Point at the button that opens it
@@ -1060,8 +1070,9 @@ export class HUD {
     if (!this.spotlightTimer) {
       this.spotlightTimer = setInterval(() => this.syncTutorialSpotlight(), 220);
     }
-    const target = document.querySelector('.is-tutorial-target');
-    const rect = target?.getBoundingClientRect?.();
+    const spot = typeof hint.spot === 'function' ? this.#spotRect(hint.spot) : null;
+    const target = spot ? null : document.querySelector('.is-tutorial-target');
+    const rect = spot || target?.getBoundingClientRect?.();
     if (!rect || rect.width < 2 || rect.height < 2) {
       // Nothing to point at yet: the fade stays off rather than dimming a screen
       // with no hole in it.
@@ -1093,6 +1104,31 @@ export class HUD {
       this.#placeHand(box);
     }
     root.classList.add('is-on');
+  }
+
+  /**
+   * A box that comes from the scene rather than from an element.
+   *
+   * Returns `null` for anything that is not on screen — a cell that has been
+   * panned out of view must take the veil down with it, not pin a hole to the
+   * window edge and point at the frame.
+   */
+  #spotRect(get) {
+    let rect = null;
+    try {
+      rect = get();
+    } catch {
+      rect = null;
+    }
+    if (!rect || !Number.isFinite(rect.left) || !Number.isFinite(rect.top)) return null;
+    const width = Math.max(0, Number(rect.width) || 0);
+    const height = Math.max(0, Number(rect.height) || 0);
+    if (width < 2 || height < 2) return null;
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    if (rect.left + width < 0 || rect.top + height < 0) return null;
+    if (rect.left > vw || rect.top > vh) return null;
+    return { left: rect.left, top: rect.top, width, height };
   }
 
   /**

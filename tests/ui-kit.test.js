@@ -80,6 +80,24 @@ describe('UI kit — the tutorial hand', () => {
     expect(end).toBeTruthy();
     expect(Number(end[1])).toBe(Number(w)); // the strip scrolls exactly one sheet
   });
+
+  // Request 63: the hand shrinks and grows while it points. The pulse rides the
+  // same 1.2 s clock as the tap, and it animates `scale` — not `transform` —
+  // because the poses (flipped / side) own `transform` and an animation that
+  // took it would undo the mirror mid-tap.
+  it('breathes while it taps, without stealing the poses', () => {
+    const rule = css.slice(css.indexOf('.tut-hand {'), css.indexOf('.tut-hand {') + 1400);
+    expect(rule).toMatch(/tutHandTap 1\.2s steps\(6\) infinite/);
+    expect(rule).toMatch(/tutHandPulse 1\.2s ease-in-out infinite/);
+
+    const pulse = css.slice(css.indexOf('@keyframes tutHandPulse'));
+    expect(pulse).toMatch(/50%\s*\{\s*scale:\s*1\.15;/);
+
+    const flipped = css.slice(css.indexOf('.tut-hand.is-flipped {'));
+    expect(flipped.slice(0, 120)).toMatch(/transform:\s*scaleY\(-1\)/);
+    const side = css.slice(css.indexOf('.tut-hand.is-side {'));
+    expect(side.slice(0, 120)).toMatch(/transform:\s*rotate\(90deg\)/);
+  });
 });
 
 describe('UI kit — 9-slice geometry', () => {
