@@ -331,7 +331,11 @@ function clearTutorialOverlay() {
   window.gameTutorialUI?.clear?.();
 }
 
-function showLevelSelect({ arrival = null } = {}) {
+function showLevelSelect(options = {}) {
+  withCurtain(() => showLevelSelectNow(options));
+}
+
+function showLevelSelectNow({ arrival = null } = {}) {
   navReturn = 'menu';
   audioDirector.setScene('realm');
   audioDirector.setLocation(null);
@@ -374,7 +378,36 @@ function quitToMap() {
  * Enter a battle. `init()` receives `{ levelId }`, and a running battle is
  * restarted in place so Next / Replay never stack scenes.
  */
+/**
+ * Close the curtain, run the swap, lift it again.
+ *
+ * Scenes are built synchronously: the old board is torn down and the new one
+ * has not painted yet, so an un-curtained swap shows one frame of empty stage.
+ * 180 ms of black in between is the difference between "a game changed screen"
+ * and "the game flickered".
+ *
+ * Falls through synchronously when the element is missing (jsdom) or the player
+ * asked for reduced motion — no timer, no behaviour change in tests.
+ */
+function withCurtain(run) {
+  const el = document.getElementById('scene-curtain');
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  if (!el || reduce) {
+    run();
+    return;
+  }
+  el.classList.add('is-shut');
+  window.setTimeout(() => {
+    run();
+    window.requestAnimationFrame(() => el.classList.remove('is-shut'));
+  }, 180);
+}
+
 function startLevel(levelId = 'level-1', options = {}) {
+  withCurtain(() => startLevelNow(levelId, options));
+}
+
+function startLevelNow(levelId = 'level-1', options = {}) {
   // The battle that just ended may have been the village; whatever this run is,
   // it starts from a clean document (the scene re-adds its own state in create).
   clearTutorialOverlay();

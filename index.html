@@ -28,6 +28,11 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <!-- The curtain between screens: opaque for 220 ms while the next scene
+         builds, so a swap never shows an empty board. Decorative and
+         click-through; `src/main.js` toggles `.is-shut`. -->
+    <div id="scene-curtain" class="scene-curtain" aria-hidden="true"></div>
+
     <div id="app">
       <!-- Phaser 3 Canvas Mount -->
       <div id="game-container"></div>
@@ -52,8 +57,17 @@
            EnemyAssets.js). This is the real load progress for those files, not
            a decorative bar: it is hidden again the moment the loader finishes. -->
       <div id="battle-loading" class="battle-loading hidden" role="status" aria-live="polite">
+        <span class="battle-loading-sigil" aria-hidden="true"><i></i></span>
         <p class="battle-loading-label" id="battle-loading-label">MUSTERING THE HORDE</p>
         <div class="battle-loading-track"><i id="battle-loading-fill"></i></div>
+        <!-- Three tips, cycling on a CSS clock: the loader has no idea how long
+             it will take, and a tip that is swapped by a timer that the load
+             then outruns is a tip nobody reads. -->
+        <div class="battle-loading-tips" aria-hidden="true">
+          <span><b>TIP</b> Barricades stop the horde without killing it — pair them with a tower that does.</span>
+          <span><b>TIP</b> An early call pays bonus gold. Call the wave while stragglers are still walking.</span>
+          <span><b>TIP</b> Towers keep their kills. Sell a tier-2 tower and you get most of the gold back.</span>
+        </div>
       </div>
 
       <!-- Name Gate — the ledger's first page.

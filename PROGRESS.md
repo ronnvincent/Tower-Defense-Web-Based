@@ -24,7 +24,7 @@ they disagree — see §2):
 | 0 | Baseline (tests, screenshots, extra observations) | ✅ |
 | 1 | Bugs + layout foundation (top bar, dock, UI scale) | ✅ |
 | 2 | Tower inspector, panels and modals | ✅ |
-| 3 | Main menu and scene transitions | ⬜ |
+| 3 | Main menu and scene transitions | ✅ |
 | 4 | Core game feel ("juice") | ⬜ |
 | 5 | Atmosphere and lighting | ⬜ |
 | 6 | Progression, reward and onboarding | ⬜ |
@@ -255,3 +255,33 @@ tall inside a 640 px screen).
 | victory | 4 "spills" = entrance-animation transforms | same |
 
 `npx vitest run` → **131 files / 1709 passed**. `npm run build` → ✓.
+
+---
+
+## 7. Phase 3 — title, loader and the curtain (done)
+
+**Changed:** `index.html`, `src/style.css`, `src/main.js`.
+
+* **Curtain.** `withCurtain()` wraps `startLevel` / `showLevelSelect`: the screen
+  fades to black for 180 ms, the scene swaps, the curtain lifts on the next
+  frame. Falls through synchronously when the element is missing (jsdom) or the
+  player asked for reduced motion, so no test or timer depends on it.
+  Verified in a real browser: 24 of 30 polled frames shut, then open, scene =
+  `GameScene`, loader hidden.
+* **Loader.** The bar and caption were correct but static, so a two-second gate
+  read as a frozen frame. Added a spinning portal sigil (pure CSS, no asset to
+  licence) and three tips on a 13.5 s CSS clock — the loader has no idea how
+  long it will take, so the tips must not depend on a JS timer it can outrun.
+* **Menu entrance.** The two title lines drop in (620 ms, back-out), take one
+  brightness pass, then hold; the panel's six children rise in a stagger
+  (40 → 780 ms). Nothing appears in a single frame any more.
+* **Per-letter title split — tried and reverted.** Chromium drops a parent's
+  `background-clip: text` once the glyphs live in transformed inline-blocks, so
+  the gold ramp painted as a pale slab behind the O. Two-line drop instead;
+  recorded so nobody tries it again.
+* Deferred from this phase, with reasons: the *live* menu diorama (towers firing
+  on the menu background) needs a second Phaser scene; music ducking on modal
+  open belongs to Phase 7's audio work.
+
+`npx vitest run` → **131 files / 1709 passed**. `npm run build` → ✓.
+Screenshots: `docs/ui-after/phase3/{menu,loading,battle}-{1280x768,1024x640}.png`.
