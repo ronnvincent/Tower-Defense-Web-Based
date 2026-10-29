@@ -38,56 +38,111 @@ export const BASTION_MAX_LEVEL = 5;
 export const BASTION_SPEC_LEVEL = 3;
 
 /**
- * Art per level: the sheet, where its foot sits, and where the weapon is seated.
+ * Art per form: the sheet, where its foot sits, and where the gun is seated.
  *
- * `foot` and `socket` come from `scripts/build_bastion_forms.py compose` — the
- * generator measures the PNG it just wrote, so the gun can never float off the
- * tower it is supposed to stand on. `socket.x` is an offset from the sheet's
- * centre line, `socket.y` is height above the foot; both are in *source* pixels
- * and get multiplied by the sprite scale at runtime.
+ * `foot` and `socket` are measured by `scripts/build_bastion_forms.py` while it
+ * draws the castle, so the gun can never float off the turret it stands on.
+ * `socket.x` is an offset from the sheet's centre line, `socket.y` is height
+ * above the foot; both are in *source* pixels and get multiplied by the sprite
+ * scale at runtime.
+ *
+ * The two branches are two different castles from level three onward: the same
+ * wall line, but a crystal crown or a golden dome, blue slate or brick-red
+ * roofs, and blue or ember banners. `bastionForm()` picks the right one.
  */
 export const BASTION_ART = Object.freeze({
-  1: {
+  1: Object.freeze({
     key: 'bastion-l1',
     path: 'assets/arena/bastion-l1.png',
-    sheet: [518, 480],
-    foot: 44,
-    socket: { x: 105, y: 146 },
-  },
-  2: {
+    sheet: [490, 492],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+  }),
+  2: Object.freeze({
     key: 'bastion-l2',
     path: 'assets/arena/bastion-l2.png',
-    sheet: [518, 524],
-    foot: 44,
-    socket: { x: 105, y: 146 },
-  },
-  3: {
-    key: 'bastion-l3',
-    path: 'assets/arena/bastion-l3.png',
-    sheet: [518, 622],
-    foot: 44,
-    socket: { x: 105, y: 146 },
-  },
-  4: {
-    key: 'bastion-l4',
-    path: 'assets/arena/bastion-l4.png',
-    sheet: [518, 682],
-    foot: 44,
-    socket: { x: 105, y: 146 },
-  },
-  5: {
-    key: 'bastion-l5',
-    path: 'assets/arena/bastion-l5.png',
-    sheet: [518, 740],
-    foot: 44,
-    socket: { x: 105, y: 146 },
-  },
+    sheet: [490, 574],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+  }),
+  3: Object.freeze({
+    key: 'bastion-l3-storm',
+    path: 'assets/arena/bastion-l3-storm.png',
+    sheet: [490, 627],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+  }),
+  4: Object.freeze({
+    key: 'bastion-l4-storm',
+    path: 'assets/arena/bastion-l4-storm.png',
+    sheet: [490, 677],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+  }),
+  5: Object.freeze({
+    key: 'bastion-l5-storm',
+    path: 'assets/arena/bastion-l5-storm.png',
+    sheet: [578, 742],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+  }),
 });
 
+/**
+ * The Sunforge side of levels 3–5.
+ *
+ * A branch is not a recolour: these sheets carry a golden dome instead of a
+ * crystal crown, brick-red roofs instead of blue slate, and an ember sigil over
+ * the gate. They are the same castle, built by a different guild.
+ */
+export const BASTION_BRANCH_ART = Object.freeze({
+  storm: Object.freeze({ 3: BASTION_ART[3], 4: BASTION_ART[4], 5: BASTION_ART[5] }),
+  sunforge: Object.freeze({
+    3: Object.freeze({
+    key: 'bastion-l3-sun',
+    path: 'assets/arena/bastion-l3-sun.png',
+    sheet: [490, 524],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+    }),
+    4: Object.freeze({
+    key: 'bastion-l4-sun',
+    path: 'assets/arena/bastion-l4-sun.png',
+    sheet: [490, 584],
+    foot: 60,
+    socket: { x: 10.0, y: 250 },
+    }),
+    5: Object.freeze({
+    key: 'bastion-l5-sun',
+    path: 'assets/arena/bastion-l5-sun.png',
+    sheet: [601, 666],
+    foot: 60,
+    socket: { x: 10.5, y: 250 },
+    }),
+  }),
+});
+
+/**
+ * The sheet the keep wears right now.
+ *
+ * Level 1 and 2 are the same building for both paths — the branch does not
+ * exist yet — so those tiers ignore the specialisation.
+ *
+ * @param {number} level 1..5
+ * @param {string|null} [spec] 'storm' | 'sunforge'
+ */
+export function bastionForm(level, spec = null) {
+  const branch = spec && BASTION_BRANCH_ART[spec];
+  const form = branch?.[level];
+  if (form) return form;
+  return BASTION_ART[level] || BASTION_ART[1];
+}
+
 /** Every bastion texture the battlefield has to have before it draws a keep. */
-export const BASTION_FORM_ART = Object.freeze(
-  Object.values(BASTION_ART).map((entry) => ({ key: entry.key, path: entry.path }))
-);
+export const BASTION_FORM_ART = Object.freeze([
+  ...Object.values(BASTION_ART),
+  ...Object.values(BASTION_BRANCH_ART.sunforge),
+].map((entry) => ({ key: entry.key, path: entry.path })));
 
 /**
  * The two weapon heads.
@@ -100,13 +155,13 @@ export const BASTION_WEAPONS = Object.freeze({
   wardCrystal: {
     key: 'bastion-ward-crystal',
     path: 'assets/arena/bastion-ward-crystal.png',
-    muzzle: { x: 0, y: -184 },
+    muzzle: { x: 0, y: -216 },
     colour: 0x7fe3ff,
   },
   sunCannon: {
     key: 'bastion-sun-cannon',
     path: 'assets/arena/bastion-sun-cannon.png',
-    muzzle: { x: 0, y: -160 },
+    muzzle: { x: 0, y: -192 },
     colour: 0xffcf72,
   },
 });
@@ -374,7 +429,8 @@ function branchChoices() {
       // The gun is what the choice actually changes, and it is drawn tall and
       // narrow — the shape the card's art slot wants. A castle sheet cropped
       // into a 40-px box read as a piece of wall.
-      preview: `assets/arena/${BASTION_WEAPONS[branch.weapon].key}.png`,
+      preview: BASTION_BRANCH_ART[branch.specKey]?.[BASTION_SPEC_LEVEL]?.path
+        || BASTION_WEAPONS[branch.weapon].path,
       weapon: branch.weapon,
       level: BASTION_SPEC_LEVEL,
       ...tier.stats,
@@ -399,7 +455,7 @@ export function bastionUpgrades(view) {
   const branch = bastionBranch(view?.specialization);
   const nextLevel = level + 1;
   const tier = branch ? branch.levels[nextLevel] : BASTION_LEVELS[nextLevel];
-  const art = BASTION_ART[nextLevel];
+  const art = bastionForm(nextLevel, view?.specialization);
   return [
     {
       key: `bastion-${nextLevel}`,

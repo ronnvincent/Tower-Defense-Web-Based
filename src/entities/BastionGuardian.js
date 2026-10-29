@@ -32,8 +32,8 @@ import { aimAngle, canFire, muzzlePoint, stepAngle } from '../systems/TurretAim.
 import { defenceTargets, isFlying } from '../systems/TargetCategories.js';
 import { audio } from '../rendering/AudioSynth.js';
 import {
-  BASTION_ART,
   BASTION_MAX_LEVEL,
+  bastionForm,
   bastionAbility,
   bastionStats,
   bastionTitle,
@@ -158,7 +158,9 @@ export class BastionGuardian {
   }
 
   get form() {
-    return BASTION_ART[this.level] || BASTION_ART[1];
+    // Level 3 is where the castle forks, so the sheet is looked up with the
+    // branch, not just the tier: storm and sunforge are two different buildings.
+    return bastionForm(this.level, this.specialization);
   }
 
   get nextUpgrades() {

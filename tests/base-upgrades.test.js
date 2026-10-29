@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BASTION_ART,
   BASTION_BRANCHES,
+  BASTION_BRANCH_ART,
   BASTION_BRANCH_ORDER,
   BASTION_FORM_ART,
   BASTION_LEVELS,
@@ -24,6 +25,7 @@ import {
   BASTION_WEAPONS,
   bastionAbility,
   bastionBranch,
+  bastionForm,
   bastionStats,
   bastionTitle,
   bastionUpgrades,
@@ -171,9 +173,11 @@ describe('the bastion ladder', () => {
       expect(Number.isFinite(option.range)).toBe(true);
       expect(option.title.length).toBeGreaterThan(3);
       expect(option.description.length).toBeGreaterThan(10);
-      // Tier cards show the next castle; the two branch cards show the gun the
-      // choice changes (a castle cropped into a card's art slot read as a wall).
-      expect(option.preview).toMatch(/^assets\/arena\/bastion-(l\d|ward-crystal|sun-cannon)\.png$/);
+      // Tier cards show the next castle — and since level 3 the two branches
+      // are two different castles, so the branch cards show theirs too.
+      expect(option.preview).toMatch(
+        /^assets\/arena\/bastion-(l\d(-storm|-sun)?|ward-crystal|sun-cannon)\.png$/,
+      );
     }
   });
 
@@ -189,10 +193,19 @@ describe('the bastion ladder', () => {
 });
 
 describe('the bastion art on disk', () => {
-  it('ships five form sheets at the size the config claims', () => {
-    expect(BASTION_FORM_ART).toHaveLength(5);
+  const everyForm = () => [
+    ...Object.values(BASTION_ART),
+    ...Object.values(BASTION_BRANCH_ART.sunforge),
+  ];
+
+  it('ships one sheet per form, at the size the config claims', () => {
+    // Five tiers, and from level three a sheet per branch: the two paths are
+    // two different castles, not one castle with another gun.
+    expect(BASTION_FORM_ART).toHaveLength(8);
+    expect(new Set(BASTION_FORM_ART.map((art) => art.key)).size).toBe(8);
     for (const art of BASTION_FORM_ART) {
-      const form = Object.values(BASTION_ART).find((entry) => entry.key === art.key);
+      const form = everyForm().find((entry) => entry.key === art.key);
+      expect(form, `no config entry for ${art.key}`).toBeTruthy();
       const file = resolve(process.cwd(), 'public', art.path);
       expect(existsSync(file)).toBe(true);
       const size = pngSize(file);
@@ -200,6 +213,29 @@ describe('the bastion art on disk', () => {
       // The foot has to sit inside the sheet, with the contact shadow below it.
       expect(form.foot).toBeGreaterThan(0);
       expect(form.foot).toBeLessThan(size.height);
+    }
+  });
+
+  it('seats every gun inside its own sheet', () => {
+    // The socket is a source-pixel offset from the sheet's centre line and a
+    // height above the foot. If either leaves the canvas the gun floats beside
+    // the castle, which is exactly the bug this check exists for.
+    for (const form of everyForm()) {
+      const [w, h] = form.sheet;
+      expect(Math.abs(form.socket.x)).toBeLessThan(w / 2);
+      expect(form.socket.y).toBeGreaterThan(0);
+      expect(form.socket.y + form.foot).toBeLessThan(h);
+    }
+  });
+
+  it('makes every tier a taller castle than the one before it', () => {
+    // "dapat nagbabago ng anyo": a tier that does not grow reads as a recolour.
+    const artHeights = [1, 2, 3, 4, 5].map((level) => {
+      const form = BASTION_ART[level];
+      return form.sheet[1] - form.foot;
+    });
+    for (let i = 1; i < artHeights.length; i += 1) {
+      expect(artHeights[i]).toBeGreaterThan(artHeights[i - 1]);
     }
   });
 
@@ -217,11 +253,20 @@ describe('the bastion art on disk', () => {
     }
   });
 
-  it('keeps every form the same width and ground line', () => {
-    // One mount constant for five sheets is only true if the sheets agree.
-    const widths = new Set(Object.values(BASTION_ART).map((form) => form.sheet[0]));
-    const feet = new Set(Object.values(BASTION_ART).map((form) => form.foot));
-    expect(widths.size).toBe(1);
-    expect(feet.size).toBe(1);
+  it('gives each branch its own castle from level three', () => {
+    for (const level of [3, 4, 5]) {
+      const storm = bastionForm(level, 'storm');
+      const sun = bastionForm(level, 'sunforge');
+      expect(storm.key).not.toBe(sun.key);
+      // Different buildings, so different drawings — not one sheet in two
+      // tints, which is exactly what the player rejected. Compare the files:
+      // the two branches must not share a single byte of art.
+      const a = readFileSync(resolve(process.cwd(), 'public', storm.path));
+      const b = readFileSync(resolve(process.cwd(), 'public', sun.path));
+      expect(a.equals(b)).toBe(false);
+    }
+    // Below the fork both paths share the building: the branch does not exist.
+    expect(bastionForm(1, 'storm').key).toBe(bastionForm(1, 'sunforge').key);
+    expect(bastionForm(2, 'storm').key).toBe(bastionForm(2, 'sunforge').key);
   });
 });

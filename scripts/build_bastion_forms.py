@@ -1,45 +1,39 @@
 #!/usr/bin/env python3
-"""build_bastion_forms.py — the five forms of the bastion.
+"""build_bastion_forms.py — the five castles the bastion becomes.
 
-WHY THIS SHAPE OF PIPELINE
---------------------------
-The keep the board already shipped (`bastion-fortress.png`, the CC0 OpenGameArt
-"Fortress" rasterised from `art-source/arena/fortress.svg`) is the one piece of
-arena art nobody complained about: it is a proper little castle, drawn by hand,
-and it reads as "the place being defended" at 0.44 scale. Request 67 asks for
-five levels and — in the player's words — "dapat nagbabago ng anyo hindi lang
-kulay": the shape has to change, not the tint.
+WHY THE KEEP IS KEPT
+--------------------
+The hand-drawn fortress (`bastion-fortress.png`, CC0) is the best-drawn building
+in the arena: the player's complaint was never its drawing, it was that every
+upgrade looked the same. Two attempts to replace it with a generated isometric
+castle produced, in the player's words, "sobrang pangit, parang hindi mo pinag
+isipan" — procedural boxes cannot fake a drawn castle.
 
-An attempt to redraw the whole building from isometric primitives produced five
-castles that were geometrically correct and visually worse than the one they
-replaced (boxes without a drawing hand read as boxes). So the forms are built the
-other way round: **the hand-drawn keep is the body at every level**, and each
-level raises more castle *around* it — stone towers behind the wall, spires and
-war banners — drawn here front-on as flat, dark-outlined props in the keep's own
-palette. Every level therefore keeps the keep's face and gains a new skyline,
-which is exactly what "the same building, grown" should look like.
+So the keep stays, and the *tiers* are built around it: each level raises more
+castle behind the battlements — stone towers, spires, war banners, braziers —
+drawn front-on in the keep's own palette and outline weight. What the player
+sees above the wall line is a different skyline at every tier:
 
-    L1  Warden's Keep     the keep alone
-    L2  Bastion Watch     a drum tower rises behind the roof
-    L3  (specialisation)  two flanking towers with red spires
-    L4  (ascended)        four towers, twin spires, a taller crown
-    L5  (crowned)         a five-tower skyline, three spires, gold trim
+    L1  Warden's Keep        the keep alone
+    L2  Bastion Watch        a drum tower and two flanking towers
+    L3  Storm Bastion        a crystal spire, blue slate, blue banners
+        Sunforge Bastion     a gilded spire, brick-red roofs, ember banners
+    L4  Tempest / Ember      five towers, twin spires
+    L5  Storm Crown /        seven towers, three spires, a crowned centre
+        Dawn Crown
 
-Two weapon heads ship alongside — a ward crystal (storm branch) and a sun cannon
-(sunforge branch) — drawn pointing up on the same convention as every tower
-weapon (`src/data/towerVisuals.js`), so the entity can rotate them around their
-pivot and fire from their tip.
+Two gun heads ship alongside — a ward crystal and a sun cannon — drawn in the
+same palette, front-on and symmetric, so the sprite can rotate to aim.
 
 STEPS
 -----
-1. `python3 scripts/build_bastion_forms.py props` writes the prop and weapon SVGs
-   into `art-source/arena/bastion/`.
-2. `bash scripts/build_bastion_forms.sh` rasterises them with the sandbox
-   Chromium (`scripts/svg-to-png.mjs`) and calls step 3.
-3. `python3 scripts/build_bastion_forms.py compose` stacks the five forms from
-   the keep plus its props and writes `public/assets/arena/bastion-lN.png`, then
-   prints the mount table (`src/config/baseUpgrades.js`) measured from the PNG
-   that was actually written.
+1. `python3 scripts/build_bastion_forms.py props` writes the prop and weapon
+   SVGs into `art-source/arena/bastion/`.
+2. `bash scripts/build_bastion_art.sh` rasterises them with the sandbox
+   Chromium (`scripts/svg-to-png.mjs --exact`) and calls step 3.
+3. `python3 scripts/build_bastion_forms.py compose` stacks the five sheets from
+   the keep plus its props, writes `public/assets/arena/bastion-l*.png` and
+   prints the mount table for `src/config/baseUpgrades.js`.
 
 Deterministic: same inputs, same sheets.
 """
@@ -50,7 +44,7 @@ import json
 import os
 import sys
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'art-source', 'arena', 'bastion')
@@ -60,20 +54,32 @@ KEEP = os.path.join(ASSETS, 'bastion-fortress.png')
 # --------------------------------------------------------------------------- #
 #  palette — the keep's own colours
 # --------------------------------------------------------------------------- #
-INK = '#2f2b28'
-STONE = '#c8c4be'
-STONE_LIGHT = '#dedbd6'
-STONE_DARK = '#a6a29c'
-STONE_DEEP = '#8e8a84'
-ROOF = '#b8422a'
-ROOF_DARK = '#8a2f1e'
-ROOF_LIGHT = '#d2603f'
-GOLD = '#d9a441'
-GOLD_DARK = '#a97a26'
-WIN = '#3a322a'
-IRON = '#4a4a4c'
+# Sampled from `bastion-fortress.png`: neutral grey stone, a black line, and a
+# dark brick roof. The first pass used cream stone with a grey line and read as
+# a different artist's work pasted behind the keep — at 0.44 scale the line is
+# under a pixel, so only its value survives.
+INK = '#241f1c'
+STONE = '#c6c6c6'
+STONE_LIGHT = '#dedede'
+STONE_DARK = '#a4a4a4'
+ROOF = '#8f2a19'
+ROOF_LIGHT = '#a83820'
+ROOF_DARK = '#6d1d10'
+GOLD = '#dcae52'
+GOLD_DARK = '#a67f2c'
+WIN = '#d09060'
+IRON = '#565351'
 
-KEEP_FOOT_FROM_BOTTOM = 44     # the padded sheet's clear margin (12 % of 462)
+STORM = '#3f74c8'
+STORM_DARK = '#274a86'
+CRYSTAL = '#77dcf6'
+CRYSTAL_DARK = '#2d87a8'
+SUN = '#e0a63c'
+SUN_DARK = '#a5741f'
+EMBER = '#d2622a'
+
+# ground line inside the keep's own sheet (measured from the PNG)
+KEEP_FOOT = 422   # the keep's lowest drawn stone (measured from the PNG)
 KEEP_PAD_RATIO = 0.0952
 
 
@@ -88,325 +94,329 @@ def svg(width: int, height: int, body: str, comment: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-#  props — front elevation, flat fills, one dark outline, the keep's palette
+#  props — front elevation, flat fills, one outline, the keep's palette
 # --------------------------------------------------------------------------- #
-def crenels(x0: int, x1: int, y: int, *, count: int, h: int = 26, colour: str = STONE_LIGHT) -> str:
-    """A row of merlons across a tower top."""
-    out = []
-    span = x1 - x0
-    step = span / count
+K = 0.8660254
+V = 0.5
+
+
+def project(u, v, z):
+    """World (u right-forward, v left-forward, z up) → screen px, unshifted."""
+    return ((u - v) * K, (u + v) * V - z)
+
+
+def poly(points, fill, *, stroke=INK, sw=2.0, opacity=None):
+    pts = ' '.join(f'{x:.1f},{y:.1f}' for x, y in points)
+    extra = f' opacity="{opacity}"' if opacity else ''
+    stroke_attr = f' stroke="{stroke}" stroke-width="{sw}" stroke-linejoin="round"' if stroke else ''
+    return f'<polygon points="{pts}" fill="{fill}"{stroke_attr}{extra}/>'
+
+
+def prism(sheet, u0, v0, u1, v1, z0, z1, *, top=STONE_LIGHT, right=STONE,
+          left=STONE_DARK, sw=2.0):
+    t = [project(u0, v0, z1), project(u1, v0, z1), project(u1, v1, z1), project(u0, v1, z1)]
+    r = [project(u1, v0, z0), project(u1, v1, z0), project(u1, v1, z1), project(u1, v0, z1)]
+    l = [project(u0, v1, z0), project(u1, v1, z0), project(u1, v1, z1), project(u0, v1, z1)]
+    sheet['parts'].extend([poly(t, top, sw=sw), poly(r, right, sw=sw), poly(l, left, sw=sw)])
+    sheet['points'].extend(t + r + l)
+
+
+def merlons(sheet, axis, plane, a0, a1, z, *, count=4, mh=22, md=10, colour=STONE):
+    span = (a1 - a0) / (count * 2 - 1)
     for k in range(count):
-        mx = x0 + step * k + step * 0.16
-        mw = step * 0.62
-        out.append(
-            f'<rect x="{mx:.1f}" y="{y - h}" width="{mw:.1f}" height="{h + 2}" '
-            f'fill="{colour}" stroke="{INK}" stroke-width="3"/>'
-        )
-    return '\n  '.join(out)
+        s0 = a0 + span * (2 * k)
+        s1 = s0 + span
+        if axis == 'u':
+            face = [project(plane, s0, z), project(plane, s1, z),
+                    project(plane, s1, z + mh), project(plane, s0, z + mh)]
+            top = [project(plane - md, s0, z + mh), project(plane, s0, z + mh),
+                   project(plane, s1, z + mh), project(plane - md, s1, z + mh)]
+        else:
+            face = [project(s0, plane, z), project(s1, plane, z),
+                    project(s1, plane, z + mh), project(s0, plane, z + mh)]
+            top = [project(s0, plane - md, z + mh), project(s1, plane - md, z + mh),
+                   project(s1, plane, z + mh), project(s0, plane, z + mh)]
+        sheet['parts'].append(poly(top, STONE_LIGHT, sw=1.6))
+        sheet['parts'].append(poly(face, colour, sw=1.6))
+        sheet['points'].extend(face + top)
 
 
-def tower(width: int, height: int, *, roof: bool = False, roof_height: int = 0,
-          banner: str | None = None, slits: int = 2, taper: float = 1.0,
-          crown: bool = False) -> str:
-    """One stone tower, drawn front-on like a keep wall."""
-    cx = width / 2
-    top = 40
-    base = height - 6
-    bw0 = width * (0.5 - 0.34 * taper)
-    bw1 = width * (0.5 + 0.34 * taper)
-    body = [
-        f'<path d="M{bw0:.1f} {base} L{bw0:.1f} {top} L{bw1:.1f} {top} L{bw1:.1f} {base} Z" '
-        f'fill="{STONE}" stroke="{INK}" stroke-width="4" stroke-linejoin="round"/>',
-        # volume: a lit left third and a shaded right edge, like the keep's walls
-        f'<path d="M{bw0:.1f} {base} L{bw0:.1f} {top} L{bw0 + (bw1 - bw0) * 0.3:.1f} {top} '
-        f'L{bw0 + (bw1 - bw0) * 0.3:.1f} {base} Z" fill="{STONE_LIGHT}" opacity="0.85"/>',
-        f'<path d="M{bw1 - (bw1 - bw0) * 0.24:.1f} {base} L{bw1 - (bw1 - bw0) * 0.24:.1f} {top} '
-        f'L{bw1:.1f} {top} L{bw1:.1f} {base} Z" fill="{STONE_DARK}" opacity="0.9"/>',
-    ]
-    # masonry courses
-    for k in range(1, 5):
-        y = top + (base - top) * k / 5
-        body.append(
-            f'<line x1="{bw0:.1f}" y1="{y:.1f}" x2="{bw1:.1f}" y2="{y:.1f}" '
-            f'stroke="{INK}" stroke-width="1.6" opacity="0.22"/>'
-        )
-    for k in range(slits):
-        y = top + (base - top) * (0.28 + 0.24 * k)
-        body.append(
-            f'<rect x="{cx - 7:.1f}" y="{y:.1f}" width="14" height="26" rx="6" fill="{WIN}" '
-            f'stroke="{INK}" stroke-width="2"/>'
-        )
-    if roof:
-        rh = roof_height or int(width * 1.05)
-        body.append(crenels(bw0, bw1, top, count=4, h=18, colour=STONE_LIGHT))
-        body.append(
-            f'<path d="M{cx:.1f} {top - rh:.1f} L{bw1 + 6:.1f} {top + 4:.1f} '
-            f'L{bw0 - 6:.1f} {top + 4:.1f} Z" fill="{ROOF}" stroke="{INK}" stroke-width="4" '
-            f'stroke-linejoin="round"/>'
-        )
-        body.append(
-            f'<path d="M{cx:.1f} {top - rh:.1f} L{bw0 - 6:.1f} {top + 4:.1f} '
-            f'L{cx - 6:.1f} {top + 4:.1f} Z" fill="{ROOF_LIGHT}" opacity="0.75"/>'
-        )
-        body.append(f'<circle cx="{cx:.1f}" cy="{top - rh - 6:.1f}" r="7" fill="{GOLD}" '
-                    f'stroke="{INK}" stroke-width="2.5"/>')
-    elif crown:
-        body.append(crenels(bw0, bw1, top, count=5, h=24, colour=STONE_LIGHT))
-        body.append(
-            f'<rect x="{bw0 - 5:.1f}" y="{top + 2:.1f}" width="{bw1 - bw0 + 10:.1f}" height="12" '
-            f'fill="{GOLD}" stroke="{INK}" stroke-width="3"/>'
-        )
+def hip_roof(sheet, u0, v0, u1, v1, z, rh, *, right=ROOF, left=ROOF_DARK,
+             top=ROOF_LIGHT, edge=INK):
+    cu, cv = (u0 + u1) / 2, (v0 + v1) / 2
+    r0 = project(cu, v0 + (v1 - v0) * 0.26, z + rh)
+    r1 = project(cu, v1 - (v1 - v0) * 0.26, z + rh)
+    uface = [project(u1, v0, z), project(u1, v1, z), r1, r0]
+    vface = [project(u0, v1, z), project(u1, v1, z), r1, r0]
+    cap = [project(cu - 6, v0 + (v1 - v0) * 0.26, z + rh),
+           project(cu + 6, v0 + (v1 - v0) * 0.26, z + rh),
+           project(cu + 6, v1 - (v1 - v0) * 0.26, z + rh),
+           project(cu - 6, v1 - (v1 - v0) * 0.26, z + rh)]
+    sheet['parts'].extend([poly(uface, right, sw=2.2), poly(vface, left, sw=2.2),
+                           poly(cap, top, sw=1.6)])
+    sheet['points'].extend(uface + vface + cap)
+    for k in range(1, 4):
+        t = k / 4
+        p0 = project(u1, v0, z)
+        p1 = project(u1, v1, z)
+        q0 = (p0[0] + (r0[0] - p0[0]) * t, p0[1] + (r0[1] - p0[1]) * t)
+        q1 = (p1[0] + (r1[0] - p1[0]) * t, p1[1] + (r1[1] - p1[1]) * t)
+        sheet['parts'].append(f'<line x1="{q0[0]:.1f}" y1="{q0[1]:.1f}" x2="{q1[0]:.1f}" '
+                              f'y2="{q1[1]:.1f}" stroke="{ROOF_DARK}" stroke-width="1.2" '
+                              f'opacity="0.3"/>')
+        sheet['points'].extend([q0, q1])
+
+
+def arch_window(sheet, axis, plane, a, z0, z1, *, w=16, fill=WIN, edge=INK):
+    import math
+    half = w / 2
+    head = min(w * 0.55, (z1 - z0) * 0.5)
+    outline = [(a - half, z0), (a - half, z1 - head)]
+    for k in range(1, 8):
+        ang = math.pi * (1 - k / 8)
+        outline.append((a + half * math.cos(ang), z1 - head + head * math.sin(ang)))
+    outline += [(a + half, z1 - head), (a + half, z0)]
+    if axis == 'u':
+        pts = [project(plane, aa, zz) for aa, zz in outline]
     else:
-        body.append(crenels(bw0, bw1, top, count=4, h=22, colour=STONE_LIGHT))
-    if banner:
-        # The pole and the cloth live *inside* the prop's canvas: a flag that
-        # touched the edge used to leave a one-pixel dark sliver at the sheet's
-        # border, and the skyline mask then showed that sliver all the way down
-        # the side of the castle as a scratch in the grass.
-        pole_top = top - (roof_height + 30 if roof else 44)
-        flag_x = min(cx + 20, width - 62)
-        body.append(
-            f'<line x1="{flag_x:.1f}" y1="{top - 8}" x2="{flag_x:.1f}" y2="{pole_top:.1f}" '
-            f'stroke="{GOLD}" stroke-width="4"/>'
-        )
-        body.append(
-            f'<path d="M{flag_x + 2:.1f} {pole_top:.1f} L{flag_x + 44:.1f} {pole_top + 10:.1f} '
-            f'L{flag_x + 38:.1f} {pole_top + 44:.1f} L{flag_x + 2:.1f} {pole_top + 32:.1f} Z" '
-            f'fill="{banner}" stroke="{INK}" stroke-width="3" stroke-linejoin="round"/>'
-        )
-    return '\n  '.join(body)
+        pts = [project(aa, plane, zz) for aa, zz in outline]
+    sheet['parts'].append(poly(pts, fill, stroke=edge, sw=1.4))
+    sheet['points'].extend(pts)
 
 
-def battlements(width: int, height: int) -> str:
-    """A stretch of crenellated wall, used as a distant skyline band."""
-    body = [
-        f'<rect x="6" y="30" width="{width - 12}" height="{height - 36}" fill="{STONE_DARK}" '
-        f'stroke="{INK}" stroke-width="4"/>',
-        crenels(6, width - 6, 32, count=max(4, width // 46), h=30, colour=STONE),
-    ]
-    for k in range(1, 3):
-        y = 30 + (height - 36) * k / 3
-        body.append(f'<line x1="6" y1="{y:.1f}" x2="{width - 6}" y2="{y:.1f}" stroke="{INK}" '
-                    f'stroke-width="1.6" opacity="0.2"/>')
-    return '\n  '.join(body)
+def iso_tower(size, height, roof_h, *, slate=None, finial=GOLD, windows=1) -> str:
+    """One 3/4 tower: the keep's own building language, drawn to stand behind it.
+
+    The first pass drew these front-on, and a flat triangle behind a 3/4 castle
+    reads as a stage backdrop. Same projection as the keep, same crenellations,
+    same brick-red hip roof.
+    """
+    sheet = {'parts': [], 'points': []}
+    half = size / 2
+    prism(sheet, -half, -half, half, half, 0, height)
+    if roof_h:
+        merlons(sheet, 'u', half, -half, half, height, count=3, mh=24, md=11)
+        merlons(sheet, 'v', half, -half, half, height, count=3, mh=24, md=11)
+        hip_roof(sheet, -half - 6, -half - 6, half + 6, half + 6, height, roof_h,
+                 right=slate or ROOF, left=('#3b5a85' if slate else ROOF_DARK),
+                 top=ROOF_LIGHT if not slate else '#7f95b4')
+        apex = project(0, 0, height + roof_h)
+        sheet['parts'].append(f'<circle cx="{apex[0]:.1f}" cy="{apex[1] + 8:.1f}" r="9" '
+                              f'fill="{finial}" stroke="{INK}" stroke-width="2"/>')
+        sheet['points'].append((apex[0], apex[1] - 8))
+    else:
+        merlons(sheet, 'u', half, -half, half, height, count=3, mh=26, md=12)
+        merlons(sheet, 'v', half, -half, half, height, count=3, mh=26, md=12)
+        #  A flat-topped tower carries a gilded ring instead of a roof. The two
+        #  specialisations must differ by silhouette, not only by colour: storm
+        #  goes up in slate spikes, sunforge sits wide under gold rings.
+        #  A gilded cornice, so a flat tower is a bastion and not a white box.
+        for face in ('u', 'v'):
+            if face == 'u':
+                band = [project(half + 0.3, -half, height - 20), project(half + 0.3, half, height - 20),
+                        project(half + 0.3, half, height - 9), project(half + 0.3, -half, height - 9)]
+            else:
+                band = [project(-half, half + 0.3, height - 20), project(half, half + 0.3, height - 20),
+                        project(half, half + 0.3, height - 9), project(-half, half + 0.3, height - 9)]
+            sheet['parts'].append(poly(band, GOLD_DARK, sw=1.3))
+            sheet['points'].extend(band)
+        apex = project(0, 0, height + 6)
+        sheet['parts'].append(f'<ellipse cx="{apex[0]:.1f}" cy="{apex[1]:.1f}" rx="15" ry="6.5" '
+                              f'fill="none" stroke="{GOLD}" stroke-width="3.4"/>')
+        sheet['parts'].append(f'<circle cx="{apex[0]:.1f}" cy="{apex[1] - 9:.1f}" r="6.2" '
+                              f'fill="{finial}" stroke="{INK}" stroke-width="1.8"/>')
+        sheet['points'].append((apex[0], apex[1] - 16))
+    for k in range(windows):
+        z = height * (0.30 + 0.26 * k)
+        #  Both visible faces, or a tall tower reads as a blank slab from the
+        #  angle the board is actually drawn at.
+        arch_window(sheet, 'v', half + 0.2, 0, z, z + 20, w=14)
+        arch_window(sheet, 'u', half + 0.2, 0, z, z + 20, w=14)
+    # canvas
+    xs = [p[0] for p in sheet['points']]
+    ys = [p[1] for p in sheet['points']]
+    pad = 6
+    minx, miny, maxx, maxy = min(xs), min(ys), max(xs), max(ys)
+    width = int(round(maxx - minx)) + pad * 2
+    height_px = int(round(maxy - miny)) + pad * 2
+    body = '\n  '.join(sheet['parts'])
+    return (width, height_px, body, pad - minx, pad - miny)
 
 
-def torch(width: int = 60, height: int = 120) -> str:
+def banner(width: int = 84, height: int = 200, colour: str = ROOF) -> str:
+    cx = width / 2
+    cloth = (f'M{cx + 2:.1f} 22 L{cx + 46:.1f} 36 L{cx + 36:.1f} 72 '
+             f'L{cx + 46:.1f} 108 L{cx + 2:.1f} 94 Z')
+    return '\n  '.join([
+        f'<line x1="{cx:.1f}" y1="{height - 6}" x2="{cx:.1f}" y2="14" stroke="{GOLD_DARK}" '
+        f'stroke-width="6" stroke-linecap="round"/>',
+        f'<circle cx="{cx:.1f}" cy="12" r="8" fill="{GOLD}" stroke="{INK}" stroke-width="2"/>',
+        f'<path d="{cloth}" fill="{colour}" stroke="{INK}" stroke-width="3" '
+        f'stroke-linejoin="round"/>',
+        f'<path d="M{cx + 6:.1f} 30 L{cx + 40:.1f} 40 L{cx + 33:.1f} 52 L{cx + 6:.1f} 44 Z" '
+        f'fill="{GOLD}" opacity="0.35"/>',
+    ])
+
+
+def brazier(width: int = 70, height: int = 130) -> str:
     cx = width / 2
     return '\n  '.join([
-        f'<rect x="{cx - 5:.1f}" y="52" width="10" height="60" fill="{IRON}" stroke="{INK}" '
-        f'stroke-width="3"/>',
-        f'<path d="M{cx - 18:.1f} 54 L{cx + 18:.1f} 54 L{cx + 12:.1f} 34 L{cx - 12:.1f} 34 Z" '
-        f'fill="{IRON}" stroke="{INK}" stroke-width="3"/>',
-        f'<circle cx="{cx:.1f}" cy="24" r="16" fill="#ffcf72" opacity="0.35"/>',
-        f'<path d="M{cx:.1f} 4 q12 16 0 28 q-12 -12 0 -28" fill="#ffd98a" stroke="#b06a1f" '
+        f'<rect x="{cx - 4:.1f}" y="52" width="8" height="74" fill="{IRON}" stroke="{INK}" '
+        f'stroke-width="2"/>',
+        f'<path d="M{cx - 20:.1f} 52 L{cx + 20:.1f} 52 L{cx + 13:.1f} 30 L{cx - 13:.1f} 30 Z" '
+        f'fill="{IRON}" stroke="{INK}" stroke-width="2.4"/>',
+        f'<circle cx="{cx:.1f}" cy="22" r="15" fill="#ffb054" opacity="0.35"/>',
+        f'<path d="M{cx:.1f} 2 q11 14 0 26 q-11 -12 0 -26" fill="#ffe6a8" stroke="{EMBER}" '
         f'stroke-width="2"/>',
     ])
 
 
-def pennant(width: int = 90, height: int = 210, colour: str = ROOF) -> str:
-    cx = width / 2
-    return '\n  '.join([
-        f'<line x1="{cx:.1f}" y1="{height - 10}" x2="{cx:.1f}" y2="26" stroke="{GOLD}" '
-        f'stroke-width="6"/>',
-        f'<path d="M{cx + 3:.1f} 26 L{cx + 62:.1f} 44 L{cx + 52:.1f} 96 L{cx + 3:.1f} 80 Z" '
-        f'fill="{colour}" stroke="{INK}" stroke-width="4" stroke-linejoin="round"/>',
-        f'<path d="M{cx + 8:.1f} 34 L{cx + 52:.1f} 48 L{cx + 46:.1f} 66 L{cx + 8:.1f} 54 Z" '
-        f'fill="#e8b45a" opacity="0.55"/>',
-        f'<circle cx="{cx:.1f}" cy="22" r="7" fill="{GOLD}" stroke="{INK}" stroke-width="2.5"/>',
-    ])
-
-
 # --------------------------------------------------------------------------- #
-#  weapons — front-on, pointing up, pivot at the bottom centre
+#  weapons — front-on, symmetric, pivot at the bottom centre
 # --------------------------------------------------------------------------- #
-def ward_crystal() -> tuple[str, dict]:
-    """Storm: a warded spire — crystal held over a crenellated turret cap.
-
-    Drawn front-on and symmetric about x = 75 because the sprite *rotates* to
-    aim: an asymmetric emplacement would look like it was falling over.
-    Pivot is the bottom centre (75, 200); the muzzle is the crystal's tip.
-    """
-    body = f'''
-  <ellipse cx="75" cy="194" rx="48" ry="10" fill="#0b1220" opacity="0.28"/>
-  <polygon points="45,196 105,196 111,158 39,158" fill="{STONE_DARK}" stroke="{INK}" stroke-width="3" stroke-linejoin="round"/>
-  <polygon points="49,190 101,190 104,168 46,168" fill="{STONE}" opacity="0.55"/>
-  <rect x="36" y="148" width="78" height="16" rx="3" fill="{STONE}" stroke="{INK}" stroke-width="3"/>
-  <rect x="40" y="132" width="13" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="2.6"/>
-  <rect x="62" y="132" width="13" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="2.6"/>
-  <rect x="84" y="132" width="13" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="2.6"/>
-  <rect x="99" y="132" width="13" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="2.6"/>
-  <rect x="46" y="176" width="58" height="8" rx="3" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.8"/>
-  <ellipse cx="75" cy="128" rx="41" ry="12" fill="none" stroke="{GOLD}" stroke-width="5" opacity="0.95"/>
-  <ellipse cx="75" cy="128" rx="41" ry="12" fill="none" stroke="#ffe9b8" stroke-width="1.6" opacity="0.7"/>
-  <path d="M38 126 C36 100 50 78 70 72" fill="none" stroke="{GOLD}" stroke-width="4.4" stroke-linecap="round"/>
-  <path d="M112 126 C114 100 100 78 80 72" fill="none" stroke="{GOLD}" stroke-width="4.4" stroke-linecap="round"/>
-  <ellipse cx="75" cy="126" rx="24" ry="6" fill="#8ff0ff" opacity="0.45"/>
-  <path d="M75 16 L104 62 L75 116 L46 62 Z" fill="#63d3f0" stroke="#22586e" stroke-width="3.2" stroke-linejoin="round"/>
-  <path d="M75 16 L104 62 L75 116 Z" fill="#c8f6ff" opacity="0.5"/>
-  <path d="M75 16 L46 62 L75 116 Z" fill="#2f9dbe" opacity="0.45"/>
-  <path d="M75 34 L91 62 L75 98 L59 62 Z" fill="#f2fdff" opacity="0.55"/>
-  <circle cx="67" cy="48" r="4" fill="#ffffff" opacity="0.92"/>
-  <path d="M44 78 l9 6 l-7 5" fill="none" stroke="#ffe9b8" stroke-width="2.4" opacity="0.75" stroke-linecap="round"/>
-  <path d="M106 92 l-8 5 l6 6" fill="none" stroke="#ffe9b8" stroke-width="2.4" opacity="0.65" stroke-linecap="round"/>
-'''
-    return svg(150, 200, body, 'bastion weapon: ward spire'), dict(muzzle=(75, 16), pivot=(75, 200))
-
-
-def sun_cannon() -> tuple[str, dict]:
-    """Sunforge: a dawn-forged bombard on a stone turntable.
-
-    Same rules as the spire — front-on, symmetric, pivot at the bottom centre,
-    muzzle at the top of the bore — so the aiming maths is identical for both
-    branches and the shot always leaves the mouth, never the plinth.
-    """
-    rays = '\n  '.join(
-        f'<line x1="75" y1="96" x2="75" y2="101" stroke="{GOLD}" stroke-width="2.4" '
-        f'transform="rotate({angle} 75 114)"/>'
-        for angle in (0, 45, 90, 135, 180, 225, 270, 315)
+def weapon_svg(body: str, name: str) -> str:
+    return (
+        f'<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="170" height="230" '
+        f'viewBox="0 0 170 230">\n'
+        f'  <!-- {name} — generated by scripts/build_bastion_forms.py -->\n'
+        f'{body}</svg>\n'
     )
-    body = f'''
-  <ellipse cx="75" cy="194" rx="50" ry="10" fill="#0b1220" opacity="0.3"/>
-  <polygon points="42,196 108,196 115,162 35,162" fill="{STONE_DARK}" stroke="{INK}" stroke-width="3" stroke-linejoin="round"/>
-  <polygon points="47,190 103,190 107,170 43,170" fill="{STONE}" opacity="0.6"/>
-  <rect x="31" y="148" width="88" height="16" rx="5" fill="{STONE}" stroke="{INK}" stroke-width="3"/>
-  <rect x="35" y="145" width="80" height="7" rx="3.5" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.8"/>
-  <circle cx="43" cy="158" r="3.2" fill="{GOLD_DARK}"/>
-  <circle cx="75" cy="158" r="3.2" fill="{GOLD_DARK}"/>
-  <circle cx="107" cy="158" r="3.2" fill="{GOLD_DARK}"/>
-  <rect x="55" y="74" width="40" height="78" rx="7" fill="{GOLD_DARK}" stroke="{INK}" stroke-width="3"/>
-  <rect x="60" y="76" width="13" height="72" rx="6" fill="#eec36b" opacity="0.6"/>
-  <rect x="50" y="92" width="50" height="11" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="2.4"/>
-  <rect x="50" y="124" width="50" height="11" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="2.4"/>
-  <polygon points="49,40 101,40 112,76 38,76" fill="{GOLD}" stroke="{INK}" stroke-width="3" stroke-linejoin="round"/>
-  <ellipse cx="75" cy="42" rx="31" ry="9.5" fill="#34180c" stroke="{INK}" stroke-width="2.6"/>
-  <ellipse cx="75" cy="42" rx="20" ry="6" fill="#ff9a3c" opacity="0.92"/>
-  <ellipse cx="75" cy="42" rx="11" ry="3.2" fill="#ffe6a8"/>
-  <circle cx="75" cy="112" r="10" fill="#c2551f" stroke="{INK}" stroke-width="2.4"/>
-  <circle cx="75" cy="112" r="4.4" fill="#ffcf72"/>
-  {rays}
-  <path d="M56 150 q19 13 38 0" fill="{ROOF_DARK}" stroke="{INK}" stroke-width="2.4"/>
-  <path d="M52 118 q-9 4 -9 12 q0 7 8 7" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round"/>
-  <path d="M98 118 q9 4 9 12 q0 7 -8 7" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round"/>
-  <path d="M75 24 q7 9 0 16 q-7 -7 0 -16" fill="#ffd27a" opacity="0.9"/>
+
+
+def emplacement() -> str:
+    return f'''
+  <ellipse cx="85" cy="222" rx="56" ry="10" fill="#181513" opacity="0.26"/>
+  <polygon points="47,222 123,222 134,176 36,176" fill="{STONE_DARK}" stroke="{INK}" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="53,215 117,215 124,184 46,184" fill="{STONE}" opacity="0.6"/>
+  <rect x="30" y="164" width="110" height="16" rx="4" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.8"/>
+  <rect x="34" y="161" width="102" height="7" rx="3.5" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.3"/>
+  <rect x="36" y="146" width="16" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="62" y="146" width="16" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="88" y="146" width="16" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="114" y="146" width="16" height="18" fill="{STONE_LIGHT}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="52" y="196" width="66" height="9" rx="4" fill="{GOLD}" stroke="{GOLD_DARK}" stroke-width="1.2"/>
 '''
-    return svg(150, 200, body, 'bastion weapon: sun cannon'), dict(muzzle=(75, 40), pivot=(75, 200))
+
+
+def ward_crystal() -> str:
+    body = emplacement() + f'''
+  <ellipse cx="85" cy="140" rx="46" ry="13" fill="none" stroke="{GOLD}" stroke-width="4.5"/>
+  <path d="M43 138 C40 108 56 84 78 78" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round"/>
+  <path d="M127 138 C130 108 114 84 92 78" fill="none" stroke="{GOLD}" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="85" cy="126" r="40" fill="{CRYSTAL}" opacity="0.15"/>
+  <circle cx="85" cy="126" r="24" fill="{CRYSTAL}" opacity="0.18"/>
+  <polygon points="85,14 122,74 85,144 48,74" fill="{CRYSTAL}" stroke="{CRYSTAL_DARK}" stroke-width="2.4" stroke-linejoin="round"/>
+  <polygon points="85,14 122,74 85,144" fill="#c8f6ff" opacity="0.55"/>
+  <polygon points="85,14 48,74 85,144" fill="{CRYSTAL_DARK}" opacity="0.42"/>
+  <polygon points="85,44 104,74 85,120 66,74" fill="#f2fdff" opacity="0.62"/>
+  <line x1="85" y1="14" x2="85" y2="144" stroke="{CRYSTAL_DARK}" stroke-width="1.2" opacity="0.4"/>
+  <circle cx="76" cy="52" r="4" fill="#ffffff"/>
+'''
+    return weapon_svg(body, 'bastion weapon: ward crystal')
+
+
+def sun_cannon() -> str:
+    rays = '\n  '.join(
+        f'<line x1="85" y1="96" x2="85" y2="105" stroke="{GOLD}" stroke-width="2.4" '
+        f'transform="rotate({a} 85 120)"/>' for a in (0, 45, 90, 135, 180, 225, 270, 315))
+    body = emplacement() + f'''
+  <circle cx="85" cy="128" r="34" fill="#ffc861" opacity="0.13"/>
+  <rect x="61" y="76" width="48" height="86" rx="7" fill="{GOLD_DARK}"/>
+  <rect x="67" y="78" width="14" height="80" rx="6" fill="#f0cd7c" opacity="0.6"/>
+  <rect x="55" y="96" width="60" height="12" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
+  <rect x="55" y="130" width="60" height="12" rx="5" fill="{IRON}" stroke="{INK}" stroke-width="1.6"/>
+  <polygon points="55,38 115,38 128,78 42,78" fill="{SUN}" stroke="{SUN_DARK}" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="58,44 112,44 120,70 50,70" fill="#f6c877" opacity="0.55"/>
+  <ellipse cx="85" cy="40" rx="36" ry="10" fill="#3a1d0e"/>
+  <ellipse cx="85" cy="40" rx="23" ry="6.4" fill="{EMBER}"/>
+  <ellipse cx="85" cy="40" rx="12" ry="3.4" fill="#ffe6a8"/>
+  <circle cx="85" cy="118" r="11" fill="{EMBER}" stroke="{SUN_DARK}" stroke-width="1.8"/>
+  <circle cx="85" cy="118" r="5" fill="{SUN}"/>
+  {rays}
+  <path d="M66 176 q19 12 38 0" fill="{ROOF_DARK}" stroke="{INK}" stroke-width="1.6"/>
+'''
+    return weapon_svg(body, 'bastion weapon: sun cannon')
+
+
+def tower_svg(size, height, roof_h, *, slate=None, finial=GOLD, windows=1) -> str:
+    width, h, body, dx, dy = iso_tower(size, height, roof_h, slate=slate,
+                                       finial=finial, windows=windows)
+    return svg(width, h, f'  <g transform="translate({dx:.1f},{dy:.1f})">\n{body}\n  </g>',
+               f'bastion tower {size}x{height}')
 
 
 PROPS = {
-    #  Widths matter more than heights: a prop wider than the keep's own stone
-    #  shows a sliver of tower standing on the grass beside the castle. Everything
-    #  here fits inside the keep's silhouette (|x| + w/2 <= 190).
-    'tower-a': (tower(150, 470, banner=ROOF), 150, 470),
-    'tower-b': (tower(132, 380, roof=True, roof_height=120), 132, 380),
-    'tower-c': (tower(120, 330, crown=True), 120, 330),
-    'spire-a': (tower(122, 590, roof=True, roof_height=210), 122, 590),
-    'spire-b': (tower(108, 440, roof=True, roof_height=150), 108, 440),
-    'wall': (battlements(300, 220), 300, 220),
-    'torch': (torch(), 60, 120),
-    'pennant-red': (pennant(colour=ROOF), 90, 210),
-    'pennant-gold': (pennant(colour=GOLD), 90, 210),
+    #  Slender, so a row of them reads as towers rather than a grey wall.
+    #  Named for how far they peek over the keep's 371 px roofline: L2 +55,
+    #  L3 +120, L4 +165, L5 +325 on the centre. The ladder is the skyline, so a
+    #  prop shorter than the keep is invisible dead weight behind it.
+    'tower-a': (tower_svg(84, 330, 52),),
+    'tower-b': (tower_svg(100, 366, 60),),
+    'tower-slate': (tower_svg(84, 330, 52, slate='#4a6b96', finial=CRYSTAL),),
+    'spire-a': (tower_svg(78, 424, 68),),
+    'spire-b': (tower_svg(88, 462, 74, windows=2),),
+    'spire-slate': (tower_svg(78, 424, 68, slate='#4a6b96', finial=CRYSTAL),),
+    'spire-crown-storm': (tower_svg(100, 512, 82, slate='#4a6b96', finial=CRYSTAL, windows=2),),
+    'spire-crown-sun': (tower_svg(100, 512, 82, finial='#ffe6a8', windows=2),),
+    #  The sunforge line is flat-topped: a wall of gilded bastions, never spikes.
+    'sun-a': (tower_svg(90, 352, 0),),
+    'sun-b': (tower_svg(102, 400, 0, windows=2),),
+    'sun-crown': (tower_svg(114, 470, 0, finial='#ffe6a8', windows=2),),
+    'banner-red': (svg(84, 200, banner(colour=ROOF), 'bastion banner red'), 84, 200),
+    'banner-storm': (svg(84, 200, banner(colour=STORM), 'bastion banner storm'), 84, 200),
+    'banner-sun': (svg(84, 200, banner(colour=ROOF), 'bastion banner sun'), 84, 200),
+    'brazier': (svg(70, 130, brazier(), 'bastion brazier'), 70, 130),
 }
 
 
-# --------------------------------------------------------------------------- #
-#  the five forms
-# --------------------------------------------------------------------------- #
-#  Each entry is a list of layers, back to front. A layer names a rasterised
-#  prop file (`art-source/arena/bastion/<name>.png`), the x offset from the
-#  castle's centre line, and the y of the prop's *bottom* measured upward from
-#  the keep's foot. Positive y = the prop's foot stands that far above the
-#  ground line (hidden behind the keep's wall); negative = it is planted in
-#  front of the keep.
 FORMS = {
-    #  Every prop is planted on the same ground line as the keep (y = 0), so
-    #  nothing floats: the castle hides the part of it that is below its own
-    #  skyline, and what is left reads as the next ring of towers behind the
-    #  wall. That is the whole trick — the keep's face never changes, its crown
-    #  does.
-    #
-    #  `scale` is chosen against one hard number: the keep's own skyline sits
-    #  366 px above its foot, so a prop shorter than that never shows.
-    1: dict(layers=[]),
-    2: dict(layers=[
-        dict(prop='tower-b', x=-122, y=0, scale=1.02),
-        dict(prop='tower-b', x=122, y=0, scale=1.02, flip=True),
-        dict(prop='spire-b', x=0, y=0, scale=1.05),
-    ]),
-    3: dict(layers=[
-        dict(prop='tower-b', x=-124, y=0, scale=1.0),
-        dict(prop='tower-b', x=124, y=0, scale=1.0, flip=True),
-        dict(prop='spire-b', x=0, y=0, scale=1.05),
-        dict(prop='spire-a', x=0, y=0, scale=0.95),
-    ]),
-    4: dict(layers=[
-        dict(prop='tower-a', x=-112, y=0, scale=1.0),
-        dict(prop='tower-a', x=112, y=0, scale=1.0, flip=True),
-        dict(prop='spire-b', x=-166, y=0, scale=1.0),
-        dict(prop='spire-b', x=166, y=0, scale=1.0, flip=True),
-        dict(prop='spire-a', x=0, y=0, scale=1.05),
-    ]),
-    5: dict(layers=[
-        dict(prop='tower-a', x=-112, y=0, scale=1.06),
-        dict(prop='tower-a', x=112, y=0, scale=1.06, flip=True),
-        dict(prop='spire-b', x=-168, y=0, scale=1.08),
-        dict(prop='spire-b', x=168, y=0, scale=1.08, flip=True),
-        dict(prop='tower-b', x=-56, y=0, scale=1.05),
-        dict(prop='tower-b', x=56, y=0, scale=1.05, flip=True),
-        dict(prop='spire-a', x=0, y=0, scale=1.15),
-    ]),
+    #  back: painted behind the keep; front: painted over it. `y` is how far the
+    #  prop's bottom sits above the keep's foot (0 = standing on the ground).
+    ('1', None): dict(back=[], front=[]),
+    ('2', None): dict(
+        back=[('tower-b', 0, 0), ('tower-a', -118, 0), ('tower-a', 118, 0)],
+        front=[],
+    ),
+    #  Three towers, not five: the keep is the castle, these are its new works.
+    ('3', 'storm'): dict(
+        back=[('spire-a', 0, 0), ('tower-slate', -124, 0), ('tower-slate', 124, 0)],
+        front=[('banner-storm', -100, 0), ('banner-storm', 100, 0)],
+    ),
+    ('3', 'sunforge'): dict(
+        back=[('sun-a', 0, 0), ('sun-a', -124, 0), ('sun-a', 124, 0)],
+        front=[('banner-sun', -100, 0), ('banner-sun', 100, 0)],
+    ),
+    ('4', 'storm'): dict(
+        back=[('spire-b', 0, 0), ('spire-slate', -126, 0), ('spire-slate', 126, 0)],
+        front=[('banner-storm', -100, 0), ('banner-storm', 100, 0),
+               ('brazier', -150, 0), ('brazier', 150, 0)],
+    ),
+    ('4', 'sunforge'): dict(
+        back=[('sun-b', 0, 0), ('sun-a', -126, 0), ('sun-a', 126, 0)],
+        front=[('banner-sun', -100, 0), ('banner-sun', 100, 0),
+               ('brazier', -150, 0), ('brazier', 150, 0)],
+    ),
+    #  The crown level goes wide: a pair of wing towers outside the curtain wall.
+    ('5', 'storm'): dict(
+        back=[('spire-crown-storm', 0, 0), ('spire-slate', -128, 0), ('spire-slate', 128, 0),
+              ('tower-slate', -190, 0), ('tower-slate', 190, 0)],
+        front=[('banner-storm', -100, 0), ('banner-storm', 100, 0),
+               ('brazier', -150, 0), ('brazier', 150, 0)],
+    ),
+    ('5', 'sunforge'): dict(
+        back=[('sun-crown', 0, 0), ('sun-a', -128, 0), ('sun-a', 128, 0),
+              ('sun-b', -196, 0), ('sun-b', 196, 0)],
+        front=[('banner-sun', -100, 0), ('banner-sun', 100, 0),
+               ('brazier', -150, 0), ('brazier', 150, 0)],
+    ),
 }
 
 
-def skyline_mask(keep: Image.Image, width: int, height: int, origin_x: int, origin_y: int,
-                 threshold: int = 40) -> Image.Image:
-    """Canvas-sized mask: opaque above the keep's silhouette, clear below it.
-
-    The props stand on the same ground line as the keep, so their lower half sits
-    *inside* the castle. Letting them draw over it put towers in front of the
-    walls with their feet on the grass ("bakit may tore sa labas ng pader?").
-    Masking each prop to the sky above the keep's own outline turns the same art
-    into what it is supposed to be — the next ring of towers rising behind the
-    battlements — and the merlons stay on top, where they belong.
-    """
-    alpha = keep.getchannel('A').load()
-    mask = Image.new('L', (width, height), 255)
-    draw = ImageDraw.Draw(mask)
-
-    # The keep's skyline, one entry per column. `None` means the column holds
-    # nothing but the building's soft ground shadow — and that is not sky. It
-    # used to be treated as open air, which let a tower standing behind the
-    # castle show a one-pixel sliver of its own outline all the way down to the
-    # grass beside the wall. Columns with no stone inherit the nearest column
-    # that has some, so the silhouette is a continuous line.
-    tops: list[int | None] = []
-    for x in range(keep.width):
-        top = 0
-        while top < keep.height and alpha[x, top] <= threshold:
-            top += 1
-        tops.append(top if top < keep.height else None)
-    last = None
-    for x in range(keep.width):
-        if tops[x] is not None:
-            last = tops[x]
-        elif last is not None:
-            tops[x] = last
-    last = None
-    for x in range(keep.width - 1, -1, -1):
-        if tops[x] is not None:
-            last = tops[x]
-        elif last is not None:
-            tops[x] = last
-    for x, top in enumerate(tops):
-        if top is None:
-            continue
-        # +2 px of overlap keeps a hairline of the keep's own outline on top of
-        # the prop instead of a 1 px seam of grass showing through.
-        draw.rectangle([x + origin_x, origin_y + top + 2, x + origin_x, height], fill=0)
-    # Everything above the keep's sheet top is sky by definition.
-    if origin_y > 0:
-        draw.rectangle([0, 0, width, origin_y - 1], fill=255)
-    return mask
+def key_name(level: str, spec: str | None) -> str:
+    if spec is None:
+        return f'bastion-l{level}'
+    return f'bastion-l{level}-{"storm" if spec == "storm" else "sun"}'
 
 
 def load_prop(name: str) -> Image.Image:
@@ -416,73 +426,54 @@ def load_prop(name: str) -> Image.Image:
     return Image.open(path).convert('RGBA')
 
 
-def compose(level: int) -> dict:
+def compose(level: str, spec: str | None) -> dict:
     keep = Image.open(KEEP).convert('RGBA')
-    foot_y_in_keep = keep.height - KEEP_FOOT_FROM_BOTTOM
+    form = FORMS[(level, spec)]
 
-    # Place every prop first so the canvas can be sized around the result.
-    placed: list[tuple[dict, Image.Image, int, int]] = []
-    xs = [0, keep.width]
-    for layer in FORMS[level]['layers']:
-        prop = load_prop(layer['prop'])
-        scale = layer.get('scale', 1.0)
-        if scale != 1.0:
-            prop = prop.resize((max(1, round(prop.width * scale)), max(1, round(prop.height * scale))),
-                               Image.LANCZOS)
-        if layer.get('flip'):
-            prop = prop.transpose(Image.FLIP_LEFT_RIGHT)
-        # `x` is an offset from the castle's centre line, not from the sheet edge.
-        px = round(keep.width / 2 + layer['x'] - prop.width / 2)
-        py = round(foot_y_in_keep - layer['y'] - prop.height)
-        placed.append((layer, prop, px, py))
-        xs.extend([px, px + prop.width])
+    # Where every prop lands, in keep-sheet coordinates with the keep's foot at
+    # y = KEEP_FOOT. `y` is how far the prop's bottom sits above that foot.
+    placed = []
+    for prop_name, dx, y in form['back'] + form['front']:
+        prop = load_prop(prop_name)
+        px = round(keep.width / 2 + dx - prop.width / 2)
+        py = round(KEEP_FOOT - y - prop.height)
+        placed.append((prop_name, prop, px, py))
 
-    min_x = min(xs)
-    max_x = max(xs)
-    top = min([p[3] for p in placed] + [0])
-    # 24 px of air above the tallest tower, and the same bottom margin as the
-    # original keep sheet so its contact shadow still lands inside the canvas.
-    pad_top = 18
-    width = max_x - min_x + 48
-    height = (keep.height + pad_top) - top
+    xs = [0, keep.width] + [px for _, _, px, _ in placed] + [px + p.width for _, p, px, _ in placed]
+    ys = [0, keep.height] + [py for _, _, _, py in placed] + [py + p.height for _, p, _, py in placed]
+    min_x, max_x = min(xs), max(xs)
+    min_y = min(ys)
+
+    pad = 10
+    width = max_x - min_x + pad * 2
+    height = keep.height - min_y + pad + 20
     canvas = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    origin_x = 24 - min_x
-    origin_y = pad_top - top
+    origin_x = pad - min_x
+    origin_y = pad - min_y
 
-    sky = skyline_mask(keep, width, height, origin_x, origin_y)
-    for layer, prop, px, py in placed:
-        if layer.get('front'):
-            continue
-        # Clip the prop to the sky above the keep's own outline.
-        sky_crop = sky.crop((px + origin_x, py + origin_y, px + origin_x + prop.width,
-                             py + origin_y + prop.height))
-        alpha = ImageChops.multiply(prop.getchannel('A'), sky_crop)
-        canvas.paste(prop, (px + origin_x, py + origin_y), alpha)
+    back_names = {name for name, _, _ in form['back']}
+    for name, prop, px, py in placed:
+        if name in back_names:
+            canvas.alpha_composite(prop, (px + origin_x, py + origin_y))
     canvas.alpha_composite(keep, (origin_x, origin_y))
-    # Foreground props sit over the keep (torches at the gate, banners on the walk).
-    for layer, prop, px, py in placed:
-        if layer.get('front'):
+    for name, prop, px, py in placed:
+        if name not in back_names:
             canvas.alpha_composite(prop, (px + origin_x, py + origin_y))
 
-    foot_y = origin_y + foot_y_in_keep
-    # The socket: the keep's gate-side tower top, where the weapon head is
-    # seated. Measured once from `bastion-fortress.png` — the crenellated
-    # platform at (340, 258) in the padded sheet — and expressed relative to the
-    # foot so it survives any re-layout of the sheet around it.
-    # The weapon is seated on the gate-side tower's *walkway*, high enough that
-    # its plinth clears the merlons in front of it: at 258 the turret base sank
-    # behind the battlements and the gun read as a jewel lying on the wall.
-    socket_x = origin_x + 340
-    socket_y = origin_y + 282
-    socket = dict(
-        x=round(socket_x - canvas.width / 2, 1),
-        y=round(foot_y - socket_y, 1),
-    )
+    foot_y = origin_y + KEEP_FOOT
+    # The gun sits on the keep's own roof ridge: the red hip roof is the only
+    # flat deck the building has, and it is dead centre, so the sprite can turn
+    # to aim without walking off the castle.
+    socket_x = origin_x + keep.width / 2 + 10
+    socket_y = foot_y - 250
 
-    out = os.path.join(ASSETS, f'bastion-l{level}.png')
+    out = os.path.join(ASSETS, f'{key_name(level, spec)}.png')
     canvas.save(out)
-    return dict(level=level, path=out, width=canvas.width, height=canvas.height,
-                foot_from_bottom=round(canvas.height - foot_y, 1), socket=socket)
+    return dict(key=key_name(level, spec), path=f'assets/arena/{key_name(level, spec)}.png',
+                sheet=[canvas.width, canvas.height],
+                foot=round(canvas.height - foot_y, 1),
+                socket=dict(x=round(socket_x - canvas.width / 2, 1),
+                            y=round(foot_y - socket_y, 1)))
 
 
 def main() -> int:
@@ -491,30 +482,28 @@ def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'all'
 
     if cmd in ('all', 'props'):
-        for name, (body, w, h) in PROPS.items():
+        for name, entry in PROPS.items():
             with open(os.path.join(SRC, f'{name}.svg'), 'w', encoding='utf-8') as fh:
-                fh.write(svg(w, h, body, f'bastion prop: {name}'))
+                fh.write(entry[0])
             print('wrote prop', name)
         for name, maker in (('ward-crystal', ward_crystal), ('sun-cannon', sun_cannon)):
-            body, meta = maker()
             with open(os.path.join(SRC, f'bastion-{name}.svg'), 'w', encoding='utf-8') as fh:
-                fh.write(body)
-            print('wrote weapon', name, meta)
+                fh.write(maker())
+            print('wrote weapon', name)
 
     if cmd in ('all', 'compose'):
         table = {}
-        for level in FORMS:
-            meta = compose(level)
-            table[level] = meta
-            print(f"composed bastion-l{level}.png  {meta['width']}x{meta['height']}  "
-                  f"foot {meta['foot_from_bottom']} px from bottom  "
-                  f"socket {meta['socket']}")
+        for (level, spec) in FORMS:
+            meta = compose(level, spec)
+            table[meta['key']] = meta
+            print(f"{meta['key']}: {meta['sheet'][0]}x{meta['sheet'][1]}  "
+                  f"foot {meta['foot']}  socket {meta['socket']}")
         with open(os.path.join(SRC, 'forms.json'), 'w', encoding='utf-8') as fh:
             json.dump(table, fh, indent=2)
         print('\nmount table for src/config/baseUpgrades.js:')
-        for level, meta in table.items():
-            print(f"  {level}: {{ sheet: [{meta['width']}, {meta['height']}], "
-                  f"foot: {meta['foot_from_bottom']}, socket: {meta['socket']} }},")
+        for key, meta in table.items():
+            print(f"  {key}: {{ sheet: {meta['sheet']}, foot: {meta['foot']}, "
+                  f"socket: {meta['socket']} }},")
     return 0
 
 

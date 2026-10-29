@@ -16,7 +16,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BastionGuardian } from '../src/entities/BastionGuardian.js';
-import { BASTION_ART, BASTION_WEAPONS } from '../src/config/baseUpgrades.js';
+import {
+  BASTION_ART,
+  BASTION_BRANCH_ART,
+  BASTION_WEAPONS,
+  bastionForm,
+} from '../src/config/baseUpgrades.js';
 
 /** Minimal Phaser stand-ins: only what the guardian touches. */
 function stubScene() {
@@ -86,8 +91,11 @@ const SCALE = 0.44;
 
 function stubBody() {
   const sizeFor = (key) => {
-    const form = Object.values(BASTION_ART).find((entry) => entry.key === key);
-    return form ? form.sheet : [518, 480];
+    const form = [
+      ...Object.values(BASTION_ART),
+      ...Object.values(BASTION_BRANCH_ART.sunforge),
+    ].find((entry) => entry.key === key);
+    return form ? form.sheet : [392, 369];
   };
   const [w0, h0] = sizeFor('bastion-l1');
   const body = {
@@ -201,7 +209,10 @@ describe('BastionGuardian', () => {
     expect(guardian.upgrade('bastion-sunforge')).toBe(true);
     expect(guardian.level).toBe(3);
     expect(guardian.specialization).toBe('sunforge');
-    expect(body.texture).toBe(BASTION_ART[3].key);
+    // The branch is a different castle from level three, not another gun on
+    // the storm keep.
+    expect(body.texture).toBe(bastionForm(3, 'sunforge').key);
+    expect(body.texture).not.toBe(bastionForm(3, 'storm').key);
     expect(guardian.weapon.texture).toBe(BASTION_WEAPONS.sunCannon.key);
     expect(guardian.stats.flare).toBeTruthy();
     // A storm bastion on the same tier wears the crystal and chains instead.

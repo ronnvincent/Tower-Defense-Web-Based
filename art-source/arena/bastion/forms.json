@@ -1,57 +1,106 @@
 {
-  "1": {
-    "level": 1,
-    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l1.png",
-    "width": 518,
-    "height": 480,
-    "foot_from_bottom": 44,
+  "bastion-l1": {
+    "key": "bastion-l1",
+    "path": "assets/arena/bastion-l1.png",
+    "sheet": [
+      490,
+      492
+    ],
+    "foot": 60,
     "socket": {
-      "x": 105.0,
-      "y": 136
+      "x": 10.0,
+      "y": 250
     }
   },
-  "2": {
-    "level": 2,
-    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l2.png",
-    "width": 518,
-    "height": 524,
-    "foot_from_bottom": 44,
+  "bastion-l2": {
+    "key": "bastion-l2",
+    "path": "assets/arena/bastion-l2.png",
+    "sheet": [
+      490,
+      574
+    ],
+    "foot": 60,
     "socket": {
-      "x": 105.0,
-      "y": 136
+      "x": 10.0,
+      "y": 250
     }
   },
-  "3": {
-    "level": 3,
-    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l3.png",
-    "width": 518,
-    "height": 622,
-    "foot_from_bottom": 44,
+  "bastion-l3-storm": {
+    "key": "bastion-l3-storm",
+    "path": "assets/arena/bastion-l3-storm.png",
+    "sheet": [
+      490,
+      627
+    ],
+    "foot": 60,
     "socket": {
-      "x": 105.0,
-      "y": 136
+      "x": 10.0,
+      "y": 250
     }
   },
-  "4": {
-    "level": 4,
-    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l4.png",
-    "width": 518,
-    "height": 682,
-    "foot_from_bottom": 44,
+  "bastion-l3-sun": {
+    "key": "bastion-l3-sun",
+    "path": "assets/arena/bastion-l3-sun.png",
+    "sheet": [
+      490,
+      524
+    ],
+    "foot": 60,
     "socket": {
-      "x": 105.0,
-      "y": 136
+      "x": 10.0,
+      "y": 250
     }
   },
-  "5": {
-    "level": 5,
-    "path": "/home/user/Tower-Defense-Web-Based/public/assets/arena/bastion-l5.png",
-    "width": 518,
-    "height": 740,
-    "foot_from_bottom": 44,
+  "bastion-l4-storm": {
+    "key": "bastion-l4-storm",
+    "path": "assets/arena/bastion-l4-storm.png",
+    "sheet": [
+      490,
+      677
+    ],
+    "foot": 60,
     "socket": {
-      "x": 105.0,
-      "y": 136
+      "x": 10.0,
+      "y": 250
+    }
+  },
+  "bastion-l4-sun": {
+    "key": "bastion-l4-sun",
+    "path": "assets/arena/bastion-l4-sun.png",
+    "sheet": [
+      490,
+      584
+    ],
+    "foot": 60,
+    "socket": {
+      "x": 10.0,
+      "y": 250
+    }
+  },
+  "bastion-l5-storm": {
+    "key": "bastion-l5-storm",
+    "path": "assets/arena/bastion-l5-storm.png",
+    "sheet": [
+      578,
+      742
+    ],
+    "foot": 60,
+    "socket": {
+      "x": 10.0,
+      "y": 250
+    }
+  },
+  "bastion-l5-sun": {
+    "key": "bastion-l5-sun",
+    "path": "assets/arena/bastion-l5-sun.png",
+    "sheet": [
+      601,
+      666
+    ],
+    "foot": 60,
+    "socket": {
+      "x": 10.5,
+      "y": 250
     }
   }
 }
