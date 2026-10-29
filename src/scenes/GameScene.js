@@ -130,11 +130,15 @@ const GROUND_VARIANT_KEYS = ['tile-grass', 'tile-grass_2', 'tile-grass_3'];
 /**
  * Tiles of field drawn beyond the arena on every side.
  *
- * Deep enough for the widest letterbox the camera can produce at fit zoom (a
- * short, wide window leaves ~3 tiles of margin on the left and right) and no
- * deeper: it is a margin, not a world.
+ * Request 66: the canvas has to be *painted*, edge to edge, at the fit zoom —
+ * anything the camera does not draw is the page showing through, and a strip of
+ * page around a board reads as a frame however well its grass is matched. At
+ * the campaign's fit zoom (0.625×) a 768 px-tall canvas looks at 1229 world px,
+ * while the board is 768: five tiles of field on each side is what it takes for
+ * the deepest letterbox the camera can produce. Deeper than that is a world,
+ * not a margin, so this stays a fixed number.
  */
-const APRON_TILES = 3;
+const APRON_TILES = 5;
 /** Scatter props drawn on empty grass. */
 const DECOR_KINDS = ['tuft', 'bloom', 'shard'];
 
@@ -796,12 +800,15 @@ export class GameScene extends Phaser.Scene {
       return Number.isFinite(value) ? value : null;
     };
     // The HUD publishes its own clearance in CSS px, so the camera never guesses.
-    const topbar = read('--topbar-clearance');
     const dock = read('--dock-clearance');
-    const topBarBottom =
-      topbar != null
-        ? toGame(topbar)
-        : toGame(document.getElementById('hud-top-bar')?.getBoundingClientRect?.().bottom ?? 0);
+    // Request 66: the band starts at the *top of the canvas*, not under the top
+    // bar. A band that stopped under the rail left a strip of page above it, and
+    // a strip of page around a battlefield is a frame — however well its grass is
+    // matched, it is not the board (no roads, no props, a different scale). The
+    // rail's own 15 % torn band is what separates the readings from the field
+    // now, and the field simply runs underneath it. Only the bottom inset is
+    // real: the board's last row has to stay clear of the forge.
+    const topBarBottom = 0;
     const dockTop =
       dock != null
         ? toGame(canvasHeight + canvasTop - dock)
@@ -863,8 +870,15 @@ export class GameScene extends Phaser.Scene {
    * field under it — no wash, no edge — and it follows the biome instead of
    * always being grassland.
    *
-   * Cheap and idempotent: two custom properties, written on boot, on a re-frame
-   * and whenever the zoom settles.
+   * Request 66 adds the *phase*: the same strip drawn from the board's own tile
+   * origin (`--field-x`, `--field-y`) instead of from the element's box, so the
+   * grid on the page lines up with the grid in the canvas. A blurred copy of the
+   * grass at an arbitrary offset still read as a frame around the battlefield
+   * even at the right size; aligned and drawn `pixelated`, it is simply the
+   * field continuing under the HUD.
+   *
+   * Cheap and idempotent: four custom properties, written on boot, on a re-frame,
+   * whenever the zoom settles and after a pan.
    */
   publishFieldScale() {
     const scale = this.scale;
@@ -879,6 +893,48 @@ export class GameScene extends Phaser.Scene {
     root.style.setProperty('--field-tile', `${tile.toFixed(2)}px`);
     const suffix = this.theme?.tileSuffix || '';
     root.style.setProperty('--battle-ground', `url('/assets/tiles/grass${suffix}.png')`);
+    // Where world (0, 0) — the board's top-left tile corner — lands on the page.
+    // `worldView` is only refreshed during preRender, so scroll + zoom are read
+    // directly: the camera's centre is `scroll + size / 2` and the visible size
+    // is `size / zoom` (the same maths as `publishBoardGutter`).
+    const viewLeft = cam.scrollX + cam.width / 2 - cam.width / (2 * cam.zoom);
+    const viewTop = cam.scrollY + cam.height / 2 - cam.height / (2 * cam.zoom);
+    const canvasLeft = scale.canvasBounds?.left || 0;
+    const canvasTop = scale.canvasBounds?.top || 0;
+    const frameTop = this.cameraRig?.frame?.top ?? cam.y ?? 0;
+    const originX = (0 - viewLeft) * cam.zoom * factor + canvasLeft;
+    const originY = frameTop * factor + (0 - viewTop) * cam.zoom * factor + canvasTop;
+    if (Number.isFinite(originX)) root.style.setProperty('--field-x', `${originX.toFixed(2)}px`);
+    if (Number.isFinite(originY)) root.style.setProperty('--field-y', `${originY.toFixed(2)}px`);
+  }
+
+  /**
+   * Keep the page's ground phase glued to the board while the camera pans.
+   *
+   * `publishFieldScale` is called on boot, on a re-frame and when a zoom
+   * settles; a drag is the one camera move that happens between those, and a
+   * strip that stops following it slides out of alignment with the board under
+   * it — which is the seam this is meant to remove.
+   */
+  syncFieldPhase() {
+    const cam = this.cameras?.main;
+    if (!cam) return;
+    const { scrollX, scrollY, zoom } = cam;
+    const last = this._fieldPhase;
+    // Half a CSS pixel of camera movement is below what the eye can see in a
+    // tiled background; skipping those writes keeps a slow drag from restyling
+    // the page sixty times a second for nothing.
+    const step = 0.5 / (zoom || 1);
+    if (
+      last &&
+      last.zoom === zoom &&
+      Math.abs(scrollX - last.scrollX) < step &&
+      Math.abs(scrollY - last.scrollY) < step
+    ) {
+      return;
+    }
+    this._fieldPhase = { scrollX, scrollY, zoom };
+    this.publishFieldScale();
   }
 
   /** Re-measure and re-fit after a rotation or a real window resize. */
@@ -5631,6 +5687,11 @@ export class GameScene extends Phaser.Scene {
       // Camera and badges keep working even while the simulation is paused, so
       // the player can inspect the battlefield before starting a wave.
       this.cameraRig?.update(rawDelta);
+      // A pan moves the board under the strip the page paints above the camera
+      // band, so the page's tile phase has to follow it (request 66). Two
+      // comparisons per frame; the style write only happens when the camera
+      // actually moved.
+      this.syncFieldPhase();
       this.badges?.update(this.cameras.main);
       this.syncLaneHint();
       // Only does work when a landmark was built ahead of its texture.

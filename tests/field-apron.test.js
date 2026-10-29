@@ -9,11 +9,11 @@ import { TILE_SIZE } from '../src/config/gameConfig.js';
  * margin that shows the *page* is a frame drawn around the battlefield — which
  * is what request 64 removed. These tests hold the two halves of the fix:
  *
- *   drawFieldApron   the biome's own ground continues past the arena, three
+ *   drawFieldApron   the biome's own ground continues past the arena, five
  *                    tiles deep, under the board and out of its cells.
- *   publishFieldScale the page is told which ground to repeat and at what size,
- *                    so the strip the camera cannot paint is the same grass at
- *                    the same scale as the field under it.
+ *   publishFieldScale the page is told which ground to repeat, at what size and
+ *                    from which phase, so the strip the camera cannot paint is
+ *                    the same grass on the same grid as the field above it.
  */
 
 let GameScene;
@@ -83,14 +83,16 @@ function fakeScene({ cols = 32, rows = 12 } = {}) {
 const themeKey = (base, themeId = null) => `${base}${themeId ? `-${themeId}` : ''}`;
 
 describe('the apron: the field continues past the arena wall', () => {
-  it('lays one tiled sheet three tiles wider than the board on every side', () => {
+  it('lays one tiled sheet five tiles wider than the board on every side', () => {
     const scene = fakeScene();
     const sheet = GameScene.prototype.drawFieldApron.call(scene, (base, themeId) => themeKey(base, themeId));
 
     expect(sheet.kind).toBe('tileSprite');
     const [, , width, height] = sheet.args;
-    expect(width).toBe((32 + 3 * 2) * TILE_SIZE);
-    expect(height).toBe((12 + 3 * 2) * TILE_SIZE);
+    // Request 66: at the campaign's fit zoom a 768 px canvas looks at 1229 world
+    // px, so the apron has to reach five tiles past the board to fill it.
+    expect(width).toBe((32 + 5 * 2) * TILE_SIZE);
+    expect(height).toBe((12 + 5 * 2) * TILE_SIZE);
     // The sheet is centred on the board, so the apron is symmetric.
     const [x, y] = sheet.args;
     expect(x).toBe((32 * TILE_SIZE) / 2);
@@ -127,8 +129,9 @@ describe('publishFieldScale: the strip the camera cannot paint', () => {
   });
 
   const sceneWith = ({ zoom = 0.625, displayHeight = 921.6, suffix = '' } = {}) => ({
-    scale: { height: 768, displaySize: { height: displayHeight } },
-    cameras: { main: { zoom } },
+    scale: { height: 768, displaySize: { height: displayHeight }, width: 1280 },
+    cameras: { main: { zoom, width: 1280, height: 768, scrollX: 384, scrollY: 96 } },
+    cameraRig: { frame: { top: 0 } },
     theme: { tileSuffix: suffix },
   });
 
@@ -151,6 +154,45 @@ describe('publishFieldScale: the strip the camera cannot paint', () => {
     expect(document.documentElement.style.getPropertyValue('--battle-ground')).toBe(
       "url('/assets/tiles/grass.png')"
     );
+  });
+
+  it('publishes where world (0, 0) lands, so the page grid lines up with the board', () => {
+    // 1280 wide at 0.625 looks at 2048 world px — wider than the view, so a
+    // scroll of 384 centres it and the board's left edge lands on the canvas'
+    // left edge. Vertically the same zoom looks at 2048 world px for a 768 px
+    // view, so the world's top edge sits (2048 - 768) / 2 - 96 = 544 world px
+    // above the view: × 0.625 × a 1.2 canvas scale = 100.8 CSS px.
+    GameScene.prototype.publishFieldScale.call(sceneWith());
+    expect(document.documentElement.style.getPropertyValue('--field-x')).toBe('0.00px');
+    expect(document.documentElement.style.getPropertyValue('--field-y')).toBe('100.80px');
+
+    // A pan moves it: 64 world px further left is 0.625 × 64 × 1.2 = 48 CSS px.
+    const panned = sceneWith();
+    panned.cameras.main.scrollX = 320;
+    GameScene.prototype.publishFieldScale.call(panned);
+    expect(document.documentElement.style.getPropertyValue('--field-x')).toBe('48.00px');
+  });
+
+  it('follows a pan, and ignores one too small to see', () => {
+    const scene = { ...sceneWith(), publishFieldScale: vi.fn() };
+    scene.publishFieldScale = GameScene.prototype.publishFieldScale.bind(scene);
+    const written = () => document.documentElement.style.getPropertyValue('--field-x');
+
+    GameScene.prototype.syncFieldPhase.call(scene);
+    const first = written();
+    expect(first).not.toBe('');
+
+    // A tenth of a pixel of camera movement writes nothing new.
+    scene.cameras.main.scrollX += 0.05;
+    const spy = vi.spyOn(document.documentElement.style, 'setProperty');
+    GameScene.prototype.syncFieldPhase.call(scene);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+
+    // A real pan does.
+    scene.cameras.main.scrollX += 64;
+    GameScene.prototype.syncFieldPhase.call(scene);
+    expect(written()).not.toBe(first);
   });
 
   it('survives a scene without a camera instead of writing NaN into the stylesheet', () => {

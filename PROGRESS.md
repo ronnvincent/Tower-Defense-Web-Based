@@ -1106,3 +1106,96 @@ views, the portrait width it is told about, the three states, and the labels).
 
 Screenshots: `/tmp/muster-844.png` (before), `/tmp/m-844f.png`,
 `/tmp/m-vang.png`, `/tmp/m-614e.png`, `/tmp/m-desk2.png`.
+
+## 20. Request 66 — the frame was the page, and the flicker was an entrance
+
+> *"parang may frame talaga na nakapalibot sa mapa natin, i mean pag nasa
+> battlefield na, parang grass yung frame and parang blurry sya, so hindi
+> nakikita yung buong mapa, try mo i zoom ng malapitan, mapapansin mo na parang
+> may frame sa paligid ng mapa, tanggalin mo yan!!!!!!!!!!! tapos check mo sa
+> muster hall natin kapag nag tatap ako ng mga pets doon like nag swiwitch ay
+> biglang may fliflicker na background na parang kulay itim, dapat wala ding
+> ganon, check mo sa iba baka may ganon din hindi lang sa muster hall"*
+>
+> (earlier in the same turn, with a crop of the phone's battlefield corner:
+> *"tignan mo sa mobile yung parang itim natin kanina na background, naputol, ang
+> gawin mo tanggalin mo na lang yan, sa taas na lang itira mo, mabilisang fix"*)
+
+### Why there was a frame at all
+
+Request 64 matched the page's grass to the board's grass. It matched the
+*colour*; it did not match the picture:
+
+| | the board (canvas) | the page strip |
+| - | ------------------ | -------------- |
+| art | three ground variants, roads, props, decor | one tile, repeated |
+| scaling | nearest-neighbour (`pixelArt: true`) | **bilinear** — the browser was smoothing a 64 px tile down to 40 px |
+| alignment | the board's own tile grid | wherever the element's box happened to start |
+| extent | the apron, 3 tiles | everywhere outside the stage |
+
+A soft, unbounded, differently-aligned copy of the grass around a crisp board is
+a frame — and it is the *blurry grass* the request is about. Three things
+followed from that:
+
+1. **the strip is drawn like the board** — `image-rendering: pixelated`, and its
+   phase published from the scene (`--field-x`, `--field-y`), so the page's tile
+   grid is the board's tile grid. It follows a pan (`syncFieldPhase`, once per
+   frame, no style write unless the camera really moved);
+2. **the camera band starts at the top of the canvas** — it used to start under
+   the top rail, which is what left a strip of page *inside* the stage in the
+   first place. The rail's torn 15 % band separates the readings from the field
+   now; the field runs under it. The forge still keeps the board's last row;
+3. **the apron is 5 tiles deep** — at the campaign's 0.625× fit zoom a 768 px
+   canvas looks at 1229 world px for a 768 px board, so 3 tiles (192 px) did not
+   reach the edge of the view at 1920×800 or 1536×864. 5 tiles (320 px) covers
+   every case the camera can produce, and it is never seen when zoomed in.
+
+A phone also lost its 16 px column of page down each side: the 1.25 × 5/3 stage
+cap is lifted in the compact query (`--stage-width: 100vw`), so the canvas is
+full-bleed there. Desktop keeps its cap.
+
+### The black band the user cropped
+
+The forge's `::before`/`::after` (request 62's torn strip and its solid half) are
+`width: 100vw`, centred on the dock. That only makes a band while the dock spans
+the stage; **folded it is a 95 px BUILD chip**, and 100 vw measured from that
+chip's centre spilled a dark rectangle from the left edge to the middle of the
+field, ending in a straight vertical cut — exactly the crop in the request. The
+dock now paints nothing, open or folded: the cards carry their own frames, and
+the rail's band at the top is the only band left on screen.
+
+### The flicker
+
+Every overlay screen re-renders itself by re-mounting its root
+(`mountScreen`), and `.overlay-screen` animates `opacity` from 0
+(`screenIn`). So tapping a companion in the Muster Hall — or a tab, a relic in
+the Forge, a claim in Achievements — dropped the whole screen to transparent for
+220 ms and let the dark menu behind it flash through. Measured before: the
+Muster Hall's opacity fell to **0.00** on every switch.
+
+`mountScreen` now marks a node `no-enter` when it replaces one that is still
+mounted, and `.overlay-screen.no-enter { animation: none }`. Opening a screen is
+still an entrance — the id is not remembered past the unmount.
+
+### Verified
+
+| Check | Result |
+| ----- | ------ |
+| 1280×768 fit / 1.6× / 2.6× / corner pan | field to all four edges, no seam, no band above the field or under the dock |
+| 1024×640 | same; the 13 px letterbox is field, not plate |
+| 844×390 phone | full-bleed canvas, no column of page; dock folded *and* open paint no band |
+| 1920×800 | side bands are the same pixelated grass; no luminance step at the canvas edge |
+| `level-2` (Sunscorch Mesa) | strip is the mesa's sand, not grass |
+| tutorial gate, real buttons | place → upgrade → wave, `ERRS []` |
+| Muster Hall, 12 switch samples | overlay opacity **1.00 at every frame** |
+| Forge / Blessings / Achievements / Leaderboard / world map / Codex | no drop below 1.00 while re-rendering (only *opening* a screen animates) |
+
+`npx vitest run` → **141 files / 1816 passed** · `npm run build` ✓ 7.74 s
+(`tests/field-frame.test.js` pins the band's new top, the dock's missing band,
+the strip's `pixelated` + phase, the phone's full-bleed stage and the
+`no-enter` contract; `tests/field-apron.test.js` grew to 5 tiles, the published
+phase and the pan guard).
+
+Screenshots: `/tmp/field-fit.png` (before), `/tmp/f66-1280-fit.png`,
+`/tmp/f66-1280-zoom.png`, `/tmp/f66-1280-corner.png`, `/tmp/f66-844.png`,
+`/tmp/f66-844-dock.png`, `/tmp/f66-1024.png`, `/tmp/f66-desert.png`.

@@ -43,7 +43,12 @@ export function battleFrame({
   minBand = MIN_BAND_PX,
 } = {}) {
   const height = Math.max(0, Number(canvasHeight) || 0);
-  const top = Math.max(0, Math.round((Number(topBarBottom) || 0) + gap));
+  // Request 66: a zero `topBarBottom` means "the band starts at the top of the
+  // canvas" — the rail draws a translucent band over the field instead of the
+  // camera giving it a strip of page. `gap` is the breathing room under a bar
+  // that is actually there, so it is only added when one is.
+  const rail = Math.max(0, Number(topBarBottom) || 0);
+  const top = rail > 0 ? Math.round(rail + gap) : 0;
   const bottom = Math.min(height, Math.round((Number(dockTop) || height) - gap));
   const band = bottom - top;
   if (band < minBand) {

@@ -404,8 +404,25 @@ body::after {
 body.is-battle #app {
   background-image: var(--battle-ground, url('/assets/ui-kit/arena-plate.png'));
   background-repeat: repeat;
-  background-position: center;
+  /* Request 66: the strip is the board's own ground, so it has to be drawn the
+     way the board draws it. `pixelated` is the whole difference between "the
+     field, continued" and "a blurry green frame": the browser was bilinear-
+     scaling the 64 px tile down to 40 px, and the soft copy of the grass around
+     the crisp canvas is exactly what read as a frame laid over the battlefield.
+     The phase is published by the scene too, so the tile grid on the page lines
+     up with the tile grid in the canvas instead of starting wherever the
+     element's box happens to begin. */
+  image-rendering: pixelated;
+  background-position: var(--field-x, 0px) var(--field-y, 0px);
   background-size: var(--field-tile, 48px) var(--field-tile, 48px);
+}
+
+/* `image-rendering` inherits, so the drop shadow of a HUD icon or a card sprite
+   would be drawn nearest-neighbour too. Everything inside the app keeps its own
+   setting; the canvas sets its own inline (Phaser's `pixelArt`), which is what
+   the board is drawn with. */
+body.is-battle #app > * {
+  image-rendering: auto;
 }
 
 @supports (height: 100dvh) {
@@ -1152,13 +1169,9 @@ body.is-battle #app {
   gap: var(--sp-2);
   /* 84 = 6 px padding ×2 + the 68 px card, exactly. */
   padding: 6px var(--sp-3);
-  /* Request 62: the forge is not a plate. What is left is the same thin 15 %
-     black band as the top rail — torn along its top edge — with the cards
-     drawn straight on the battlefield. The cards keep their own frames; the
-     sheet behind them was the loudest rectangle on screen and it was saying
-     nothing the cards had not already said. The dock stays `position: absolute`
-     (from `.hud-panel`): that is what makes it the containing block for the
-     band below. */
+  /* Request 62 made the forge a band rather than a plate; request 66 took even
+     that away. The cards are drawn straight on the battlefield and carry the
+     only frames on screen — no sheet behind them, no strip above them. */
   background: none;
   border: none;
   border-radius: 0;
@@ -1167,53 +1180,22 @@ body.is-battle #app {
   backdrop-filter: none;
 }
 
-/*
- * The band itself.
+/* Request 66: the forge has no band of its own.
  *
- * A pseudo-element so it can bleed past the dock's content-sized box to the
- * edges of the stage, and a torn mask (scripts/build_hud_bands.py) so its top
- * edge is ripped paper rather than a rule. `z-index: -1` keeps it behind every
- * card: the dock is a containing block (it is transformed on desktop), so this
- * never drops behind the canvas.
+ * Request 62 put the same torn 15 % strip above the dock and behind its cards.
+ * The rail earned its strip (readings over grass need separating); the dock did
+ * not — the cards carry their own frames, and a second black strip under them
+ * read as a shadow box the battlefield was sitting in. Worse, both pseudos are
+ * `width: 100vw` centred on the dock, which is only a band while the dock spans
+ * the stage: folded it is one 95 px BUILD chip, and 100 vw measured from that
+ * chip's centre spilled a dark rectangle from the left edge to the middle of the
+ * field, ending in a straight vertical cut. So the dock paints nothing at all,
+ * open or folded, and the rail's band at the top is the only one left.
  */
-.hud-dock::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  /* Exactly the mask's own height, one to one: the tear is drawn 64 px tall by
-     scripts/build_hud_bands.py, and stretching it over the whole band pushed
-     the rip under the cards where nobody could see it. The strip ends where the
-     dock starts; `::after` carries the tint from there to the bottom of the
-     screen. */
-  top: -64px;
-  height: 64px;
-  width: 100vw;
-  transform: translateX(-50%);
-  z-index: -1;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.15);
-  -webkit-mask-image: url('/assets/ui-kit/band-tear-top.png');
-  -webkit-mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-image: url('/assets/ui-kit/band-tear-top.png');
-  mask-size: 100% 100%;
-  mask-repeat: no-repeat;
-}
-
-/* The solid half of the band: the dock's own height, plus enough below it to
-   reach the bottom of the screen. Its top edge is hidden under the opaque end of
-   the torn strip above, so the only edge the eye can find is the rip. */
+.hud-dock::before,
 .hud-dock::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: -18px;
-  width: 100vw;
-  transform: translateX(-50%);
-  z-index: -1;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.15);
+  content: none;
+  display: none;
 }
 
 /*
@@ -2566,6 +2548,17 @@ body:has(.codex-drawer.open) .camera-hint {
    ~60 % of the width, thinner frame, 8 px bar, one ellipsised values row. The
    boss name, phase and health stay readable; the play area comes back. */
 @media (max-width: 900px), (max-height: 560px) {
+  /* Request 66: a phone gets a full-bleed battlefield.
+     The 1.25 × 5/3 cap stops a stage from growing so tall that its crop eats
+     into playable rows — but on an 844×390 landscape phone it also left a 16 px
+     column of *page* down each side of the canvas, and a strip of page beside a
+     battlefield is exactly the frame this request is about. Here the cap is
+     dropped: the board is fitted to the band anyway, so nothing is cropped out
+     of reach. Desktop keeps its cap untouched. */
+  :root {
+    --stage-width: 100vw;
+  }
+
   /* Still parked under the toast lane, so a "wave cleared" toast never lands on
      the boss strip — it is only the card itself that shrinks. */
   #boss-banner {
@@ -3384,6 +3377,10 @@ body:has(.codex-drawer.open) .camera-hint {
   to {
     opacity: 1;
   }
+}
+
+.overlay-screen.no-enter {
+  animation: none;
 }
 
 @keyframes modalOut {
@@ -7445,6 +7442,13 @@ body.is-fullscreen #app::after {
   position: absolute;
   inset: 0;
   animation: screenIn var(--t-med) var(--ease-out);
+  /* Request 66: set by `mountScreen` when the node replaces an earlier mount of
+     the same screen. `screenIn` starts at `opacity: 0`, and every one of these
+     screens re-renders by re-mounting its root — so clicking a companion in the
+     Muster Hall (or buying a relic in the Forge) dropped the whole overlay to
+     transparent and let the dark menu flash through. Fading in is for opening a
+     screen, not for repainting one that is already open. */
+
   display: flex;
   align-items: center;
   justify-content: center;
