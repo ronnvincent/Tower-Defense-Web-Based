@@ -39,6 +39,7 @@ import {
 import { perfProbe } from '../system/perfProbe.js';
 import { applyAtmosphereSkin, buildAtmosphere, clearAtmosphereSkin } from '../systems/Atmosphere.js';
 import { moodForWave, moodVars } from '../systems/Mood.js';
+import { enemyCard } from '../systems/EnemyCard.js';
 import { getBuildDefinition } from '../data/towerData.js';
 import { PathfindingSystem, laneIndexForWave } from '../systems/PathfindingSystem.js';
 import { gateIndexForSpawn, waveGatePlan } from '../systems/SpawnGates.js';
@@ -1927,6 +1928,7 @@ export class GameScene extends Phaser.Scene {
     this.updateBattleMusic();
     this.gameState.counters.baseHits = (this.gameState.counters.baseHits || 0) + 1;
     this.leaksThisWave = (this.leaksThisWave || 0) + 1;
+    this.waveLeaks = (this.waveLeaks || 0) + 1;
 
     // The gate answers: a short shake scaled to the share of the bar lost, a
     // spark burst at the wall, and the crystal's punch.
@@ -1965,6 +1967,7 @@ export class GameScene extends Phaser.Scene {
     this.flashBastion(leak);
     this.gameState.counters.enemiesEscaped++;
     this.leaksThisWave = (this.leaksThisWave || 0) + 1;
+    this.waveLeaks = (this.waveLeaks || 0) + 1;
 
     if (enemy.isBoss) {
       this.activeBoss = this.bossRoster.remove(enemy);
@@ -2046,6 +2049,7 @@ export class GameScene extends Phaser.Scene {
     this.hud?.bumpGold?.();
     this.addScore(enemy.score + comboScore);
     this.gameState.counters.enemiesDefeated++;
+    this.waveKills = (this.waveKills || 0) + 1;
     if (this.contracts?.length) this.syncContracts();
 
     this.trackStats({ kills: 1, goldEarned: bounty + comboGold, bestChain: kill.chain }, { max: ['bestChain'] });
@@ -2144,6 +2148,45 @@ export class GameScene extends Phaser.Scene {
     this.openWave();
   }
 
+  /**
+   * Contextual hints, on the simulation clock.
+   *
+   * Two conditions only, both about a player who may not know what to do next:
+   * enough gold for another keep and no build for 20 s, or a raised keep with
+   * an affordable upgrade that has been sitting for 30 s. The HUD throttles
+   * them, so this can run every frame for free.
+   */
+  tickOnboardingHint(deltaMs) {
+    // The opening teaches by itself; a hint would fight the coach marks.
+    if (this.tutorialHold || this.level?.tutorial) return;
+    if (this.gameState?.isOver?.()) return;
+    this.hintClock = (this.hintClock || 0) + (Number(deltaMs) || 0);
+    this.idleClock = (this.idleClock || 0) + (Number(deltaMs) || 0);
+    if (this.hintClock < 4000) return;
+    this.hintClock = 0;
+
+    const keeps = (this.activeTowers || []).filter((tower) => !tower.isBarricade);
+    const cheapest = (BUILD_OPTIONS || []).reduce(
+      (min, option) => (option.supportOnly || option.trap ? min : Math.min(min, Number(option.cost) || min)),
+      Infinity
+    );
+    const coins = Number(this.economy?.coins) || 0;
+
+    if (keeps.length === 0 && Number.isFinite(cheapest) && coins >= cheapest && this.idleClock >= 20000) {
+      this.idleClock = 0;
+      this.hud?.showNudge?.('GOLD IN THE VAULT — PICK A DEFENCE AND TAP THE GROUND', 'first-build');
+      return;
+    }
+    const upgradable = keeps.find((tower) => {
+      const cost = Number(tower.upgradeCost);
+      return Number.isFinite(cost) && coins >= cost && typeof tower.canUpgrade === 'function' && tower.canUpgrade();
+    });
+    if (upgradable && this.idleClock >= 30000) {
+      this.idleClock = 0;
+      this.hud?.showNudge?.('TAP A RAISED KEEP TO UPGRADE IT', 'upgrade');
+    }
+  }
+
   /** Start the next wave and dress it up. Shared by the player and the clock. */
   openWave() {
     if (!this.waveManager.canStartNextWave()) return;
@@ -2172,6 +2215,11 @@ export class GameScene extends Phaser.Scene {
       cancelWavePrep(this.wavePrep);
       this.prepSecond = null;
       startNewWave(this.combo);
+      // Per-wave tallies for the clear card. Counted here and in the two kill /
+      // leak doors, so the card can never disagree with the score.
+      this.waveKills = 0;
+      this.waveLeaks = 0;
+      this.waveStartedAt = this.time?.now ?? 0;
       const wave = this.waveManager.waveNumber;
       // The whole wave walks one lane, so say it out loud and move the beacon.
       this.setWaveLane(wave);
@@ -2934,6 +2982,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.lastPointerScreen) return;
     if (this.cameraRig?.isDragging) {
       this.ghostGraphics?.clear();
+      this.hud?.showEnemyCard?.(null);
       return;
     }
     const { x, y } = this.lastPointerScreen;
@@ -2942,6 +2991,68 @@ export class GameScene extends Phaser.Scene {
       this.hoverTile = { row: tile.row, col: tile.col };
       this.updateGhostGraphics();
     }
+    this.refreshEnemyCard(tile.worldX, tile.worldY);
+  }
+
+  /**
+   * Point at a creep, read what it is.
+   *
+   * Only while nothing is armed and no keep is selected: the card is the answer
+   * to "what is that", and a player mid-build is asking a different question.
+   * It also only runs on the desktop shell — a phone has no hover, and a tap is
+   * already spoken for (focus fire).
+   */
+  refreshEnemyCard(worldX, worldY) {
+    const wanted = this.hud?.showEnemyCard && this.isDesktopPointer() && !this.selectedBuildKey && !this.selectedTower;
+    if (!wanted) {
+      if (this.hoveredEnemy) {
+        this.hoveredEnemy = null;
+        this.hud?.showEnemyCard?.(null);
+      }
+      return;
+    }
+    const enemy = enemyAt(this.activeEnemies, worldX, worldY, TILE_SIZE * 0.55);
+    if (enemy === this.hoveredEnemy) {
+      // Same creep: only the numbers may have moved, and rewriting the card on
+      // every pointer move would be a DOM write per mouse event.
+      return;
+    }
+    this.hoveredEnemy = enemy || null;
+    if (!enemy) {
+      this.hud?.showEnemyCard?.(null);
+      return;
+    }
+    const card = enemyCard(enemy, TILE_SIZE);
+    this.hud?.showEnemyCard?.(card, this.pointerCssPoint());
+  }
+
+  /**
+   * The last pointer position in CSS pixels.
+   *
+   * Phaser reports pointer coordinates in the canvas's own resolution, and the
+   * DOM HUD positions in CSS pixels; on a 1280-wide canvas rendered into a
+   * 1024-wide box those are two different scales, and using the wrong one puts
+   * the card a third of a screen away from the cursor.
+   */
+  pointerCssPoint() {
+    const p = this.lastPointerScreen;
+    const canvas = this.game?.canvas;
+    if (!p || !canvas?.getBoundingClientRect) return p || null;
+    const rect = canvas.getBoundingClientRect();
+    const width = this.scale?.gameSize?.width || canvas.width || 1;
+    const height = this.scale?.gameSize?.height || canvas.height || 1;
+    if (!rect.width || !rect.height) return p;
+    return {
+      x: rect.left + (p.x / width) * rect.width,
+      y: rect.top + (p.y / height) * rect.height,
+    };
+  }
+
+  /** True when the live shell is a mouse, not a thumb. */
+  isDesktopPointer() {
+    if (this.hud?.isMobileShell) return false;
+    if (typeof window === 'undefined') return false;
+    return !window.matchMedia?.('(pointer: coarse)')?.matches;
   }
 
   handlePointerUp(pointer) {
@@ -4231,6 +4342,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * The pointer's shape: what a click here would do.
+   *
+   * `copy` for a legal drop, `not-allowed` for an illegal one, `pointer` over a
+   * raised keep. Written only when the state changes, because a class write per
+   * pointer move is a style recalc per pointer move.
+   *
+   * @param {'build'|'invalid'|'inspect'|null} state
+   */
+  setBoardCursor(state) {
+    if (this.boardCursor === state) return;
+    this.boardCursor = state;
+    const el = this.game?.canvas;
+    const host = el?.parentElement;
+    if (!host?.classList) return;
+    host.classList.toggle('is-build-cursor', state === 'build');
+    host.classList.toggle('is-invalid-cursor', state === 'invalid');
+    host.classList.toggle('is-inspect-cursor', state === 'inspect');
+  }
+
+  /**
    * The one-line reason under a red ghost square.
    *
    * The toast answers "why did that click fail"; this answers "why is this
@@ -4272,6 +4403,7 @@ export class GameScene extends Phaser.Scene {
     this.ghostGraphics.clear();
     if (!this.selectedBuildKey) {
       this.showGhostReason('');
+      this.setBoardCursor(this.selectedTower ? 'inspect' : null);
       return;
     }
 
@@ -4294,6 +4426,7 @@ export class GameScene extends Phaser.Scene {
     // Why the square is red. One reusable Text object, repositioned only when
     // the hovered tile changes (this method is called on hover change and on
     // camera moves, never per frame), so it costs one string write and no node.
+    this.setBoardCursor(valid ? 'build' : 'invalid');
     const reason = valid ? '' : PLACEMENT_ERRORS[this.validateBuild(this.selectedBuildKey, row, col).reason] || 'Cannot build here';
     // Above the square by default; below it when the square is near the top of
     // the board, where a label would land on the rock band and read as scenery.
@@ -5298,6 +5431,17 @@ export class GameScene extends Phaser.Scene {
       }
       this.leaksThisWave = 0;
       const comboNote = comboPayout > 0 ? ` · best chain ${this.combo.best} (+🪙${comboPayout})` : '';
+      // The card carries the numbers that matter (kills, leaks, time, gold) and
+      // the FLAWLESS stamp; the toast keeps the score and the chain, which are
+      // the two lines the card has no room for.
+      this.hud?.showWaveClear?.({
+        wave: waveEvent.waveNumber,
+        kills: this.waveKills ?? 0,
+        leaks: this.waveLeaks ?? 0,
+        gold: bonusCoins + comboPayout,
+        ms: Math.max(0, (this.time?.now ?? 0) - (this.waveStartedAt ?? 0)),
+        flawless: (this.waveLeaks ?? 0) === 0,
+      });
       this.hud?.showToast(
         `Wave ${waveEvent.waveNumber} Cleared! (+🪙${bonusCoins + comboPayout}, +${bonusScore} pts)${comboNote}`,
         'info'

@@ -16669,3 +16669,597 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     linear-gradient(180deg, var(--battle-light, rgba(255, 236, 200, 0.08)) 0%, rgba(0, 0, 0, 0) 52%),
     radial-gradient(150% 120% at 50% 108%, var(--battle-fog, rgba(10, 16, 24, 0.3)) 0%, rgba(0, 0, 0, 0) 58%);
 }
+
+/* ==========================================================================
+   PROGRESSION · the run tells you how it is going
+   --------------------------------------------------------------------------
+   The wave-clear card, the creep hover card, and the pointer telling the truth
+   about what a click will do.
+   ========================================================================== */
+
+/* ---- wave clear: three numbers and a stamp, then gone --------------------- */
+
+.wave-clear {
+  position: absolute;
+  top: calc(var(--topbar-clearance, 82px) + 44px);
+  left: 50%;
+  z-index: 96;
+  min-width: 232px;
+  padding: 10px 16px 11px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  border: 1px solid rgba(245, 196, 81, 0.34);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(16, 20, 28, 0.94), rgba(8, 11, 16, 0.96));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.wave-clear.is-shown {
+  animation: waveClearIn 2600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes waveClearIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  8%,
+  84% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
+.wave-clear-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 1.6px;
+  color: var(--gold);
+}
+
+.wave-clear-stamp {
+  margin: 2px 0 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #9df1c3;
+}
+
+.wave-clear.is-flawless {
+  border-color: rgba(120, 235, 176, 0.5);
+}
+
+.wave-clear-stats {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.wave-clear-stats b {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.wave-clear-gold {
+  color: var(--gold);
+}
+
+/* ---- the creep card: hover only, never in the way of the fight ----------- */
+
+.enemy-card {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 97;
+  width: 196px;
+  padding: 9px 11px 10px;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  border: 1px solid rgba(245, 196, 81, 0.26);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(14, 18, 26, 0.96), rgba(7, 10, 15, 0.97));
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  transition: opacity 120ms ease;
+}
+
+.enemy-card.is-shown {
+  opacity: 1;
+  visibility: visible;
+}
+
+.enemy-card-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  color: var(--text-main);
+}
+
+.enemy-card-name.is-boss {
+  color: #ff9d6b;
+}
+
+.enemy-card-tag {
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(120, 200, 255, 0.4);
+  font-family: var(--font-body);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: #9fd8ff;
+}
+
+.enemy-card-bar {
+  height: 5px;
+  margin: 6px 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.enemy-card-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #5cf2a6, #8cf0c0);
+}
+
+.enemy-card-hp {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.enemy-card-stats {
+  display: flex;
+  gap: 10px;
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.enemy-card-stats b {
+  color: var(--text-main);
+}
+
+.enemy-card-resist {
+  margin: 5px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+}
+
+.enemy-card-resist.is-resist {
+  color: #ffb26b;
+}
+
+.enemy-card-resist.is-weak {
+  color: #9df1c3;
+}
+
+.enemy-card-resist.is-none {
+  color: var(--text-dim);
+}
+
+.enemy-card-traits {
+  margin: 4px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #c7a6ff;
+}
+
+@media (hover: none) {
+  .enemy-card {
+    display: none;
+  }
+}
+
+/* ---- the pointer tells the truth ---------------------------------------- */
+
+/* Armed keep: a crosshair. Armed and hovering an illegal square: not-allowed,
+   so the shape of the cursor answers before the square does. A raised keep
+   under the pointer: a pointer, because tapping inspects it. */
+#game-container {
+  cursor: default;
+}
+
+#game-container.is-build-cursor {
+  cursor: copy;
+}
+
+#game-container.is-invalid-cursor {
+  cursor: not-allowed;
+}
+
+#game-container.is-inspect-cursor {
+  cursor: pointer;
+}
+
+/* A phone has no cursor; leaving the rules in place is harmless because the
+   classes are only set from a mouse hover. */
+@media (pointer: coarse) {
+  #game-container,
+  #game-container.is-build-cursor,
+  #game-container.is-invalid-cursor,
+  #game-container.is-inspect-cursor {
+    cursor: default;
+  }
+}
+
+/* ==========================================================================
+   THE RAIL · no cards, a fade, and a name
+   --------------------------------------------------------------------------
+   The top bar used to be a row of engraved plates: a 9-slice sprite frame on
+   the bar itself, and then another framed slot behind every single icon — BASE,
+   GOLD, SCORE, the wave pill, and the four controls. Ten rectangles, each with
+   its own iron border, all sitting on the same 56 px strip. On a phone (where
+   the rail is 44 px tall and the slots shrink to 34) the cards were the loudest
+   thing on screen, and they were saying nothing the icon in front of them had
+   not already said.
+
+   So the plates are gone. What is left is what the realm header does: a soft
+   black fade that belongs to the top of the frame, and type.
+
+   The fade is a pseudo-element, not the bar's own background, so it can bleed
+   past the bar's box and dissolve at the left and right ends without fading the
+   buttons at those ends with it. `z-index: -1` inside the bar's own stacking
+   context puts it behind every child and above the board.
+   ========================================================================== */
+
+.hud-topbar {
+  border: none;
+  border-image: none;
+  /* No sprite, so no shadow to cast. (It also used to make the bar a containing
+     block for the phone's fixed START WAVE — see §9 of PROGRESS.md.) */
+  filter: none;
+  background: transparent;
+}
+
+.hud-topbar::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--safe-top) - 10px) -26px -22px -26px;
+  z-index: -1;
+  pointer-events: none;
+  /* Downward fade, so the board inside the frame keeps its own colour and the
+     band reads as the shadow of the top edge rather than a painted bar. */
+  background: linear-gradient(
+    180deg,
+    rgba(3, 5, 9, 0.92) 0%,
+    rgba(3, 5, 9, 0.78) 34%,
+    rgba(3, 5, 9, 0.46) 68%,
+    rgba(3, 5, 9, 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+
+/* No closing line. A gold rule at the bar's bottom edge used to collide with
+   the base-integrity meter and the wave meter, which both live on that same
+   row; the fade alone ends the rail, exactly like the realm header, and the two
+   meters are the only edges the strip needs. */
+
+.hud-stat {
+  border: none;
+  border-image: none;
+  background: transparent;
+  gap: 7px;
+  padding: 0 4px 0 2px;
+  height: 42px;
+}
+
+/* The kicker over the number, in the realm header's voice: display face, wide
+   tracking, a gold that is a shade off the value so the eye lands on the number
+   first. */
+.hud-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2.4px;
+  line-height: 1;
+  color: rgba(245, 196, 81, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+.hud-value {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  line-height: 1.05;
+  color: #f4e7ca;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 12px rgba(245, 196, 81, 0.14);
+}
+
+.hud-stat .gold-text {
+  color: #ffdf9a;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 12px rgba(245, 196, 81, 0.4);
+}
+
+/* The integrity meter becomes an underline instead of the bottom edge of a
+   plate: it survives the card going away, and it is the one part of this group
+   that has to be readable mid-fight. */
+.hud-stat-hp::after {
+  left: 2px;
+  right: 4px;
+  bottom: -3px;
+  height: 2px;
+  border-radius: 2px;
+}
+
+/* The wave pill loses its selected-slot frame; the gold meter at its bottom is
+   the only edge it needs. */
+.hud-wave-badge {
+  border: none;
+  border-image: none;
+  background: transparent;
+  padding: 0 2px 6px;
+}
+
+.hud-wave-label,
+.hud-wave-sub {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: rgba(245, 196, 81, 0.76);
+}
+
+.hud-wave-number {
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.8px;
+  color: #f4e7ca;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* The four controls: the icons alone. A chip is still a card — a rounded box
+   with a border, repeated four times — so the rail stops drawing them at all.
+   The 44 px box is kept (it is the touch minimum and the row's height); only
+   its paint goes. Weight moves to the glyph: one size up, cream, and a gold
+   halo on hover so the target still answers the pointer. */
+.hud-topbar .hud-controls-group {
+  /* The boxes were what spaced these four apart. With the boxes gone the row
+     has to close ranks or the glyphs look like four stray marks. */
+  gap: 2px;
+}
+
+/* One engraved hairline to part the controls from the wave call. A line, not a
+   frame: it is what the eye needs to know the rail ends in actions. */
+.hud-topbar .hud-controls-group::before {
+  content: '';
+  width: 1px;
+  height: 26px;
+  margin-right: 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 196, 81, 0) 0%,
+    rgba(245, 196, 81, 0.4) 34%,
+    rgba(245, 196, 81, 0.4) 66%,
+    rgba(245, 196, 81, 0) 100%
+  );
+}
+
+.hud-topbar .game-btn-icon {
+  border-width: 0;
+  border-image: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: #e6d8ba;
+  filter: none;
+  transition: color 0.16s ease, transform 0.1s ease, filter 0.16s ease;
+}
+
+.hud-topbar .game-btn-icon .btn-icon-img {
+  width: 20px;
+  height: 20px;
+}
+
+/* The speed readout keeps the body face: "1×" in Cinzel Decorative turns into a
+   single gothic stroke, and the one control that reports a number has to be
+   legible at a glance. */
+.hud-topbar #btn-speed {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: #ede0c4;
+}
+
+.hud-topbar .game-btn-icon:not(:disabled):hover {
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: #ffeec2;
+  transform: translateY(-1px);
+  filter: drop-shadow(0 0 9px rgba(245, 196, 81, 0.55));
+}
+
+.hud-topbar #btn-speed:not(:disabled):hover {
+  color: #ffeec2;
+}
+
+.hud-topbar .game-btn-icon:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Keyboard focus still has to be visible without drawing a card: one gold ring,
+   on the geometry of the button, only while the key is held. */
+.hud-topbar .game-btn-icon:focus-visible {
+  outline: 1px solid rgba(245, 196, 81, 0.85);
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+
+/* START WAVE: the same treatment, one size larger. It is still the loudest
+   thing on the rail — 17 px display face, gold, wide tracking, a breathing
+   underline under it — but it is type on the fade, not a plate sitting on it.
+   Hierarchy comes from size, colour and light instead of from a second frame. */
+.hud-topbar #btn-start-wave {
+  position: relative;
+  border-width: 0;
+  border-image: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  min-width: 186px;
+  padding: 0 14px 7px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 3.2px;
+  color: #ffd77a;
+  text-shadow: 0 0 20px rgba(245, 196, 81, 0.34), 0 2px 0 rgba(0, 0, 0, 0.7);
+  /* The plate's pulse-border has nothing left to pulse; the underline breathes
+     instead, so the call stays quiet when a wave is already running. */
+  animation: none;
+}
+
+.hud-topbar #btn-start-wave::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(245, 196, 81, 0) 0%,
+    rgba(245, 196, 81, 0.92) 18%,
+    rgba(255, 240, 200, 0.95) 50%,
+    rgba(245, 196, 81, 0.92) 82%,
+    rgba(245, 196, 81, 0) 100%
+  );
+  box-shadow: 0 0 10px rgba(245, 196, 81, 0.4);
+  transform-origin: 50% 100%;
+  animation: railCall 2.6s ease-in-out infinite;
+}
+
+@keyframes railCall {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scaleX(0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.hud-topbar #btn-start-wave:not(:disabled):hover {
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: #fff1c8;
+  transform: translateY(-1px);
+  filter: none;
+  text-shadow: 0 0 26px rgba(245, 196, 81, 0.55), 0 2px 0 rgba(0, 0, 0, 0.7);
+}
+
+.hud-topbar #btn-start-wave:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Mid-wave the label is a status, not a call — so it stops pulsing. */
+.hud-topbar #btn-start-wave:disabled {
+  color: rgba(244, 231, 202, 0.55);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+  filter: none;
+  opacity: 1;
+}
+
+.hud-topbar #btn-start-wave:disabled::after {
+  animation: none;
+  opacity: 0.22;
+  transform: scaleX(0.62);
+  box-shadow: none;
+}
+
+.hud-topbar #btn-start-wave:focus-visible {
+  outline: 1px solid rgba(245, 196, 81, 0.8);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* The level name under the rail was the last pill up there. It is a caption now:
+   plain display type, the gold dimmed to a whisper, a shadow to hold it against
+   bright grass. */
+.hud-level-chip {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: rgba(245, 196, 81, 0.62);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.85);
+}
+
+.hud-level-chip.endless {
+  border: none;
+  color: rgba(255, 143, 164, 0.85);
+}
+
+/* A phone's rail is 44 px and the fade would swallow two thirds of it. */
+[data-shell='mobile'] .hud-topbar::before {
+  inset: calc(-1 * var(--safe-top) - 6px) -16px -14px -16px;
+  background: linear-gradient(
+    180deg,
+    rgba(3, 5, 9, 0.94) 0%,
+    rgba(3, 5, 9, 0.7) 55%,
+    rgba(3, 5, 9, 0) 100%
+  );
+}
+
+[data-shell='mobile'] .hud-stat {
+  height: 38px;
+}
+
+[data-shell='mobile'] .hud-value {
+  font-size: 15px;
+}
+
+/* A phone keeps the same drawing, one notch smaller: the rail is 44 px tall and
+   the four controls are 34 px boxes, so the call cannot keep its 186 px bench
+   or its 3 px tracking without eating the centre zone. */
+[data-shell='mobile'] .hud-topbar #btn-start-wave {
+  min-width: 0;
+  padding: 0 4px 5px;
+  font-size: 12px;
+  letter-spacing: 1.6px;
+}
+
+[data-shell='mobile'] .hud-topbar #btn-start-wave::after {
+  left: 2px;
+  right: 2px;
+  height: 1px;
+}
+
+[data-shell='mobile'] .hud-topbar .hud-controls-group::before {
+  height: 20px;
+  margin-right: 5px;
+}
+
+[data-shell='mobile'] .hud-topbar .game-btn-icon .btn-icon-img {
+  width: 17px;
+  height: 17px;
+}
+
+[data-shell='mobile'] .hud-topbar #btn-speed {
+  font-size: 13px;
+}

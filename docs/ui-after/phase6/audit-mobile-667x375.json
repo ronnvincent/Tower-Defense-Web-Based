@@ -1,0 +1,78 @@
+{
+ "tag": "shot",
+ "size": "667x375",
+ "at": "2026-10-29T07:33:00.146Z",
+ "states": {
+  "combat": {
+   "meta": null,
+   "audit": {
+    "clipped": [
+     {
+      "el": "div#game-container",
+      "rect": [
+       0,
+       -13,
+       667,
+       400
+      ]
+     },
+     {
+      "el": "canvas",
+      "rect": [
+       0,
+       -13,
+       667,
+       400
+      ]
+     }
+    ],
+    "spill": [],
+    "covered": [],
+    "tiny": [
+     {
+      "el": "button#btn-speed.game-btn.game-btn-icon",
+      "size": [
+       34,
+       34
+      ]
+     },
+     {
+      "el": "button#btn-pause.game-btn.game-btn-icon",
+      "size": [
+       34,
+       34
+      ]
+     },
+     {
+      "el": "button#btn-mute.game-btn.game-btn-icon",
+      "size": [
+       34,
+       34
+      ]
+     },
+     {
+      "el": "button#btn-fullscreen.game-btn.game-btn-icon.fs-toggle",
+      "size": [
+       34,
+       34
+      ]
+     },
+     {
+      "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+      "size": [
+       34,
+       34
+      ]
+     }
+    ],
+    "counts": {
+     "clipped": 2,
+     "spill": 0,
+     "covered": 0,
+     "tiny": 5
+    }
+   },
+   "errors": []
+  }
+ }
+}

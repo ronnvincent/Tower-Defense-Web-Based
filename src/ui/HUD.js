@@ -63,6 +63,9 @@ export class HUD {
     // Handles for the two feedback timers (see bumpGold / flashBaseHit); kept
     // so a second event can cancel the first instead of stacking timers.
     this.goldBumpTimer = null;
+    this.waveClearTimer = null;
+    this.nudgeAt = 0;
+    this.nudgeKey = null;
     this.vignetteTimer = null;
     this.baseHitTimer = null;
     this.toastTimer = null;
@@ -764,6 +767,121 @@ export class HUD {
   collapseDockAfterBuild() {
     if (!this.isMobileShell || this.dockCollapsed) return;
     this.setDockCollapsed(true, { persist: false });
+  }
+
+  /**
+   * The hover card for a creep: what it is, how tough, how fast, what hurts it.
+   *
+   * Anchored to the pointer's *screen* position, clamped to the viewport, and
+   * written only when the hovered creep changes (see `GameScene`), so a moving
+   * horde costs no DOM writes per frame.
+   *
+   * @param {null | { name:string, hp:number, max:number, pct:number, speed:number,
+   *   armor:number, traits:string[], resistance:{text:string,tone:string},
+   *   boss:boolean, flying:boolean, shielded:boolean }} card
+   * @param {{ x:number, y:number }} [at] pointer position in CSS pixels
+   */
+  showEnemyCard(card, at = null) {
+    let el = document.getElementById('enemy-card');
+    if (!card) {
+      el?.classList.remove('is-shown');
+      return null;
+    }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'enemy-card';
+      el.className = 'enemy-card';
+      el.setAttribute('aria-hidden', 'true');
+      this.container?.appendChild(el);
+    }
+    const traits = (card.traits || []).length
+      ? `<p class="enemy-card-traits">${card.traits.join(' · ')}</p>`
+      : '';
+    el.innerHTML = `
+      <p class="enemy-card-name${card.boss ? ' is-boss' : ''}">${card.name}${
+        card.flying ? '<span class="enemy-card-tag">AIR</span>' : ''
+      }${card.shielded ? '<span class="enemy-card-tag">SHIELD</span>' : ''}</p>
+      <div class="enemy-card-bar"><span style="width:${Math.max(0, Math.min(100, card.pct))}%"></span></div>
+      <p class="enemy-card-hp">${card.hp} / ${card.max}</p>
+      <p class="enemy-card-stats">
+        <span><b>${card.speed}</b> tiles/s</span>
+        <span><b>${card.armor}</b> armour</span>
+      </p>
+      <p class="enemy-card-resist is-${card.resistance?.tone || 'none'}">${card.resistance?.text || ''}</p>
+      ${traits}`;
+    el.classList.add('is-shown');
+    if (at) {
+      // Keep the card off the right and bottom edges: a card half under the
+      // screen edge is worse than no card.
+      const width = el.offsetWidth || 200;
+      const height = el.offsetHeight || 96;
+      const x = Math.min(Math.max(8, at.x + 16), Math.max(8, window.innerWidth - width - 8));
+      const y = Math.min(Math.max(8, at.y + 16), Math.max(8, window.innerHeight - height - 8));
+      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    }
+    return el;
+  }
+
+  /**
+   * The wave is over: a short summary card under the rail.
+   *
+   * Three numbers and a stamp, gone in 2.6 s. It is deliberately a *card* and
+   * not a modal: the next wave is usually already walking, and a player who has
+   * to dismiss something to keep playing will stop reading it after the first
+   * wave. `flawless` is the only badge — a zero-leak wave is the thing worth
+   * being told about.
+   *
+   * @param {{ wave:number, kills:number, leaks:number, gold:number, ms:number, flawless?:boolean }} summary
+   */
+  showWaveClear({ wave = 0, kills = 0, leaks = 0, gold = 0, ms = 0, flawless = false } = {}) {
+    let card = document.getElementById('wave-clear');
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'wave-clear';
+      card.className = 'wave-clear';
+      card.setAttribute('role', 'status');
+      card.setAttribute('aria-live', 'polite');
+      this.container?.appendChild(card);
+    }
+    const seconds = Math.max(1, Math.round(ms / 1000));
+    const clean = flawless || leaks === 0;
+    card.innerHTML = `
+      <p class="wave-clear-title">WAVE ${wave} CLEARED</p>
+      ${clean ? '<p class="wave-clear-stamp">FLAWLESS</p>' : ''}
+      <div class="wave-clear-stats">
+        <span><b>${kills}</b> slain</span>
+        <span><b>${leaks}</b> leaked</span>
+        <span><b>${seconds}s</b></span>
+        <span class="wave-clear-gold">+${Math.round(gold)} gold</span>
+      </div>`;
+    card.classList.remove('is-shown');
+    // Restart the keyframes even when two waves land back to back.
+    void card.offsetWidth;
+    card.classList.add('is-shown', ...(clean ? ['is-flawless'] : []));
+    clearTimeout(this.waveClearTimer);
+    this.waveClearTimer = setTimeout(() => card.classList.remove('is-shown'), 2600);
+  }
+
+  /**
+   * A quiet nudge when the player has gold and nothing to do with it.
+   *
+   * Fires at most once every 30 s, never while a modal is open, never during the
+   * opening, and never twice for the same condition — a hint that repeats is a
+   * hint the player learns to ignore.
+   *
+   * @param {string} text one line, imperative
+   * @param {string} key an id so the same nudge is not repeated
+   */
+  showNudge(text, key = 'default') {
+    if (!text) return false;
+    const now = Date.now();
+    if (this.nudgeKey === key && now - (this.nudgeAt || 0) < 45000) return false;
+    if (now - (this.nudgeAt || 0) < 30000) return false;
+    if (document.body.classList.contains('modal-open')) return false;
+    this.nudgeKey = key;
+    this.nudgeAt = now;
+    this.showToast(text, 'info');
+    return true;
   }
 
   /**

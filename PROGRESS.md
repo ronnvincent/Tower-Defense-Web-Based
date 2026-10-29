@@ -27,7 +27,8 @@ they disagree — see §2):
 | 3 | Main menu and scene transitions | ✅ |
 | 4 | Core game feel ("juice") | ✅ |
 | 5 | Atmosphere and lighting | ✅ |
-| 6 | Progression, reward and onboarding | ⬜ |
+| 6 | Progression, reward and onboarding | ✅ |
+| 6b | Top rail restyle (requested after Phase 5) | ✅ |
 | 7 | Audio and settings | ⬜ |
 | 8 | Accessibility, performance, QA | ⬜ |
 
@@ -162,6 +163,46 @@ tall inside a 640 px screen).
   already; scaling it down would break the design system's own rule, so the
   scale factor tightens padding/gaps and `data-density="compact"` (≤1100 px wide
   or ≤640 px tall) drops the stat labels to icons + aria-labels.
+
+**Phase 6**
+
+* **Rewards are read, not recomputed.** The wave-clear card prints the tallies the
+  scene already keeps (`waveKills`, `waveLeaks`, `waveStartedAt`) and the gold the
+  economy already granted; nothing in `HUD.showWaveClear` adds, multiplies or
+  balances anything. "FLAWLESS" is `leaks === 0`, which is a fact the scene has.
+* **The creep card only exists for a mouse.** It is built from `enemy.stats` (the
+  same object combat reads) and suppressed while a build key or a keep is
+  selected, because during placement that corner of the board belongs to the
+  ghost. On touch there is no hover, so the CSS hides it outright rather than
+  leaving a card that can never appear.
+* **Nudges are throttled twice** — 45 s per hint key, 30 s global — and skipped
+  while a modal is open, during the tutorial hold and after game over. A hint
+  that repeats is noise; a hint that fires over a dialog is a bug.
+* **One hover card, not two.** The existing tower hover card and the new creep
+  card share the same pointer plumbing (`pointerCssPoint()` converts Phaser's
+  canvas-space pointer into CSS pixels, which is *not* `displayScale`), so a
+  creep under the cursor replaces the tower card instead of stacking under it.
+
+**Phase 6b — the rail (request: no plates, one fade, display type)**
+
+* **The plates are gone, not restyled.** BASE/GOLD/SCORE, the wave pill, the four
+  controls and the level name all lose their frame, fill and radius. What is
+  left is the realm header's recipe: a masked black gradient behind the strip,
+  Cinzel kickers over cream values, and a gold call to action.
+* **START WAVE lost its gold plate too.** The request says "text na lang", and a
+  single surviving plate in the middle of a plate-free rail is exactly the
+  inconsistency being reported. It stays the loudest element through size
+  (17 px display, 3.2 px tracking), colour and a breathing underline
+  (`@keyframes railCall`) instead of a second frame. Mid-wave it stops
+  breathing and dims to a status label, because it is not a call then.
+* **The closing hairline was dropped.** A gold rule at the bar's bottom edge sat
+  on the same row as the base-integrity meter and the wave meter and cut through
+  both. The fade ends the rail on its own; the two meters are its only edges.
+* **The speed readout keeps the body face.** `1×` in Cinzel Decorative renders as
+  a single gothic stroke; the one control that reports a number has to read.
+* **44 px targets stay 44 px** (34 px on the phone rail, the project's existing
+  touch floor) — only the paint was removed, never the hit box; hover answers
+  with a gold halo and `:focus-visible` draws one thin ring.
 
 ## 4. Bugs found while working
 
@@ -493,3 +534,79 @@ Measured at 1280×768 (same tile, day → dusk): `rgb(74,128,74)` → `rgb(78,11
 
 `npm run build` ✓ · `npx vitest run` → **133 files / 1740 passed**.
 Screenshots: `docs/ui-after/phase5/` at 1280×768 and 1024×640.
+
+---
+
+## 12. Phase 6 — progression, reward and onboarding
+
+### Changed
+
+| File | Why |
+| ---- | --- |
+| `src/ui/HUD.js` | `showWaveClear()`, `showEnemyCard()`, `showNudge()` — three surfaces that only read state the scene already owns. |
+| `src/systems/EnemyCard.js` **(new)** | Turns one live enemy into the six lines a player can act on (hp, speed in tiles/s, armour, traits, resistance, flying/shielded). Pure, so it is testable without a scene. |
+| `src/scenes/GameScene.js` | `refreshEnemyCard()`, `isDesktopPointer()`, `pointerCssPoint()`, `setBoardCursor()`, `tickOnboardingHint()` and the three per-wave counters (`waveKills`, `waveLeaks`, `waveStartedAt`). The hit test reuses `enemyAt()` from `systems/FocusTarget.js`, which already existed. |
+| `src/style.css` | `.wave-clear`, `.enemy-card`, the three `is-*-cursor` classes on `#game-container`. |
+| `tests/enemy-card.test.js` **(new, 16 tests)** | The card's lines, its boss/flying/shielded flags and the round-trip from `enemy.stats`. |
+
+### The wave-clear card
+
+Prints `WAVE n CLEARED`, `FLAWLESS` when nothing leaked, then
+`14 slain · 0 leaked · 51s · +46 gold`. 2.6 s, above the dock, never over the
+wave call. Verified in the browser (`docs/ui-after/phase6/waveClear-1280x768.png`).
+
+### The creep card
+
+`enemyCard(enemy, tileSize)` → `{ name, hp, max, pct, boss, speed, armour, traits,
+resistance, flying, shielded }`. Speed is reported in **tiles/s**, which is what
+the player can compare between two creeps; the raw px/s is in the stat block and
+means nothing on screen. Cursor states: `is-build-cursor` on a legal tile,
+`is-invalid-cursor` on an enemy zone or a path, `is-inspect-cursor` otherwise.
+
+### Onboarding nudges
+
+`tickOnboardingHint()` runs on a 4 s cadence and speaks only when the player has
+been idle for 20 s with no keeps placed (or 30 s with an affordable upgrade
+waiting). 45 s per key, 30 s global, silent under `body.modal-open`, during the
+tutorial hold and after game over.
+
+### Verified
+
+`npm run build` ✓ 8.37 s · `npx vitest run` → **134 files / 1756 passed**.
+Shots: `docs/ui-after/phase6/` (`waveClear-`, `enemyCard-`, `rail-prep-`,
+`rail-combat-` at 1280×768 and 1024×640, plus the 667×375 phone rail).
+
+---
+
+## 13. The top rail (after Phase 6)
+
+The request: the card/panel behind every top-HUD icon goes, replaced by a black
+fade like the realm header and display type.
+
+### What is on the strip now
+
+| Element | Before | Now |
+| ------- | ------ | --- |
+| the bar | 9-slice sprite frame + drop shadow | `::before` masked black gradient, no frame |
+| BASE / GOLD / SCORE | three engraved slots | 10 px Cinzel kicker over a 17 px cream value |
+| wave pill | framed slot | type + a gold meter rule |
+| START WAVE | gold 9-slice plate | 17 px gold display type + breathing underline |
+| speed / pause / mute / fullscreen | four dark chips with a border | four glyphs, one 44 px box each, one divider |
+| level name | bordered pill | plain gold-dim caption |
+
+No element in the strip draws a card, a chip or a radius any more. Only paint
+was removed: every hit box, id, handler and hotkey is untouched.
+
+### Why the fade is a pseudo-element
+
+`z-index: -1` inside the bar's own stacking context puts it behind every child
+and above the board, so it can bleed past the bar's box (`inset: … -26px -22px`)
+and dissolve horizontally through `mask-image` without fading the two controls at
+the ends with it. A background on the bar itself would be clipped to the bar.
+
+### Verified
+
+`npm run build` ✓ 6.85 s · `npx vitest run` → **135 files / 1762 passed**
+(`tests/hud-rail.test.js` pins the six negative rules so a later style pass
+cannot quietly put a plate back).
+Shots: `docs/ui-after/phase6/rail-*.png`.
