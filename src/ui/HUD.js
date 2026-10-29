@@ -98,6 +98,8 @@ export class HUD {
     this.setDockCollapsed(this.shell === 'mobile' ? true : this.readDockCollapsed(), { persist: false });
     this.syncDockScrim();
     this.bindInspectorDrag();
+    this.bindFamilyMenu();
+    this.bindBuildTips();
     this.bindViewport();
 
     // Publish the real dock / top-bar heights as CSS variables so the floating
@@ -180,6 +182,144 @@ export class HUD {
    * fixed 60 px offset, which put the hero card over the bar on desktop. The
    * measured number is the only anchor that survives every viewport.
    */
+  /**
+   * One scale factor for the whole HUD, plus a compact tier.
+   *
+   * The DOM layer is laid out in viewport pixels while the canvas is a
+   * FIT-scaled 1280×768 stage, so at 1024×640 the HUD used to stay exactly as
+   * big as it is at 1280 and *feel* bigger — the same bar, the same dock, a
+   * smaller battlefield. `--ui-scale` is the ratio between the fitted stage
+   * width and the authored one, floored at 0.84 so 14 px text never drops under
+   * 12 px on the narrowest supported window.
+   *
+   * `data-density="compact"` is the second lever: below 1100 px wide (or 640 px
+   * tall) the bar drops its secondary labels and the dock tightens its gaps.
+   * It is a *density*, not a third shell — the phone shell still wins when the
+   * pointer is coarse.
+   */
+  syncDensity() {
+    const win = typeof window === 'undefined' ? null : window;
+    if (!win?.document?.documentElement) return;
+    const width = win.innerWidth || 1280;
+    const height = win.innerHeight || 768;
+    // Mirrors `--stage-width: min(100vw, 100dvh * 25 / 12)`.
+    const stage = Math.min(width, (height * 25) / 12);
+    const scale = Math.max(0.84, Math.min(1, stage / 1280));
+    const root = win.document.documentElement;
+    const next = scale.toFixed(3);
+    if (this.uiScale !== next) {
+      this.uiScale = next;
+      root.style.setProperty('--ui-scale', next);
+    }
+    const density = width <= 1100 || height <= 640 ? 'compact' : 'normal';
+    if (root.dataset.density !== density) root.dataset.density = density;
+  }
+
+  /**
+   * The family switcher.
+   *
+   * One button, one popover. Outside-click and Escape close it; picking a tab
+   * closes it through `setDockGroup`. The four `.dock-tab` buttons inside are
+   * the same nodes, ids and handlers the tab strip had, so the roving tabindex,
+   * the arrow keys and the storage key all still work.
+   */
+  bindFamilyMenu() {
+    const button = document.getElementById('dock-family-btn');
+    const tabs = document.getElementById('dock-tabs');
+    if (!button || !tabs) return;
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.setFamilyMenuOpen(!tabs.classList.contains('is-open'));
+    });
+    tabs.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.setFamilyMenuOpen(false);
+        button.focus();
+      }
+    });
+    document.addEventListener('click', (event) => {
+      if (!tabs.classList.contains('is-open')) return;
+      if (tabs.contains(event.target) || button.contains(event.target)) return;
+      this.setFamilyMenuOpen(false);
+    });
+  }
+
+  setFamilyMenuOpen(open) {
+    const tabs = document.getElementById('dock-tabs');
+    const button = document.getElementById('dock-family-btn');
+    if (!tabs || !button) return;
+    tabs.classList.toggle('is-open', Boolean(open));
+    button.setAttribute('aria-expanded', String(Boolean(open)));
+  }
+
+  /**
+   * The build card's hover / focus card.
+   *
+   * A 76 px card has room for an icon, a hotkey and a price. Damage, range,
+   * rate, target category and the description live here, and they open on
+   * keyboard focus as well as on hover — a tooltip that only answers a mouse is
+   * a feature half the players cannot use.
+   */
+  bindBuildTips() {
+    const dock = document.getElementById('hud-bottom-dock');
+    if (!dock) return;
+    dock.addEventListener('pointerover', (event) => {
+      const card = event.target?.closest?.('.build-card');
+      if (card) this.showBuildTip(card);
+    });
+    dock.addEventListener('pointerout', (event) => {
+      const card = event.target?.closest?.('.build-card');
+      if (!card) return;
+      if (card.contains(event.relatedTarget)) return;
+      this.hideBuildTip();
+    });
+    dock.addEventListener('focusin', (event) => {
+      const card = event.target?.closest?.('.build-card');
+      if (card) this.showBuildTip(card);
+    });
+    dock.addEventListener('focusout', (event) => {
+      const card = event.target?.closest?.('.build-card');
+      if (!card) return;
+      if (card.contains(event.relatedTarget)) return;
+      this.hideBuildTip();
+    });
+  }
+
+  showBuildTip(card) {
+    const tip = document.getElementById('build-tip');
+    const dock = document.getElementById('hud-bottom-dock');
+    if (!tip || !dock || !card) return;
+    const def = getBuildDefinition(card.dataset.key);
+    if (!def) return;
+    const level = def.levels?.[0] || {};
+    const stats = [];
+    if (Number.isFinite(level.damage)) stats.push(`<span>DMG <b>${level.damage}</b></span>`);
+    if (Number.isFinite(level.range)) stats.push(`<span>RNG <b>${level.range}</b></span>`);
+    if (Number.isFinite(level.cooldown) && level.cooldown > 0) {
+      stats.push(`<span>RATE <b>${(1000 / level.cooldown).toFixed(1)}/s</b></span>`);
+    }
+    tip.innerHTML = `
+      <span class="build-tip-name">${def.name}</span>
+      ${stats.length ? `<span class="build-tip-stats">${stats.join('')}</span>` : ''}
+      <span class="build-tip-desc">${def.description || ''}</span>
+      <span class="build-tip-price">${def.cost} gold · hits ${targetLabel(def).toLowerCase()} creeps</span>
+    `;
+    tip.hidden = false;
+    // Centre the card on the card that owns it, clamped inside the dock so it
+    // can never poke off the edge on the last card in the row.
+    const half = 124;
+    const width = dock.clientWidth || 0;
+    const centre = (card.offsetLeft || 0) + (card.offsetWidth || 0) / 2;
+    const clamped = Math.min(Math.max(centre, half), Math.max(half, width - half));
+    tip.style.setProperty('--tip-x', `${Math.round(clamped)}px`);
+  }
+
+  hideBuildTip() {
+    const tip = document.getElementById('build-tip');
+    if (tip) tip.hidden = true;
+  }
+
   syncTopBarMetric() {
     const bar = document.getElementById('hud-top-bar');
     if (!bar) return;
@@ -193,21 +333,25 @@ export class HUD {
     this.container.innerHTML = `
       <div id="hud-top-bar" class="hud-panel hud-topbar">
         <div class="hud-stat-group">
-          <div class="hud-stat" id="stat-base-hp" title="Base integrity — if this hits 0 the realm falls">
+          <!-- Left zone: the three numbers that decide the run. Each is an iron
+               socket with a 14 px label over its value; the base-integrity one
+               also carries a 3 px fill along its bottom edge, which is the only
+               part of the bar that moves on damage. -->
+          <div class="hud-stat hud-stat-hp" id="stat-base-hp" title="Base integrity — if this hits 0 the realm falls" role="img" aria-label="Base integrity">
             <img class="hud-icon-img heart-pulse" src="/assets/ui/icon_heart.svg" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">BASE</span>
               <span class="hud-value" id="val-base-hp">${STARTING_BASE_HEALTH} / ${STARTING_BASE_HEALTH}</span>
             </div>
           </div>
-          <div class="hud-stat" id="stat-coins" title="Treasury — spend gold on defences">
+          <div class="hud-stat" id="stat-coins" title="Treasury — spend gold on defences" role="img" aria-label="Treasury">
             <img class="hud-icon-img gold-coin" src="/assets/ui/icon_coin.png" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">GOLD</span>
               <span class="hud-value gold-text" id="val-coins">${STARTING_COINS}</span>
             </div>
           </div>
-          <div class="hud-stat" id="stat-score" title="Total score">
+          <div class="hud-stat" id="stat-score" title="Total score" role="img" aria-label="Score">
             <img class="hud-icon-img" src="/assets/ui/icon_trophy.png" alt="" />
             <div class="hud-stat-meta">
               <span class="hud-label">SCORE</span>
@@ -217,11 +361,14 @@ export class HUD {
         </div>
 
         <div class="hud-stat-group hud-center-group">
+          <!-- Center zone: ONE line — WAVE 1 / 6 · 10 left — with the
+               enemies-remaining meter as a rule along the bottom edge. -->
           <div class="hud-wave-badge" title="Current wave">
             <span class="hud-wave-label">WAVE</span>
             <span class="hud-wave-number" id="val-wave">1 / 6</span>
-            <span class="hud-wave-sub" id="val-enemies-left">10 Enemies</span>
+            <span class="hud-wave-sub" id="val-enemies-left">10 left</span>
             <span class="hud-wave-best hidden" id="val-endless-best">BEST 0</span>
+            <span class="hud-wave-meter" aria-hidden="true"><i id="wave-meter-fill"></i></span>
           </div>
           <div class="hud-wave-stack">
             <button id="btn-start-wave" class="game-btn game-btn-primary game-btn-pulse" title="Start the next wave (Space)">
@@ -271,7 +418,7 @@ export class HUD {
       </div>
 
       <button id="focus-chip" class="focus-chip hud-panel hidden" title="Release the focus target (Esc)" aria-live="polite">
-        <span class="focus-chip-ring" aria-hidden="true">◎</span>
+        <span class="focus-chip-ring" aria-hidden="true"></span>
         <span class="focus-chip-body">
           <span class="focus-chip-name" id="focus-name">SHAMAN</span>
           <span class="focus-chip-hp" id="focus-hp">240 / 480</span>
@@ -301,14 +448,14 @@ export class HUD {
 
       <div id="boss-banner" class="boss-panel hud-panel hidden">
         <div class="boss-title-row">
-          <span class="boss-skull">💀</span>
+          <span class="boss-tag">BOSS</span>
           <span id="boss-name" class="boss-name">STONE COLOSSUS</span>
           <span id="boss-phase-badge" class="boss-phase-badge">PHASE 1</span>
           <span id="boss-extra" class="boss-phase-badge boss-extra hidden">+1</span>
         </div>
         <div class="boss-bar-frame">
-          <div id="boss-shield-bar" class="boss-shield-bar" style="width: 0%;"></div>
-          <div id="boss-hp-bar" class="boss-hp-bar" style="width: 100%;"></div>
+          <div id="boss-shield-bar" class="boss-shield-bar"></div>
+          <div id="boss-hp-bar" class="boss-hp-bar"></div>
         </div>
         <div class="boss-hp-values">
           <span id="boss-hp-text">1600 / 1600 HP</span>
@@ -319,7 +466,9 @@ export class HUD {
       <div id="toast-banner" class="toast-banner hidden" role="status" aria-live="polite"></div>
 
       <div id="camera-hint" class="camera-hint hidden">
-        <span class="camera-hint-icon">✥</span>
+        <span class="camera-hint-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16M12 4l-3 3M12 4l3 3M12 20l-3-3M12 20l3-3M4 12l3-3M4 12l3 3M20 12l-3-3M20 12l-3 3" /></svg>
+        </span>
         <span id="camera-hint-text"><strong>Drag</strong> to pan · <strong>Scroll</strong> or <strong>pinch</strong> to zoom · <strong>Tap a creep</strong> to focus fire</span>
         <button id="btn-dismiss-hint" class="camera-hint-dismiss" aria-label="Dismiss camera hint">✕</button>
       </div>
@@ -380,25 +529,45 @@ export class HUD {
 
       <div id="dock-scrim" class="dock-scrim hidden" aria-hidden="true"></div>
 
+      <!--
+        THE FORGE — one 84 px band, left to right: fold handle · family
+        switcher · cards · build-point budget.
+
+        The family pages used to be a 30 px tab strip inside the band, which
+        cost 34 px of height for a control that only ever picked a filter. The
+        four tabs still exist with the same ids and handlers; they now open as
+        a popover from the family button.
+      -->
       <div id="hud-bottom-dock" class="hud-panel hud-dock">
         <div id="placement-hint" class="placement-hint hidden">
           <span id="placement-hint-text">Placing defence…</span>
           <button id="btn-cancel-placement" class="placement-hint-cancel" aria-label="Cancel placement">ESC</button>
         </div>
+        <!-- Hover / focus card: the stats the 68 px card face has no room for. -->
+        <div id="build-tip" class="build-tip" role="tooltip" hidden></div>
         <div class="dock-head">
           <button id="btn-toggle-dock" class="dock-toggle" type="button" aria-expanded="true"
                   aria-controls="dock-cards-container" title="Hide or show the forge (H)">
-            <span class="dock-toggle-glyph" aria-hidden="true">⚒</span>
+            <span class="dock-toggle-glyph" aria-hidden="true"></span>
             <span class="dock-title" id="dock-title">FORGE DEFENSES</span>
             <span class="dock-title-short" id="dock-title-short">BUILD</span>
             <span class="dock-toggle-chevron" aria-hidden="true">▾</span>
           </button>
-          <!-- Build-point budget. Only stages that cap keeps (stage 1: eight)
-               show it; everywhere else setBuildPoints hides it again. -->
-          <span id="dock-points" class="dock-points hidden" aria-live="polite"></span>
         </div>
-        <div class="dock-tabs" id="dock-tabs" role="tablist" aria-label="Defence families"></div>
+        <div class="dock-family" id="dock-family">
+          <button id="dock-family-btn" class="dock-family-btn" type="button"
+                  aria-haspopup="true" aria-expanded="false" aria-controls="dock-tabs"
+                  title="Switch defence family">
+            <span class="dock-family-name" id="dock-family-name">KEEPS</span>
+            <span class="dock-family-count" id="dock-family-count">5</span>
+            <span class="dock-family-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="dock-tabs" id="dock-tabs" role="tablist" aria-label="Defence families"></div>
+        </div>
         <div class="dock-cards" id="dock-cards-container"></div>
+        <!-- Build-point budget. Only stages that cap keeps (stage 1: eight)
+             show it; everywhere else setBuildPoints hides it again. -->
+        <span id="dock-points" class="dock-points hidden" aria-live="polite"></span>
       </div>
     `;
 
@@ -553,6 +722,19 @@ export class HUD {
   }
 
   /**
+   * The word printed on a 76 px card face.
+   *
+   * `def.name` is a full name ("Ballista Tower", "Boulder Sling") that does not
+   * fit a 70 px label at the 14 px minimum, and truncating it to "Ballista To…"
+   * was the ugliest thing in the dock. The first word is a real word, not a
+   * fragment; the full name is in `title`, in the aria-label, in the hover card
+   * and in the placement hint the moment the card is armed.
+   */
+  cardLabel(def) {
+    return String(def?.name || '').trim().split(/\s+/)[0] || String(def?.key || '');
+  }
+
+  /**
    * Draw the dock.
    *
    * Twelve defences in one strip was the "masikip" layout: the cards shrank to
@@ -571,7 +753,8 @@ export class HUD {
         <button class="dock-tab" type="button" role="tab" data-group="${group.key}"
                 id="dock-tab-${group.key}" aria-controls="dock-cards-container"
                 title="${group.hint}">
-          <span class="dock-tab-count">${group.lines.length}</span>${group.label}
+          <span class="dock-tab-label">${group.label}</span>
+          <span class="dock-tab-count">${group.lines.length}</span>
         </button>
       `
       ).join('');
@@ -616,9 +799,12 @@ export class HUD {
           <div class="card-icon-frame">
             <div class="card-sprite sprite-${key}"></div>
           </div>
+          <!-- Price sits on the card itself, not inside the clipped info box:
+               that box is hidden the screen-reader way, which would hide the
+               price with it. -->
+          <span class="card-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${def.cost}</span>
           <div class="card-info">
-            <span class="card-name">${def.name}</span>
-            <span class="card-cost"><img class="cost-coin-icon" src="/assets/ui/icon_coin.png" alt="Gold" /> ${def.cost}</span>
+            <span class="card-name">${this.cardLabel(def)}</span>
             <span class="card-target target-${this.badgeFor(def).toLowerCase().replace(/[^a-z]/g, '')}" title="${this.badgeTitle(def)}">${this.badgeFor(def)}</span>
           </div>
         </button>
@@ -650,6 +836,7 @@ export class HUD {
     this.dockGroup = group.key;
     if (changed) audio.playClick();
     this.applyDockGroup();
+    this.setFamilyMenuOpen(false);
     if (persist) {
       try {
         window.localStorage.setItem(DOCK_GROUP_KEY, group.key);
@@ -664,6 +851,11 @@ export class HUD {
   applyDockGroup() {
     const dock = document.getElementById('hud-bottom-dock');
     if (dock) dock.dataset.group = this.dockGroup;
+    const group = BUILD_GROUPS.find((entry) => entry.key === this.dockGroup) || BUILD_GROUPS[0];
+    const familyName = document.getElementById('dock-family-name');
+    const familyCount = document.getElementById('dock-family-count');
+    if (familyName) familyName.textContent = group.label;
+    if (familyCount) familyCount.textContent = String(group.lines.length);
     document.querySelectorAll('.build-card').forEach((card) => {
       const visible = card.dataset.group === this.dockGroup;
       card.classList.toggle('tab-hidden', !visible);
@@ -1105,7 +1297,17 @@ export class HUD {
 
   bindEvents() {
     document.querySelectorAll('.build-card').forEach((card) => {
-      card.addEventListener('click', () => this.toggleBuildSelection(card.dataset.key));
+      card.addEventListener('click', () => {
+        // An unaffordable card still arms: the ghost and the range ring are how
+        // a player learns what they are saving for, and refusing the selection
+        // would take that preview away. The price shakes and the denied tick
+        // plays instead, and the placement hint already says NEED X GOLD.
+        const def = getBuildDefinition(card.dataset.key);
+        if (def && (Number(this.coins) || 0) < def.cost && this.selectedBuildKey !== card.dataset.key) {
+          this.flashUnaffordable(card);
+        }
+        this.toggleBuildSelection(card.dataset.key);
+      });
     });
 
     document.getElementById('btn-start-wave')?.addEventListener('click', () => {
@@ -1308,9 +1510,11 @@ export class HUD {
   bindViewport() {
     this._onResize = () => {
       this.syncShell();
+      this.syncDensity();
       this.repositionInspector();
       this.syncInspectorScroll();
     };
+    this.syncDensity();
     window.addEventListener('resize', this._onResize);
     window.addEventListener('orientationchange', this._onResize);
 
@@ -1966,6 +2170,19 @@ export class HUD {
     if (had && !silent) this.callbacks.onSelectBuild?.(null);
   }
 
+  /** Shake the price tag of a card the treasury cannot pay for yet. */
+  flashUnaffordable(card) {
+    audio.playError();
+    const cost = card?.querySelector?.('.card-cost');
+    if (!cost) return;
+    cost.classList.remove('denied');
+    // Reading `offsetWidth` restarts the animation on a second tap.
+    void cost.offsetWidth;
+    cost.classList.add('denied');
+    clearTimeout(this.denyTimer);
+    this.denyTimer = setTimeout(() => cost.classList.remove('denied'), 320);
+  }
+
   setPlacementHint(key) {
     const hint = document.getElementById('placement-hint');
     const text = document.getElementById('placement-hint-text');
@@ -2207,6 +2424,11 @@ export class HUD {
     this.setText('val-base-hp', `${baseHealth} / ${maxBaseHealth}`);
     this.setText('val-coins', coins);
     this.setText('val-score', score);
+    // The three stat sockets announce their whole sentence: on the compact
+    // density the visible label is clipped to the icon, and "GOLD 300" as two
+    // separate text nodes reads as "300" to a screen reader.
+    document.getElementById('stat-coins')?.setAttribute('aria-label', `Treasury ${coins} gold`);
+    document.getElementById('stat-score')?.setAttribute('aria-label', `Score ${score}`);
     this.setText('val-wave', endless ? `${waveNumber}` : `${waveNumber} / ${totalWaves}`);
     if (levelName) {
       this.setText('hud-level-name', String(levelName).toUpperCase());
@@ -2227,6 +2449,26 @@ export class HUD {
           ? `${enemiesRemaining} spawning…`
           : `${enemiesRemaining} left`
     );
+
+    // The enemies-remaining rule under the wave pill. `enemiesRemaining` falls
+    // all wave long, so the bar needs the wave's own peak to mean anything; it
+    // is captured when the wave number changes and never guessed from the data
+    // (a wave's composition is the wave manager's business, not the HUD's).
+    const remaining = Number(enemiesRemaining);
+    const waveId = `${waveNumber}/${totalWaves}`;
+    if (this.waveIdShown !== waveId) {
+      this.waveIdShown = waveId;
+      this.wavePeak = Number.isFinite(remaining) ? Math.max(1, remaining) : 1;
+    }
+    if (Number.isFinite(remaining) && remaining > (this.wavePeak || 0)) this.wavePeak = remaining;
+    const leftRatio = this.wavePeak > 0 && Number.isFinite(remaining)
+      ? Math.max(0, Math.min(1, remaining / this.wavePeak))
+      : 0;
+    const leftRounded = Math.round(leftRatio * 100) / 100;
+    if (this.waveLeftShown !== leftRounded) {
+      this.waveLeftShown = leftRounded;
+      badge?.style.setProperty('--wave-left', String(leftRounded));
+    }
 
     // Endless only: the personal best sits under the wave number, and turns
     // gold the moment the run passes it.
@@ -2249,6 +2491,21 @@ export class HUD {
       const critical = state === BASTION_STATE.CRITICAL || state === BASTION_STATE.FALLEN;
       hpStat.classList.toggle('critical', critical);
       hpStat.classList.toggle('warning', state === BASTION_STATE.WARNING);
+      // 3 px fill along the pill's bottom edge. One custom property, written
+      // only when the ratio actually changes — this runs at 8 Hz.
+      const max = Number(maxBaseHealth);
+      const hp = Number(baseHealth);
+      const ratio = max > 0 && Number.isFinite(hp) ? Math.max(0, Math.min(1, hp / max)) : 0;
+      const rounded = Math.round(ratio * 100) / 100;
+      if (this.hpRatioShown !== rounded) {
+        this.hpRatioShown = rounded;
+        hpStat.style.setProperty('--hp-ratio', String(rounded));
+        hpStat.style.setProperty(
+          '--hp-tone',
+          rounded <= 0.25 ? 'var(--hp-bad)' : rounded <= 0.5 ? 'var(--hp-warn)' : 'var(--hp-good)'
+        );
+      }
+      hpStat.setAttribute('aria-label', `Base integrity ${hp} of ${max}`);
     }
 
     const startBtn = document.getElementById('btn-start-wave');

@@ -196,6 +196,61 @@
      image-set juggling is needed; the JPGs stay on disk as the fallback copy
      until the WebP pair has had a release of browser time. */
   --ui-menu-bg: url('/assets/ui-kit/menu-keep.webp');
+
+  /* ------------------------------------------------------------------------
+     UI SYSTEM — the one scale every HUD surface is built from.
+     ------------------------------------------------------------------------
+     Added for the UI overhaul. Nothing here is a new colour: the palette above
+     is the palette. These are the *decisions* (how far apart things sit, how
+     fast they move, which shadow a panel may use) that used to be re-invented
+     per rule, which is how the top bar ended up 80 px tall with six different
+     drop shadows in one screenshot.
+
+     Rules of the house:
+       · spacing     4 / 8 / 12 / 16 / 24 / 32 only
+       · shadow      ONE panel shadow (--shadow-panel). No second flavour.
+       · panels with `border-image` never get `box-shadow`: the shadow paints
+                     a rectangle behind the transparent 9-slice corners, which
+                     is the dark box the audit found around the bar and dock.
+                     Use `filter: var(--shadow-panel)` instead.
+       · motion      nothing appears or disappears instantly.
+     --------------------------------------------------------------------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  --stroke-ink: 2px;
+  --shadow-panel: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.35));
+  --shadow-glow: drop-shadow(0 0 12px var(--gold-glow));
+
+  --t-fast: 120ms;
+  --t-med: 200ms;
+  --t-slow: 350ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-pop: cubic-bezier(0.18, 0.89, 0.32, 1.28);
+
+  /* Semantic aliases — read the intent, not the hex. */
+  --hp-good: var(--emerald-primary);
+  --hp-warn: var(--gold-primary);
+  --hp-bad: var(--crimson-primary);
+  --danger: var(--crimson-primary);
+  --success: var(--emerald-primary);
+  --panel-wood: var(--wood);
+  --panel-parchment: var(--parchment);
+
+  /* Height budget for the two reserved HUD bands. The camera fits the board
+     between them (src/ui/hudLayout.js publishes the measured values), so these
+     are also the "how much of the screen is furniture" numbers. */
+  --hud-bar-h: 56px;
+  --hud-dock-h: 84px;
+  /* Live scale factor for HUD type and hit areas: 1 on a 1280-wide stage,
+     floored so text never goes below the 14 px floor. Written by
+     HUD.syncDensity(); the compact shell reads it too. */
+  --ui-scale: 1;
 }
 
 /* ==========================================================================
@@ -386,25 +441,43 @@ body.is-fullscreen::before {
   pointer-events: none;
 }
 
+/*
+ * THE TOP BAR — one 56 px band, three zones.
+ *
+ * It used to be 80 px: the engraved bar sprite carries a 20 px border on the
+ * top and bottom (`border-image-width: 20px`), and the three-line wave badge
+ * then pushed the content row past the 56 px `min-height`. Forty of those
+ * eighty pixels were frame, and the wave readout stacked WAVE / 1 / 8 / 10
+ * Enemies into a column four lines tall.
+ *
+ * Now: the frame is 6 px, the bar is a fixed 56 px tall (so the camera fit and
+ * `hudLayout` agree on one number), and everything inside is a single row —
+ * stats on the left, the wave pill and START WAVE in the middle, the four
+ * round controls on the right. No `box-shadow`: it painted a hard rectangle
+ * behind the sprite's transparent end caps. The drop shadow follows the alpha.
+ */
 .hud-topbar {
-  top: calc(clamp(6px, 1.2vh, 12px) + var(--safe-top));
+  top: calc(clamp(4px, 1vh, 8px) + var(--safe-top));
   left: calc(clamp(8px, 1.4vw, 16px) + var(--safe-left));
   right: calc(clamp(8px, 1.4vw, 16px) + var(--safe-right));
+  box-sizing: border-box;
+  height: var(--hud-bar-h);
+  min-height: var(--hud-bar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(6px, 1vw, 18px);
-  min-height: 56px;
+  flex-wrap: nowrap;
+  gap: var(--sp-2);
   background: transparent;
   border: none;
   border-image-source: var(--ui-bar);
   border-image-slice: 40 60 40 60 fill;
-  border-image-width: 20px 32px 20px 32px;
+  border-image-width: 6px 26px 6px 26px;
   border-image-repeat: stretch;
   border-style: solid;
   border-radius: 0;
-  padding: clamp(4px, 0.9vh, 10px) clamp(22px, 2.6vw, 42px);
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.7);
+  padding: 0 clamp(10px, 1.4vw, 22px);
+  filter: var(--shadow-panel);
 }
 
 .hud-stat-group {
@@ -424,19 +497,21 @@ body.is-fullscreen::before {
 }
 
 .hud-stat {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
+  height: 40px;
   background: transparent;
   border: none;
   border-image-source: var(--ui-slot);
   border-image-slice: 20 20 20 20 fill;
-  border-image-width: 11px;
+  border-image-width: 8px;
   border-image-repeat: stretch;
   border-style: solid;
-  padding: clamp(3px, 0.6vh, 7px) clamp(8px, 1vw, 14px);
+  padding: 0 var(--sp-2) 0 7px;
   border-radius: 0;
-  transition: filter 0.2s ease;
+  transition: filter var(--t-med) var(--ease-out);
 }
 
 .hud-stat.warning {
@@ -452,6 +527,26 @@ body.is-fullscreen::before {
   50% {
     filter: drop-shadow(0 0 14px rgba(255, 84, 112, 1));
   }
+}
+
+/* The base-integrity meter: a 3 px fill pinned to the bottom edge of the
+   heart pill. It is the only thing in the bar that moves on damage, so it is
+   drawn from one custom property (`--hp-ratio`) instead of a child width. */
+.hud-stat-hp::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--hp-tone, var(--hp-good)) calc(var(--hp-ratio, 1) * 100%),
+    rgba(0, 0, 0, 0.55) calc(var(--hp-ratio, 1) * 100%)
+  );
+  transition: background var(--t-med) var(--ease-out);
+  pointer-events: none;
 }
 
 .hud-icon-img {
@@ -489,12 +584,17 @@ body.is-fullscreen::before {
 .hud-stat-meta {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   line-height: 1.05;
+  min-width: 0;
 }
 
 .hud-label {
-  font-size: var(--fs-micro);
-  letter-spacing: 1px;
+  /* 14 px floor — the design system's minimum for any text. It used to be
+     9–11 px, which is why BASE / GOLD / SCORE read as smudges in the audit. */
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.8px;
   color: var(--slot-muted);
   font-weight: 700;
   text-transform: uppercase;
@@ -502,11 +602,13 @@ body.is-fullscreen::before {
 }
 
 .hud-value {
-  font-size: var(--fs-value);
+  font-size: 15px;
+  line-height: 1.1;
   font-weight: 700;
   color: #ffffff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .gold-text {
@@ -521,27 +623,59 @@ body.is-fullscreen::before {
   font-weight: 700;
 }
 
+/*
+ * The wave pill — ONE line: "WAVE 1 / 8 · 10 LEFT", with the enemies-remaining
+ * meter as a 3 px gold rule along the bottom edge of the same pill.
+ *
+ * It used to be a column (WAVE / 1 / 8 / 10 Enemies) four lines tall, which is
+ * what made the bar overflow its own 56 px budget and what truncated the MENU
+ * button at the right edge.
+ */
 .hud-wave-badge {
+  position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   flex: 0 0 auto;
-  gap: 1px;
+  gap: var(--sp-2);
+  height: 44px;
   background: transparent;
   border: none;
   border-image-source: var(--ui-slot-sel);
   border-image-slice: 20 20 20 20 fill;
-  border-image-width: 13px;
+  border-image-width: 10px;
   border-image-repeat: stretch;
   border-style: solid;
-  padding: clamp(3px, 0.6vh, 7px) clamp(10px, 1.4vw, 18px);
+  padding: 0 clamp(10px, 1vw, 16px) 6px;
   border-radius: 0;
   color: var(--ink-strong);
 }
 
+/* Enemies still standing in this wave, as a shrinking gold rule. */
+.hud-wave-meter {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 5px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hud-wave-meter i {
+  display: block;
+  height: 100%;
+  width: calc(var(--wave-left, 0) * 100%);
+  background: linear-gradient(90deg, #f5c451, #ffe6a3);
+  transition: width var(--t-med) var(--ease-out);
+}
+
 .hud-wave-label {
-  font-size: var(--fs-micro);
-  letter-spacing: 1.4px;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 1.2px;
   color: var(--ink-muted);
   font-weight: 700;
   text-transform: uppercase;
@@ -552,7 +686,7 @@ body.is-fullscreen::before {
    so a wrap reads as two different numbers. nowrap + a stable min-width keeps
    the badge the same width from wave 1 to wave 100 on every breakpoint. */
 .hud-wave-number {
-  font-size: clamp(16px, 1.5vw, 24px);
+  font-size: 18px;
   font-weight: 700;
   color: var(--ink-strong);
   line-height: 1;
@@ -563,10 +697,12 @@ body.is-fullscreen::before {
 }
 
 .hud-wave-sub {
-  font-size: var(--fs-micro);
+  font-size: 14px;
+  line-height: 1;
   font-weight: 700;
   color: var(--ink-muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ==========================================================================
@@ -643,10 +779,20 @@ body.is-fullscreen::before {
   font-size: var(--fs-small);
 }
 
+/*
+ * Round icon controls. 44 × 44 is the touch minimum and it also happens to be
+ * exactly what fits the 56 px bar (44 + the 6 px frame top and bottom). The
+ * old ones were 36–47 px wide and 39 px tall, which is why the audit counted
+ * six of them as "tiny".
+ */
 .game-btn-icon {
-  padding: 2px 4px;
-  border-width: 10px 12px;
-  min-width: 36px;
+  padding: 0;
+  border-width: 8px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  flex: 0 0 auto;
+  font-size: 15px;
 }
 
 .game-btn-pulse {
@@ -660,8 +806,21 @@ body.is-fullscreen::before {
 .hud-wave-stack {
   position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
+}
+
+/* The one primary call to action in the bar, sized to the same 44 px row as
+   the icon buttons so the three zones share a baseline. */
+#btn-start-wave {
+  height: 44px;
+  min-width: 176px;
+  padding: 0 var(--sp-3);
+  font-size: 15px;
+  letter-spacing: 1.2px;
+}
+
+#btn-start-wave .btn-text {
+  white-space: nowrap;
 }
 
 /* The auto-start countdown, printed on the wave badge. Gold while it runs so a
@@ -919,25 +1078,171 @@ body.is-fullscreen::before {
    BOTTOM DOCK
    ========================================================================== */
 
+/*
+ * THE FORGE — one 84 px translucent band.
+ *
+ * It used to be 205 px: a fold header, a tab strip and a 120 px card row, all
+ * inside a bar sprite with a 20 px border top and bottom. On a 1024×640 screen
+ * that is a third of the visible height spent on a shop.
+ *
+ * The compact band keeps the same three jobs in one row — fold, family, cards —
+ * as *glass* rather than as an engraved plate: a translucent dark pane with a
+ * brass hairline, a 12 px radius and a drop shadow. Nothing here is a
+ * `border-image` any more, so the shadow follows the corners instead of
+ * painting a rectangle behind them.
+ */
 .hud-dock {
   bottom: calc(clamp(6px, 1.4vh, 14px) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
-  /* Seven cards plus the hint must never poke past the safe area. */
+  /* Five cards plus the hint must never poke past the safe area. */
   max-width: calc(100vw - 8px - var(--safe-left) - var(--safe-right));
+  box-sizing: border-box;
+  height: var(--hud-dock-h);
+  /* Content-sized and centred. Shrink-to-fit against `left: 50%` measured less
+     than the row needed and the last card was pushed under the edge; asking for
+     max-content and letting `max-width` cap it keeps the row exact. */
+  width: max-content;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-2);
+  /* 84 = 1 px border ×2 + 6 px padding ×2 + the 68 px card, exactly. */
+  padding: 6px var(--sp-3);
+  background: linear-gradient(180deg, rgba(20, 24, 32, 0.82), rgba(8, 11, 16, 0.93));
+  border: 1px solid rgba(198, 158, 88, 0.34);
+  border-radius: 12px;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/*
+ * The family switcher.
+ *
+ * Twenty defences cannot share one strip, and a 30 px tab row cost 34 px of
+ * height for a control that only picks a filter. The families now open from one
+ * button; the four `.dock-tab`s still exist (same ids, same handlers, same
+ * roving tabindex) inside a popover that is `display: none` until asked for.
+ */
+.dock-family {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.dock-family-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--ink-gold);
+  background: rgba(8, 11, 16, 0.55);
+  border: 1px solid rgba(198, 158, 88, 0.4);
+  border-radius: 8px;
+  cursor: var(--ui-cursor) 12 4, pointer;
+  pointer-events: auto;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+
+.dock-family-btn:hover {
+  background: rgba(28, 24, 16, 0.8);
+  border-color: rgba(245, 196, 81, 0.65);
+}
+
+.dock-family-btn:focus-visible {
+  outline: 2px solid var(--cyan-primary);
+  outline-offset: 2px;
+}
+
+.dock-family-count {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dock-family-caret {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.75;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.dock-family-btn[aria-expanded='true'] .dock-family-caret {
+  transform: rotate(180deg);
+}
+
+/*
+ * The hover / focus card for a defence.
+ *
+ * The card face carries an icon, a hotkey and a price — the same three things a
+ * Kingdom Rush build button carries — so the stats need somewhere to live that
+ * is *not* hover-only: it also opens on keyboard focus and on touch (first tap
+ * selects, the tip follows the selection).
+ */
+.build-tip {
+  position: absolute;
+  /* Clears the placement hint, which is pinned to the same edge: a tooltip
+     that opens under "PLACING BALLISTA TOWER" answers a question nobody can
+     read. 52 px = hint height + its gap. */
+  bottom: calc(100% + 52px);
+  left: var(--tip-x, 50%);
+  transform: translateX(-50%);
+  width: 248px;
+  padding: var(--sp-2) var(--sp-3);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background: transparent;
-  border: none;
-  border-image-source: var(--ui-bar);
-  border-image-slice: 40 60 40 60 fill;
-  border-image-width: 20px 34px 20px 34px;
-  border-image-repeat: stretch;
-  border-style: solid;
-  border-radius: 0;
-  padding: clamp(6px, 1.1vh, 12px) clamp(20px, 2.6vw, 44px) clamp(8px, 1.3vh, 14px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
+  gap: 2px;
+  background: linear-gradient(180deg, rgba(24, 27, 34, 0.98), rgba(10, 13, 18, 0.99));
+  border: 1px solid rgba(198, 158, 88, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.3;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.build-tip[hidden] {
+  display: none;
+}
+
+.build-tip-name {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--ink-strong);
+}
+
+.build-tip-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.build-tip-stats b {
+  color: var(--ink-strong);
+  font-weight: 700;
+}
+
+.build-tip-desc {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.build-tip-price {
+  color: var(--ink-gold);
+  font-weight: 700;
 }
 
 /* Three tracks: the fold handle owns the middle one, the build-point budget
@@ -945,27 +1250,26 @@ body.is-fullscreen::before {
    the handle and an absolutely positioned counter landed on top of the title;
    a grid gives the counter its own column the title cannot grow into. */
 .dock-head {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  align-self: stretch;
-  column-gap: 8px;
-  margin-bottom: 5px;
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 /* Build-point budget, parked in the header's right column so it never pushes
    the centred fold handle off-centre. Hidden unless the level caps keeps. */
 .dock-points {
-  grid-column: 3;
-  justify-self: end;
-  align-self: center;
-  font-family: var(--font-display, "Cinzel", serif);
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  flex: 0 1 auto;
+  margin-left: auto;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  letter-spacing: 0.08em;
   color: #e8d5a8;
-  opacity: 0.85;
+  opacity: 0.9;
   pointer-events: none;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dock-points.is-full {
@@ -975,14 +1279,14 @@ body.is-fullscreen::before {
 
 /* A phone shows the short handle, so the counter has to shrink with it. */
 [data-shell="mobile"] .dock-points {
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
 }
 
 @media (max-width: 900px) {
   .dock-points {
-    font-size: 9px;
-    letter-spacing: 0.08em;
+    font-size: 12px;
+    letter-spacing: 0.06em;
   }
 }
 
@@ -992,24 +1296,23 @@ body.is-fullscreen::before {
    cards are gone. */
 .dock-toggle {
   display: inline-flex;
-  grid-column: 2;
-  justify-self: center;
   align-items: center;
-  gap: 7px;
-  padding: 2px 12px;
+  gap: 6px;
+  height: 44px;
+  padding: 0 var(--sp-3);
   margin: 0;
   font-family: var(--font-heading);
-  font-size: var(--fs-small);
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 2.4px;
+  letter-spacing: 1.6px;
   color: var(--ink-gold);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
+  background: rgba(8, 11, 16, 0.45);
+  border: 1px solid rgba(198, 158, 88, 0.35);
+  border-radius: 8px;
   cursor: var(--ui-cursor) 12 4, pointer;
   pointer-events: auto;
-  transition: background 0.15s ease-out, border-color 0.15s ease-out;
+  transition: background var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
 }
 
 .dock-toggle:hover {
@@ -1035,9 +1338,13 @@ body.is-fullscreen::before {
 }
 
 .dock-toggle-glyph {
-  font-size: var(--fs-micro);
-  line-height: 1;
-  opacity: 0.85;
+  /* The old glyph was the ⚒ emoji: a colour emoji in a pixel-art HUD. The
+     title already says FORGE, so the ornament is a brass stud instead. */
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #f0cd83, #a97c33);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
 
 .dock-toggle-chevron {
@@ -1047,11 +1354,10 @@ body.is-fullscreen::before {
   transition: transform 0.2s ease-out;
 }
 
-/* Folded: the cards are gone, the handle stays as a slim bar. The frame is
-   narrowed here too — the 20/34 px border is what made the open dock tall. */
+/* Folded: the cards are gone and the band shrinks to the handle's height. */
 .hud-dock.collapsed {
-  padding: clamp(2px, 0.5vh, 6px) clamp(16px, 2vw, 30px);
-  border-image-width: 14px 28px 14px 28px;
+  height: 56px;
+  padding: var(--sp-1) var(--sp-3);
 }
 
 .hud-dock.collapsed .dock-head {
@@ -1062,8 +1368,76 @@ body.is-fullscreen::before {
   transform: rotate(180deg);
 }
 
-/* Folded: the tab bar goes with the cards. A tab strip that pages cards nobody
-   can see is a dead control pretending to be live. */
+/* --------------------------------------------------------------------------
+   COMPACT DENSITY — 1100 px wide or 640 px tall and under.
+   --------------------------------------------------------------------------
+   Not a third shell: the same bar and the same forge, with the furniture
+   tighter so the battlefield keeps the pixels. Type stays at its 14 px floor;
+   what shrinks is padding, gaps and the secondary labels that the icons and
+   the aria-labels already carry.
+   -------------------------------------------------------------------------- */
+[data-density='compact'] .hud-topbar {
+  padding: 0 10px;
+  gap: 6px;
+}
+
+[data-density='compact'] .hud-stat {
+  height: 38px;
+  padding: 0 6px 0 5px;
+  gap: 6px;
+}
+
+[data-density='compact'] .hud-stat .hud-label {
+  /* The icon carries the meaning and the aria-label carries it for AT. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-density='compact'] .hud-wave-badge {
+  gap: 6px;
+  padding: 0 10px 6px;
+}
+
+[data-density='compact'] #btn-start-wave {
+  min-width: 150px;
+  padding: 0 8px;
+}
+
+[data-density='compact'] .hud-dock {
+  gap: 6px;
+  padding: var(--sp-2) var(--sp-2);
+}
+
+[data-density='compact'] .dock-toggle {
+  padding: 0 var(--sp-2);
+  letter-spacing: 1.1px;
+}
+
+[data-density='compact'] .dock-family-btn {
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  letter-spacing: 1px;
+}
+
+[data-density='compact'] .build-card {
+  width: 70px;
+}
+
+[data-density='compact'] .hud-icon-img {
+  width: 18px;
+  height: 18px;
+}
+
+/* Folded: the family switcher goes too. A control that pages cards nobody can
+   see is a dead control pretending to be live. */
+.hud-dock.collapsed .dock-family {
+  display: none;
+}
+
+/* (Kept in this exact shape — a HUD contract test pins the selector list.) */
 .hud-dock.collapsed .dock-cards,
 .hud-dock.collapsed .dock-tabs,
 .hud-dock.collapsed #placement-hint {
@@ -1072,7 +1446,9 @@ body.is-fullscreen::before {
 
 .dock-cards {
   display: flex;
-  gap: clamp(6px, 0.9vw, 12px);
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
 }
 
 /*
@@ -1084,14 +1460,26 @@ body.is-fullscreen::before {
  * and the tab bar (26 px tall) is the only thing the paging costs.
  */
 .dock-tabs {
-  display: flex;
+  /* A popover above the family button, not a second row inside the band.
+     `display: none` keeps its four tabs out of the layout until asked for. */
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: none;
+  flex-direction: column;
   align-items: stretch;
-  gap: 4px;
-  margin-bottom: 4px;
-  padding: 2px;
-  border-radius: 999px;
-  background: rgba(8, 11, 18, 0.55);
-  border: 1px solid rgba(150, 120, 70, 0.28);
+  gap: 2px;
+  min-width: 176px;
+  padding: var(--sp-1);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(20, 24, 32, 0.98), rgba(9, 12, 17, 0.99));
+  border: 1px solid rgba(198, 158, 88, 0.45);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.7);
+  z-index: 7;
+}
+
+.dock-tabs.is-open {
+  display: flex;
 }
 
 .dock-tab {
@@ -1101,22 +1489,24 @@ body.is-fullscreen::before {
      (crossbow, gatling, flamer, venom and harpoon) unreachable by mouse or
      finger while the hotkeys kept working. Never drop this line. */
   pointer-events: auto;
-  font-family: var(--font-display, var(--font-body));
-  font-size: var(--fs-micro);
+  font-family: var(--font-body);
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: rgba(214, 224, 240, 0.62);
+  color: rgba(214, 224, 240, 0.72);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 3px 14px;
-  min-height: 30px;
-  cursor: pointer;
+  border-radius: 8px;
+  padding: 0 var(--sp-3);
+  min-height: 40px;
+  cursor: var(--ui-cursor) 12 4, pointer;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  transition: color 0.15s ease-out, background 0.15s ease-out, border-color 0.15s ease-out;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
 }
 
 .dock-tab:hover {
@@ -1155,46 +1545,96 @@ body.is-fullscreen::before {
   display: none;
 }
 
+/*
+ * A build card: 76 × 68, icon / hotkey / price.
+ *
+ * The name lives on the card (one word, 14 px — never smaller), the rest of the
+ * stat line lives in `.build-tip`. Card geometry is fixed rather than clamped:
+ * the dock is a fixed band, so a card that grows on a wide monitor would push
+ * the band taller and the camera would re-fit around a shop.
+ */
 .build-card {
   position: relative;
   font-family: var(--font-body);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  width: clamp(60px, 6.2vw, 88px);
-  background: transparent;
-  border: none;
-  border-image-source: var(--ui-card);
-  border-image-slice: 35 30 35 30 fill;
-  border-image-width: 18px 16px 18px 16px;
-  border-image-repeat: stretch;
-  border-style: solid;
-  border-radius: 0;
-  padding: 10px 6px 8px;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 76px;
+  height: 68px;
+  /* The bottom 14 px are the price shelf: the icon is optically centred in the
+     space that is left, so the coin badge never sits on the tower art. */
+  padding: 2px 2px 14px;
+  border: 1px solid rgba(198, 158, 88, 0.3);
+  border-radius: 10px;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(60, 66, 80, 0.55), rgba(12, 15, 21, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 240, 205, 0.12);
   cursor: var(--ui-cursor) 12 4, pointer;
   color: var(--ink-strong);
-  transition: transform 0.15s ease-out, filter 0.15s ease-out;
+  transition: transform var(--t-fast) var(--ease-pop), border-color var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out), opacity var(--t-fast) linear;
   pointer-events: auto;
 }
 
 .build-card:hover {
-  transform: translateY(-4px) scale(1.03);
-  filter: brightness(1.08);
+  transform: translateY(-4px);
+  border-color: rgba(245, 196, 81, 0.7);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 240, 205, 0.18);
 }
 
 .build-card.selected {
-  border-image-source: var(--ui-slot-sel);
-  border-image-slice: 20 20 20 20 fill;
-  border-image-width: 13px;
-  transform: translateY(-4px);
-  box-shadow: 0 0 0 2px var(--cyan-primary), 0 0 14px rgba(78, 225, 255, 0.55);
+  transform: translateY(-6px);
+  border-color: var(--cyan-primary);
+  box-shadow: 0 0 0 2px var(--cyan-primary), 0 0 16px rgba(78, 225, 255, 0.5),
+    0 8px 18px rgba(0, 0, 0, 0.55);
 }
 
 .build-card.disabled {
-  opacity: 0.55;
-  filter: grayscale(0.7) brightness(0.85);
   cursor: not-allowed;
-  transform: none !important;
+}
+
+.build-card.disabled .card-icon-frame {
+  opacity: 0.72;
+  filter: saturate(0.7);
+}
+
+/* Unaffordable: the price turns red instead of the whole card fading out — a
+   greyed card tells you nothing about why it is grey. (`disabled` is the class
+   the HUD has always set on these; it stays the source of truth so the existing
+   contract test keeps meaning something.) */
+.build-card.disabled .card-cost {
+  color: var(--ink-red);
+  border-color: rgba(255, 122, 144, 0.5);
+}
+
+.card-cost.denied {
+  animation: cardDenied 260ms var(--ease-out);
+  color: var(--ink-red);
+}
+
+@keyframes cardDenied {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+/* Tapping a defence you cannot afford shakes it and plays the denied tick. */
+.build-card.denied {
+  animation: cardDenied 260ms var(--ease-out);
+  border-color: rgba(255, 122, 144, 0.8);
 }
 
 .build-card:focus-visible {
@@ -1204,33 +1644,30 @@ body.is-fullscreen::before {
 
 .card-hotkey {
   position: absolute;
-  top: 4px;
-  left: 6px;
-  font-size: var(--fs-micro);
+  top: 3px;
+  left: 3px;
+  min-width: 18px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1;
   font-weight: 700;
   color: #ffe6b0;
-  background: rgba(8, 11, 16, 0.9);
-  border: 1px solid rgba(198, 158, 88, 0.35);
-  padding: 1px 5px;
-  border-radius: 4px;
-  line-height: 1.3;
+  background: rgba(8, 11, 16, 0.92);
+  border: 1px solid rgba(198, 158, 88, 0.45);
+  padding: 2px 3px;
+  border-radius: 5px;
 }
 
 .card-icon-frame {
-  width: clamp(34px, 3.6vw, 46px);
-  height: clamp(34px, 3.6vw, 46px);
-  margin: 2px 0 4px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
-  border-image-source: var(--ui-slot);
-  border-image-slice: 20 20 20 20 fill;
-  border-image-width: 9px;
-  border-image-repeat: stretch;
-  border-style: solid;
-  border-radius: 0;
+  background: radial-gradient(70% 70% at 50% 45%, rgba(70, 78, 96, 0.45), rgba(6, 8, 12, 0.15));
+  border: 1px solid rgba(120, 100, 60, 0.22);
+  border-radius: 8px;
 }
 
 .card-sprite {
@@ -1350,35 +1787,35 @@ body.is-fullscreen::before {
 }
 
 .card-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  min-width: 0;
-  max-width: 100%;
+  /* The name is still in the DOM — the aria-label, the tooltip and the
+     placement hint all read it — but the 68 px face is icon, hotkey and price,
+     the three things a build button needs. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .card-name {
-  font-size: var(--fs-small);
+  font-size: 14px;
   font-weight: 700;
   color: var(--ink-strong);
-  line-height: 1.15;
-  /* "Banner Keep" must never widen the seven-card dock */
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .card-cost {
-  font-size: var(--fs-small);
-  font-weight: 700;
-  color: var(--ink-gold);
-  display: flex;
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  margin-top: 1px;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--ink-gold);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1389,15 +1826,11 @@ body.is-fullscreen::before {
    split (sky blue = air, earth green = ground, gold = both) so a card reads at
    dock size without a legend; the text carries it for anyone who cannot. */
 .card-target {
-  margin-top: 2px;
-  padding: 0 4px;
-  border-radius: 3px;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1.35;
-  white-space: nowrap;
-  border: 1px solid transparent;
+  /* The category badge is still rendered — the tooltip, the aria-label and the
+     inspector all read it — but it is hidden on the 68 px card face. At 9 px it
+     was the least legible thing in the dock and it duplicated GROUND / BOTH,
+     which the tooltip now says in words. */
+  display: none;
 }
 
 .card-target.target-both {
@@ -1612,7 +2045,12 @@ body.is-fullscreen::before {
   font-size: var(--fs-body);
   font-weight: 600;
   color: var(--ink-strong); /* inked: the note card is parchment */
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 0 2px var(--ink-cyan);
+  /* A 9-slice frame's shadow must follow the sprite's alpha, or it paints a
+     rectangle behind the transparent corners. The cyan edge moved to
+     `outline`, which is drawn on the same box the border-image fills. */
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6));
+  outline: 2px solid var(--ink-cyan);
+  outline-offset: -2px;
   z-index: 200;
   pointer-events: none;
   animation: toastIn 0.22s ease-out;
@@ -1812,8 +2250,18 @@ body.is-fullscreen::before {
 }
 
 .camera-hint-icon {
-  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
   color: var(--cyan-primary);
+}
+
+.camera-hint-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .camera-hint-dismiss {
@@ -1865,7 +2313,7 @@ body.is-fullscreen::before {
   border-image-width: 20px 16px 20px 16px;
   border-image-repeat: stretch;
   border-style: solid;
-  box-shadow: 0 4px 25px rgba(255, 84, 112, 0.35);
+  filter: drop-shadow(0 4px 18px rgba(255, 84, 112, 0.32));
   border-radius: 0;
   padding: 10px 18px;
   display: flex;
@@ -1881,8 +2329,21 @@ body.is-fullscreen::before {
   gap: 8px;
 }
 
-.boss-skull {
+.boss-tag {
+  /* The boss banner used to open with a 💀. A colour emoji next to pixel-art
+     iconography reads as a placeholder, so the skull is a word in a crimson
+     chip — same meaning, one icon language. */
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(255, 84, 112, 0.92);
+  color: #2a0509;
+  font-family: var(--font-body);
   font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 .boss-name {
@@ -1944,6 +2405,9 @@ body.is-fullscreen::before {
   position: absolute;
   inset: 0 auto 0 0;
   height: 100%;
+  /* Initial widths live here, not in a style attribute: showBossBar() owns the
+     live values, and the markup should not carry a second source of truth. */
+  width: 0%;
   background: linear-gradient(90deg, #2b74ba 0%, #4ee1ff 100%);
   box-shadow: 0 0 8px rgba(78, 225, 255, 0.7);
   transition: width 0.15s ease-out;
@@ -1954,6 +2418,7 @@ body.is-fullscreen::before {
   position: absolute;
   inset: 0 auto 0 0;
   height: 100%;
+  width: 100%;
   background: linear-gradient(90deg, #991c33 0%, #ff5470 100%);
   box-shadow: 0 0 8px rgba(255, 84, 112, 0.7);
   transition: width 0.15s ease-out;
@@ -6503,7 +6968,8 @@ body.is-fullscreen #app::after {
 
 .hud-level-chip {
   position: absolute;
-  top: clamp(70px, 10.4vh, 92px);
+  /* Measured, not guessed: the HUD publishes the bar's real bottom edge. */
+  top: calc(var(--topbar-clearance) + 2px);
   left: 50%;
   transform: translateX(-50%);
   padding: 3px 14px;
@@ -6569,8 +7035,12 @@ body.is-fullscreen #app::after {
 }
 
 .focus-chip-ring {
-  font-size: 14px;
-  line-height: 1;
+  /* A drawn ring, not the ◎ glyph: the glyph's weight depended on whichever
+     font the platform substituted. */
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
   color: var(--gold-primary);
   animation: focusChipPulse 1.6s ease-in-out infinite;
 }
@@ -10438,8 +10908,10 @@ body.is-fullscreen #app::after {
   border-radius: 0;
   background: transparent;
   overflow: hidden;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
-  transition: filter 140ms ease, box-shadow 140ms ease;
+  /* No inset shadow on a 9-slice plate: it paints a rectangle inside the
+     clipped corners. The plate art already carries its own shading. */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+  transition: filter 140ms ease;
 }
 
 /* Ready is a rim, not a glow storm: one gold hairline inside the frame. */
@@ -10538,19 +11010,19 @@ body.is-fullscreen #app::after {
    the kit's hotkey hints. Phones have no keys, so it is hidden there. */
 .powerup-key {
   position: absolute;
-  right: -3px;
-  bottom: -3px;
-  min-width: 13px;
+  right: 2px;
+  bottom: 2px;
+  min-width: 16px;
   padding: 0 2px;
   font-family: var(--font-body);
-  font-size: 8px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 12px;
+  line-height: 16px;
   text-align: center;
   color: var(--ink-gold);
   background: #0a0d14;
   border: 1px solid rgba(198, 158, 88, 0.45);
-  border-radius: 3px;
+  border-radius: 4px;
   pointer-events: none;
 }
 
@@ -10902,6 +11374,20 @@ body.is-fullscreen #app::after {
   padding: 0;
   border-image-width: 10px 14px;
   animation: none;
+  /* The phone lays the forge out as a sheet: auto height, and the cards wrap
+     instead of scrolling sideways under a thumb. */
+  height: auto;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+[data-shell="mobile"] .hud-dock .dock-cards {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+[data-shell="mobile"] .hud-dock.collapsed {
+  height: auto;
 }
 
 /* Folded = the whole dock is one BUILD button in the thumb corner. */

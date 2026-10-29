@@ -22,7 +22,7 @@ they disagree — see §2):
 | Phase | Title | State |
 | ----- | ----- | ----- |
 | 0 | Baseline (tests, screenshots, extra observations) | ✅ |
-| 1 | Bugs + layout foundation (top bar, dock, UI scale) | ⬜ |
+| 1 | Bugs + layout foundation (top bar, dock, UI scale) | ✅ |
 | 2 | Tower inspector, panels and modals | ⬜ |
 | 3 | Main menu and scene transitions | ⬜ |
 | 4 | Core game feel ("juice") | ⬜ |
@@ -108,7 +108,60 @@ tall inside a 640 px screen).
 
 ## 3. Decisions and assumptions
 
-_(filled in as phases land)_
+**Phase 1**
+
+* **Dock stays inside the letterbox band.** The prompt's preferred fix (grow the
+  canvas, add `MAP_OFFSET_Y`, move every coordinate) is on the "ask me first"
+  list, so the documented fallback is used: the forge is one 84 px translucent
+  band that lives in the reserved bottom clearance. `--dock-clearance` already
+  tells the camera to frame the board above it, so no road or build tile is
+  covered — verified in the browser at both sizes.
+* **The build card is icon + hotkey + price** (`76 × 68`), exactly what the
+  prompt asks for. The tower's *name* would not fit a 70 px label at the 14 px
+  floor, and truncating it to "Ballista To…" was the ugliest thing in the old
+  dock. The name therefore lives in `title`, `aria-label`, the hover/focus card
+  and in the placement hint the moment a card is armed ("PLACING BALLISTA TOWER"),
+  so it is never hover-only.
+* **The four family tabs became a popover.** A 30 px tab strip cost 34 px of the
+  84 px budget for a control that only picks a filter. The same four `.dock-tab`
+  buttons, ids, handlers, roving tabindex and storage key remain — they open
+  from `#dock-family-btn`.
+* **Unaffordable cards still arm.** The prompt asks for a shake + denied sound
+  on click; refusing the *selection* would also remove the ghost preview and the
+  range ring, which is a behaviour change I am not allowed to make. So the price
+  shakes, the denied tick plays, and the card arms as it always did.
+* **`--ui-scale` drives geometry, not type.** Type sits at its 14 px floor
+  already; scaling it down would break the design system's own rule, so the
+  scale factor tightens padding/gaps and `data-density="compact"` (≤1100 px wide
+  or ≤640 px tall) drops the stat labels to icons + aria-labels.
+
+## 4. Bugs found while working
+
+* **I (fixed).** `Enemy.js` hid `healthBarBg/healthBarFill` on death; the fields
+  are `hpBarBg/hpBarFill`, so a dead creep kept a floating health bar for the
+  whole death tween.
+* **C (fixed).** `box-shadow` on `border-image` panels painted a rectangle
+  behind the transparent 9-slice corners on the top bar, the dock, the toast and
+  the boss card. All four now use `filter: drop-shadow()`.
+* **K (fixed).** The last two inline styles (`boss-hp-bar`, `boss-shield-bar`
+  initial widths) moved into the stylesheet; `index.html` had none left.
+* **G (partly fixed).** The boss `💀`, the forge `⚒`, the camera-hint `✥` and
+  the focus `◎` are gone (word chip, brass stud, inline SVG, CSS ring). Emoji
+  inside transient toasts (`⚠`, `🪙`, `🏆` in `GameScene`) are still there and
+  are handled with the wave banners in Phase 4/6.
+* **New: the powerup rail can overlap the board's outer column.** Shortening
+  the bar and dock made the camera band taller, so at 1024×640 the board now
+  fills the full width and the Q/E/T/R rail sits over the first one or two grass
+  columns. It never covers a road tile (every map's leftmost path column is ≥ 3).
+  Root fix needs a horizontal inset in `CameraRig.setFrame` + pointer mapping;
+  deferred to Phase 8 QA where the input maths can be re-verified.
+
+## 5. Still open
+
+* Codex at 1024×640 still overflows its own telemetry grid (pre-existing, was in
+  the baseline audit) — Phase 2 rebuilds the modal shell.
+* The inspector at 1024×640 is tall but contained; it is rebuilt as an anchored
+  popover in Phase 2.
 
 ---
 

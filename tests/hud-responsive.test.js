@@ -104,8 +104,12 @@ describe('forge dock fold', () => {
     expect(css).not.toMatch(/\.hud-dock\.collapsed \.dock-head\s*\{\s*display:\s*none/);
     const folded = rule(css, '.hud-dock.collapsed');
     expect(folded).toMatch(/padding:/);
-    // The 20/34 px frame is what makes the open dock tall: fold it too.
-    expect(folded).toMatch(/border-image-width:\s*14px 28px/);
+    // The open forge is one 84 px translucent band; folding it drops the band
+    // to the handle's 56 px. (It used to be a 205 px plate whose 20/34 px
+    // `border-image` was what made it tall, which is what this pinned before
+    // the UI overhaul replaced the frame with a glass band.)
+    expect(rule(css, '.hud-dock')).toMatch(/height:\s*var\(--hud-dock-h\)/);
+    expect(folded).toMatch(/height:\s*56px/);
   });
 
   it('flips the chevron so the fold is legible', () => {

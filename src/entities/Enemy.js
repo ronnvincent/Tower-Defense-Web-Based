@@ -828,8 +828,11 @@ export class Enemy {
       this.sprite.play(deathKey, true);
       this.shieldBarBg?.setVisible(false);
       this.shieldBarFill?.setVisible(false);
-      this.healthBarBg?.setVisible(false);
-      this.healthBarFill?.setVisible(false);
+      // The fields are `hpBarBg` / `hpBarFill` (see the constructor). The old
+      // names here matched nothing, so the health bar hung in the air over a
+      // corpse for the whole death animation.
+      this.hpBarBg?.setVisible(false);
+      this.hpBarFill?.setVisible(false);
       this.sprite.once('animationcomplete', () => this.destroy());
       this.container.setDepth(19);
       this.callbacks.onDefeated(this);
