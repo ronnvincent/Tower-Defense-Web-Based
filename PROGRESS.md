@@ -332,3 +332,55 @@ it, and marks the UPGRADE card (never SELL). Full suite **131 files / 1711**.
 
 Left as is on purpose: losing the opening still lets the player try it again —
 a defeat is a real run, not a skip.
+
+---
+
+## 9. Mobile HUD (requested after the tutorial fix)
+
+The phone shell already existed (`[data-shell='mobile']`, ~137 rules). It was
+correct in *shape* and wrong in *scale*: five cards stretched to 150 px each, a
+270 px sheet on a 375 px screen, and the category menu opened as four full-width
+rows in the middle of the battlefield.
+
+**Changed:** `src/style.css` (a `MOBILE HUD v2` override section + one
+containing-block fix), `src/ui/HUD.js` (`collapseDockAfterBuild`),
+`src/scenes/GameScene.js` (calls it after a completed build).
+
+### What was wrong, measured
+
+| Symptom | Cause |
+| ------- | ----- |
+| Build sheet 270 px tall on 375 px screen | cards `flex: 1 1 0` stretched to the full width |
+| Category menu over the board | `.dock-tabs` laid out as a full-width row inside the sheet |
+| START WAVE sat on top of pause / mute / speed | the top bar's `filter` (added in Phase 1 to kill the box-shadow rectangle) makes it a containing block, so the fixed-position thumb button anchored to the *bar*, not the screen |
+| Build count hung off the bottom edge | `#dock-points` positioned for the open sheet, still drawn on the folded button |
+
+### What it is now
+
+* **Cards 64 × 62 px, one row, `overflow-x: auto`, `touch-action: pan-x`** — the
+  strip swipes without dragging the camera, and `overscroll-behavior-x: contain`
+  keeps the page from bouncing.
+* **Open sheet ≤ 100 px** on a 375 px screen (head + one card row): ~73 % of the
+  glass stays on the map, and folded it is the 46 px BUILD button (≈88 %).
+* **Categories are a dropdown on their own button** (172 px, 34 px rows, hangs
+  above `#dock-family-btn`, closes on pick through the existing
+  `setFamilyMenuOpen(false)`).
+* **The sheet folds itself after a build** (`collapseDockAfterBuild`), because
+  the panel the player needed to watch is the board.
+* **Mobile rail: no `filter`**, so `position: fixed` children (START WAVE) anchor
+  to the screen again; at ≤760 px the wave badge compresses and icon buttons sit
+  at 34 px with the existing `::after` 44 px touch expansion.
+
+### Verified (headless Chromium, `?hud=mobile` forces the shell)
+
+| Size | Result |
+| ---- | ------ |
+| 667 × 375 | `covered: 0`, dock 655 × 118 → capped, cards 64 × 62, family menu 176 × 155 above the dock, `clipped` = stage overdraw only (by design, 5:3 crop) |
+| 844 × 390 | `covered: 0`, `spill: 0` |
+
+`npx vitest run` → **131 / 1711 passed**. `npm run build` → ✓.
+Screenshots: `docs/ui-after/mobile/`.
+
+**Not verified yet:** 360 × 800 (portrait) and 1920 × 1080 — the portrait rules
+are in place (`@media (orientation: portrait)` bump) but no screenshot was taken
+on this pass, so they are not claimed.

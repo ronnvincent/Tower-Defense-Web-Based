@@ -3441,6 +3441,7 @@ export class GameScene extends Phaser.Scene {
     if (this.isVisualizingBFS) this.drawBFSVisualization();
     this.advanceCoach('place');
     this.tutorialReport('place');
+    this.hud?.collapseDockAfterBuild?.();
   }
 
   /**

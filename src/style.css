@@ -16268,3 +16268,178 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     transition: none;
   }
 }
+
+/* ==========================================================================
+   MOBILE HUD v2 · THE FORGE DOES NOT OWN THE SCREEN
+   --------------------------------------------------------------------------
+   The phone sheet worked, but it was a *sheet*: five cards stretched to fill
+   the width (150 px each), a 270 px band over the bottom of a 375 px screen,
+   and a category popover that opened as four full-width rows in the middle of
+   the battlefield. The board is the game; on a phone it has to keep the
+   majority of the glass.
+
+   These rules replace the stretched rows with a thumb-sized strip —
+   64 × 62 px cards, one line, swiped sideways — and turn the category menu into
+   a small dropdown that hangs off its own button instead of the map.
+   ========================================================================== */
+
+/* ---- the sheet: one compact band, never a third of the screen ----------- */
+
+[data-shell='mobile'] .hud-dock:not(.collapsed) {
+  padding: 3px 8px 6px;
+  row-gap: 4px;
+  /* head + one row of cards + the band's own frame. 100 px of a 375 px screen
+     leaves 70 % of the glass on the map even with the sheet open; folded it is
+     a 46 px BUILD button. */
+  max-height: 100px;
+}
+
+[data-shell='mobile'] .hud-dock:not(.collapsed) .dock-head {
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+[data-shell='mobile'] .hud-dock:not(.collapsed) .dock-toggle {
+  min-height: 22px;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+}
+
+/* ---- the cards: fixed, thumb-sized, swiped sideways --------------------- */
+
+[data-shell='mobile'] .hud-dock:not(.collapsed) .dock-cards {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 1px 1px 2px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+[data-shell='mobile'] .hud-dock .build-card {
+  flex: 0 0 auto;
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  height: 62px;
+  padding: 4px 2px 3px;
+  justify-content: center;
+  gap: 1px;
+}
+
+[data-shell='mobile'] .hud-dock .card-icon-frame {
+  width: 32px;
+  height: 32px;
+}
+
+[data-shell='mobile'] .hud-dock .card-cost {
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+[data-shell='mobile'] .hud-dock .card-hotkey {
+  font-size: 9px;
+  min-width: 13px;
+  height: 13px;
+}
+
+/* ---- the category menu: a dropdown on its own button ------------------- */
+
+[data-shell='mobile'] .hud-dock .dock-tabs {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: 172px;
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 10px;
+  background: rgba(9, 12, 17, 0.97);
+  border: 1px solid rgba(198, 158, 88, 0.45);
+  filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.7));
+}
+
+[data-shell='mobile'] .hud-dock .dock-tab {
+  flex: 0 0 auto;
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+
+[data-shell='mobile'] .dock-family {
+  position: relative;
+}
+
+/* A 34 px row is the smallest thing a thumb hits reliably at speed; 30 was the
+   old tab height and the miss rate showed. */
+[data-shell='mobile'] .hud-dock .dock-tab:active {
+  background: rgba(245, 196, 81, 0.18);
+}
+
+/* ---- portrait: the rail stacks, the sheet keeps one row ----------------- */
+
+@media (orientation: portrait) {
+  [data-shell='mobile'] .hud-dock:not(.collapsed) {
+    max-height: calc(var(--hud-build-h) + 76px);
+  }
+}
+
+/* The bar's drop shadow is a `filter`, and a filter makes the element a
+   containing block for `position: fixed` children. START WAVE is a fixed thumb
+   button on the phone shell, so under a filtered ancestor it anchored itself to
+   the top bar instead of the screen and landed on pause / mute / speed. No
+   shadow on the mobile rail: it costs GPU on the weakest device we support and
+   it was silently moving a button. */
+[data-shell='mobile'] .hud-topbar {
+  filter: none;
+}
+
+/* ---- the rail at 667 px wide: everything fits, nothing overlaps --------- */
+@media (max-width: 760px) {
+  [data-shell='mobile'] .hud-center-group {
+    gap: 3px;
+  }
+
+  [data-shell='mobile'] .hud-wave-badge {
+    height: 34px;
+    padding: 0 8px;
+    gap: 5px;
+  }
+
+  [data-shell='mobile'] .hud-wave-label {
+    display: none;
+  }
+
+  [data-shell='mobile'] .hud-wave-number {
+    font-size: 13px;
+  }
+
+  [data-shell='mobile'] .hud-wave-sub {
+    font-size: 10px;
+  }
+
+  [data-shell='mobile'] .game-btn-icon {
+    min-width: 34px;
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+
+  [data-shell='mobile'] .hud-controls-group {
+    gap: 3px;
+  }
+}
+
+/* The build count belongs to the open sheet; on the folded BUILD button it hung
+   past the bottom edge of the screen. */
+@media (max-width: 900px) {
+  [data-shell='mobile'] .hud-dock.collapsed #dock-points {
+    display: none;
+  }
+}

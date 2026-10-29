@@ -746,6 +746,19 @@ export class HUD {
    * 44 px tap target at every breakpoint.
    */
   /**
+   * A finished build puts the phone's forge away.
+   *
+   * The sheet is opened to pick a card; once the tower is standing, the panel
+   * is covering the one thing the player now wants to watch. Desktop keeps its
+   * dock (it lives in the letterbox band); the phone folds it back to the
+   * single BUILD button in the thumb corner.
+   */
+  collapseDockAfterBuild() {
+    if (!this.isMobileShell || this.dockCollapsed) return;
+    this.setDockCollapsed(true, { persist: false });
+  }
+
+  /**
    * The line the pause card shows above LEAVE BATTLE.
    *
    * During the opening that line was "Leaving now discards this battle", which
