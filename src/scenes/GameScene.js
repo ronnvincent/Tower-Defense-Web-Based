@@ -3938,10 +3938,19 @@ export class GameScene extends Phaser.Scene {
 
   /** Tower position as a 0..1 fraction of the battlefield (zoom-safe). */
   anchorRatioFor(tower) {
+    //  The keep is five tiles wide and three tall: anchoring its panel on the
+    //  tile centre parks the inspector on top of the castle itself. Anchor the
+    //  bastion at its right shoulder instead, so the panel opens beside it.
+    const point = tower?.isBastion
+      ? {
+        x: tower.x + (tower.body?.displayWidth || 260) * 0.42,
+        y: tower.footY - (tower.artHeight || 200) * 0.55,
+      }
+      : { x: tower.x, y: tower.y };
     if (!this.cameraRig) {
-      return { x: tower.x / this.scale.width, y: tower.y / this.scale.height };
+      return { x: point.x / this.scale.width, y: point.y / this.scale.height };
     }
-    const screen = this.cameraRig.worldToScreen(tower.x, tower.y);
+    const screen = this.cameraRig.worldToScreen(point.x, point.y);
     return {
       x: screen.x / this.scale.width,
       y: screen.y / this.scale.height,
