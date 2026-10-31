@@ -1355,10 +1355,11 @@ viewport 1280×768, brand 26–139, ledger 157–362, tools 860–1254, rail
 1214–1260 × 319–449, foot 728–768, no overflow, `aria-pressed` `true`; after
 `exitFullscreen` it returns to `false`.
 
-Screenshots: `/tmp/wm-before-1280x768.png` (before), `/tmp/wm-final2-1280x768.png`,
-`/tmp/wm-c7-1024x640.png`, `/tmp/wmstate-landscape-844x390.png`,
-`/tmp/z-wallet.png`, `/tmp/z-pip.png`, `/tmp/z-ashen2.png`,
-`/tmp/wm-fullscreen-hub.png`, `/tmp/wm-workshop-1280x768.png`.
+Screenshots in `docs/ui-after/request71/`: `before-1280x768.png`,
+`after-1280x768.png`, `after-1024x640.png`. Working shots:
+`/tmp/wmstate-landscape-844x390.png`, `/tmp/z-wallet.png`, `/tmp/z-pip.png`,
+`/tmp/z-ashen2.png`, `/tmp/wm-fullscreen-hub.png`,
+`/tmp/wm-workshop-1280x768.png`.
 
 The Workshop renders the shared coin at 30 px from the 20 px file — 24 px of
 visible coin where it used to be 7.5 px — and stays proportionate to the other
