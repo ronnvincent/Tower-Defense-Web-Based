@@ -6,6 +6,33 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    // A battle owns the screen. `startLevel` stops the menu before launching a
+    // field, but the menu can also be queued by the title flow at the same
+    // moment as a DEPLOY press — and a queued scene boots *after* the one that
+    // replaced it, which used to drop the title card and its overlay on top of a
+    // running battle. If a field is already live, stand down instead of drawing.
+    // `isActive()` alone is not enough: a battle is *loading* its enemy sheets
+    // before it is active, and a menu that boots into that window used to draw
+    // its title card and un-hide the overlay on top of the loading field. Any
+    // GameScene in STARTING / LOADING / CREATING / RUNNING / PAUSED counts as a
+    // battle that owns the screen.
+    //
+    // The scene comes from *this* game, never from `window.game`: that handle is
+    // a dev/QA convenience (`main.js` only sets it under `import.meta.env.DEV`
+    // or an explicit `?probe=1`), so a production build read `undefined` here,
+    // decided no battle was live, and dropped the title card and its overlay on
+    // top of a running field the moment the boot finished — the reported "it
+    // goes back to the main menu on my first battle".
+    const gameScene = this.game?.scene?.getScene?.('GameScene')
+      || window.game?.scene?.getScene?.('GameScene');
+    const status = gameScene?.sys?.settings?.status;
+    const battleLive = Boolean(gameScene?.scene?.isActive?.())
+      || (typeof status === 'number' && status >= 2 && status <= 6);
+    if (battleLive) {
+      this.scene.stop();
+      return;
+    }
+
     const { width, height } = this.scale;
 
     // Dark fantasy atmospheric background with grid coordinates
@@ -38,29 +65,30 @@ export class MenuScene extends Phaser.Scene {
       particles.setDepth(2);
     }
 
-    // Mount or reveal the HTML main menu overlay
+    // Mount or reveal the HTML main menu overlay. The world map parks the game
+    // on this scene when a run ends (so no dead board keeps ticking behind the
+    // map), and in that case the menu must stay down until it is asked for.
     const menuOverlay = document.getElementById('main-menu-overlay');
-    if (menuOverlay) {
+    // Behind the name gate the menu stays down: `main.js` reveals it the moment
+    // the ledger accepts a commander name, so there is never a clickable menu
+    // for a player who has not been named.
+    const waitingForName = Boolean(window.gameCloud?.needsName);
+    if (menuOverlay && !window.gameWorldMap?.isVisible && !waitingForName) {
       menuOverlay.classList.remove('hidden');
     }
 
-    // Hide HUD if returning from a game
-    const hudBar = document.getElementById('hud-top-bar');
-    const hudDock = document.getElementById('hud-bottom-dock');
-    if (hudBar) hudBar.classList.add('hidden');
-    if (hudDock) hudDock.classList.add('hidden');
+    // Hide the whole HUD layer while the menu is up (panels, camera
+    // controls, floating inspector) so nothing shows through the overlay.
+    document.getElementById('hud-container')?.classList.add('hidden');
+    window.gameHUD?.reset?.();
   }
 
+  /**
+   * PLAY — hand control to the world map, the campaign's real entry point.
+   * `main.js` owns the transition (`window.gameFlow`) because it also has to
+   * close the result screen, swap the HUD layer and restart a live battle.
+   */
   startGame() {
-    audio.playClick();
-    const menuOverlay = document.getElementById('main-menu-overlay');
-    if (menuOverlay) menuOverlay.classList.add('hidden');
-
-    const hudBar = document.getElementById('hud-top-bar');
-    const hudDock = document.getElementById('hud-bottom-dock');
-    if (hudBar) hudBar.classList.remove('hidden');
-    if (hudDock) hudDock.classList.remove('hidden');
-
-    this.scene.start('GameScene');
+    window.gameFlow?.openLevelSelect?.();
   }
 }

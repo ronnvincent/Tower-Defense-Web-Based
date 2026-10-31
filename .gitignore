@@ -24,3 +24,13 @@ __pycache__/
 .DS_Store
 Thumbs.db
 *.log
+
+# Local ledger stand-in state (server/cloud-dev.mjs) — scratch, not a database
+.dev-data/
+
+# Supabase credentials. The anon key is public by design and safe to build in,
+# but the file also tempts people to paste the service-role key, which is not —
+# so no .env file is ever committed. See .env.example for the two names.
+.env
+.env.local
+.env.*.local

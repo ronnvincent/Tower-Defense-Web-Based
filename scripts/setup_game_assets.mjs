@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve('.');
 const publicDir = path.join(root, 'public', 'assets');
@@ -87,6 +88,10 @@ copy('src/assets/kenney_particle-pack/PNG (Transparent)/circle_05.png', 'effects
 copy('src/assets/kenney_particle-pack/PNG (Transparent)/muzzle_01.png', 'effects/muzzle.png');
 
 // 6. UI ICONS
+// The Kenney coin is a 16x16 coin in a 64x64 canvas — 94% transparent. Copied
+// as-is, every caller that sizes the canvas paints the coin at a quarter of the
+// size it asked for, which is why the hub's purse read "a dot, a gem, a star".
+// The normalize step below re-pads it in place (same pixels, tighter canvas).
 copy('src/assets/kenney_tower-defense-top-down/PNG/Default size/towerDefense_tile272.png', 'ui/icon_coin.png');
 copy('src/assets/kenney_game-icons/PNG/White/2x/trophy.png', 'ui/icon_trophy.png');
 copy('src/assets/kenney_game-icons/PNG/White/2x/pause.png', 'ui/icon_pause.png');
@@ -132,5 +137,21 @@ function copyDirRecursive(s, d) {
 }
 copyDirRecursive(cozySrc, cozyDest);
 console.log('Copied Cozy UI Pack -> public/assets/cozy-ui');
+
+// Re-pad the coin so its art fills the canvas. Stdlib Python, no dependencies;
+// if python3 is not on this machine the copy above still works, it just leaves
+// the coin small, so the failure is a warning rather than a hard stop.
+try {
+  execFileSync(
+    'python3',
+    ['scripts/normalize_icon_padding.py', 'public/assets/ui/icon_coin.png'],
+    { stdio: 'inherit' }
+  );
+} catch (error) {
+  console.warn(
+    'Warning: could not re-pad ui/icon_coin.png — run ' +
+      '`python3 scripts/normalize_icon_padding.py public/assets/ui/icon_coin.png` by hand.'
+  );
+}
 
 console.log('Finished setting up public assets.');

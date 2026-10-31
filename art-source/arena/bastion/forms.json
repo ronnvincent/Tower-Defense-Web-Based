@@ -1,0 +1,106 @@
+{
+  "bastion-l1": {
+    "key": "bastion-l1",
+    "path": "assets/arena/bastion-l1.png",
+    "sheet": [
+      352,
+      339
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l2": {
+    "key": "bastion-l2",
+    "path": "assets/arena/bastion-l2.png",
+    "sheet": [
+      388,
+      374
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l3-storm": {
+    "key": "bastion-l3-storm",
+    "path": "assets/arena/bastion-l3-storm.png",
+    "sheet": [
+      424,
+      409
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l3-sun": {
+    "key": "bastion-l3-sun",
+    "path": "assets/arena/bastion-l3-sun.png",
+    "sheet": [
+      518,
+      405
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l4-storm": {
+    "key": "bastion-l4-storm",
+    "path": "assets/arena/bastion-l4-storm.png",
+    "sheet": [
+      459,
+      436
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l4-sun": {
+    "key": "bastion-l4-sun",
+    "path": "assets/arena/bastion-l4-sun.png",
+    "sheet": [
+      567,
+      443
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l5-storm": {
+    "key": "bastion-l5-storm",
+    "path": "assets/arena/bastion-l5-storm.png",
+    "sheet": [
+      518,
+      464
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  },
+  "bastion-l5-sun": {
+    "key": "bastion-l5-sun",
+    "path": "assets/arena/bastion-l5-sun.png",
+    "sheet": [
+      616,
+      480
+    ],
+    "foot": 22,
+    "socket": {
+      "x": 0.0,
+      "y": 10
+    }
+  }
+}

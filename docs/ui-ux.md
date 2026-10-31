@@ -1,0 +1,430 @@
+# UI / UX Pass — Camera, HUD, Panels & Accessibility
+
+This document records the second UI/UX pass: what was wrong, what changed, how it was verified,
+and what to check by hand. It complements [technical-documentation.md](technical-documentation.md)
+and [testing-report.md](testing-report.md).
+
+---
+
+## 1. Why this pass was needed
+
+| Symptom | Root cause |
+|---|---|
+| Clicking a tile built on the *wrong* tile when the camera was zoomed or panned | Tile maths used raw canvas pixels: `Math.floor(pointer.x / TILE_SIZE)`. That is only true at zoom 1 with scroll 0. |
+| No way to see the far side of the map on a phone | No pan, no zoom, no pinch. The canvas was simply scaled down. |
+| The HUD covered the map and swallowed drags | Every `.hud-panel` was `pointer-events: auto`, including its transparent wooden frame. |
+| Upgrading meant hunting: click tower → find button in a far-corner panel | No affordance on the tower itself; the inspector was bolted to `right: 18px; bottom: 120px`. |
+| Codex hid the battlefield | It was a full-screen modal, so the “visualise BFS” button had to close it to show anything. |
+| Beige text on beige wood (unreadable labels) | `--text-muted: #b0a08a` used on parchment/wood surfaces: **1.56:1**. Gold `#f5c451` on wood: **1.43:1**. |
+| HUD collided with itself on 1366×768 laptops and phones | One fixed layout (`width: 1280px`), no media queries. |
+
+---
+
+## 2. Camera: drag, wheel zoom, pinch
+
+New, Phaser-free modules:
+
+- `src/camera/cameraMath.js` — world-view maths, pointer ↔ world conversion, anchored zoom,
+  pan clamping, pinch resolution, smoothing.
+- `src/camera/CameraRig.js` — the input-driven rig that applies those functions to
+  `scene.cameras.main` and tells the HUD when the zoom changed.
+
+### Pointer → world, done properly
+
+Phaser centres zoom on the camera viewport, so the visible world rectangle is
+
+```
+worldView.x = scrollX + (width - width / zoom) / 2
+worldView.width = width / zoom
+world = worldView.x + screenX / zoom
+```
+
+That is exactly what `Camera#getWorldPoint()` returns. It was verified against a real
+Phaser 3.90 `Camera` in Node (setBounds → setZoom → preRender → getWorldPoint) and the numbers
+are locked into `tests/camera-math.test.js`:
+
+| zoom | scroll | `getWorldPoint(0,0)` | `worldView` |
+|---|---|---|---|
+| 1 | 0 | 0,0 | 0, 0, 1280×768 |
+| 2 | 0 | 320,192 | 320, 192, 640×384 |
+| 2 | 320 | 640,192 | 640, 192, 640×384 |
+
+Consequences in the scene:
+
+- `tileAtScreen(x, y)` replaces every `pointer.x / TILE_SIZE`.
+- The build ghost is recomputed whenever the camera moves, so it stays under the cursor while zooming.
+- Tab actions (build / select / badge) fire on **pointerup**, and only when the press started on
+  the canvas and did not pan. A drag can never build a tower; a press that began on a HUD button
+  can never do it either (`CameraRig#consumeTap`).
+
+### Controls
+
+| Gesture | Action |
+|---|---|
+| Drag (any button / one finger) | Pan (6 px threshold before it counts as a drag) |
+| Mouse wheel / trackpad scroll | Zoom at the cursor, smoothed, clamped 1×–3× |
+| Two-finger pinch | Zoom + two-finger pan, pinned to the world point under the midpoint |
+| <kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> | Zoom in / out / fit the whole map |
+| <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> | Nudge the camera |
+| HUD cluster (−  100%  +  ⤢) | Same, for touch and mouse users |
+
+The camera is bounded to the 1280×768 map, so it is impossible to drag the battlefield into the void.
+Zoom buttons disable themselves at the limits and the ⤢ button stays highlighted while the whole map fits.
+
+---
+
+## 3. Upgrade badges above every defence
+
+`src/ui/UpgradeBadge.js` — pure model (`badgeModel`, `badgeAnchorY`, `badgeScale`, `badgeHit`) plus a
+Phaser view (`UpgradeBadges`).
+
+- A pill floats above each tower/barricade, offset by the **art height** (`Tower#artHeight`), not the
+  tile height, so tall level-3 sprites never hide it.
+- `▲ 60` = linear upgrade (price shown) · `✦ 120` = branching specialisation (cheapest option).
+- Gold when affordable, muted grey when not, cyan ring on the selected tower.
+- Clicking a badge selects the tower and opens the inspector; the badge has priority over the tile
+  behind it, so badges never act as a mis-click trap.
+- Constant on-screen size at every zoom (`1 / zoom`, clamped 0.7–1.55) and culled off-screen.
+- Hidden at max level, popped in on build, pulses after an upgrade.
+
+---
+
+## 4. Non-blocking panels
+
+| Rule | Implementation |
+|---|---|
+| HUD frames are click-through | `.hud-panel { pointer-events: none }`; only real controls (stat chips, buttons, build cards, **dock tabs**, camera cluster, drawer, inspector) opt back in. |
+| Every control is actually hittable | `tests/hud-hit-area.test.js` resolves `pointer-events` through the real cascade for every button the HUD paints. The dock tabs were the one control that forgot to opt back in, which made the whole ENGINEER page — crossbow, gatling, flamer, venom, harpoon — unreachable by mouse and by finger while the hotkeys kept working. |
+| The inspector follows the tower | `placeInspector()` tries right → left → below → above, then clamps to the battlefield. |
+| The inspector can be moved/hidden | Drag the header, collapse with ▾, close with ✕, double-click the header to re-anchor. Its content scrolls (`max-height: min(52vh, 430px)`) on short screens. |
+| The codex no longer steals the map | `StatisticsPanel` is now a right-hand drawer: the battlefield stays visible and the battle keeps running. Telemetry refreshes every 900 ms while open, and “SHOW BFS PATH” toggles the overlay **without** closing the panel. |
+| Modals are escapable | Backdrop click and <kbd>Esc</kbd> close the field manual, credits and leaderboard. |
+| The top bar is battle-only | It carries the three stat chips, the wave readout, START WAVE, speed, pause, mute and fullscreen. The codex and the way out of a battle moved to the pause card, which is the only place they are relevant. |
+| Leaving a run takes two taps | Pause → LEAVE BATTLE arms a crimson caution (“Leaving now discards this battle — tap again to confirm”) that disarms itself after 4 s. The second tap stops the scene and reopens the world map, so a mis-tap can never throw the player back to the title screen. |
+| The pause card replaces the paused pill | `#pause-overlay` (z-index 200) sits above the HUD and below `#modal-container`, so the codex and leaderboard still open on top of it. The old chip is hidden by CSS while the card is open. |
+| Portrait phones get guidance | The game is 26×12 tiles, so portrait shows a “rotate your device” card with a *Continue anyway* escape hatch. |
+
+---
+
+## 5. Responsive HUD
+
+`#app` fills the screen (`100vw × 100dvh`) and the 5:3 battlefield is a separate, always-full-width
+box inside it, so the HUD is anchored to the screen even when the stage overflows it. Two measured
+custom properties — `--dock-clearance` and `--topbar-clearance`, published by
+[`src/ui/hudLayout.js`](../src/ui/hudLayout.js) — keep every floating control clear of the dock and
+the top bar at any aspect ratio. The placement hint is a child of the dock but *out of its layout
+flow* (`position: absolute; bottom: calc(100% + 10px)`), so it hovers over the board's bottom rim
+instead of covering a card — and, crucially, picking a card no longer changes the dock's height. As a
+flow child it added ~42 px to the panel, which shortened the measured camera band and made the room
+re-fit: the board visibly shrank every time a defence was selected.
+
+| Breakpoint | Behaviour |
+|---|---|
+| ≤ 1180 px | Labels collapse to values, smaller dock cards, tighter top bar |
+| ≤ 900 px | Top bar wraps: stats + icon-only controls on row 1, wave badge + START WAVE on row 2 |
+| ≤ 680 px | Score chip hidden, dock becomes a full-width strip whose title shrinks to the fold handle, inspector becomes a 272 px sheet, TIME column hidden in the leaderboard, codex drawer takes the full width |
+| ≤ 620 px height | Desktop labels hidden, 30 px dock icons, 40 vh inspector, camera hint suppressed |
+| ≤ 460 px height | Dock name labels hidden (icon + price only), top bar collapses to one row (wave badge inline, icon-only controls), pause card shrinks to two rows |
+| Letterbox (wide screens) | A 26×12 board fitted to the band leaves empty canvas either side; the Vanguard card shrinks and stacks into that strip (`--hero-panel-w` / `.is-compact`) instead of covering the battlefield's corner |
+| `hover: none` | 34 px camera/close buttons, 44 px minimum touch rows, zoom pill reduced to its "reset view" button (pinch already zooms the battlefield) |
+| ≤ 900 px or ≤ 560 px height | Boss card drops to a slim strip: `min(360px, 62vw)` wide, 12/10 px frame, 8 px health bar, ellipsised name — it no longer covers a third of the lane |
+| ≤ 430 px height | Boss strip narrows to `min(300px, 54vw)`; the skull and the trait line are dropped (the phase badge still names the phase) |
+
+Type and spacing use `clamp()` so the HUD scales with the window instead of jumping between sizes.
+
+### Folding the forge
+
+The dock title is also a button (`#btn-toggle-dock`, <kbd>H</kbd>). One tap folds the seven build
+cards away into a thin labelled strip — the battlefield is fully visible, the battle keeps running,
+and the same tap brings the cards back. Folded, an armed card is disarmed (a hidden card can no
+longer explain itself), and pressing a build hotkey reopens the dock so the armed card is visible.
+The choice is stored in `localStorage` (`td-dsalgo:dock-collapsed:v1`) and survives reloads; the
+dock's new height is re-measured by `HudLayout`, so the camera pill and the toast slide down with it.
+
+### Paging the dock
+
+Twelve defences in one strip crushed every card into a thumbnail, so the forge is
+paged by family: **7 KEEPS** (archer, cannon, frost, palisade, forge, runes,
+banner) and **5 ENGINEER** (crossbow, gatling, flamer, venom, harpoon). Only the
+selected page is in the layout — the hidden cards are `display: none` *and*
+`aria-hidden`.
+
+Three things make the paging usable:
+
+- The tabs take pointer events like every other control. They are the only
+  chrome in the dock that is not a card, and they were the one thing that
+  inherited the panel's `pointer-events: none`; the ENGINEER roster was
+  therefore invisible in practice for a while.
+- A roving `tabindex` plus <kbd>←</kbd>/<kbd>→</kbd>/<kbd>Home</kbd>/<kbd>End</kbd>
+  keeps the page reachable from the keyboard.
+- A hotkey from the *other* page (`8`–`=`) arms the defence **and** pages the
+  dock to it, so a keyboard build never lands on a card the player cannot see.
+  Folding the dock hides the tab bar with the cards.
+
+---
+
+## 6. Contrast tokens
+
+Text is split by the surface it sits on, because the Cozy UI art is *light*:
+
+```
+ink-strong  #241208   7.70:1 on wood   16.23:1 on parchment
+ink         #33200f   6.63:1 on wood   13.96:1 on parchment
+ink-muted   #4f3018   5.07:1 on wood   10.69:1 on parchment
+ink-gold    #572d00   5.04:1 on wood   10.62:1 on parchment
+text-main   #f6efe2  16.56:1 on #14100c
+text-muted  #cfc0a9  10.61:1 on #14100c
+slot-muted  #f8ecdf   4.80:1 on #a14e3f  (stat-chip labels)
+```
+
+Measured against **sampled sprite colours**, not guesses:
+
+| Sprite | Average fill |
+|---|---|
+| WoodenContainer1 / Container1 / SquareButton2_wood | `#dd9a79` |
+| NoteContainerSimple (toasts, results) | `#faf2e6` |
+| Container3 (telemetry sections) | `#d9d2d3` |
+| ItemSlot1 (stat chips) | `#a14e3f` |
+| CardRegular1_red (boss banner) | `#f65d63` |
+
+`npm run check:contrast` parses the tokens straight out of `src/style.css`, recomputes WCAG 2.1
+ratios and fails the build if any pair drops below 4.5:1 — **30/30 pairs pass**.
+
+Bugs this caught and fixed:
+
+- modal body copy, leaderboard rows, table headers and toast text inherited light text on wood/parchment;
+- the toast accents were cyan/crimson on cream (1.4:1) — now inked borders with ink text;
+- boss banner name (1.9:1) and ability line (3.0:1) on the red card;
+- “SELL” and danger buttons were white on red (3.2:1) — now dark ink (5.7:1);
+- wave/label text inside the cream wave badge — the readout is `white-space: nowrap` with a `ch`-based min-width and tabular numerals, so “12 / 20” never splits into two lines and the badge does not jump in width between waves;
+- codex telemetry descriptions on slate.
+
+---
+
+## 7. Verification
+
+```bash
+npm test                # 518 tests / 39 suites (includes the UI + mobile-layout + ui-kit suites)
+npm run check:contrast  # WCAG audit — 36/36
+npm run verify:camera   # pure camera maths vs a real Phaser camera
+npm run build           # production bundle
+npm run dev             # manual check at http://localhost:5173
+```
+
+`npm run verify:camera` boots a headless Phaser 3 `Camera` (jsdom stubs, no WebGL) and compares it
+with `src/camera/cameraMath.js` over 2000 random zoom/scroll combinations:
+
+| Contract | Max difference from the engine |
+|---|---|
+| `screenToWorld` vs `Camera#getWorldPoint` | **0.00004 px** |
+| `clampScroll` vs `Camera#preRender` clamping | **0 px** |
+| `zoomAround` anchor drift (where the camera is free to move) | **0.00006 px** |
+| `worldView` vs `Camera#worldView` | 0.72 px — Phaser rounds the rectangle to whole pixels |
+
+So pointer → tile conversion is engine-exact; the 0.72 px on `worldView` only affects where HUD
+panels anchor and is far below one tile. 45 % of the random samples land on a map edge, where keeping
+the world point under the cursor is geometrically impossible; there the rig clamps the scroll instead.
+
+
+New automated coverage:
+
+| Suite | What it pins down |
+|---|---|
+| `tests/camera-math.test.js` | World-view maths (incl. engine-verified numbers), zoom-at-cursor pinning, clamping, pinch, pan |
+| `tests/upgrade-badge.test.js` | Badge labels/prices/affordability, anchor above art, zoom compensation, hit-testing |
+| `tests/panel-placement.test.js` | Inspector side selection and viewport clamping |
+| `tests/hud-dom.test.js` (jsdom) | HUD renders every control, buttons forward callbacks, inspector content, placement hint, zoom readout, reset, codex drawer open/live/BFS toggle |
+
+Manual checklist for a human browser session:
+
+1. Zoom to 2× with the wheel, then build — the tower appears under the cursor.
+2. Drag the map — no tower is built when you release, and the ghost disappears during the drag.
+3. Pan to the base and click a badge above a tower — the inspector opens beside it, never off-screen.
+4. Start a wave, open the codex (`C`) — the battle keeps running; toggle the BFS path and watch it
+   light up behind the drawer.
+5. Resize the window down to ~600 px wide — the top bar wraps, the dock becomes a strip, the inspector
+   stays inside the battlefield.
+6. On a phone, rotate to portrait — the rotate card appears with *Continue anyway*.
+7. Let the wave counter pass 10 (Endless mode) — the badge stays one line and keeps its width.
+8. Pause, tap LEAVE BATTLE once — the crimson caution appears; wait 4 s and it disarms; tap twice
+   and you land on the world map, not the title screen.
+
+---
+
+## 8. Campaign screens
+
+**Main menu — one plate** (`#main-menu-overlay`, styles under "MAIN MENU" in
+`src/style.css`)
+- The menu carries the title lockup (`DEFENSE / OF KINGDOM`, Cinzel Decorative
+  over the painted keep at dusk), the edition line, one gold plaque
+  (**PLAY CAMPAIGN**) and two iron keys: sound and fullscreen. Nothing else.
+  Daily, duel, War Room, Forge, medals, champions, codex, field manual and
+  credits all moved to the realm — one navigation layer, no second copy of a
+  feature.
+- The key art is a generated painting (`public/assets/ui-kit/menu-keep.jpg`,
+  1672×941), with `menu-stone.jpg` as a dark granite grain behind the title
+  (rebuilt by `scripts/build_menu_stone.py`, seeded and reproducible) and CSS
+  layers for fog, torchlight and embers. All animation is opacity/transform and
+  stops under reduced motion.
+- The line under PLAY is the only live number on the screen: `BEGIN A NEW
+  CAMPAIGN`, `CONTINUE · FROSTBITE HOLLOW`, or `CAMPAIGN COMPLETE`. It is derived
+  from the save and reads the same `currentObjective()` the map beacon does
+  (`src/ui/menuCue.js`, five tests), so the menu can never point at a different
+  stage than the realm.
+- Both utility keys use kit glyphs (`glyph_sound` / `glyph_muted` /
+  `glyph_expand`) from one path table, `src/ui/soundIcon.js`, so the menu key,
+  the map key and the muted state cannot drift apart. The muted state is a slash
+  through the horn, not a dimmed colour.
+- A third key — the kit's `glyph_gear` — opens the audio desk on both bars:
+  master / music / effects / ambience faders and a mute switch. Mute stays on
+  the speaker (it has to be one tap); everything else is a decision you open.
+  The mixer, the music scenes and the per-location beds are documented in
+  [audio.md](audio.md).
+- PLAY sets `is-leaving` (a 240 ms fade), then reveals the map underneath, so
+  the hand-off is a crossfade rather than a cut. `Esc`/`F` still work.
+- Type is self-hosted: eight OFL woff2 subsets in `public/fonts` replace the old
+  `fonts.googleapis.com` `@import`, so the first paint never waits on a third
+  party (and works offline). Rajdhani for body, Cinzel for headings, Cinzel
+  Decorative for the lockup.
+
+**World map — the hub** (`src/ui/WorldMapUI.js`, `src/data/worldMap.js`, styles
+under "WORLD MAP" in `src/style.css`)
+- One painted continent (1536×1024, `public/assets/worldmap/terrain-src.jpg`)
+  under a CSS-transform camera inside `#world-map-root` (z-index 248: above the
+  HUD, below every overlay screen and dialog). It lives in its own root because
+  `ResultScreenUI` empties `#screen-container` — a camera parked in there would
+  be wiped by the victory screen that sends you back to the map.
+- Camera: `x`, `y`, `scale` with `minScale` = the cover scale (the plate can
+  never show a bare edge) and `maxScale` ≈ the landmarks' native pixels. Drag,
+  wheel, two-finger pinch, `+`/`-`/arrows/`0`, and a rail with zoom + recentre.
+  Memory is stored plate-relative so a resize or a fullscreen toggle restores
+  the same corner of the world. Pointer travel > 6 px suppresses the click, so
+  a pan never launches a battle.
+- Landmarks are `<button>`s placed in plate percentages: 5 stage banners, the
+  castle overview, and seven buildings. Labels counter-scale (`1/scale`) so a
+  stage name is the same size on a phone at min zoom; building labels fade in
+  past 1.22× so the central kingdom stays readable when zoomed out.
+- The contextual panel is one card, hugged to its content, on the right at
+  ≥900 px, a bottom sheet on narrow screens and a right-hand column on short
+  landscape (844×390), where a full-width sheet would hide the map it belongs
+  to. It closes with BACK, Escape or a tap on empty ground and restores the
+  camera it borrowed. The zoom rail steps left of the panel (and moves to the
+  top-left on small screens) so the camera controls are never covered.
+- Every landmark leads somewhere that already existed: stage briefings deploy
+  real `levelData` stages, the War Room opens the eight modes, the Royal Library
+  opens the codex + field manual, the Shrine runs today's real daily, and the
+  Mirror Arena opens the duel lobby. No decorative landmark, no dead button.
+- The Forge, Champions' Hall and Monument answer with **live save data**, not a
+  blurb (`src/ui/WorldPanels.js`): owned relic levels and the next price with
+  READY / N SHORT, the top three runs that really finished on this device, and
+  earned-vs-locked medals with their real conditions. Empty states say so in
+  words; nothing is ever granted from the map.
+- The castle's objective card has three honest states, not two: `NEXT OBJECTIVE`
+  (a real stage, with MARCH ON IT), `CAMPAIGN COMPLETE` (every stage cleared) and
+  `NO OPEN ROAD` (nothing to point at but the ledger is not full) — the copy is
+  decided by the same `campaignSummary()` as the fact rows above it.
+- Discovery: a first clear that opens a road pulses the new banner, rings a
+  beacon on the current objective and prints one toast with the banked stars,
+  gold, gems and the road that opened. The intro zoom plays once per session —
+  returning from a battle never replays it.
+
+**Result screen** (`src/ui/ResultScreenUI.js`)
+- Victory: ribbon, level name, 1–3 stars popping in on a 140 ms stagger, a
+  pulsing "NEW BEST 2★ → 3★" line when a replay beats the saved rating, three
+  stat chips (score / waves / time), the banked rewards, one unlock line per
+  door that opened (a first level-1 clear opens level 2 *and* Endless Siege),
+  and Next / Replay / Leaderboard / Main Menu. Beating the last stage swaps the
+  unlock line for a CAMPAIGN COMPLETE banner and drops NEXT.
+- Defeat: same shell in crimson, a skull mark instead of stars, RETRY instead of
+  Next. Endless swaps the stat chips for WAVE REACHED / BEST WAVE / SCORE and
+  reports a new depth record.
+- The leaderboard opens *over* the result screen: campaign screens live in
+  their own `#screen-container` (z-index 250) while dialogs keep
+  `#modal-container` (z-index 300). Both UIs replace their container's markup,
+  so sharing one would let the leaderboard wipe the screen it was opened from.
+
+**HUD level chip** — the running level's name sits under the top bar in the same
+lane as the pause banner (which shifts down 26 px while a level chip is
+present). In Endless the wave counter drops its "/ N" denominator and the chip
+turns crimson.
+
+---
+
+## 9. Third pass — "Obsidian & Gold" reskin
+
+This pass is documented in full in [interface-kit.md](interface-kit.md). Summary of what
+changed relative to sections 1–8:
+
+- **Art**: the free Cozy UI demo pack is retired. 28 deterministic sprites are generated
+  by `scripts/build_ui_kit.py` at the same canvas sizes and slices the stylesheet already
+  used, so no layout rule moved — only the URLs.
+- **Ink**: every `--ink-*` token flipped to a light value, because every plate is now
+  dark. The gold primary button is the one light plate and uses `--ink-on-gold`.
+  `npm run check:contrast` now audits 47 pairs against the *measured* sprite fills
+  (was 36 against the wood pack); all pass, worst 6.0:1.
+- **Menu**: nine stacked buttons → `PLAY` (only gold plate) + daily + a 3×2 tile hub +
+  a save summary. Two columns above 620 px, one below; no inner scrollbar on a landscape
+  phone; every target ≥ 44 px.
+- **In play**: the same plates dress the top bar, dock, chips, cards, toasts and boss
+  banner, and `fx_ring` shockwaves land on big kills and boss events.
+- **Guard rail**: `tests/ui-kit.test.js` (40 tests) pins asset URLs, sprite dimensions,
+  slice sanity, menu ids and the absence of the old pack.
+
+---
+
+## 10. The masthead takes the middle, and the result card turns on its side
+
+### 10.1 Main menu
+
+The lockup is no longer a left rail. `.menu-body` is `justify-content: center`
+and `.menu-panel` is a centred column (`align-items: center`,
+`text-align: center`, `width: min(640px, 100%)`) at **every** width — the
+portrait/mobile block already did this, so the two layouts now agree instead of
+swapping alignment at 760 px. The carved wall (`.menu-stone`) and the horizontal
+scrim follow the same centre line, and `.menu-eyebrow` / `.menu-rule` grew the
+mirrored hairline they needed once nothing was left-aligned.
+
+- **Title**: `clamp(42px, min(11.6vh, 8.2vw), 120px)` (was 38/10vh/7.2vw/104) for
+  `OF KINGDOM`, `clamp(21px, min(3.9vh, 3.2vw), 38px)` for `DEFENSE` — one step
+  up, same proportions, no rework.
+- **Description**: a new `.menu-blurb` between the rule and the plate, capped at
+  `min(58ch, 560px)`, `--ink-muted`, `text-wrap: pretty`. It stays on a phone at
+  `clamp(10px, 1.5vh, 12px)` / two lines instead of being hidden like
+  `.menu-footnote`.
+- The plate keeps its `min(524px, 100%)` width, so PLAY is the widest element in
+  the column and the eye lands on it first.
+
+### 10.2 Victory / defeat
+
+`.result-shell` never paints outside its frame (`overflow: hidden`, body scroll
+pane, `flex: 0 0 auto` children), and on a short landscape screen it becomes a
+**two-column card** — run on the left, the five action plates stacked on the
+right — instead of a 700 px column squeezed into 390 px. Full measurements,
+the motion timeline and the filmstrip are in
+[testing-report.md](testing-report.md) §19.
+
+### 10.3 Glyph discipline
+
+A defeat is headed by the kit's `glyph_skull.png`, a starless run by
+`glyph_swords.png`, and the unlock line by a CSS diamond. The card no longer
+relies on an emoji font: a headless Chromium with no colour-emoji font showed an
+empty box where `💀` / `⚔` / `🔓` used to be.
+
+---
+
+## 11. The Muster Hall (Request 29)
+
+- **Backdrop**: a generated pavilion plate (`pets-hall.webp`) with a light
+  scrim; the shell keeps its gold frame but drops the panel's opaque fill, so
+  the art reads through a `backdrop-filter` sheet rather than being hidden.
+- **Three columns**: side tabs (`RECRUIT` / `UPGRADE` / `VANGUARD`), the roster
+  of all five companions, and the selected companion's card. Tabs on the left
+  edge keep switching to one thumb on a phone.
+- **One companion**: the roster is a choice, not a stack — `TAKE INTO BATTLE`
+  moves the single active companion, and the header always says which one.
+- **Levels**: every companion runs 1–5. The UPGRADE tab prints `now → next` for
+  each stat, a five-pip ladder, the rest of the bill, and the one plate that
+  spends gold. The aura ring on the portrait grows with the level, so a maxed
+  companion reads as maxed from the roster.
+- **Numbers**: printed from `petAbility`, the same object the entity fights
+  with — a card can never advertise a number the battle does not use.

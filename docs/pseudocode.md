@@ -10,8 +10,8 @@ This document outlines the high-level pseudocode for the primary data structures
 ALGORITHM BFS_ShortestPath(graph, startNode, goalNode, blockedSet)
   INPUT:
     graph       : Adjacency list representation of road cells
-    startNode   : Spawn cell identifier (e.g., "5,0")
-    goalNode    : Base cell identifier (e.g., "5,19")
+    startNode   : Spawn cell identifier (e.g., "5,1")
+    goalNode    : Base cell identifier (e.g., "5,18")
     blockedSet  : Optional set of nodes temporarily treated as impassable
 
   OUTPUT:
@@ -188,50 +188,165 @@ END CLASS
 
 ---
 
-## 4. Barricade Feasibility Validation
+## 4. Palisade Siege Resolution
 
 ```text
-ALGORITHM TryBlockCell(graph, candidateCell, livingEnemiesList, spawnCell, baseCell)
+ALGORITHM UpdateSiege(enemy, graphRoute, barricadeIndex)
   INPUT:
-    candidateCell    : Road cell the player clicked to place barricade
-    livingEnemiesList: Array of living enemy entities with their next target cell
-    spawnCell        : Spawn coordinate "5,0"
-    baseCell         : Base coordinate "5,19"
+    enemy          : Living enemy entity with a position and a route
+    barricadeIndex : Map<"row,col", Palisade> built by PlacementSystem
 
   OUTPUT:
-    result           : { ok: Boolean, reason: String, enemyPaths: Map }
+    true when the enemy spent this frame attacking a wall
 
-  IF candidateCell == spawnCell OR candidateCell == baseCell THEN
-    RETURN { ok: false, reason: "endpoint" }
+  nextCell <- enemy.route[enemy.pathIndex]
+  wall     <- barricadeIndex.get(nextCell)
+  IF wall is null OR wall.health <= 0 THEN
+    RETURN false                       // normal waypoint movement continues
   END IF
 
-  // 1. Verify Spawn still reaches Base
-  blockedSet <- Set containing candidateCell
-  spawnTest <- BFS_ShortestPath(graph, spawnCell, baseCell, blockedSet)
-  IF spawnTest.found IS FALSE THEN
-    RETURN { ok: false, reason: "blocks-path" }
+  // 1. Stand one stop-distance OUTSIDE the wall tile (never inside it)
+  target <- ApproachPoint(enemy.position, wall.position, STOP_DISTANCE)
+
+  // 2. Spread the pack sideways so attackers do not stack on one pixel
+  target <- target + perpendicularOffset(enemy.id)
+
+  IF distance(enemy.position, target) > step THEN
+    enemy.position <- moveTowards(enemy.position, target, step)
+    RETURN true
   END IF
 
-  // 2. Verify all living enemies still reach Base
-  enemyPathMap <- Instantiate Map()
-  FOR EACH enemy IN livingEnemiesList DO
-    enemyStart <- enemy.nextTargetCell
-    IF enemyStart == candidateCell THEN
-      RETURN { ok: false, reason: "enemy-on-tile" }
+  // 3. In contact: swing on the archetype's cadence
+  enemy.siegeTimer <- enemy.siegeTimer + delta
+  IF enemy.siegeTimer >= enemy.def.siegeInterval THEN
+    enemy.siegeTimer <- enemy.siegeTimer - enemy.def.siegeInterval
+    swing <- ResolveSiegeSwing(wall, enemy.def.siege)
+    wall.takeDamage(swing.dealt)
+    IF swing.destroyed THEN
+      activeTowers.remove(wall)
+      placement.release(wall.cell)     // the road is open again
     END IF
+  END IF
+  RETURN true
+END ALGORITHM
+```
 
-    // Use cached path if another enemy is heading to the same cell
-    IF enemyPathMap DOES NOT CONTAIN enemyStart THEN
-      enemyTest <- BFS_ShortestPath(graph, enemyStart, baseCell, blockedSet)
-      IF enemyTest.found IS FALSE THEN
-        RETURN { ok: false, reason: "traps-enemy" }
-      END IF
-      enemyPathMap.set(enemyStart, enemyTest.path)
-    END IF
+```text
+ALGORITHM ValidateBuild(typeKey, row, col)
+  definition <- getBuildDefinition(typeKey)
+  basic      <- PlacementSystem.validate(definition, row, col, coins)
+
+  IF basic.ok IS FALSE THEN RETURN basic END IF
+
+  // A wall only pays off on the lanes the horde actually marches. Every route
+  // the map offers is legal ground now (one wave per lane), so the set is the
+  // union of all lanes — a decoy road would otherwise swallow the 30 gold and
+  // read as a dodge.
+  routeCells <- PathfindingSystem.laneCells          // union of every lane, once on load
+  IF typeKey == "barricade" AND NOT routeCells.has(cellKey(row, col)) THEN
+    RETURN { ok: false, reason: "off-route" }
+  END IF
+
+  // A wall may not be dropped on top of a living enemy.
+  IF typeKey == "barricade" AND anyLivingEnemyOccupies(row, col) THEN
+    RETURN { ok: false, reason: "enemy-on-tile" }
+  END IF
+
+  RETURN { ok: true, reason: null }
+END ALGORITHM
+```
+
+> **Why the old `TryBlockCell` algorithm is gone.** It removed the road node from
+> the graph and pushed BFS onto a 26-cell detour whenever a 22-cell lane was
+> walled off — i.e. the horde *dodged* the palisade. Players read that as the
+> wall doing nothing. The graph now describes the road network only; walls are
+> physical hit-point objects resolved by `UpdateSiege` above.
+
+---
+
+## 5. Gate Coverage: who may answer an assault
+
+```text
+ALGORITHM AcquireTarget(tower)
+  range      <- tower.attackRange                     // the only distance gate
+  bastion    <- tower.context.getBasePoint()          // GameScene.bastionPoint(), one definition
+  coversGate <- bastion != null
+                AND distance(tower, bastion) <= range
+  candidates <- []
+
+  FOR each enemy IN tower.context.activeEnemies DO
+    IF NOT CanEngage(tower, enemy) THEN CONTINUE        // categories, live filter, supportOnly
+    d <- distance(tower, enemy)
+
+    // The gate rule: a defence that covers the bastion answers the creeps
+    // hitting the bastion, even from the far side of the assault ring
+    // (radius 72 px, inside the no-build moat, out of range for most of the line).
+    hitsTheGate <- coversGate AND enemy.assaulting == true
+
+    IF d > range AND NOT hitsTheGate THEN CONTINUE
+    // No minimum range: a creep inside the ring is shootable at any distance.
+    // A floor of 90–140 px was wider than the 64 px gap between a tower's tile
+    // and the road beside it, so siege pieces went silent on any walk-by.
+    candidates.push({ enemy, d })
   END FOR
 
-  // 3. Commit graph edge cut
-  graph.removeNode(candidateCell)
-  RETURN { ok: true, enemyPaths: enemyPathMap }
+  IF candidates is empty THEN
+    tower.currentTarget <- null
+    RETURN
+  END IF
+
+  IF focusTarget is marked AND legal AND inside candidates THEN
+    tower.currentTarget <- focusTarget
+    RETURN
+  END IF
+
+  SortTargets(candidates, tower.targetingMode)          // FIRST / LAST / STRONG / NEAR / ...
+  tower.currentTarget <- candidates[0].enemy
+END ALGORITHM
+
+ALGORITHM UpdateCooldown(tower, deltaMs)
+  // A frame longer than the time left used to park the timer at a permanent
+  // negative (-30 was visible on every idle tower); it is floored at zero.
+  IF tower.cooldownTimer > 0 THEN
+    tower.cooldownTimer <- max(0, tower.cooldownTimer - deltaMs)
+  END IF
+END ALGORITHM
+```
+---
+
+## 6. Defence Hunting: what a creep attacks, and in what order
+
+```text
+ALGORITHM HuntRadiusFor(attacker, bastion)
+  IF bastion is null THEN RETURN DEFENCE_HUNT_RADIUS END IF
+  toBase <- distance(attacker, bastion)
+  IF toBase <= GATE_GUARD_RADIUS THEN RETURN GATE_GUARD_RADIUS END IF
+  RETURN DEFENCE_HUNT_RADIUS                 // tight radius out on the road
+END ALGORITHM
+
+ALGORITHM PickDefenceInReach(attacker, structures, radius)
+  best <- null ; bestScore <- INFINITY
+  FOR each structure IN structures DO
+    IF structure.isDestroyed OR structure.health <= 0 THEN CONTINUE
+    d <- distance(attacker, structure)
+    IF d > radius THEN CONTINUE
+    // A palisade is literally in the road, so it wins a near-tie.
+    score <- d - (structure.isBarricade ? 8 : 0)
+    IF score < bestScore THEN best <- structure ; bestScore <- score
+  END FOR
+  RETURN best
+END ALGORITHM
+
+ALGORITHM EnemyUpdate(deltaMs)          // the relevant slice
+  IF flying THEN skip hunting END IF
+  guard <- GetStructureAhead()          // a wall on the next waypoint
+           OR GetDefenceInReach()       // or any standing defence in reach
+  IF guard is not null AND UpdateSiege(deltaMs, guard) THEN
+    RETURN                              // defences come first
+  END IF
+  IF UpdateBaseAssault(deltaMs) THEN
+    RETURN                              // the gate is the last thing touched
+  END IF
+  MoveAlongWaypoints(deltaMs)
 END ALGORITHM
 ```

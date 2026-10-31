@@ -87,13 +87,65 @@ Our circular buffer uses `head = (head + 1) % capacity`, which executes in **$O(
 
 ---
 
-## 5. Summary Table
+## 5. Yen's k-Shortest Loopless Paths (multi-lane routing)
+
+### Formal Complexity
+
+- **Time Complexity:** $O(k \cdot V \cdot (V + E))$
+- **Space Complexity:** $O(k \cdot V + V + E)$
+
+### Context in the Game
+
+- $k \le 3$ lanes, $V \approx 90$ road cells on a $20 \times 12$ campaign map and
+  $V \approx 300$ on the $28 \times 18$ Endless battlefield, $E \le 2V$.
+- Runs **once per battle** at scene start, never per frame. The horde then walks
+  a precomputed array of cell keys.
+
+### Time Complexity Proof
+
+1. **First lane.** Ordinary BFS: $O(V + E)$.
+2. **Spur searches.** For each of the $O(V)$ cells of the last accepted lane, one
+   BFS is run on the graph with a pinned prefix (blocked nodes) and the outgoing
+   edges of previously accepted lanes removed. Each search is still $O(V + E)$,
+   so one Yen round is $O(V \cdot (V + E))$; three rounds are $O(k \cdot V \cdot (V + E))$.
+3. **No re-search of accepted work.** Accepted lanes are never re-expanded — only
+   the newest one generates spurs, which is Yen's own bound.
+4. **On the shipped maps** that is a few hundred BFS passes over at most 300
+   nodes and 1 200 edges: measured at **0.13–1.29 ms** per battlefield (20-run
+   average, Node 22, worst case grassland's three near-equal routes), inside the
+   ~400 ms the scene already spends generating textures.
+
+### Space Complexity Proof
+
+- `accepted`: at most $k$ paths of at most $V$ keys $\implies O(k \cdot V)$.
+- `pool`: candidate paths of the same bound $\implies O(k \cdot V)$.
+- Per search: `visited` and `parent` $\implies O(V)$.
+- **Total:** $O(k \cdot V + V + E)$, well under a megabyte even at $k = 3$.
+
+### Correctness notes
+
+- **Loopless.** `blocked` contains the spur root's prefix, so a spur can never
+  walk back into its own tail.
+- **Edge-level exclusion.** Blocking an edge (not a node) is what lets two lanes
+  share a corridor and still be different routes; `edgeKey(a, b)` keeps the key
+  order-independent.
+- **Distinctness.** A candidate must claim `max(4, 20 %)` of its cells; without
+  that filter a dense road grid answers with corner-cut twins, which is the
+  single-path problem again with extra steps.
+- **Determinism.** BFS expands neighbours in a fixed order and candidates are
+  sorted stably by length, so two devices running the same map compute the same
+  lanes in the same order — the requirement for a mirrored duel.
+
+---
+
+## 6. Summary Table
 
 | Data Structure / Algorithm | Operation | Average Time | Worst Time | Space | Primary In-Game Purpose |
 |---|---|:---:|:---:|:---:|---|
 | **Circular Queue** | `enqueue` / `dequeue` | $O(1)$ | $O(1)^*$ | $O(C)$ | Wave spawner & BFS frontier |
 | **Adjacency Graph** | Edge Lookup / Cut | $O(1)$ | $O(d)$ | $O(V + E)$ | Battlefield road network |
-| **Breadth-First Search** | Pathfinding | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Shortest path & Barricade check |
+| **Breadth-First Search** | Pathfinding | $O(V + E)$ | $O(V + E)$ | $O(V)$ | Shortest enemy route & codex visualiser |
+| **Yen's k-Shortest** | Lane discovery | $O(kV(V+E))$ | $O(kV(V+E))$ | $O(kV)$ | Two-to-three monster routes per map |
 | **Merge Sort** | Leaderboard Rank | $O(n \log n)$ | $O(n \log n)$ | $O(n)$ | Multi-key player score sorting |
 | **Linear Search** | Rank Position | $O(n)$ | $O(n)$ | $O(1)$ | Highlighting player's saved score |
 | **Hash Map** | Occupancy Query | $O(1)$ | $O(n)$ | $O(n)$ | Instant placement validation |

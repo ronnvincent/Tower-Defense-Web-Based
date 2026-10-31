@@ -67,6 +67,10 @@ export function calculateSplashDamage(rawDamage, distance, splashRadius) {
  * @param {number} [params.armorPenetration] Fraction of armor bypassed (e.g. 0.5 for sniper)
  * @param {number} [params.armorBreak] Flat armor debuff on target
  * @param {number} [params.activeShield] Target's temporary shield points
+ * @param {Object<string, number>} [params.resistances] Per-damage-type resistance
+ *   fractions (0.35 = 35 % less of that type). Applied after armour and before
+ *   the shield, so a resistant creep with a barrier still spends the barrier
+ *   first — the same order the spec fixes: `max(1, base × (1 − resist))`.
  * @param {number} [params.distance] Distance from impact for splash hits
  * @param {number} [params.splashRadius] Total splash radius
  * @returns {{
@@ -84,6 +88,7 @@ export function calculateDamage({
   armorPenetration = 0,
   armorBreak = 0,
   activeShield = 0,
+  resistances = null,
   distance = 0,
   splashRadius = 0,
 }) {
@@ -119,7 +124,12 @@ export function calculateDamage({
   // 3. Compute armor mitigation
   const effectiveArmor = calculateEffectiveArmor(armor, effectivePen, armorBreak);
   const armorMultiplier = getArmorDamageMultiplier(effectiveArmor);
-  const mitigatedDamage = Math.max(1, Math.round(damageAfterFalloff * armorMultiplier));
+  // A typed resistance is a flat percentage off the armour-mitigated hit. True
+  // damage is the "nothing resists this" channel, so it skips it.
+  const resist = damageType === DAMAGE_TYPE.TRUE
+    ? 0
+    : Math.min(0.95, Math.max(0, Number(resistances?.[damageType]) || 0));
+  const mitigatedDamage = Math.max(1, Math.round(damageAfterFalloff * armorMultiplier * (1 - resist)));
 
   // 4. Resolve shield absorption before applying to health
   let shieldAbsorbed = 0;

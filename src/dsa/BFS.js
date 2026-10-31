@@ -31,10 +31,14 @@ import { Queue } from './Queue.js';
  * @param {object} [options]
  * @param {Set<string>} [options.blocked]  nodes to treat as impassable for this
  *        search only (used to test "what if a barricade is placed here?")
+ * @param {Set<string>} [options.blockedEdges] edges to treat as missing for this
+ *        search only. Built with {@link edgeKey}; used by the lane finder to ask
+ *        "what is the best route that does not leave this way?".
  * @returns {{found:boolean, path:string[], reason:string|null, stats:object, visitOrder:string[]}}
  */
 export function bfsShortestPath(graph, start, goal, options = {}) {
   const blocked = options.blocked ?? null;
+  const blockedEdges = options.blockedEdges ?? null;
   const t0 = now();
 
   const stats = {
@@ -87,6 +91,7 @@ export function bfsShortestPath(graph, start, goal, options = {}) {
       stats.neighborChecks++;
       if (visited.has(next)) continue;
       if (blocked && blocked.has(next)) continue;
+      if (blockedEdges && blockedEdges.has(edgeKey(current, next))) continue;
       visited.add(next);
       parent.set(next, current);
       frontier.enqueue(next);
@@ -96,6 +101,11 @@ export function bfsShortestPath(graph, start, goal, options = {}) {
   }
 
   return fail('unreachable');
+}
+
+/** One canonical key per undirected edge, whichever way it is walked. */
+export function edgeKey(a, b) {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
 /**
