@@ -70,7 +70,10 @@ export const REGIONS = Object.freeze([
     // the campaign is done.
     levelId: 'level-5',
     levelIds: ['level-5', 'endless'],
-    label: { x: 27, y: 85 },
+    // 85 % put the name under the map's own bottom scrim (vignette + the
+    // credits bar), where no colour survives. It now sits on the open burnt
+    // field above the two ashen banners, clear of every sprite on the plate.
+    label: { x: 41, y: 74 },
     glow: { x: 24, y: 82, rx: 17, ry: 11 },
   },
 ].map((region) => {

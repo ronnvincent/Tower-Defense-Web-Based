@@ -39,6 +39,7 @@ import {
   stageState,
   currentObjective,
   campaignSummary,
+  BANNER_LEVEL_IDS,
 } from '../data/worldMap.js';
 import { getLevel } from '../data/levelData.js';
 import { MODES } from '../data/modeData.js';
@@ -52,6 +53,7 @@ import {
 } from './WorldPanels.js';
 import { starSummary } from '../systems/Progression.js';
 import { dailyRun } from '../systems/DailyChallenge.js';
+import { hubBadgesForSave } from '../systems/HubBadges.js';
 import { audio } from '../rendering/AudioSynth.js';
 import { audioDirector } from '../rendering/audioDirector.js';
 import { SOUND_ON, soundIcon } from './soundIcon.js';
@@ -269,16 +271,28 @@ export class WorldMapUI {
 
   landmarkMarkup(landmark, index) {
     const label = landmark.kind === 'banner' ? 'Banner' : '';
+    const spoken = `${landmark.name}${label ? ` (${label})` : ''}`;
     return `
       <button class="wm-landmark wm-landmark--${landmark.kind}" type="button"
               data-wm-id="${landmark.id}"
+              data-wm-label="${spoken}"
               style="left:${landmark.x}%;top:${landmark.y}%;width:${landmark.width}px;--wm-delay:${
                 (index % 5) * 0.6
               }s"
-              aria-label="${landmark.name}${label ? ` (${label})` : ''}">
+              aria-label="${spoken}">
         <span class="wm-landmark-halo" aria-hidden="true"></span>
         <img class="wm-landmark-art" src="${landmark.art}" alt="" draggable="false" decoding="async" />
+        <span class="wm-landmark-lock" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 10.6V7.7a4 4 0 0 1 8 0v2.9" fill="none" stroke="currentColor"
+                  stroke-width="2.1" stroke-linecap="round" />
+            <rect x="5.2" y="10.4" width="13.6" height="9.8" rx="1.9" fill="currentColor" />
+            <path d="M12 13.6v3.4" fill="none" stroke="#12141a"
+                  stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </span>
         <span class="wm-landmark-label">
+          <span class="wm-landmark-pip" data-wm-pip hidden></span>
           <span class="wm-landmark-tag">${landmark.tag}</span>
           <span class="wm-landmark-state" data-wm-state hidden></span>
         </span>
@@ -356,6 +370,16 @@ export class WorldMapUI {
       audio.playClick();
       this.callbacks.onFullscreen?.();
     });
+    // A toggle has to say which way it is set — including when the player
+    // leaves fullscreen with Escape or F11, not only with this key.
+    this.onFullscreenState = () => {
+      el.querySelector('#wm-fullscreen')?.setAttribute(
+        'aria-pressed',
+        String(Boolean(document.fullscreenElement))
+      );
+    };
+    document.addEventListener('fullscreenchange', this.onFullscreenState);
+    this.onFullscreenState();
     el.querySelector('#wm-credits')?.addEventListener('click', () => {
       audio.playClick();
       this.callbacks.onCredits?.();
@@ -921,11 +945,13 @@ export class WorldMapUI {
     if (!landmark || !this.tip) return;
     if (this.tipId !== id) {
       const state = landmark.levelId ? stageState(this.progress, landmark.levelId) : null;
+      const reason = state === 'locked' ? this.lockReason(landmark.levelId) : null;
+      const meta = state
+        ? `${stateLabel(state)}${reason ? ` · ${reason}` : ''} · briefing`
+        : `${landmark.tag} · open`;
       this.tip.innerHTML = `
       <span class="wm-tip-name">${landmark.name}</span>
-      <span class="wm-tip-meta">${
-        state ? stateLabel(state) : landmark.tag
-      }${landmark.levelId ? ' · briefing' : ' · open'}</span>`;
+      <span class="wm-tip-meta">${meta}</span>`;
       this.tipId = id;
       // One layout read per content change; every later move reuses it.
       this.tipWidth = Math.max(120, this.tip.offsetWidth || 160);
@@ -1304,7 +1330,11 @@ export class WorldMapUI {
       : [];
     this.knownUnlocked = unlockedNow;
 
-    this.syncMarkers();
+    // Badges first: a building's spoken name has to carry both its lock (if
+    // any) and its news, and there must be exactly one place that writes it.
+    const badges = hubBadgesForSave({ progress: this.progress, daily: this.daily });
+    this.syncMarkers(badges);
+    this.syncBadges(badges);
 
     for (const node of this.el.querySelectorAll('.wm-landmark.is-new')) {
       node.classList.remove('is-new');
@@ -1327,7 +1357,7 @@ export class WorldMapUI {
     return { fresh };
   }
 
-  syncMarkers() {
+  syncMarkers(badges = {}) {
     for (const node of this.el.querySelectorAll('[data-wm-id]')) {
       const landmark = getLandmark(node.dataset.wmId);
       if (!landmark) continue;
@@ -1349,6 +1379,53 @@ export class WorldMapUI {
           chip.hidden = true;
         }
       }
+
+      // A shut road says which road opens it, in the button's own name, so the
+      // answer is there for a screen reader and not only for a resting cursor.
+      // A lit badge joins the name for the same reason: its word is painted on
+      // a plate the button's own label would otherwise swallow.
+      const spoken = node.dataset.wmLabel || landmark.name;
+      const badge = badges[landmark.id];
+      let name = spoken;
+      if (state === 'locked') {
+        const reason = this.lockReason(landmark.levelId);
+        name += ` — locked${reason ? `: ${reason}` : ''}`;
+      }
+      if (badge) name += ` — ${badge.title}`;
+      if (node.getAttribute('aria-label') !== name) node.setAttribute('aria-label', name);
+    }
+  }
+
+  /**
+   * Why a banner is still shut, using the stage the game actually gates it on:
+   * a road opens when the one before it is beaten, so that is what we name.
+   */
+  lockReason(levelId) {
+    const index = levelId ? BANNER_LEVEL_IDS.indexOf(levelId) : -1;
+    if (index < 1) return null;
+    const previous = getLevel(BANNER_LEVEL_IDS[index - 1]);
+    return previous ? `clear ${previous.name} first` : null;
+  }
+
+  /**
+   * Badge slots. A building wears a pip only while the save really has
+   * something waiting (`systems/HubBadges.js`): no timer, no guess, and no
+   * always-on dot — an always-on marker is the same as no marker.
+   */
+  syncBadges(badges = hubBadgesForSave({ progress: this.progress, daily: this.daily })) {
+    if (!this.el) return;
+    for (const pip of this.el.querySelectorAll('[data-wm-pip]')) {
+      const id = pip.closest('[data-wm-id]')?.dataset.wmId;
+      const badge = id ? badges[id] : null;
+      if (!badge) {
+        if (!pip.hidden) pip.hidden = true;
+        if (pip.textContent) pip.textContent = '';
+        pip.removeAttribute('title');
+        continue;
+      }
+      if (pip.textContent !== badge.text) pip.textContent = badge.text;
+      if (pip.title !== badge.title) pip.title = badge.title;
+      pip.hidden = false;
     }
   }
 

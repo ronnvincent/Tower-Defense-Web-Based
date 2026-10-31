@@ -13604,29 +13604,52 @@ body.wm-covers-canvas #game-container canvas {
 .wm-region-label {
   position: absolute;
   transform: translate(-50%, -50%);
+  padding: 9px 36px;
   font-family: var(--font-heading);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 5px;
+  /* Tracking leaves a gap after the last glyph; give the same gap back on the
+     left so the name stays optically centred over its region. */
+  text-indent: 5px;
   text-transform: uppercase;
-  color: var(--wm-tint, #f3c96b);
+  /* The region tints are close to their own terrain (green on grass, gold on
+     sand, ice blue on snow). Lifting each one toward white keeps the name dyed
+     in its region while clearing the brightest ground in the painting. */
+  color: color-mix(in srgb, var(--wm-tint, #f3c96b) 56%, #fff 44%);
   opacity: 0;
   pointer-events: none;
+  /* A soft painted smudge under the letters — never a box. The ellipse fades
+     out well before its edge, so it reads as shading in the terrain instead of
+     a UI plate placed on top of the painting. */
+  background: radial-gradient(
+    ellipse 50% 46% at 50% 50%,
+    rgba(6, 8, 11, 0.62) 0%,
+    rgba(6, 8, 11, 0.36) 54%,
+    rgba(6, 8, 11, 0) 80%
+  );
+  /* A one-pixel ink halo in every direction holds the glyph against snow and
+     sand without thinning it: a text-stroke would eat half a stem at this size
+     and turn a bright name grey on dark ground. The soft layers stop the name
+     from dissolving into the brushwork. */
   text-shadow:
-    0 1px 0 #000,
-    0 0 2px rgba(0, 0, 0, 0.9),
-    0 2px 10px rgba(0, 0, 0, 0.95),
-    0 0 26px rgba(0, 0, 0, 0.85);
+    1px 0 0 rgba(0, 0, 0, 0.9),
+    -1px 0 0 rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(0, 0, 0, 0.95),
+    0 -1px 0 rgba(0, 0, 0, 0.9),
+    0 2px 4px rgba(0, 0, 0, 0.95),
+    0 2px 14px rgba(0, 0, 0, 0.92),
+    0 0 30px rgba(0, 0, 0, 0.8);
   transition: opacity 0.4s ease;
 }
 
 /* The five region names are painted into the world, not pinned to a zoom
    level: they are what tells a first-time player that this is a continent and
-   not a pile of buildings. 0.72 was the first guess; on the 1440x900 grab the
-   two names over the desert and the snowfield disappeared into the painting, so
-   the floor is now 0.86 and the glyphs carry their own dark edge. */
+   not a pile of buildings. 0.72 was the first guess; 0.86 still sank into the
+   snowfield and into the sun-bleached mesa, so each name now carries a lifted
+   tint, its own dark edge and a soft painted smudge, and sits at 0.94. */
 .wm-region-label {
-  opacity: 0.86;
+  opacity: 0.94;
 }
 
 /* ---- landmarks --------------------------------------------------------- */
@@ -13822,6 +13845,7 @@ body.wm-covers-canvas #game-container canvas {
 }
 
 .wm-landmark-tag {
+  position: relative;
   padding: 2px 8px;
   border: 1px solid rgba(245, 196, 81, 0.28);
   background: rgba(8, 10, 14, 0.84);
@@ -13838,6 +13862,70 @@ body.wm-covers-canvas #game-container canvas {
 .wm-landmark:focus-visible .wm-landmark-tag {
   border-color: rgba(245, 196, 81, 0.8);
   color: #fff3d0;
+}
+
+/* THE BASTION is the seat of the realm, not a thirteenth building: its plate
+   is set a rank above every other name on the map — a wider gold-trimmed bar
+   with a diamond finial at each end. Secondary plates stay quiet on purpose,
+   because two sizes of label are what tell a player where home is.
+
+   It also stacks above its neighbours: at the tighter zoom levels the plate
+   is wide enough to reach the War Room's roof, and a seat of power is not
+   something a furnace roof gets to cover. */
+.wm-landmark--castle {
+  z-index: 2;
+}
+
+.wm-landmark--castle .wm-landmark-label {
+  top: calc(100% + 7px);
+  gap: 7px;
+}
+
+.wm-landmark--castle .wm-landmark-tag {
+  padding: 5px 20px;
+  border-color: rgba(245, 196, 81, 0.62);
+  background:
+    linear-gradient(180deg, rgba(58, 43, 18, 0.96) 0%, rgba(20, 16, 10, 0.96) 58%, rgba(9, 10, 13, 0.95) 100%);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  letter-spacing: 3.4px;
+  color: #ffeec4;
+  text-indent: 3.4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 240, 200, 0.22),
+    0 0 18px rgba(245, 196, 81, 0.22),
+    0 4px 12px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 12px rgba(255, 198, 92, 0.32);
+}
+
+.wm-landmark--castle .wm-landmark-tag::before,
+.wm-landmark--castle .wm-landmark-tag::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -4px;
+  background: linear-gradient(160deg, #f6d997, #a97a2a);
+  border: 1px solid rgba(255, 234, 176, 0.7);
+  transform: rotate(45deg);
+}
+
+.wm-landmark--castle .wm-landmark-tag::before {
+  left: -5px;
+}
+
+.wm-landmark--castle .wm-landmark-tag::after {
+  right: -5px;
+}
+
+/* The keep also keeps a faint pool of torchlight at its feet at all times:
+   the one landmark that is home rather than a destination. */
+.wm-landmark--castle .wm-landmark-halo {
+  opacity: 0.55;
+  height: 24px;
+  bottom: -10px;
 }
 
 /* State chip: real text, and a shape that differs between states — never
@@ -13886,6 +13974,88 @@ body.wm-covers-canvas #game-container canvas {
   border-radius: 8px;
 }
 
+/* A shut road wears a seal. Desaturation alone is a colour-only cue and it
+   vanishes the moment the map is far enough out that the name plate is hidden,
+   so the banner cloth carries a padlock where a writ would hang: a shape you
+   can read from across the map, before any text. The chip under the plate
+   still spells LOCKED and the hover says which road opens it. */
+.wm-landmark-lock {
+  position: absolute;
+  left: 50%;
+  top: 3%;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  margin-left: -13.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, rgba(30, 32, 36, 0.96), rgba(9, 11, 14, 0.94));
+  border: 1px solid rgba(214, 198, 168, 0.55);
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 246, 224, 0.16);
+  color: #e3d3b0;
+  opacity: 0;
+  transform: scale(0.82);
+  transition: opacity 0.24s ease, transform 0.24s ease;
+  pointer-events: none;
+}
+
+.wm-landmark-lock svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wm-landmark[data-state='locked'] .wm-landmark-lock {
+  opacity: 0.96;
+  transform: scale(1);
+}
+
+/* A little rust creep on the seal so it belongs to the painting's palette
+   rather than to a flat icon set. */
+.wm-landmark[data-state='locked'] .wm-landmark-lock::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  border: 1px solid rgba(150, 122, 78, 0.28);
+}
+
+/* Badge slot: the one place a building is allowed to interrupt the plate with
+   news ("a relic you can afford", "today's rule is unplayed"). It is a plate
+   with a word on it, not a bare dot, and it only exists while the save really
+   has something waiting — see systems/HubBadges.js. */
+.wm-landmark-pip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid rgba(120, 84, 24, 0.9);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ffe6a4 0%, #f3c96b 46%, #cf9c3c 100%);
+  font-family: var(--font-heading);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: #2a1c06;
+  text-shadow: 0 1px 0 rgba(255, 244, 214, 0.55);
+  box-shadow:
+    0 0 12px rgba(245, 196, 81, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  animation: wmPipBreath 3.6s ease-in-out infinite;
+}
+
+.wm-landmark-pip[hidden] {
+  display: none;
+}
+
+@keyframes wmPipBreath {
+  0%, 100% { box-shadow: 0 0 10px rgba(245, 196, 81, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+  50% { box-shadow: 0 0 16px rgba(245, 196, 81, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+}
+
 /* A road that opened since the last visit: three gold pings, then it settles.
    This is the "new content" cue; the toast says it in words as well. */
 .wm-landmark.is-new::before {
@@ -13929,7 +14099,6 @@ body.wm-covers-canvas #game-container canvas {
 }
 
 .wm-brand {
-  margin-right: auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -13955,29 +14124,54 @@ body.wm-covers-canvas #game-container canvas {
 }
 
 /* Wallets: the ledger moved here from the menu. Real save values, no icons
-   invented for the occasion. */
+   invented for the occasion.
+
+   The top bar used to be one long strip — three purses, three system icons and
+   two big buttons, all jammed against the right edge. The ledger now sits with
+   the realm name (who you are, what you own) and the controls stay at the far
+   right behind a bronze rule: data on one side, machinery on the other, with
+   the painted sky between them. One plate holds the three purses so they read
+   as a single ledger instead of three more buttons. */
 .wm-wallets {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
+  margin-right: auto;
+  padding: 3px;
+  border: 1px solid rgba(196, 152, 86, 0.28);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(20, 22, 27, 0.94), rgba(8, 10, 14, 0.94));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 190, 0.05),
+    inset 0 1px 0 rgba(255, 236, 190, 0.1),
+    0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 .wm-wallet {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 10px 0 6px;
-  border: 1px solid rgba(245, 196, 81, 0.2);
-  border-radius: 2px;
-  background: linear-gradient(180deg, rgba(20, 22, 27, 0.94), rgba(9, 11, 15, 0.94));
-  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.08), 0 2px 8px rgba(0, 0, 0, 0.45);
+  gap: 7px;
+  min-height: 29px;
+  padding: 0 12px;
+  border-left: 1px solid rgba(196, 152, 86, 0.18);
 }
 
+.wm-wallet:first-child {
+  border-left: 0;
+  padding-left: 8px;
+}
+
+.wm-wallet:last-child {
+  padding-right: 10px;
+}
+
+/* 17 px read as specks next to a 34 px control. 22 px is the same coin at the
+   size it is drawn for, and it may sit proud of the plate's inner rule. */
 .wm-wallet img {
-  width: 17px;
-  height: 17px;
+  width: 22px;
+  height: 22px;
   image-rendering: pixelated;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
 }
 
 .wm-wallet b {
@@ -13985,7 +14179,8 @@ body.wm-covers-canvas #game-container canvas {
   font-size: var(--fs-small);
   font-weight: 700;
   letter-spacing: 0.6px;
-  color: #f2e4c6;
+  color: #f4e7cb;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   font-variant-numeric: tabular-nums;
 }
 
@@ -13993,9 +14188,12 @@ body.wm-covers-canvas #game-container canvas {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding-left: clamp(10px, 1.6vw, 20px);
+  border-left: 1px solid rgba(196, 152, 86, 0.3);
 }
 
 .wm-icon {
+  position: relative;
   display: grid;
   place-items: center;
   width: 34px;
@@ -14004,8 +14202,21 @@ body.wm-covers-canvas #game-container canvas {
   border: 1px solid rgba(245, 196, 81, 0.2);
   border-radius: 2px;
   background: linear-gradient(180deg, rgba(22, 24, 29, 0.92), rgba(9, 11, 15, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 236, 190, 0.06);
   cursor: var(--ui-cursor) 12 4, pointer;
   transition: border-color 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
+}
+
+/* The same engraved 1 px bronze rule the rail and the plates wear: iron with a
+   chased edge, not a flat modern tile. */
+.wm-icon::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(201, 158, 92, 0.2);
+  border-radius: 1px;
+  pointer-events: none;
+  transition: border-color 0.14s ease;
 }
 
 .wm-icon img {
@@ -14015,9 +14226,34 @@ body.wm-covers-canvas #game-container canvas {
   opacity: 0.88;
 }
 
+/* The fullscreen key draws its brackets as an SVG stroke. It had no rule at
+   all, so the path defaulted to a black fill on a near-black plate — a button
+   with no glyph in it. */
+.wm-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: #e6d8bb;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+}
+
+.wm-icon:hover svg {
+  stroke: #ffe9b6;
+  opacity: 1;
+}
+
 .wm-icon:hover {
   border-color: rgba(245, 196, 81, 0.6);
-  box-shadow: 0 0 12px rgba(245, 196, 81, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 214, 130, 0.12),
+    0 0 12px rgba(245, 196, 81, 0.22);
+}
+
+.wm-icon:hover::after {
+  border-color: rgba(245, 196, 81, 0.42);
 }
 
 .wm-icon:focus-visible {
@@ -14109,11 +14345,40 @@ body.wm-covers-canvas #game-container canvas {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 5px;
+  padding: 6px;
   border-radius: 3px;
-  border: 1px solid rgba(245, 196, 81, 0.22);
+  border: 1px solid rgba(245, 196, 81, 0.26);
   background: linear-gradient(180deg, rgba(16, 18, 23, 0.94), rgba(7, 9, 12, 0.94));
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 236, 190, 0.08);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 236, 190, 0.08),
+    inset 0 0 0 1px rgba(201, 158, 92, 0.12);
+}
+
+/* Two chased corners, so the rail is a panelled brass frame and not a floating
+   grey rectangle. Drawn in pseudo-elements: no extra markup, no image. */
+.wm-rail::before,
+.wm-rail::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(224, 178, 100, 0.45);
+  pointer-events: none;
+}
+
+.wm-rail::before {
+  top: 3px;
+  left: 3px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.wm-rail::after {
+  right: 3px;
+  bottom: 3px;
+  border-left: 0;
+  border-top: 0;
 }
 
 /* With a panel open the rail steps left so it is never swallowed by the card.
@@ -14128,7 +14393,7 @@ body.wm-covers-canvas #game-container canvas {
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid transparent;
+  border: 1px solid rgba(201, 158, 92, 0.14);
   border-radius: 2px;
   background: transparent;
   font-family: var(--font-heading);
@@ -14142,7 +14407,7 @@ body.wm-covers-canvas #game-container canvas {
 
 .wm-rail-btn:hover {
   background: rgba(245, 196, 81, 0.12);
-  border-color: rgba(245, 196, 81, 0.35);
+  border-color: rgba(245, 196, 81, 0.45);
   color: #ffe9b6;
 }
 
@@ -14586,21 +14851,42 @@ body.wm-covers-canvas #game-container canvas {
   pointer-events: auto;
 }
 
+/* Small print that is also a door. At 9 px and 55% opacity the credits line
+   read as a watermark — nothing about it said "press me". It is now a plated
+   link with a chevron and a bronze rule, at the same weight as the hint but
+   unmistakably interactive. */
 .wm-link {
-  padding: 0;
-  border: 0;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px 3px 8px;
+  border: 1px solid rgba(196, 152, 86, 0.3);
+  border-radius: 2px;
+  background: rgba(9, 11, 15, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(196, 152, 86, 0.1);
   font-family: var(--font-body);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1.6px;
-  color: rgba(194, 178, 153, 0.55);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(233, 213, 178, 0.86);
   cursor: var(--ui-cursor) 12 4, pointer;
-  transition: color 0.14s ease;
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.wm-link::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.85;
 }
 
 .wm-link:hover {
-  color: rgba(245, 196, 81, 0.85);
+  color: #ffe3a8;
+  border-color: rgba(245, 196, 81, 0.62);
+  background: rgba(34, 26, 12, 0.72);
 }
 
 .wm-link:focus-visible {
@@ -14610,11 +14896,12 @@ body.wm-covers-canvas #game-container canvas {
 
 .wm-hint {
   margin: 0 0 0 auto;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.7px;
   text-transform: uppercase;
-  color: rgba(194, 178, 153, 0.55);
+  color: rgba(214, 199, 174, 0.72);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   text-align: right;
 }
 
@@ -14706,18 +14993,43 @@ body.wm-covers-canvas #game-container canvas {
     letter-spacing: 1.8px;
   }
 
+  .wm-wallets {
+    padding: 2px;
+  }
+
   .wm-wallet {
-    min-height: 27px;
-    padding: 0 7px 0 5px;
+    min-height: 26px;
+    gap: 5px;
+    padding: 0 8px;
+  }
+
+  .wm-wallet:first-child {
+    padding-left: 6px;
   }
 
   .wm-wallet img {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
   }
 
   .wm-wallet b {
     font-size: 11px;
+  }
+
+  .wm-tools {
+    padding-left: 8px;
+  }
+
+  .wm-landmark--castle .wm-landmark-tag {
+    padding: 4px 14px;
+    font-size: 11px;
+    letter-spacing: 2.4px;
+    text-indent: 2.4px;
+  }
+
+  .wm-link {
+    font-size: 9.5px;
+    letter-spacing: 1.2px;
   }
 
   .wm-icon {
@@ -14835,7 +15147,8 @@ body.wm-covers-canvas #game-container canvas {
   .wm-embers i,
   .wm-birds i,
   .wm-landmark--banner .wm-landmark-art,
-  .wm-landmark--banner[data-state='next']::after {
+  .wm-landmark--banner[data-state='next']::after,
+  .wm-landmark-pip {
     animation: none !important;
   }
 

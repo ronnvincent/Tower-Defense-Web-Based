@@ -1259,3 +1259,107 @@ screen exactly minus the hole, never overlap it, and never overlap each other �
 and the key table; `tests/tutorial-gate-dom.test.js` drives the real HUD and
 checks the boxes, the full-screen closure during a line, the no-target release
 and the Enter-key swallow.)
+
+## 11. The hub earns its second look (Request 71)
+
+The review of the Muster Hall grab named four things. All four were the same
+complaint from different angles: the hub looked *drawn* but not *read*.
+
+### 1. The region names were sinking into the painting
+
+`.wm-region-label` was 13 px at `opacity: 0.86` and dyed in its region's own
+accent — green on grass, gold on sand, ice blue on snow. That is camouflage, not
+contrast; ASHEN CALDERA (27 %, 85 %) was also three scrims deep (vignette band,
+corner vignette, credits bar) and never appeared at all.
+
+* Each name is now `color-mix(tint 56 %, white 44 %)`: still the region's colour,
+  lifted clear of the ground it sits on.
+* A soft elliptical smudge fades out before its edge — shading in the terrain,
+  not a plate on top of it. No border, no box (the test asserts the absence).
+* A 1 px ink halo in four directions instead of a `text-stroke`: the stroke
+  looked right on snow and turned every name grey on dark ground by eating half
+  a stem.
+* ASHEN CALDERA moved to `x: 41, y: 74` of the plate — the open burnt field
+  above the two ashen banners, clear of every sprite at both test sizes.
+
+### 2. THE BASTION reads as home, not as a thirteenth building
+
+Its plate is now 13 px on a gold-trimmed brass bar with a diamond finial at each
+end, plus a permanent pool of torchlight at its feet. It also carries
+`z-index: 2`: at 1024 the wider plate reached the War Room's roof and lost — a
+seat of power is not something a furnace roof gets to cover. Every other plate
+stays exactly as it was, because *two* sizes of label are what make a hierarchy
+legible.
+
+### 3. Data on one side, machinery on the other
+
+The bar was one strip: three purses, three system icons, MUSTER HALL and MAIN
+MENU, all jammed right. The ledger now sits beside the realm name as a single
+plated block with hairline dividers, and `.wm-tools` keeps the far edge behind a
+bronze rule — `margin-right: auto` on the ledger is the whole mechanism.
+Resource icons went 17 px → 22 px.
+
+**Root cause of "tiny icons":** it was not the CSS alone. `icon_coin.png` was a
+Kenney 64×64 tile carrying a 16×16 coin — 94 % transparent canvas — so at 22 px
+the coin itself was painted at 5 px while the gem beside it was drawn at 18. The
+asset is now a 20×20 canvas holding the same 16×16 pixels at +2+2, via
+`scripts/normalize_icon_padding.py` (stdlib only, no resampling: the art pixels
+are copied byte for byte). The same fix lifts the coin everywhere it is used —
+HUD, prices, the Workshop.
+
+The fullscreen key was also invisible: its SVG path had no rule at all, so it
+defaulted to a black fill on a near-black plate. `.wm-icon svg` now strokes it,
+and the toggle finally reports its state: `aria-pressed` was hard-coded to
+`false` and now follows `fullscreenchange`, so leaving with Escape or F11 is
+reflected too.
+
+### 4. Shut roads say why, and buildings have somewhere to interrupt
+
+* Every landmark carries a `.wm-landmark-lock` seal, painted only on
+  `[data-state='locked']`. Desaturation alone is a colour-only cue and it
+  disappears at the zoom where banner plates hide; the seal is a shape you can
+  read from across the map. The `LOCKED` chip still spells it, and the hover now
+  says `LOCKED · clear Sunscorch Mesa first · briefing`.
+* `systems/HubBadges.js` (new, pure) decides what a building may announce:
+  Forge → an unmaxed relic the purse can afford (`relicBoard`), Shrine → today's
+  rule unplayed (`dailyRun` + `DailyStore#isWon`). Nothing else lights up; a
+  timer or a decorative dot would be a lie. The pip is a worded gold plate
+  (`READY`, `TODAY`), not a bare dot, and its news joins the button's
+  `aria-label` so it is not hover-only information.
+* The badge state is recomputed on every `refresh()`, so a relic bought in the
+  Workshop clears the pip when the map comes back.
+
+### 5. Chrome with an edge
+
+`.wm-icon` and `.wm-rail` carry a chased 1 px bronze inner rule; the rail has
+two corner brackets; `.wm-btn` still uses the kit's 9-slice. `CREDITS · PROJECT
+INFO` was a 9 px, 55 % watermark — it is now a plated link with a chevron, and
+the hint line went 9 px → 10 px and brighter.
+
+### Verified
+
+`npx vitest run` → **147 files / 1901 passed** ·
+`npm run build` ✓ · `tests/hub-polish.test.js` (new, 20 tests) pins the badge
+conditions against a real save, the seal/lock/aria contract, the visible "why",
+the coin's tight canvas, and the declarations this pass depends on.
+
+Real browser (`pw/wmshot.mjs`, `pw/wmprobe.mjs`, `pw/wmbadges.mjs`,
+`pw/wmstates.mjs`, `pw/wmfs2.mjs`, `pw/wmforgefs.mjs`), **1280×768 and
+1024×640**, plus 844×390 landscape and **fullscreen**: no horizontal overflow,
+`.wm-tools` never leaves the viewport, five seals on five locked banners,
+`TODAY` on the shrine, `READY` on the forge with gems, and a spent purse
+clearing that badge on the next refresh.
+
+Fullscreen, entered through the real key: `document.fullscreenElement` = `HTML`,
+viewport 1280×768, brand 26–139, ledger 157–362, tools 860–1254, rail
+1214–1260 × 319–449, foot 728–768, no overflow, `aria-pressed` `true`; after
+`exitFullscreen` it returns to `false`.
+
+Screenshots: `/tmp/wm-before-1280x768.png` (before), `/tmp/wm-final2-1280x768.png`,
+`/tmp/wm-c7-1024x640.png`, `/tmp/wmstate-landscape-844x390.png`,
+`/tmp/z-wallet.png`, `/tmp/z-pip.png`, `/tmp/z-ashen2.png`,
+`/tmp/wm-fullscreen-hub.png`, `/tmp/wm-workshop-1280x768.png`.
+
+The Workshop renders the shared coin at 30 px from the 20 px file — 24 px of
+visible coin where it used to be 7.5 px — and stays proportionate to the other
+relic icons.
