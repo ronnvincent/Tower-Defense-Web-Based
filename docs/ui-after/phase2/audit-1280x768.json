@@ -1,0 +1,1881 @@
+{
+  "tag": "p2",
+  "size": "1280x768",
+  "at": "2026-10-29T02:26:35.042Z",
+  "states": {
+    "menu": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": []
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.menu-sky",
+            "rect": [
+              -92,
+              -55,
+              1372,
+              823
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--a",
+            "rect": [
+              -216,
+              230,
+              1371,
+              553
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--b",
+            "rect": [
+              -190,
+              423,
+              1397,
+              754
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "section.menu-panel",
+            "scrollWidth": 668,
+            "clientWidth": 640
+          }
+        ],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#menu-btn-sound.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-settings.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-fullscreen.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-offline.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 3,
+          "spill": 1,
+          "covered": 0,
+          "tiny": 4
+        }
+      }
+    },
+    "howTo": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "MenuScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.menu-sky",
+            "rect": [
+              -95,
+              -57,
+              1373,
+              824
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--a",
+            "rect": [
+              -207,
+              228,
+              1380,
+              554
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--b",
+            "rect": [
+              -171,
+              419,
+              1416,
+              756
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "section.menu-panel",
+            "scrollWidth": 668,
+            "clientWidth": 640
+          }
+        ],
+        "covered": [
+          {
+            "el": "#menu-btn-play",
+            "by": "li"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#menu-btn-sound.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-settings.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-fullscreen.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-offline.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#btn-close-how.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button.how-tab-btn.active",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button#btn-done-how.game-btn.game-btn-primary",
+            "size": [
+              141,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 3,
+          "spill": 1,
+          "covered": 1,
+          "tiny": 10
+        }
+      }
+    },
+    "howToAlgo": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "MenuScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.menu-sky",
+            "rect": [
+              -95,
+              -57,
+              1373,
+              824
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--a",
+            "rect": [
+              -207,
+              228,
+              1380,
+              554
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--b",
+            "rect": [
+              -171,
+              419,
+              1416,
+              756
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "section.menu-panel",
+            "scrollWidth": 668,
+            "clientWidth": 640
+          }
+        ],
+        "covered": [
+          {
+            "el": "#menu-btn-play",
+            "by": "div.modal-card"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#menu-btn-sound.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-settings.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-fullscreen.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-offline.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#btn-close-how.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn.active",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button.how-tab-btn",
+            "size": [
+              145,
+              40
+            ]
+          },
+          {
+            "el": "button#btn-done-how.game-btn.game-btn-primary",
+            "size": [
+              141,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 3,
+          "spill": 1,
+          "covered": 1,
+          "tiny": 10
+        }
+      }
+    },
+    "credits": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "MenuScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.menu-sky",
+            "rect": [
+              -95,
+              -57,
+              1373,
+              824
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--a",
+            "rect": [
+              -208,
+              228,
+              1380,
+              554
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--b",
+            "rect": [
+              -172,
+              419,
+              1415,
+              756
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "section.menu-panel",
+            "scrollWidth": 668,
+            "clientWidth": 640
+          }
+        ],
+        "covered": [
+          {
+            "el": "#menu-btn-play",
+            "by": "li"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#menu-btn-sound.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-settings.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-fullscreen.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-offline.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#btn-close-credits.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-done-credits.game-btn.game-btn-primary",
+            "size": [
+              101,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 3,
+          "spill": 1,
+          "covered": 1,
+          "tiny": 6
+        }
+      }
+    },
+    "battle": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 4
+        }
+      }
+    },
+    "ghost": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-cancel-placement.placement-hint-cancel",
+            "size": [
+              35,
+              18
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 5
+        }
+      }
+    },
+    "battleMid": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 4
+        }
+      }
+    },
+    "inspector": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-collapse-inspect.inspector-chip-btn",
+            "size": [
+              24,
+              24
+            ]
+          },
+          {
+            "el": "button#btn-close-inspect.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button.target-btn.active",
+            "size": [
+              61,
+              34
+            ]
+          },
+          {
+            "el": "button.target-btn",
+            "size": [
+              61,
+              34
+            ]
+          },
+          {
+            "el": "button.target-btn",
+            "size": [
+              61,
+              34
+            ]
+          },
+          {
+            "el": "button.target-btn",
+            "size": [
+              60,
+              34
+            ]
+          },
+          {
+            "el": "button#btn-sell-tower.game-btn.game-btn-sell",
+            "size": [
+              246,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 11
+        }
+      }
+    },
+    "pause": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-resume.game-btn.game-btn-primary",
+            "size": [
+              112,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-blessings.game-btn.game-btn-gold",
+            "size": [
+              125,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-codex.game-btn.game-btn-gold",
+            "size": [
+              100,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-menu.game-btn.game-btn-danger",
+            "size": [
+              141,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 8
+        }
+      }
+    },
+    "codex": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "section.telemetry-section",
+            "rect": [
+              729,
+              713,
+              1255,
+              947
+            ]
+          },
+          {
+            "el": "div.telemetry-grid",
+            "rect": [
+              744,
+              753,
+              1240,
+              934
+            ]
+          },
+          {
+            "el": "div.tel-box",
+            "rect": [
+              744,
+              753,
+              904,
+              808
+            ]
+          },
+          {
+            "el": "span.tel-lbl",
+            "rect": [
+              757,
+              762,
+              891,
+              777
+            ]
+          },
+          {
+            "el": "div.tel-box",
+            "rect": [
+              912,
+              753,
+              1072,
+              808
+            ]
+          },
+          {
+            "el": "span.tel-lbl",
+            "rect": [
+              925,
+              762,
+              1059,
+              777
+            ]
+          },
+          {
+            "el": "div.tel-box",
+            "rect": [
+              1080,
+              753,
+              1240,
+              808
+            ]
+          },
+          {
+            "el": "span.tel-lbl",
+            "rect": [
+              1093,
+              762,
+              1227,
+              777
+            ]
+          }
+        ],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-close-stats.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-toggle-bfs-vis.game-btn.game-btn-gold",
+            "size": [
+              153,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-done-stats.game-btn.game-btn-subtle",
+            "size": [
+              99,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 8,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 7
+        }
+      }
+    },
+    "leaderboard": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "MenuScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.menu-sky",
+            "rect": [
+              -95,
+              -56,
+              1372,
+              824
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--a",
+            "rect": [
+              -209,
+              228,
+              1378,
+              553
+            ]
+          },
+          {
+            "el": "div.menu-wisp.menu-wisp--b",
+            "rect": [
+              -175,
+              420,
+              1413,
+              756
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "section.menu-panel",
+            "scrollWidth": 668,
+            "clientWidth": 640
+          }
+        ],
+        "covered": [
+          {
+            "el": "#menu-btn-play",
+            "by": "div.table-scroll-frame.lb-roll-frame"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#menu-btn-sound.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-settings.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-fullscreen.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button#menu-btn-offline.menu-icon",
+            "size": [
+              35,
+              35
+            ]
+          },
+          {
+            "el": "button.lb-tab",
+            "size": [
+              67,
+              28
+            ]
+          },
+          {
+            "el": "button.lb-tab",
+            "size": [
+              110,
+              28
+            ]
+          },
+          {
+            "el": "button.lb-tab.is-active",
+            "size": [
+              103,
+              28
+            ]
+          },
+          {
+            "el": "button#btn-close-lb.btn-close",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-save-score.game-btn.game-btn-primary",
+            "size": [
+              169,
+              42
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              89,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-active.is-empty",
+            "size": [
+              94,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              84,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              102,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              75,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              66,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              73,
+              21
+            ]
+          },
+          {
+            "el": "button.lb-mode.is-empty",
+            "size": [
+              97,
+              21
+            ]
+          },
+          {
+            "el": "button#btn-clear-lb.game-btn.game-btn-danger",
+            "size": [
+              169,
+              42
+            ]
+          },
+          {
+            "el": "button#btn-done-lb.game-btn.game-btn-subtle",
+            "size": [
+              145,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 3,
+          "spill": 1,
+          "covered": 1,
+          "tiny": 19
+        }
+      }
+    },
+    "defeat": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [
+          {
+            "el": "#btn-start-wave",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-pause",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-mute",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-speed",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#hud-top-bar",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": ".build-card:not(.tab-hidden)",
+            "by": "div#result-screen.overlay-screen"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#result-replay.game-btn",
+            "size": [
+              98,
+              42
+            ]
+          },
+          {
+            "el": "button#result-map.game-btn",
+            "size": [
+              130,
+              42
+            ]
+          },
+          {
+            "el": "button#result-board.game-btn",
+            "size": [
+              143,
+              42
+            ]
+          },
+          {
+            "el": "button#result-menu.game-btn",
+            "size": [
+              127,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 6,
+          "tiny": 8
+        }
+      }
+    },
+    "victory": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [
+          {
+            "el": "div.result-stars",
+            "scrollWidth": 196,
+            "clientWidth": 175
+          },
+          {
+            "el": "span.result-star-slot.earned",
+            "scrollWidth": 70,
+            "clientWidth": 49
+          },
+          {
+            "el": "span.result-star-slot.earned",
+            "scrollWidth": 70,
+            "clientWidth": 49
+          },
+          {
+            "el": "span.result-star-slot.earned",
+            "scrollWidth": 70,
+            "clientWidth": 49
+          }
+        ],
+        "covered": [
+          {
+            "el": "#btn-start-wave",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-pause",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-mute",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#btn-speed",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": "#hud-top-bar",
+            "by": "div#result-screen.overlay-screen"
+          },
+          {
+            "el": ".build-card:not(.tab-hidden)",
+            "by": "div#result-screen.overlay-screen"
+          }
+        ],
+        "tiny": [
+          {
+            "el": "button#btn-dismiss-hint.camera-hint-dismiss",
+            "size": [
+              20,
+              20
+            ]
+          },
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#result-next.game-btn.game-btn-primary",
+            "size": [
+              147,
+              42
+            ]
+          },
+          {
+            "el": "button#result-replay.game-btn",
+            "size": [
+              106,
+              42
+            ]
+          },
+          {
+            "el": "button#result-map.game-btn",
+            "size": [
+              130,
+              42
+            ]
+          },
+          {
+            "el": "button#result-board.game-btn",
+            "size": [
+              143,
+              42
+            ]
+          },
+          {
+            "el": "button#result-menu.game-btn",
+            "size": [
+              127,
+              42
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 4,
+          "covered": 6,
+          "tiny": 9
+        }
+      }
+    },
+    "map": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "clamp(64px, 9vh, 82px)",
+        "dockClearance": "clamp(130px, 19vh, 172px)",
+        "topbar": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "MenuScene"
+        ]
+      },
+      "audit": {
+        "clipped": [
+          {
+            "el": "div.wm-camera",
+            "rect": [
+              0,
+              0,
+              1280,
+              853
+            ]
+          },
+          {
+            "el": "div.wm-plate",
+            "rect": [
+              0,
+              0,
+              1280,
+              853
+            ]
+          },
+          {
+            "el": "img.wm-terrain",
+            "rect": [
+              0,
+              0,
+              1280,
+              853
+            ]
+          },
+          {
+            "el": "div.wm-air",
+            "rect": [
+              0,
+              0,
+              1280,
+              853
+            ]
+          },
+          {
+            "el": "span.wm-clouds.wm-clouds--a",
+            "rect": [
+              -128,
+              -102,
+              1408,
+              956
+            ]
+          },
+          {
+            "el": "span.wm-mist.wm-mist--north",
+            "rect": [
+              0,
+              0,
+              1280,
+              853
+            ]
+          },
+          {
+            "el": "span.wm-embers",
+            "rect": [
+              128,
+              529,
+              691,
+              819
+            ]
+          },
+          {
+            "el": "span.wm-region",
+            "rect": [
+              90,
+              606,
+              525,
+              794
+            ]
+          }
+        ],
+        "spill": [
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-objective",
+            "scrollWidth": 133,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-locked",
+            "scrollWidth": 128,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-locked",
+            "scrollWidth": 131,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-locked",
+            "scrollWidth": 130,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-locked",
+            "scrollWidth": 127,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--banner.is-locked",
+            "scrollWidth": 157,
+            "clientWidth": 92
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--building",
+            "scrollWidth": 118,
+            "clientWidth": 112
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--building",
+            "scrollWidth": 113,
+            "clientWidth": 106
+          },
+          {
+            "el": "button.wm-landmark.wm-landmark--building",
+            "scrollWidth": 132,
+            "clientWidth": 112
+          }
+        ],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#wm-sound.wm-icon",
+            "size": [
+              34,
+              34
+            ]
+          },
+          {
+            "el": "button#wm-settings.wm-icon",
+            "size": [
+              34,
+              34
+            ]
+          },
+          {
+            "el": "button#wm-fullscreen.wm-icon",
+            "size": [
+              34,
+              34
+            ]
+          },
+          {
+            "el": "button#wm-pets.wm-btn.wm-btn--primary",
+            "size": [
+              147,
+              35
+            ]
+          },
+          {
+            "el": "button#wm-menu.wm-btn.wm-btn--ghost",
+            "size": [
+              100,
+              34
+            ]
+          },
+          {
+            "el": "button#wm-zoom-in.wm-rail-btn",
+            "size": [
+              32,
+              32
+            ]
+          },
+          {
+            "el": "button#wm-zoom-out.wm-rail-btn",
+            "size": [
+              32,
+              32
+            ]
+          },
+          {
+            "el": "button#wm-recenter.wm-rail-btn.wm-rail-btn--home",
+            "size": [
+              32,
+              32
+            ]
+          },
+          {
+            "el": "button#wm-credits.wm-link",
+            "size": [
+              123,
+              11
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 8,
+          "spill": 9,
+          "covered": 0,
+          "tiny": 9
+        }
+      }
+    },
+    "tutorial": {
+      "meta": {
+        "viewport": [
+          1280,
+          768
+        ],
+        "stageWidth": "min(100vw, calc(100dvh * 25 / 12))",
+        "topbarClearance": "74px",
+        "dockClearance": "105px",
+        "topbar": [
+          16,
+          8,
+          1248,
+          56
+        ],
+        "dock": null,
+        "shell": "desktop",
+        "scene": [
+          "GameScene"
+        ]
+      },
+      "audit": {
+        "clipped": [],
+        "spill": [],
+        "covered": [],
+        "tiny": [
+          {
+            "el": "button#btn-zoom-out.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-in.cam-btn",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button#btn-zoom-fit.cam-btn.cam-btn-fit.active",
+            "size": [
+              30,
+              30
+            ]
+          },
+          {
+            "el": "button.tut-next",
+            "size": [
+              45,
+              18
+            ]
+          }
+        ],
+        "counts": {
+          "clipped": 0,
+          "spill": 0,
+          "covered": 0,
+          "tiny": 4
+        }
+      }
+    }
+  },
+  "errors": [
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ]
+}

@@ -3,6 +3,7 @@ import { TOWER_TYPES, calculateSellRefund } from '../src/data/towerData.js';
 import { ENEMY_TYPES } from '../src/data/enemyData.js';
 import { WAVES, countWaveEnemies } from '../src/data/waveData.js';
 import { calculateDamage, DAMAGE_TYPE } from '../src/systems/CombatCalculator.js';
+import { SELL_REFUND_RATIO } from '../src/config/gameConfig.js';
 
 describe('Tower Progression & Specialization Architecture', () => {
   it('defines 3 distinct progression levels for the Ballista Tower with branching specializations', () => {
@@ -70,17 +71,20 @@ describe('Tower Progression & Specialization Architecture', () => {
 
   it('calculates cumulative investment and sell refund accurately across upgrade tiers', () => {
     const archer = TOWER_TYPES.archer; // Cost: 60
-    const lvl2 = archer.levels[1]; // Upgrade cost: 55 -> Total: 115
-    const rapid = archer.specializations.rapid; // Upgrade cost: 95 -> Total: 210
+    const lvl2 = archer.levels[1]; // Upgrade cost: 50 -> Total: 110
+    const rapid = archer.specializations.rapid; // Upgrade cost: 90 -> Total: 200
+
+    // The specification fixes the ratio at 60 % of recorded spend.
+    expect(SELL_REFUND_RATIO).toBe(0.6);
 
     const baseRefund = calculateSellRefund(archer.cost);
-    expect(baseRefund).toBe(Math.floor(60 * 0.7)); // 42
+    expect(baseRefund).toBe(Math.floor(60 * SELL_REFUND_RATIO)); // 36
 
     const lvl2Refund = calculateSellRefund(archer.cost + lvl2.upgradeCost);
-    expect(lvl2Refund).toBe(Math.floor(115 * 0.7)); // 80
+    expect(lvl2Refund).toBe(Math.floor(110 * SELL_REFUND_RATIO)); // 66
 
     const specRefund = calculateSellRefund(archer.cost + lvl2.upgradeCost + rapid.upgradeCost);
-    expect(specRefund).toBe(Math.floor(210 * 0.7)); // 147
+    expect(specRefund).toBe(Math.floor(200 * SELL_REFUND_RATIO)); // 120
   });
 });
 
@@ -245,7 +249,7 @@ describe('Boss Encounters & Multi-Phase Progression', () => {
   });
 
   it('verifies Wave Composition progression from introductory to Final Boss', () => {
-    expect(WAVES).toHaveLength(6);
+    expect(WAVES).toHaveLength(8);
 
     // Wave 1: Grunts introduction
     expect(WAVES[0].bossWave).toBeFalsy();
@@ -255,8 +259,15 @@ describe('Boss Encounters & Multi-Phase Progression', () => {
     expect(WAVES[2].bossWave).toBe(true);
     expect(WAVES[2].groups.some((g) => g.type === 'colossus')).toBe(true);
 
-    // Wave 6: Final Boss Abyssal Warlord
-    expect(WAVES[5].bossWave).toBe(true);
-    expect(WAVES[5].groups.some((g) => g.type === 'warlord')).toBe(true);
+    // Final wave: the Abyssal Warlord, still the last thing on the field.
+    const last = WAVES[WAVES.length - 1];
+    expect(last.bossWave).toBe(true);
+    expect(last.groups.some((g) => g.type === 'warlord')).toBe(true);
+    // The two waves added for the eight-wave contract sit between the spawn
+    // ramp and the boss, and both bring a mix rather than a single type.
+    for (const index of [4, 6]) {
+      expect(WAVES[index].groups.length).toBeGreaterThanOrEqual(3);
+      expect(WAVES[index].bossWave).toBeFalsy();
+    }
   });
 });

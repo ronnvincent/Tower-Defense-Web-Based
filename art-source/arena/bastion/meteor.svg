@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+  <!-- bastion meteor shell — generated for req 68, called the Dawnbreaker -->
+  <path d="M64 6 C52 18 44 24 34 32 C26 38 18 46 10 58 C20 50 28 42 36 36 C46 28 56 20 64 6 Z" fill="#ff8a3c" opacity="0.75"/>
+  <path d="M66 10 C56 22 48 28 40 34 C34 38 28 44 22 52 C30 44 38 38 46 32 C54 26 60 20 66 10 Z" fill="#ffd27a" opacity="0.9"/>
+  <circle cx="26" cy="50" r="17" fill="#3a2620" stroke="#160d0a" stroke-width="2.4"/>
+  <path d="M14 44 A17 17 0 0 1 38 38 A12 12 0 0 0 20 56 A17 17 0 0 1 14 44 Z" fill="#5a3a2c"/>
+  <path d="M20 44 L29 40 L34 47 L27 55 L18 52 Z" fill="#ffb054" opacity="0.9"/>
+  <path d="M22 46 L28 43 L30 48 L24 51 Z" fill="#ffe6a8"/>
+  <circle cx="44" cy="26" r="3.4" fill="#ffd27a" opacity="0.9"/>
+  <circle cx="52" cy="18" r="2.4" fill="#ffe6a8" opacity="0.8"/>
+  <circle cx="36" cy="34" r="2" fill="#ffb054" opacity="0.8"/>
+</svg>

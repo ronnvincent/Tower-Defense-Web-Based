@@ -1,0 +1,341 @@
+# Mirror Arena — 1v1 PvP
+
+Two players, one room, one horde. Each side defends its own core on its own half
+of a **rotationally symmetric arena**; both sides fight the **identical** wave
+script at the same time. Nothing is sent between players except readiness, the
+arena pick and each seat's result — there are no units to send, no map to
+sabotage, and therefore no way for a match to be decided by latency.
+
+The mode lives on the world map as the **Mirror Arena**. (The main menu is
+title + PLAY CAMPAIGN only; every secondary destination moved into the realm.)
+
+---
+
+## 1. Rules
+
+| Rule | Value | Why |
+| --- | --- | --- |
+| Waves | 10 — seven pressure waves, **two bounty waves** (4 and 9), boss on 5 and 10 | Long enough for a build to mature, short enough for a rematch, and the bounty beats keep the lead changing hands. |
+| Starting gold | 260 | One extra tower over the campaign's 220 — the arenas are longer. |
+| Core HP | 25 | Same as the campaign; a knocked-out core ends the match. |
+| Relics / blessings / powerups | **Off** (`PVP_MATCH_RULES`) | The arena is the equaliser: nothing one seat can buy or trigger that the other cannot answer. |
+| Contracts | 3 per match, identical on both seats | Side objectives that pay **score, never gold**, so they can decide a points win without tilting a board. |
+| Difficulty scale | ×1.00 on both sides | Identical health, speed and rewards. |
+| Stats / achievements | **Not written** | Duels cannot farm campaign progress or boost a friend's profile. |
+
+### Winning
+
+1. **Knockout.** The first core that reaches 0 loses immediately — even if the
+   rival has already finished their waves.
+2. **Forfeit.** Walking out of a live match — quit, closed tab, dropped
+   socket — loses it, and the player who stayed is awarded the win.
+3. **Points.** If both seats clear all 10 waves, the higher score wins.
+4. **Core integrity.** Equal score → the seat with more core HP wins.
+5. **Clear time.** Still tied → the faster clear wins.
+6. **Draw.** Identical on all four — nobody takes the arena.
+
+Score is the normal in-run score (kills × kill-chain multiplier, wave clears,
+plus the survival bonus for HP left).
+
+Leaving a live duel from the pause card is a **forfeit**: the seat reports a
+walk-out, the room closes and the player who stayed takes the win — never a
+draw (a draw would reward abandoning a match you are losing). A dropped socket
+is treated the same way, so a rival is never left guarding an empty arena.
+
+---
+
+## 2. The arenas
+
+All three are **26 × 12 tiles (1664 × 768 px)** and are built by the same
+`buildArena` + `arenaLanes` grammar as every campaign board: rock rim, the horde
+entering at the top, a river across the middle with two or three crossings, and
+the keep at the bottom with two rows of margin under it.
+
+| Arena | Theme | Gates | Crossings | Lanes | Final boss |
+| --- | --- | --- | --- | --- | --- |
+| Cinder Crown | `caldera` | portal 5 → keep 20 | 3 | 23 / 23 / 27 | Magma Lord — *The Caldera Regent* |
+| Frostspine | `glacier` | portal 12 → keep 12 | 2 | 20 / 20 | Frost Warden — *The Warden of the Pass* |
+| Dust Meridian | `oasis` | portal 20 → keep 5 | 3 | 23 / 23 / 23 | Sand Wyrm — *The Meridian Wyrm* |
+
+Fairness does not come from rotating one board: both seats receive the **same
+level object**, byte for byte (`getPvpLevel`), so the map, the wave script, the
+gold and the boss are identical by construction.
+
+Each arena ships **its own tileset** — `scripts/build_arena_tiles.py` generates
+`-caldera`, `-glacier` and `-oasis` from `terrain.py`'s palettes, so a duel never
+looks like a campaign map wearing a different name:
+
+| Theme | Ground | Lane | "Water" | Landmark |
+| --- | --- | --- | --- | --- |
+| `caldera` | cool ash basalt, magma fissures | pale ash track | molten lava | ember-lit obsidian obelisk |
+| `glacier` | bright ice sheet, crevasses | dark trodden ice | deep navy meltwater | serac cluster |
+| `oasis` | bleached dune sand, wind ripples | ochre caravan road | turquoise pool | date palm |
+
+Enemy art is *not* duplicated per arena: `EnemySkins.ENEMY_THEME_ALIAS` maps
+`caldera → volcanic`, `glacier → ice`, `oasis → desert`, so the horde keeps its
+elemental regrades while the ground carries the new identity.
+
+Every arena has:
+
+- its portal on row 2 and its keep on row 9, each at least two tiles inside the
+  rock frame so neither gate is buried under the HUD,
+- a river across row 5 that neither side can build on, with 2–3 crossings,
+- the whole outer rock border, and enough shelf on our side for a full defence.
+
+The contract is **verified, not assumed**: `tests/pvp.test.js` checks the board
+size against `ARENA`, the rock rim on every edge (the river row excepted — it
+runs off both sides on purpose), the water row, the crossing count, the gate
+rows, 2–3 lanes of comparable length, the buildable shelf, and that no arena
+reuses a campaign layout. `tests/map-margin.test.js` checks each gate's own
+margin above/below and to the side.
+
+---
+
+## 3. Architecture
+
+```
+GameScene  ←— launch payload ——  PvpLobbyUI  ←— state ——  PvpRoom
+     │                              │                        │
+     └─ reportSeat / reportProgress ─┘                LobbyState (reducer)
+                                                              │
+                                                        transport:
+                                                   BroadcastChannel | WebSocket
+```
+
+| File | Responsibility |
+| --- | --- |
+| `src/data/pvpArenas.js` | The three layouts, `PVP_RULES`, `PVP_MATCH_RULES` (no powerups/blessings/relics), the 10-wave script, `getPvpLevel()`. |
+| `src/systems/DuelContracts.js` | The contract pool, `contractsFor(seed)`, progress and payout. |
+| `src/systems/PvpMatch.js` | Pure rules: seats, readiness, knockout / points / core / time resolution. |
+| `src/net/LobbyState.js` | Host-authoritative room reducer, snapshot + adopt, lobby view. |
+| `src/net/PvpRoom.js` | Glue: intents, snapshots, countdown, launch, `over`. |
+| `src/net/lobbyProtocol.js` | Room codes, message envelope, name sanitising. |
+| `src/net/transports.js` | Link choice (`preferredMode`), `WebSocketTransport` (relay) and `BroadcastTransport` (same browser). |
+| `src/ui/PvpLobbyUI.js` | Entry → room → countdown panel. |
+| `src/ui/DuelResultUI.js` | Waiting state and final scoreboard / rematch. |
+| `server/pvp-relay.mjs` | A dumb relay that pairs two sockets into a room. |
+
+### Why host-authoritative?
+
+A duel is a **race**, not a lockstep simulation. The shared facts are tiny:
+which arena, which seed, who is ready, what each seat reported. The host folds
+intents into `LobbyState` and broadcasts a snapshot; the challenger adopts it
+verbatim. A reconnect is one snapshot away, and there is no replay log to keep
+in sync.
+
+### Why the scene never decides the winner
+
+`GameScene.finishDuel()` publishes only its own terminal state:
+
+```js
+{ seat, outcome: 'cleared' | 'ko', score, coreHp, waves, timeMs }
+```
+
+The room compares the two seats with `PvpMatch.resolve()`. The same function
+runs on the host and in the tests, so a rule change cannot drift between the
+scoring code and the UI.
+
+---
+
+## 4. Running a duel
+
+### Two devices (the default)
+
+```bash
+npm run pvp:relay     # ws://0.0.0.0:8787/pvp, next to the dev/preview server
+npm run dev           # or: npm run preview
+```
+
+Open the same URL on both phones. The lobby's entry screen offers two links:
+
+| Chip | What it is | When it works |
+| --- | --- | --- |
+| **ONLINE** (default) | `WebSocketTransport` → `/pvp` on the page's own origin | two devices, two networks, any host that runs the relay |
+| **THIS BROWSER** | `BroadcastChannel` | two tabs of one browser; it can never reach another device |
+
+`vite.config.js` proxies `/pvp` for both `dev` and `preview`, so during
+development the client only needs its own page URL. **A static host cannot do
+that**: Vercel, GitHub Pages and S3 have no process to hold a WebSocket open, so
+`wss://<your-game>/pvp` is a 404. For those deploys the relay runs somewhere
+else and the game is told where:
+
+| Source | Set it how | Use when |
+| --- | --- | --- |
+| Saved override | the lobby's **CHANGE RELAY** field | fixing a deployed build without rebuilding |
+| Link | `?relay=wss://relay.example/pvp` | trying a relay from a phone |
+| Build-time | `VITE_PVP_RELAY=wss://relay.example/pvp npm run build` | one address for every visitor |
+
+The first match wins, falling back to the same origin. `normaliseRelayUrl()`
+accepts `wss://…`, `https://…`, a bare host, `host:port` and a custom path, and
+defaults the path to `/pvp`.
+
+Hosting the relay is one file: `render.yaml` is a Render blueprint (free tier,
+Node 22, `node server/pvp-relay.mjs`, health check on `/health`). Any host that
+keeps a process alive works the same way — Railway, Fly, a VPS, or
+`docker run` of your own image. Free Render instances sleep when idle, so the
+first join of the day waits a few seconds with `DIALING RELAY…` on the button.
+
+`?pvp=local` / `?pvp=relay` forces the *kind* of link for one tab, and that
+choice is remembered in `localStorage['td-duel-link']`.
+
+The room board shows what is actually happening: `ONLINE · LINKED`,
+`… · WAITING FOR HOST` (the relay is holding your socket until the code exists),
+`… · LINK LOST`. A join that cannot work says so instead of waiting.
+
+```
+client → hello  {roomCode, name, host}
+relay  → note   {state:'waiting'}      guest arrived before the host
+relay  → welcome{seat:'p1'|'p2'}       seated
+relay  → bye    {reason} then close    bad-code | code-taken | full | no-room | no-host
+```
+
+The relay only forwards envelopes; all rules stay on the host.
+
+### Ending a duel without freezing a phone
+
+A live duel is easy to leave in a broken state, because the battlefield is a
+paused Phaser scene under a DOM card. Two rules keep it honest:
+
+* **A knockout settles on both seats at once.** The room's `resolve()` already
+  ends the match the moment one core falls, so the winner is never asked to
+  finish its own horde first. The losing seat pauses its own board in
+  `GameScene.finishDuel('ko')` and the winning seat pauses in
+  `PvpLobbyUI.finish()` — same beat, no "waiting for rival" limbo.
+* **Every exit tears the board down.** `window.gameFlow.stopDuelScene()` stops
+  the scene, hides the HUD and reveals the menu while *keeping the room* (so
+  REMATCH still works). It runs when the card's BACK TO LOBBY is tapped, when
+  the lobby is closed after a decided match, and never while a campaign battle
+  is behind the lobby.
+
+Before that, a decided duel could leave the scene paused with the HUD still
+painted on top: every control looked live, nothing answered, and both players
+described it as a freeze. `tests/duel-finish.test.js` pins the whole chain —
+report a knockout, both boards stop, the card is visible with live buttons, and
+leaving for the lobby tears the scene down.
+
+### Bounty waves
+
+Waves 4 and 9 are caravans: more, faster creeps that pay **double gold per
+kill** and a lump sum on clear (`bountyGold` / `bountyScore` on the wave). Both
+seats get the same wave at the same beat, the portal turns gold for it, and the
+HUD says so in a toast. The point is rhythm: a board built only to out-last the
+boss loses the tempo race to one that can burst a caravan.
+
+The wave manager carries the payout on its completion event, so the scene never
+reaches into the wave list:
+
+```js
+{ type:'waveComplete', waveNumber, isFinal, bounty, bountyGold, bountyScore }
+```
+
+### Contracts
+
+Three shared objectives per match, drawn from the **room seed** (`contractsFor`)
+so both phones show the same three without shipping them over the wire:
+
+| Contract | Goal | Pays |
+| --- | --- | --- |
+| SLAYER | Defeat 70 creeps | +150 |
+| WAVEKEEPER | Clear 6 waves | +120 |
+| CHAIN REACTION | Reach a 12-kill chain | +180 |
+| BOUNTY HUNTER | Clear both bounty waves | +200 |
+| BLOODLESS | Clear 3 waves without a leak | +160 |
+| UNBROKEN | Finish with 15+ core HP | +150 |
+
+They are listed in the lobby room screen before the gates open, tracked in the
+pause card during the match, and cashed in **before** the seat reports its
+score — the room compares scores, so a contract paid after the report would be
+worth nothing. Payout is score only: a contract can never make one board
+stronger than the other.
+
+### The wave clock
+
+A duel has no wave button. Two boards cannot both be "player 3 taps ahead", so
+the arena opens every wave itself (`src/systems/DuelPacing.js`):
+
+```
+PREPARE 10 s → wave 1 → NEXT WAVE 5 s → wave 2 → … → final wave
+```
+
+The prep window is the "at least ten seconds to place your defences" window; the
+breather is where clear-bonus gold gets spent. Both are **simulation**
+milliseconds, so pausing the battle pauses the clock too. The wave control stays
+on screen as a readout — `PREPARE · 8`, `NEXT WAVE · 3`, `WAVE 4 · AUTO` — and is
+disabled, because tapping it does nothing in a duel. Campaign and endless keep
+the manual start and the early-call gold.
+
+---
+
+## 5. Camera: seeing your rival
+
+The mirrored arena is bigger than the canvas, so the camera was made
+map-aware:
+
+- `CameraRig` now takes **map-pixel** bounds (`cols × TILE_SIZE`), not the
+  viewport, so panning reaches both gates.
+- `fitZoom(bounds, viewport)` computes the per-map minimum zoom:
+  - campaign (1280 × 768 on a 1280 × 768 canvas) → `1×`, unchanged;
+  - arena (1664 × 1024) → `0.75×`, the whole battlefield;
+  - a 640 × 360 phone → clamped to the hard floor `0.45×`.
+- `ZOOM_LIMITS.min` is now a floor rather than the framing, so a campaign map
+  can never show dead space outside itself.
+- `reset()` recentres at the fit zoom instead of scrolling to `(0,0)`.
+
+On top of that, the HUD gains a **rival strip** (`HUD.setRivalState`): name,
+wave, points, core-HP bar and a LIVE / FINISHED / KNOCKED OUT badge, refreshed
+from ~1.4 Hz progress ticks.
+
+---
+
+## 6. Tests
+
+`tests/pvp.test.js` (31) — arena geometry and symmetry, route and buildable
+tile counts, level contract, wave/boss validity, camera fit and pan, match
+resolution for every win condition.
+
+`tests/lobby.test.js` (24) — room codes, envelopes, name sanitising, seat
+assignment, readiness, host-only start and arena pick, countdown, snapshot
+round-trip, rematch, forfeit, plus **two real `PvpRoom`s talking over
+`BroadcastChannel`** end to end, and the watchdog that speaks up when no host
+answers.
+
+`tests/pvp-relay.test.js` (12) — **a real relay child process and two real
+WebSocket clients**: create → join → 2 seats → ready → start → countdown →
+launch on both → progress → knockout verdict on both → rematch; a guest held
+before the host opens; an unknown code refused; a third challenger refused; a
+host that vanishes mid-duel forfeiting to the remaining seat; and a dead relay
+failing in ~3 s with instructions. Plus the link-choice table as pure functions.
+
+`tests/duel-ui.test.js` (11) and `tests/duel-link.test.js` (10) — the lobby and
+result panels in jsdom: seat labels, arena picker locking, live progress,
+waiting state, scoreboard, name escaping, the ONLINE/THIS BROWSER chips, the
+link badge and the RELAY ADDRESS field.
+
+`tests/pvp-sync.test.js` (7) — how live the duel is: both seats byte-identical
+after every change, intent→strip latency over real sockets, a four-minute clock
+skew, a 120-message burst (ordered, no stale score), unchanged heartbeats that
+stay off the wire, and the per-snapshot cost.
+
+`tests/duel-telemetry.test.js` (5) and `tests/rival-strip.test.js` (4) — the
+HUD's work budget (≤ 9 paints/s instead of 60) and a strip that skips the DOM
+when nothing it shows has moved.
+
+`tests/duel-pacing.test.js` (13) — the arena's wave clock: ten seconds of prep,
+a five second breather after every clear, no wave opened twice, no wave opened
+after the run ends, and a manual start that is a no-op in a duel.
+
+`tests/duel-wave-button.test.js` (5) — the control the player actually sees:
+a real button in a campaign, a disabled countdown during prep and the breather,
+back to a button when the duel ends.
+
+`tests/relay-address.test.js` (8) — which address the ONLINE link dials:
+normalising what a human pastes (bare host, `https://`, `host:port`, custom
+path), rejecting junk, `?relay=`, the saved override and the precedence order.
+
+Run them with:
+
+```bash
+npx vitest run tests/pvp.test.js tests/lobby.test.js tests/duel-ui.test.js \
+  tests/duel-link.test.js tests/relay-address.test.js tests/pvp-relay.test.js \
+  tests/pvp-sync.test.js tests/duel-telemetry.test.js tests/rival-strip.test.js
+```

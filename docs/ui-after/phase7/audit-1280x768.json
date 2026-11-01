@@ -1,0 +1,80 @@
+{
+ "tag": "shot",
+ "size": "1280x768",
+ "at": "2026-10-29T07:55:56.122Z",
+ "states": {
+  "settings": {
+   "meta": null,
+   "audit": {
+    "clipped": [
+     {
+      "el": "div.menu-sky",
+      "rect": [
+       -92,
+       -55,
+       1465,
+       879
+      ]
+     },
+     {
+      "el": "div.menu-wisp.menu-wisp--a",
+      "rect": [
+       -216,
+       230,
+       1587,
+       323
+      ]
+     },
+     {
+      "el": "div.menu-wisp.menu-wisp--b",
+      "rect": [
+       -190,
+       423,
+       1587,
+       331
+      ]
+     }
+    ],
+    "spill": [],
+    "covered": [],
+    "tiny": [
+     {
+      "el": "button#menu-btn-sound.menu-icon",
+      "size": [
+       35,
+       35
+      ]
+     },
+     {
+      "el": "button#menu-btn-settings.menu-icon",
+      "size": [
+       35,
+       35
+      ]
+     },
+     {
+      "el": "button#menu-btn-fullscreen.menu-icon",
+      "size": [
+       35,
+       35
+      ]
+     },
+     {
+      "el": "button#menu-btn-offline.menu-icon",
+      "size": [
+       35,
+       35
+      ]
+     }
+    ],
+    "counts": {
+     "clipped": 3,
+     "spill": 0,
+     "covered": 0,
+     "tiny": 4
+    }
+   },
+   "errors": []
+  }
+ }
+}

@@ -34,6 +34,7 @@ export class GameStateManager {
       towerUpgrades: 0,
       barricadesPlaced: 0,
       barricadesRejected: 0,
+      barricadesDestroyed: 0,
       projectilesFired: 0,
     };
   }
@@ -75,6 +76,18 @@ export class GameStateManager {
     if (this.isOver() || amount <= 0) return false;
     this.baseHealth = Math.max(0, this.baseHealth - amount);
     return this.baseHealth === 0;
+  }
+
+  /**
+   * Restore core health (Blessing of Mending). Never past the maximum, and a
+   * finished match cannot be revived.
+   * @returns {number} health actually restored
+   */
+  healBase(amount) {
+    if (this.isOver() || amount <= 0) return 0;
+    const before = this.baseHealth;
+    this.baseHealth = Math.min(this.maxBaseHealth, this.baseHealth + amount);
+    return this.baseHealth - before;
   }
 
   /**

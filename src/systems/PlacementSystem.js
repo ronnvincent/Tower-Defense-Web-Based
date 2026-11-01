@@ -1,5 +1,6 @@
 import { cellKey } from '../dsa/Graph.js';
 import { TILE } from '../data/mapData.js';
+import { zoneBlock, onPlayerGround } from './BuildZone.js';
 
 /**
  * PlacementSystem — validates build requests and tracks tile occupancy.
@@ -13,14 +14,20 @@ export const PLACEMENT_ERRORS = {
   'out-of-bounds': 'Outside the battlefield',
   'blocked-tile': 'Rocks and water cannot be built on',
   'road-tile': 'Towers cannot be built on the road',
-  'needs-road': 'Barricades must be placed on the road',
+  'needs-road': 'Walls need open ground — grass or the road',
   endpoint: 'Cannot block the spawn portal or the base',
   occupied: 'This tile is already occupied',
   'no-coins': 'Not enough coins',
+  'max-towers': 'Every build point is taken — sell a keep to raise another',
   'enemy-on-tile': 'An enemy is on this tile',
-  'blocks-path': 'That would block the only path to the base!',
-  'traps-enemy': 'That would trap an enemy with no route to the base',
+  'off-route': 'No enemies march through this tile',
+  'not-a-slot': 'That spot is not free ground',
+  'enemy-half': 'That ground belongs to the horde — build below the road line',
+  'spawn-zone': 'That is the portal landing ground — the horde spawns here',
+  'base-zone': 'That is the bastion plaza — leave the gate room',
+  'no-route': 'That keep would seal the only road to the bastion',
   'not-walkable': 'This road tile is not part of the path network',
+  'unknown-type': 'Unknown defence',
   'game-over': 'The match is over',
 };
 
@@ -61,22 +68,35 @@ export class PlacementSystem {
 
   /**
    * Validate the basic rules for building `definition` at (row, col).
-   * (Path-blocking rules for barricades are checked afterwards by BFS.)
+   * GameScene layers the "no wall on top of a living enemy" rule on top of
+   * this (see `GameScene.validateBuild`).
    *
    * @param {{cost:number, placement:'grass'|'road'}} definition
    * @param {number} coins player's current coins
+   * @param {{route?: Set<string>}} [options] `route` = cells the horde actually marches
    * @returns {{ok:boolean, reason:string|null}}
    */
-  validate(definition, row, col, coins) {
+  validate(definition, row, col, coins, options = {}) {
     if (!this.inBounds(row, col)) return fail('out-of-bounds');
     const type = this.map.tiles[row][col];
 
-    if (definition.placement === 'road') {
+    if (definition.placement === 'wall') {
+      // A wall is a real structure: it may stand on the grass as part of a
+      // perimeter, or across the road as a deliberate roadblock. What it may
+      // never do is sit on a gate, in the horde's muster ground, or in the
+      // bastion plaza — the same map rules a keep obeys.
       if (type === TILE.SPAWN || type === TILE.BASE) return fail('endpoint');
-      if (type !== TILE.ROAD) return fail('needs-road');
+      if (type !== TILE.GRASS && type !== TILE.ROAD) return fail('blocked-tile');
+      const zone = zoneBlock({ row, col }, this.map);
+      if (zone) return fail(zone);
+      if (!onPlayerGround({ row, col }, this.map)) return fail('enemy-half');
     } else {
-      if (type === TILE.ROCK || type === TILE.WATER) return fail('blocked-tile');
-      if (type !== TILE.GRASS) return fail('road-tile');
+      // Keeps stand on the grass **beside** the lane. Not on the lane: the road
+      // is the path the horde walks, and a tower dropped on it either rerouted
+      // the whole wave or — worse — sat in the monsters' way and never fired.
+      if (type !== TILE.GRASS) return fail(type === TILE.ROAD ? 'road-tile' : 'blocked-tile');
+      const zone = zoneBlock({ row, col }, this.map);
+      if (zone) return fail(zone);
     }
 
     if (this.isOccupied(row, col)) return fail('occupied');

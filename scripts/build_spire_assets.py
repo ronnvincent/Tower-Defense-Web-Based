@@ -17,40 +17,44 @@ Geometry conventions used by the game (see src/entities/Tower.js):
 
 import re
 import os
+import shutil
 import struct
 import sys
 import zlib
 from collections import Counter
 
+import terrain
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "src", "assets", "spire")
+ASSETS = os.path.join(ROOT, "src", "assets")
+SRC = os.path.join(ASSETS, "spire")
 OUT = os.path.join(ROOT, "public", "assets")
+
+
+def source_path(sprite):
+    """Resolve an enemy source strip.
+
+    Spire strips live in `src/assets/spire/enemies`; imported packs carry their
+    own folder (`flare/enemies/thrall`), which is why a source may be a path
+    relative to `src/assets` instead of a bare name.
+    """
+    if "/" in sprite:
+        return os.path.join(ASSETS, f"{sprite}.png")
+    return os.path.join(SRC, "enemies", f"{sprite}.png")
 
 # ---------------------------------------------------------------- PNG helpers
 
 
-def read_png(path):
-    """Minimal RGBA PNG decoder (8-bit, non-interlaced) -> (w, h, bytearray)."""
-    data = open(path, "rb").read()
-    assert data[:8] == b"\x89PNG\r\n\x1a\n", path
-    pos, idat, w, h, bitdepth, colourtype = 8, b"", 0, 0, 8, 6
-    while pos < len(data):
-        length = struct.unpack(">I", data[pos : pos + 4])[0]
-        ctype = data[pos + 4 : pos + 8]
-        chunk = data[pos + 8 : pos + 8 + length]
-        if ctype == b"IHDR":
-            w, h, bitdepth, colourtype = struct.unpack(">IIBB", chunk[:10])
-        elif ctype == b"IDAT":
-            idat += chunk
-        pos += 12 + length
-    assert bitdepth == 8, f"unsupported bit depth {bitdepth} in {path}"
-    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colourtype]
-    raw = zlib.decompress(idat)
-    stride = w * channels
-    out = bytearray()
+ADAM7 = ((0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2))
+
+
+def _unfilter_rows(raw, offset, width, height, channels):
+    """Undo the per-scanline PNG filters for one (sub)image."""
+    stride = width * channels
+    rows = []
     prev = bytearray(stride)
-    i = 0
-    for _ in range(h):
+    i = offset
+    for _ in range(height):
         filt = raw[i]
         i += 1
         line = bytearray(raw[i : i + stride])
@@ -74,14 +78,61 @@ def read_png(path):
                 pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
                 pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
                 line[x] = (line[x] + pr) & 255
-        out += line
+        rows.append(line)
         prev = line
+    return rows, i
+
+
+def read_png(path):
+    """Minimal RGBA PNG decoder (8-bit) -> (w, h, bytearray).
+
+    Handles the three layouts the CC0 packs actually ship: RGBA, RGB and
+    Adam7 interlacing (every Kenney "towerDefense_tile" is interlaced, so
+    skipping this decodes them into rainbow noise instead of art).
+    """
+    data = open(path, "rb").read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", path
+    pos, idat, w, h, bitdepth, colourtype, interlace = 8, b"", 0, 0, 8, 6, 0
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos : pos + 4])[0]
+        ctype = data[pos + 4 : pos + 8]
+        chunk = data[pos + 8 : pos + 8 + length]
+        if ctype == b"IHDR":
+            w, h, bitdepth, colourtype, _, _, interlace = struct.unpack(">IIBBBBB", chunk[:13])
+        elif ctype == b"IDAT":
+            idat += chunk
+        pos += 12 + length
+    assert bitdepth == 8, f"unsupported bit depth {bitdepth} in {path}"
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colourtype]
+    raw = zlib.decompress(idat)
+
+    if interlace == 0:
+        rows, _ = _unfilter_rows(raw, 0, w, h, channels)
+        out = b"".join(rows)
+    else:
+        merged = bytearray(w * h * channels)
+        offset = 0
+        for x0, y0, dx, dy in ADAM7:
+            pw = (w - x0 + dx - 1) // dx
+            ph = (h - y0 + dy - 1) // dy
+            if pw <= 0 or ph <= 0:
+                continue
+            rows, offset = _unfilter_rows(raw, offset, pw, ph, channels)
+            for ry, row in enumerate(rows):
+                dst_y = y0 + ry * dy
+                for rx in range(pw):
+                    dst_x = x0 + rx * dx
+                    di = (dst_y * w + dst_x) * channels
+                    merged[di : di + channels] = row[rx * channels : (rx + 1) * channels]
+        out = bytes(merged)
+
     if channels == 3:
         rgba = bytearray(w * h * 4)
         for i in range(w * h):
             rgba[i * 4 : i * 4 + 3] = out[i * 3 : i * 3 + 3]
             rgba[i * 4 + 3] = 255
         return w, h, rgba
+    assert channels == 4, f"unsupported colour type {colourtype} in {path}"
     return w, h, bytes(out)
 
 
@@ -158,6 +209,272 @@ def recolour(pixels, mapping):
     return out
 
 
+def hsl(r, g, b):
+    """RGB (0-255) -> (hue 0..1, saturation 0..1, lightness 0..1)."""
+    rf, gf, bf = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(rf, gf, bf), min(rf, gf, bf)
+    l = (mx + mn) / 2
+    if mx == mn:
+        return 0.0, 0.0, l
+    d = mx - mn
+    sat = d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+    if mx == rf:
+        h = ((gf - bf) / d) % 6
+    elif mx == gf:
+        h = (bf - rf) / d + 2
+    else:
+        h = (rf - gf) / d + 4
+    return h / 6.0, sat, l
+
+
+def rgb_from_hsl(h, s, l):
+    if s <= 0:
+        v = round(max(0.0, min(1.0, l)) * 255)
+        return v, v, v
+    q = l * (1 + s) if l < 0.5 else l + s - l * s
+    p = 2 * l - q
+
+    def channel(t):
+        t %= 1.0
+        if t < 1 / 6:
+            v = p + (q - p) * 6 * t
+        elif t < 1 / 2:
+            v = q
+        elif t < 2 / 3:
+            v = p + (q - p) * (2 / 3 - t) * 6
+        else:
+            v = p
+        return round(max(0.0, min(1.0, v)) * 255)
+
+    return channel(h + 1 / 3), channel(h), channel(h - 1 / 3)
+
+
+def hex_to_rgb(value):
+    return (value >> 16) & 255, (value >> 8) & 255, value & 255
+
+
+def mix(stops, t):
+    """Sample a dark -> light ramp of `stops` (RGB tuples) at t in [0, 1]."""
+    t = max(0.0, min(1.0, t))
+    pos = t * (len(stops) - 1)
+    i = min(len(stops) - 2, int(pos))
+    f = pos - i
+    a, b = stops[i], stops[i + 1]
+    return tuple(round(a[k] + (b[k] - a[k]) * f) for k in range(3))
+
+
+def scale_pixels(pixels, w, h, factor):
+    """Nearest-neighbour upscale — keeps the pixel-art grid intact."""
+    nw, nh = w * factor, h * factor
+    out = bytearray(nw * nh * 4)
+    for y in range(nh):
+        row = (y // factor) * w
+        for x in range(nw):
+            si = (row + x // factor) * 4
+            di = (y * nw + x) * 4
+            out[di : di + 4] = pixels[si : si + 4]
+    return nw, nh, out
+
+
+def tint_pixels(pixels, value, alpha=255):
+    """Replace RGB with a flat colour, optionally scaling the source alpha."""
+    r, g, b = hex_to_rgb(value)
+    out = bytearray(pixels)
+    for i in range(0, len(out), 4):
+        out[i], out[i + 1], out[i + 2] = r, g, b
+        out[i + 3] = out[i + 3] * alpha // 255
+    return out
+
+
+def hue_transform(pixels, dh, sat_scale=1.0, light_add=0.0, light_scale=1.0):
+    """Rotate every pixel's hue and re-grade it — a whole-sheet palette shift.
+
+    Used for the bosses: the same silhouettes as the elite creeps, recoloured
+    into their own element so a boss never reads as "a big grunt".
+    """
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            h, s, l = hsl(*key)
+            h = (h + dh) % 1.0
+            s = max(0.0, min(1.0, s * sat_scale))
+            l = max(0.0, min(1.0, l * light_scale + light_add))
+            rgb = rgb_from_hsl(h, s, l)
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+def duotone(pixels, stops):
+    """Re-grade a sheet onto a single dark -> light ramp (alpha untouched).
+
+    Bosses use this: the elite silhouettes keep their shape but lose their
+    original colours, so a 2x giant never reads as "the same creep again".
+    """
+    ramp = [hex_to_rgb(value) for value in stops]
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            rgb = mix(ramp, hsl(*key)[2])
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+# Enemy sheets are re-graded per biome rather than recoloured flat: the
+# silhouette keeps its original shading, but the palette is pulled 45% toward the
+# biome's own ramp so a desert grunt reads as sun-bleached and an ice one as
+# frost-bitten instead of "the same bug again".
+ENEMY_THEME_RAMPS = {
+    "desert": ["#3A2A17", "#9A7338", "#F0D79A"],
+    "ice": ["#16303F", "#5E93AE", "#E6F8FF"],
+    "volcanic": ["#160A0A", "#6E2A16", "#FF9A4A"],
+    "crystal": ["#140E24", "#4B3585", "#D9C6FF"],
+}
+
+# Per-wave escalation, in three discrete broods. Wave 1-2 spawns the base
+# creature, waves 3-4 the elite (brighter, saturated, gold-contoured), waves 5+
+# the champion (darker body, ember contour grown one pixel outwards). The tiers
+# are baked into separate sheets because the Sprite's 9-row strip only offers
+# three near-identical palette variants -- measurably ~5% of pixels differ, which
+# is why palette swapping alone never read as a change on screen.
+ENEMY_TIERS = [
+    {  # 0 - base brood: exactly the biome re-grade
+        "suffix": "",
+        "grade": 1.0,
+        "saturation": 1.0,
+        "lift": 1.0,
+        "rim": None,
+        "rim_strength": 0.0,
+        "rim_thickness": 1,
+        "scale": 1.0,
+        "glow": 0.0,
+    },
+    {  # 1 - elite brood: brighter, punchier, gold shoulder light
+        "suffix": "-e1",
+        "grade": 0.78,
+        "saturation": 1.38,
+        "lift": 1.16,
+        "rim": "#FFD166",
+        "rim_strength": 0.5,
+        "rim_thickness": 1,
+        "scale": 1.08,
+        "glow": 0.22,
+    },
+    {  # 2 - champion brood: scorched body, ember contour that grows 1 px out
+        "suffix": "-e2",
+        "grade": 1.0,
+        "saturation": 1.55,
+        "lift": 0.92,
+        "rim": "#FF6A2B",
+        "rim_strength": 0.62,
+        "rim_thickness": 2,
+        "scale": 1.16,
+        "glow": 0.34,
+    },
+]
+
+ENEMY_CHAMPION_STOPS = ["#1A0A0E", "#7A1B22", "#FFB36B"]
+
+
+def rim_light(pixels, w, h, colour, strength=0.86, thickness=1, alpha=255):
+    """Draw a glowing contour around the sprite.
+
+    Two things happen here, and both are structural rather than a tint:
+
+    * every silhouette pixel that touches empty space is pushed hard toward
+      `colour`, so the creature gains a readable coloured edge; and
+    * for `thickness > 1` the contour is *grown outwards* into the empty pixels
+      one step further out. That growth is what makes an elite brute read as
+      heavier than a plain one at a glance.
+    """
+    out = bytearray(pixels)
+    solid = bytearray(1 if pixels[i * 4 + 3] else 0 for i in range(w * h))
+
+    def near_solid(x, y, radius):
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and solid[ny * w + nx]:
+                    return True
+        return False
+
+    halo = blank(w, h)
+    for y in range(h):
+        for x in range(w):
+            i = (y * w + x) * 4
+            if solid[y * w + x]:
+                if near_solid(x, y, 1) and not (
+                    x > 0 and y > 0 and x < w - 1 and y < h - 1
+                    and solid[y * w + x - 1] and solid[y * w + x + 1]
+                    and solid[(y - 1) * w + x] and solid[(y + 1) * w + x]
+                ):
+                    out[i], out[i + 1], out[i + 2] = (
+                        round(out[i] * (1 - strength) + colour[k] * strength) for k in range(3)
+                    )
+            elif thickness > 1 and near_solid(x, y, thickness - 1):
+                halo[i], halo[i + 1], halo[i + 2] = colour[0], colour[1], colour[2]
+                halo[i + 3] = alpha
+    # The halo is composited only where the sprite has no pixel, so it reads as
+    # an outer rim instead of painting over the art.
+    for i in range(0, len(halo), 4):
+        if halo[i + 3] and not out[i + 3]:
+            out[i : i + 4] = halo[i : i + 4]
+    return out
+
+
+def saturated(pixels, factor=1.18, lift=1.0):
+    """Push saturation (and optionally brightness) so a re-grade keeps its hue."""
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if not out[i + 3]:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            h, sat, light = hsl(*key)
+            rgb = rgb_from_hsl(h, min(1.0, sat * factor), min(1.0, light * lift))
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
+def rgb_tuple(value):
+    """Accept '#rrggbb' or a packed 0xRRGGBB integer."""
+    if isinstance(value, str):
+        return hex_to_rgb(int(value.lstrip("#"), 16))
+    return hex_to_rgb(value)
+
+
+def grade_toward(pixels, stops, strength=0.45):
+    """Blend every pixel toward a dark -> light ramp at `strength`."""
+    ramp = [rgb_tuple(value) for value in stops]
+    out = bytearray(pixels)
+    lut = {}
+    for i in range(0, len(out), 4):
+        if out[i + 3] == 0:
+            continue
+        key = (out[i], out[i + 1], out[i + 2])
+        rgb = lut.get(key)
+        if rgb is None:
+            target = mix(ramp, hsl(*key)[2])
+            rgb = tuple(int(round(key[k] * (1 - strength) + target[k] * strength)) for k in range(3))
+            lut[key] = rgb
+        out[i], out[i + 1], out[i + 2] = rgb
+    return out
+
+
 def content_bbox(pixels, w, h):
     minx, miny, maxx, maxy = w, h, -1, -1
     for y in range(h):
@@ -212,7 +529,15 @@ TOWER_LAYOUT = {
     "archer": [(1, 1), (1, 2), (6, 3), (1, 3)],
     "cannon": [(3, 1), (3, 2), (3, 3), (4, 3)],
     "frost": [(2, 1), (2, 2), (2, 3), (5, 3)],
+    # Forge lines — the three extra defences from the "make it gentler" pass.
+    # T04 (hammer keep) is the only family with a hammer weapon, so the two
+    # Hammerforge branches share its level-3 sheet and are told apart by the
+    # STORM recolour; the same trick separates the two Banner Keep branches.
+    "forge": [(4, 1), (4, 2), (4, 3), (4, 3)],
+    "runes": [(5, 1), (5, 2), (5, 3), (5, 3)],
+    "banner": [(6, 1), (6, 2), (6, 3), (6, 3)],
 }
+
 
 SLOT_SUFFIX = {0: "", 1: "-lvl2", 2: "-spec-a", 3: "-spec-b"}
 
@@ -237,6 +562,37 @@ LIGHTNING_REMAP = {
     (0xDE, 0x6A, 0x38): 0xC3A0FF,
 }
 
+# Storm-blue shift for the Thunderforge branch (T04 level 3 green -> electric).
+STORM_REMAP = {
+    (0xB4, 0xD6, 0x45): 0x5FD8FF,
+    (0xFC, 0xF9, 0x60): 0xE9FBFF,
+    (0x51, 0xC4, 0x3F): 0x3FA9D8,
+    (0x30, 0x9C, 0x63): 0x2A6A9E,
+}
+
+# Violet shift for the Arcane Nova branch (T05 level 3 crimson -> arcane).
+ARCANE_REMAP = {
+    (0xDE, 0x6A, 0x38): 0xC3A0FF,
+    (0xC9, 0x30, 0x38): 0x8E6BE8,
+    (0xF7, 0xA4, 0x8B): 0xE3D6FF,
+    (0xC2, 0x71, 0x82): 0x7B5FC4,
+}
+
+# Royal shift for the Muster Camp branch (T06 level 3 leather -> gold/navy).
+GOLD_REMAP = {
+    (0xB5, 0x80, 0x57): 0xF0C060,
+    (0x8A, 0x50, 0x3E): 0xB8862F,
+    (0x2B, 0x2E, 0x42): 0x2E3F73,
+}
+
+# Keyed by output file stem (`<game_key><suffix>`) so only the *second*
+# specialisation is recoloured — banner-spec-a keeps the stock blue banner.
+TOWER_SLOT_REMAPS = {
+    "forge-spec-b": STORM_REMAP,
+    "runes-spec-b": ARCANE_REMAP,
+    "banner-spec-b": GOLD_REMAP,
+}
+
 ENEMY_SOURCES = {
     "grunt": ("leafbug", 64, 9),
     "runner": ("firebug", 128, 9),
@@ -246,6 +602,15 @@ ENEMY_SOURCES = {
     "shield": ("magma_crab", 64, 9),
     "colossus": ("firewasp", 96, 9),
     "warlord": ("flying_locust", 64, 9),
+    # Flare pack (CC-BY-SA 3.0) — imported by scripts/extract_flare_enemies.py
+    # into the same 9-row idle/move/death layout, so biomes and tiers apply
+    # unchanged. Frame sizes are the measured cell of each imported strip.
+    "thrall": ("flare/enemies/thrall", 70, 9),
+    "raider": ("flare/enemies/raider", 62, 9),
+    "bonearcher": ("flare/enemies/bonearcher", 93, 9),
+    "ironhorn": ("flare/enemies/ironhorn", 112, 9),
+    "ashwing": ("flare/enemies/ashwing", 124, 9),
+    "gravesworn": ("flare/enemies/gravesworn", 152, 9),
 }
 
 
@@ -280,6 +645,10 @@ def build_towers():
             if game_key == "frost" and idx == 3:
                 base = recolour(base, LIGHTNING_REMAP)
                 wsheet = recolour(wsheet, LIGHTNING_REMAP)
+            slot_remap = TOWER_SLOT_REMAPS.get(f"{game_key}{suffix}")
+            if slot_remap:
+                base = recolour(base, slot_remap)
+                wsheet = recolour(wsheet, slot_remap)
 
             # --- base: trimmed, 64 wide, bottom row = tile bottom
             tb, bw, bh = trim(base, fw, fh)
@@ -336,6 +705,96 @@ def drop_shadow(sheet, w, h, cx, cy, rx, ry, alpha):
     return out
 
 
+# --------------------------------------------------------------- tower ascent
+
+# The two ascended tiers are re-grades of the level-3 branch art: same silhouette,
+# hotter palette, a rim light and (at level 5) a glowing power ring painted on
+# the plinth. Rebuilding the keeps from scratch would mean re-measuring every
+# pivot and muzzle in `towerVisuals.js`; a re-grade keeps all of that intact and
+# still gives a maxed tower a look the player can read across the map.
+TOWER_ASCENT = {
+    "archer": (0xFFD166, ("#241804", "#8A6A18", "#FFD166", "#FFF6DA")),
+    "cannon": (0xFF8A2B, ("#241206", "#8A4212", "#FF8A2B", "#FFE0B8")),
+    "frost": (0x8FE8FF, ("#061A24", "#1E6480", "#8FE8FF", "#F0FDFF")),
+    "forge": (0xFF6A2B, ("#240A06", "#8A2A12", "#FF6A2B", "#FFD9B8")),
+    "runes": (0xB08CFF, ("#100822", "#4A2E8C", "#B08CFF", "#F0E6FF")),
+    "banner": (0xFFD166, ("#241A04", "#8A6A18", "#FFD166", "#FFF6DA")),
+}
+
+TOWER_ASCENT_TIERS = {
+    2: {"grade": 0.24, "saturation": 1.22, "lift": 1.07, "rim": 0.45, "thickness": 1, "ring": None},
+    3: {"grade": 0.40, "saturation": 1.44, "lift": 1.14, "rim": 0.62, "thickness": 2, "ring": 0.55},
+}
+
+
+def power_ring(pixels, w, h, colour, strength):
+    """Paint a glowing ellipse band near the bottom of a keep.
+
+    Drawn additively so it reads as light on the ground rather than paint on the
+    stone; the ellipse is squashed to the tile's perspective (a circle on the
+    floor would look like a wall of light).
+    """
+    out = bytearray(pixels)
+    cx, cy = w / 2, h - 6
+    rx, ry = w * 0.44, max(4.0, w * 0.15)
+    for y in range(h):
+        for x in range(w):
+            dx = (x - cx) / rx
+            dy = (y - cy) / ry
+            d = (dx * dx + dy * dy) ** 0.5
+            band = max(0.0, 1.0 - abs(d - 1.0) * 5.0)
+            if band <= 0:
+                continue
+            i = (y * w + x) * 4
+            a = out[i + 3] / 255
+            add = band * strength * (0.35 if a > 0.5 else 1.0)
+            for k in range(3):
+                value = out[i + k] + colour[k] * add
+                out[i + k] = min(255, round(value))
+            out[i + 3] = min(255, round(out[i + 3] + 255 * add * 0.55))
+    return out
+
+
+def build_tower_ascension():
+    print("tower ascension")
+    for line_key, (accent, stops) in TOWER_ASCENT.items():
+        ramp_stops = stops
+        for branch in ("spec-a", "spec-b"):
+            for tier, spec in TOWER_ASCENT_TIERS.items():
+                src_base = os.path.join(OUT, "towers", f"base_{line_key}-{branch}.png")
+                src_weapon = os.path.join(OUT, "towers", f"weapon_{line_key}-{branch}.png")
+                if not os.path.exists(src_base) or not os.path.exists(src_weapon):
+                    continue
+
+                bw, bh, base = read_png(src_base)
+                base = grade_toward(base, ramp_stops, spec["grade"])
+                base = saturated(base, spec["saturation"], spec["lift"])
+                base = rim_light(
+                    base, bw, bh, rgb_tuple(accent),
+                    strength=spec["rim"], thickness=spec["thickness"],
+                )
+                if spec["ring"]:
+                    base = power_ring(base, bw, bh, rgb_tuple(accent), spec["ring"])
+                save(
+                    os.path.join(OUT, "towers", f"base_{line_key}-{branch}{tier}.png"),
+                    base, bw, bh,
+                    f"<- {line_key} {branch} level {tier + 2}",
+                )
+
+                ww, wh, weapon = read_png(src_weapon)
+                weapon = grade_toward(weapon, ramp_stops, spec["grade"])
+                weapon = saturated(weapon, spec["saturation"], spec["lift"])
+                weapon = rim_light(
+                    weapon, ww, wh, rgb_tuple(accent),
+                    strength=spec["rim"], thickness=spec["thickness"],
+                )
+                save(
+                    os.path.join(OUT, "towers", f"weapon_{line_key}-{branch}{tier}.png"),
+                    weapon, ww, wh,
+                    f"<- {line_key} {branch} level {tier + 2} weapon",
+                )
+
+
 def build_barricade():
     """Road obstacle.
 
@@ -388,78 +847,550 @@ def build_barricade():
 # ---------------------------------------------------------------------- terrain
 
 
+# ---------------------------------------------------------------- terrain themes
+
+# Every colour the two Spire terrain sheets use, tagged with its job. Terrain
+# needs per-role ramps (a road must stay a road), so a blanket hue rotation is
+# not an option; instead each role is re-graded onto the level's own ramp.
+TERRAIN_ROLES = {
+    "ground": [0x63AB3F, 0x3B7D4F, 0xC8D45D],
+    "road": [0xFFAE70, 0xCF752B, 0xAB5130],
+    "stone": [0xA3A7C2, 0x686F99, 0x404973, 0x2C354D, 0x14182E],
+    "accent": [0xBD6A62, 0x8F4D57, 0x7D3833],
+    "water": [0x92E8C0, 0xD7F8DC, 0xAFEECB, 0xC4F3D4],
+    "ink_dark": [0x21181B, 0x3B2027, 0x52333F, 0x2F5753],
+    "ink_light": [0xDFE0E8, 0xF5FFE8],
+}
+
+# dark -> mid -> light per role. The grassland keeps the untouched artwork.
+THEME_RAMPS = {
+    "desert": {
+        "ground": [0x5E5326, 0x8C7C3C, 0xC9B063],
+        "road": [0x7A4B24, 0xC08A4E, 0xF2D9A6],
+        "stone": [0x6E6355, 0x9E9078, 0xE8D8B6],
+        "accent": [0x5E2417, 0x9C4026, 0xD9784A],
+        "water": [0x2F7E74, 0x53A996, 0x9FDFC6],
+        "ink_dark": [0x1E150C, 0x332515, 0x4A3720],
+        "ink_light": [0xE8D9B8, 0xF7EDD6, 0xFFF8E8],
+    },
+    "ice": {
+        "ground": [0x4E6273, 0x8AA3B8, 0xE4F1FA],
+        "road": [0x6C8496, 0x9FB6C9, 0xE9F6FF],
+        "stone": [0x4B5A66, 0x7E93A2, 0xD9E9F3],
+        "accent": [0x473A5C, 0x6E5A8F, 0xB79BD8],
+        "water": [0x1B4A6E, 0x2E6D96, 0x4E93BD],
+        "ink_dark": [0x0D161E, 0x1B2A36, 0x2C3F4E],
+        "ink_light": [0xE6F3FB, 0xF6FCFF, 0xFFFFFF],
+    },
+    "volcanic": {
+        "ground": [0x1E181B, 0x3A3036, 0x5E5258],
+        "road": [0x4A2418, 0x7E3A22, 0xB5613A],
+        "stone": [0x322C30, 0x554B51, 0x877A80],
+        "accent": [0x6E1508, 0xC03A15, 0xFFAE5C],
+        "water": [0x5E0F05, 0xB83410, 0xFF8A3C],
+        "ink_dark": [0x080506, 0x120C0E, 0x1E151A],
+        "ink_light": [0xD9C6B8, 0xF0DFCD, 0xFFF0DE],
+    },
+}
+
+ROLE_OF_COLOUR = {}
+for _role, _colours in TERRAIN_ROLES.items():
+    for _hex in _colours:
+        ROLE_OF_COLOUR[hex_to_rgb(_hex)] = _role
+
+
+def role_of(rgb):
+    role = ROLE_OF_COLOUR.get(rgb)
+    if role:
+        return role
+    h, sat, light = hsl(*rgb)
+    if light > 0.88 and sat < 0.25:
+        return "ink_light"
+    if light < 0.14:
+        return "ink_dark"
+    deg = h * 360
+    if 65 <= deg <= 175:
+        return "ground"
+    if 15 <= deg < 65:
+        return "road"
+    if deg >= 300 or deg < 15:
+        return "accent"
+    if 175 <= deg < 235:
+        return "water"
+    return "stone"
+
+
+def theme_mapping(sheets, ramps):
+    """Build a {(r,g,b): 0xRRGGBB} LUT that re-grades a whole tileset."""
+    colours = set()
+    for pixels in sheets:
+        for i in range(0, len(pixels), 4):
+            if pixels[i + 3]:
+                colours.add((pixels[i], pixels[i + 1], pixels[i + 2]))
+
+    groups = {}
+    for colour in colours:
+        groups.setdefault(role_of(colour), []).append(colour)
+
+    mapping = {}
+    for role, members in groups.items():
+        stops = [hex_to_rgb(value) for value in ramps[role]]
+        if role in ("ink_light", "ink_dark"):
+            for colour in members:
+                mapping[colour] = mix(stops, hsl(*colour)[2])
+            continue
+        lights = [hsl(*colour)[2] for colour in members]
+        lo, hi = min(lights), max(lights)
+        for colour in members:
+            light = hsl(*colour)[2]
+            t = 0.5 if hi - lo < 1e-6 else (light - lo) / (hi - lo)
+            mapping[colour] = mix(stops, t)
+    return {colour: (v[0] << 16 | v[1] << 8 | v[2]) for colour, v in mapping.items()}
+
+
 def build_tiles():
+    """Terrain for all four biomes.
+
+    Grass, lane and water are drawn by `terrain.py` natively per biome (three
+    ground variants, 16 lane masks, 16 shoreline masks) instead of recolouring a
+    single Spire crop four times. Only the tree prop still comes from the Spire
+    set, re-graded per theme so it matches its ground.
+    """
     print("terrain")
     gw, gh, grass = read_png(os.path.join(SRC, "tileset", "grass.png"))
+    # The oak prop is a cut-out inside its 64 px cell, and the cell's left column
+    # also caught a sliver of the neighbouring tile. Trim both: keep only the
+    # tree's own pixels, then re-centre it on a clean canvas.
+    raw_tree = crop(grass, gw, 832, 384, 64, 64)
+    trim_tree = blank(64, 64)
+    for y in range(64):
+        for x in range(1, 64):  # x=0 is the stray column
+            i = (y * 64 + x) * 4
+            trim_tree[i : i + 4] = raw_tree[i : i + 4]
+    tree = trim_tree
 
-    def tile(x, y, name, note=""):
-        save(os.path.join(OUT, "tiles", f"{name}.png"), crop(grass, gw, x, y, 64, 64), 64, 64, note)
+    def write_theme(theme):
+        sfx = terrain.suffix(theme)
 
-    SAND = crop(grass, gw, 384, 128, 64, 64)          # plain, borderless sand
-    STRIP = {                                          # one ragged sand/grass edge
-        "n": crop(grass, gw, 384, 64, 64, 64),
-        "s": crop(grass, gw, 384, 192, 64, 64),
-        "w": crop(grass, gw, 320, 128, 64, 64),
-        "e": crop(grass, gw, 448, 128, 64, 64),
+        # Ground: three variants that share one seamless macro pattern.
+        for index, name in enumerate(("grass", "grass_2", "grass_3")):
+            save(
+                os.path.join(OUT, "tiles", f"{name}{sfx}.png"),
+                terrain.build_ground(theme, index),
+                64,
+                64,
+                "seamless" if index == 0 else f"variant {index + 1}",
+            )
+
+        # Lanes and shorelines: full 4-bit autotiles.
+        for mask in range(16):
+            save(os.path.join(OUT, "tiles", f"road_{mask}{sfx}.png"), terrain.build_road(theme, mask), 64, 64)
+            save(os.path.join(OUT, "tiles", f"water_{mask}{sfx}.png"), terrain.build_water(theme, mask), 64, 64)
+        # `water.png` stays the open-water fill (all four neighbours water).
+        save(os.path.join(OUT, "tiles", f"water{sfx}.png"), terrain.build_water(theme, 15), 64, 64)
+
+        # Boulder clusters: two variants so a rock field does not repeat.
+        save(os.path.join(OUT, "tiles", f"rock{sfx}.png"), terrain.build_rock(theme, 0), 64, 64)
+        save(os.path.join(OUT, "tiles", f"rock_2{sfx}.png"), terrain.build_rock(theme, 1), 64, 64)
+
+        # Scatter props.
+        for kind in terrain.DECOR_KINDS:
+            save(
+                os.path.join(OUT, "tiles", f"decor_{kind}{sfx}.png"),
+                terrain.build_decor(theme, kind),
+                32,
+                32,
+            )
+
+        # Landmark prop per battlefield: the hand-painted Spire oak in the
+        # grassland, and a purpose-drawn silhouette elsewhere (cactus / snowy
+        # conifer / charred deadwood) so no two maps share a tree.
+        if theme == "grassland":
+            pixels, note = tree, "Spire oak"
+        else:
+            pixels, note = terrain.build_foliage(theme), f"{theme} landmark"
+        save(os.path.join(OUT, "tiles", f"foliage{sfx}.png"), pixels, 64, 64, note)
+
+    for theme in terrain.BIOMES:
+        write_theme(theme)
+
+
+# ------------------------------------------------------------------------ bosses
+
+# Bosses are the same Foozle strips as the elite creeps, pulled bigger and
+# re-graded into their own element: the player reads "that one is different"
+# from the silhouette + colour at a glance, without a second art pack.
+# key: (source sprite, source frame width, rows, upscale, duotone ramp)
+BOSS_SOURCES = {
+    "sandwyrm": ("scorpion", 64, 9, 2, (0x2A1A0C, 0x8A5A2A, 0xFFD98A, 0xFFF3D0)),
+    "frostwarden": ("magma_crab", 64, 9, 2, (0x10202E, 0x33607F, 0x9FD4EF, 0xF2FBFF)),
+    "magmalord": ("firewasp", 96, 9, 2, (0x1E0806, 0x8C2A0E, 0xFFA23C, 0xFFE9B0)),
+    # Prism Depths boss: the butterfly silhouette reads as a hovering prism
+    # warden once it is duotoned into indigo/amethyst.
+    "prismlord": ("voidbutterfly", 64, 9, 3, (0x140A2A, 0x4A2E8C, 0xB892F0, 0xF4ECFF)),
+    # Endless Siege's "OP" bosses. Same strips, graded into their own element
+    # and upscaled a third larger than the campaign set, so wave 25 onwards
+    # fields creatures the player has never seen in a stage fight.
+    "obsidian": ("clampbeetle", 64, 9, 3, (0x090A14, 0x2A2350, 0x6F5BD6, 0xC9BEFF)),
+    "voidherald": ("flying_locust", 64, 9, 3, (0x05070F, 0x123B45, 0x2FB6A8, 0xB9FFF2)),
+    # Flare bosses. A full duotone would flatten the painted armour into a
+    # silhouette, so these carry a sixth value: how hard to grade toward the
+    # ramp. 0.55 tints them into their element and keeps the detail.
+    "ironhorn": ("flare/enemies/ironhorn", 112, 9, 1, (0x1A0F0A, 0x6B3A1E, 0xC97B3C, 0xFFE0B0), 0.55),
+    "ashwing": ("flare/enemies/ashwing", 124, 9, 1, (0x07120C, 0x1E4A34, 0x57A56F, 0xD6FFD9), 0.5),
+    "gravesworn": ("flare/enemies/gravesworn", 152, 9, 1, (0x0A0A12, 0x2A2C46, 0x6C7BA8, 0xE6ECFF), 0.55),
+}
+
+# What the nine rows of a strip actually are.
+#
+# **Corrected:** a Spire strip is NOT three colour palettes of one clip. It is
+# three *directions* of one clip:
+#
+#     rows 0-2   idle : facing the camera / facing away / in profile
+#     rows 3-5   walk : the same three directions
+#     rows 6-8   death: the same three directions
+#
+# Measured on the shipped sheets: rows 0/1/2 of `leafbug` have different
+# silhouettes (alpha masks differ) but essentially the same colour (ΔRGB ≈ 13),
+# which is what a direction change looks like and the opposite of a palette
+# swap. The old code treated the row index as a palette and then rotated the
+# sprite on top, so wave 3 wore the *north* art spun round and wave 5 wore the
+# *profile* art spun round — the "monsters walking on their side" report.
+#
+# Directional sheets are now drawn from the matching row with no rotation at
+# all (see Enemy.faceTravel), which is the only way the head can point along the
+# lane. The Flare creatures are imported with three of their eight facings
+# (`scripts/extract_flare_enemies.py`), so they are directional too — the old
+# front-only import is what made the minotaur slide sideways down an east lane.
+#
+#   'south'  – row 0 already faces the camera; the strip is directional
+#   'north'  – (unused) row 0 faces away from the camera
+#   'camera' – portrait art with a single direction; mirror only
+ENEMY_FACING = {
+    "grunt": "south",
+    "runner": "south",
+    "brute": "south",
+    "swarm": "south",
+    "healer": "north",
+    "shield": "south",
+    "colossus": "south",
+    "warlord": "south",
+    "sandwyrm": "south",
+    "frostwarden": "south",
+    "magmalord": "south",
+    "prismlord": "north",
+    "obsidian": "south",
+    "voidherald": "south",
+    # Flare's creatures ship eight hand-drawn facings; the importer lifts three
+    # of them (front / away / side) into the same rows as everything else, so
+    # they are heading-aware rather than mirror-only.
+    "thrall": "south",
+    "raider": "south",
+    "bonearcher": "south",
+    "ironhorn": "south",
+    "ashwing": "south",
+    "gravesworn": "south",
+}
+
+# Which way each creature's **profile row** faces when it is not mirrored.
+#
+# Row 2 is a side view, but it is hand-drawn per creature rather than being one
+# shared rotation, and the artist did not settle on a single direction: the
+# leafbug and the firebug look east, the scorpion and the crab look west. A
+# single blanket "side art faces east" rule therefore points half the horde
+# backwards, which is exactly the symptom that survived the last two attempts.
+#
+# Measured by comparing each source's camera row (where the head is
+# unmistakable - mandibles, eyes, claws) against its profile row at high zoom;
+# `tests/enemy-facing.test.js` pins the table so a future art swap cannot
+# silently flip a creature.
+ENEMY_PROFILE_FACING = {
+    # Spire ground pack - profile points EAST
+    "grunt": "east",      # leafbug: head with the brown mandible cluster on the right
+    "runner": "east",     # firebug: red mandibles on the right
+    "healer": "east",     # void butterfly: antennae and body on the right
+    "colossus": "east",   # fire wasp: striped abdomen tapers left, head right
+    "warlord": "east",    # flying locust: red eye and white mandible on the right
+    # Spire ground pack - profile points WEST
+    "brute": "west",      # scorpion: claws left, tail curling right
+    "swarm": "west",      # clampbeetle: cream pincers on the left, wing on the right
+    "shield": "west",     # magma crab: claws left, flipper right
+    # Flare pack - Flare's facing 4 is the left profile, drawn looking east.
+    "thrall": "east",
+    "raider": "east",
+    "bonearcher": "east",
+    "ironhorn": "east",
+    "ashwing": "east",
+    "gravesworn": "east",
+}
+
+# Bosses are scaled and re-graded from the same source strips, so they inherit
+# that source's profile direction.
+ENEMY_PROFILE_INHERITS = {
+    "sandwyrm": "brute",
+    "frostwarden": "shield",
+    "magmalord": "colossus",
+    "prismlord": "healer",
+    "obsidian": "swarm",
+    "voidherald": "warlord",
+}
+
+def build_bosses():
+    print("bosses")
+    for key, spec in BOSS_SOURCES.items():
+        sprite, fw, rows, scale, ramp = spec[:5]
+        strength = spec[5] if len(spec) > 5 else 1.0
+        path = source_path(sprite)
+        w, h, sheet = read_png(path)
+        assert w % fw == 0, (path, w, fw)
+        graded = grade_toward(sheet, ramp, strength) if strength < 1 else duotone(sheet, ramp)
+        nw, nh, big = scale_pixels(graded, w, h, scale)
+        save(
+            os.path.join(OUT, "enemies", f"enemy-{key}.png"),
+            big,
+            nw,
+            nh,
+            f"<- {sprite} x{scale} ({fw * scale}px frames)",
+        )
+
+
+# ----------------------------------------------------------------------- UI art
+
+def read_map_layouts():
+    """Pull the ASCII battlefields out of src/data/mapData.js (single source)."""
+    src = open(os.path.join(ROOT, "src", "data", "mapData.js")).read()
+    # Strip comments *before* reading the strings: the layouts are documented in
+    # prose, and an apostrophe in a comment ("the mode's ground") would otherwise
+    # be parsed as a one-cell map row — which is exactly how the crystal
+    # thumbnail once came out 852 px tall.
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    src = re.sub(r"//[^\n]*", "", src)
+    base = re.search(r"export const MAP_LAYOUT = \[(.*?)\n\];", src, re.S).group(1)
+    layouts = {"grassland": re.findall(r"'([^']*)'", base)}
+    body = re.search(r"export const MAPS = \{(.*?)\n\};", src, re.S).group(1)
+    # Each entry is `name: [` … `  ],` — quoted or bare, with or without the
+    # hyphens the War Room map ids use. Matching on the array literal (rather
+    # than splitting on the key) keeps a map from swallowing the ten that follow
+    # it, which is what happened when only bare word keys were recognised.
+    for name, chunk in re.findall(r"\n\s{2}'?([\w-]+)'?:\s*(?:MAP_LAYOUT|\[(.*?)\n\s{2}\],)", body, re.S):
+        layouts[name] = layouts["grassland"] if not chunk else re.findall(r"'([^']*)'", chunk)
+    for name, rows in layouts.items():
+        assert rows, f"{name} has no rows"
+        assert len({len(row) for row in rows}) == 1, f"{name} rows are ragged"
+    return layouts
+
+
+def read_map_biomes():
+    """Pull the per-tile biome overlay out of src/data/mapData.js.
+
+    Returns {map_id: [letters]}; the campaign maps have no entry and fall back
+    to the level's own theme, exactly like `getMapBiomes()` does at runtime.
+    """
+    src = open(os.path.join(ROOT, "src", "data", "mapData.js")).read()
+    match = re.search(r"export const MAP_BIOMES = \{(.*?)\n\};", src, re.S)
+    if not match:
+        return {}
+    grid = {}
+    for name, chunk in re.findall(r"\n\s{2}(\w+):\s*\[(.*?)\n\s{2}\],", match.group(1), re.S):
+        grid[name] = re.findall(r"'([^']*)'", chunk)
+    return grid
+
+
+BIOME_LETTER = {"i": "ice", "d": "desert", "v": "volcanic", "c": "crystal"}
+
+# Battlefield -> its own biome. Kept in step with `LEVELS` / `MODE_RUN_LEVELS` in
+# src/data/levelData.js: the thumbnail must show the ground the level loads.
+MAP_THEMES = {
+    "grassland": ("grassland", "grassland"),
+    "desert": ("desert", "desert"),
+    "ice": ("ice", "ice"),
+    "crystal": ("crystal", "crystal"),
+    "volcanic": ("volcanic", "volcanic"),
+    "blackfen": ("blackfen", "moor"),
+    "shattered": ("shattered", "crystal"),
+    "skyward": ("skyward", "highland"),
+    "dune": ("dune", "desert"),
+    "tidewatch": ("tidewatch", "marsh"),
+    "ash-throne": ("ash-throne", "volcanic"),
+    "bastion": ("bastion", "caldera"),
+    "caldera": ("caldera", "ashen"),
+    "emberfall": ("emberfall", "volcanic"),
+    "frostgate": ("frostgate", "ice"),
+    "prismatic": ("prismatic", "crystal"),
+}
+
+
+def average_colour(pixels, w, h, x0, y0, size):
+    r = g = b = n = 0
+    for y in range(y0, min(h, y0 + size)):
+        for x in range(x0, min(w, x0 + size)):
+            i = (y * w + x) * 4
+            if pixels[i + 3] < 200:
+                continue
+            r += pixels[i]
+            g += pixels[i + 1]
+            b += pixels[i + 2]
+            n += 1
+    if not n:
+        return (24, 22, 28)
+    return (r // n, g // n, b // n)
+
+
+def build_ui_icons():
+    """Stars / lock / gem for the campaign screens, all from the CC0 packs."""
+    print("ui icons")
+    icons = os.path.join(ASSETS, "kenney_game-icons", "PNG", "White", "1x")
+    for name, source, tint, alpha in (
+        ("star_gold", "star.png", 0xF5C451, 255),
+        ("star_empty", "star.png", 0x5C544A, 170),
+        ("lock", "locked.png", 0xE9D9AE, 255),
+    ):
+        w, h, pixels = read_png(os.path.join(icons, source))
+        save(
+            os.path.join(OUT, "ui", f"{name}.png"),
+            tint_pixels(pixels, tint, alpha),
+            w,
+            h,
+            f"<- {source}",
+        )
+
+    # Gem: the blue diamond prop from the Kenney top-down set, re-graded to a
+    # violet/cyan gem and centred on a square canvas.
+    tile = os.path.join(
+        ASSETS, "kenney_tower-defense-top-down", "PNG", "Default size", "towerDefense_tile183.png"
+    )
+    w, h, pixels = read_png(tile)
+    pixels = hue_transform(pixels, 0.44, 1.9, -0.02, 1.0)
+    trimmed, tw, th = trim(pixels, w, h)
+    gem = blank(64, 64)
+    blit(gem, 64, trimmed, tw, th, (64 - tw) // 2, (64 - th) // 2)
+    save(os.path.join(OUT, "ui", "icon_gem.png"), gem, 64, 64, "<- Kenney TD gem")
+
+    build_map_thumbnails()
+
+
+def build_map_thumbnails():
+    """World-map thumbnails: a 6 px-per-cell minimap per campaign biome.
+
+    Rendered from the ASCII in `src/data/mapData.js`, so it is also the quickest
+    way to re-shoot the world map after a layout edit:
+
+        python3 scripts/build_spire_assets.py --thumbnails
+
+    Reads the recoloured tiles the game loads, so it needs `public/assets/tiles`
+    (committed) but not the raw Kenney packs.
+    """
+    print("map thumbnails")
+    layouts = read_map_layouts()
+    biomes = read_map_biomes()
+    cell = 6
+    palettes = {}
+
+    # The horde's lane has to read as a lane at thumbnail size. Measured
+    # against the average ground colour, the ice road is the worst offender
+    # (65,80,94 vs a 95,118,142 sheet: nearly the same luminance) and the
+    # volcanic road is close behind, so both are lifted harder.
+    ROAD_BOOST = {
+        "grassland": 1.15,
+        "desert": 1.05,
+        "ice": 2.2,
+        "volcanic": 1.85,
+        "crystal": 1.35,
+        "moor": 1.55,
+        "highland": 1.5,
+        "marsh": 1.7,
+        "caldera": 1.2,
+        "ashen": 1.25,
     }
-    CORNER = {                                         # two adjacent ragged edges
-        "nw": crop(grass, gw, 320, 64, 64, 64),
-        "ne": crop(grass, gw, 448, 64, 64, 64),
-        "sw": crop(grass, gw, 320, 192, 64, 64),
-        "se": crop(grass, gw, 448, 192, 64, 64),
-    }
-    ISOLATED = crop(grass, gw, 128, 128, 64, 64)       # sand island, grass all round
 
-    def overlay(base, layer):
-        """Copy every pixel of `layer` that is not identical to plain sand."""
-        out = bytearray(base)
-        for i in range(0, len(out), 4):
-            if layer[i : i + 4] != SAND[i : i + 4]:
-                out[i : i + 4] = layer[i : i + 4]
-        return out
+    def palette(theme):
+        """Average ground/road/water/rock/foliage colour for one biome."""
+        if theme in palettes:
+            return palettes[theme]
+        suffix = "" if theme == "grassland" else f"-{theme}"
 
-    # Road autotile: `mask` bits say which neighbours are ROAD (1 = road).
-    # A side needs the ragged grass border when that neighbour is grass.
-    def road_tile(mask):
-        grass_sides = [s for bit, s in ((1, "n"), (2, "e"), (4, "s"), (8, "w")) if not mask & bit]
-        gs = set(grass_sides)
-        if not grass_sides:
-            return SAND
-        if gs == {"n", "s"}:
-            return overlay(overlay(SAND, STRIP["n"]), STRIP["s"])
-        if gs == {"e", "w"}:
-            return overlay(overlay(SAND, STRIP["e"]), STRIP["w"])
-        if gs == {"n", "e", "s", "w"}:
-            return ISOLATED
-        corners = {"nw": ("n", "w"), "ne": ("n", "e"), "sw": ("s", "w"), "se": ("s", "e")}
-        for name, (a, b) in corners.items():
-            if gs == {a, b}:
-                return CORNER[name]
-        # Three-sided end caps (only 2 tiles on the shipped map): corner art plus
-        # the missing strip, which reads correctly at a glance.
-        if len(gs) == 3:
-            missing = ({"n", "e", "s", "w"} - gs).pop()
-            pair = {"n": "sw", "s": "nw", "e": "nw", "w": "ne"}[missing]
-            return overlay(CORNER[pair], STRIP[missing])
-        return overlay(SAND, STRIP[grass_sides[0]])
+        def tile_colour(name, x, y, size=16):
+            tw2, th2, pix = read_png(os.path.join(OUT, "tiles", f"{name}{suffix}.png"))
+            return average_colour(pix, tw2, th2, x, y, size)
 
-    for mask in range(16):
-        save(os.path.join(OUT, "tiles", f"road_{mask}.png"), road_tile(mask), 64, 64, f"mask {mask:04b}")
+        boost = ROAD_BOOST.get(theme, 1.15)
+        palettes[theme] = {
+            "grass": tile_colour("grass", 24, 24),
+            "road": tuple(min(255, round(channel * boost)) for channel in tile_colour("road_15", 24, 24)),
+            "water": tile_colour("water", 24, 24),
+            "rock": tile_colour("rock", 24, 24),
+            "tree": tile_colour("foliage", 24, 24),
+        }
+        return palettes[theme]
 
-    # Seamless plain grass / rock / foliage.
-    tile(128, 64, "grass", "seamless")
+    # One thumbnail per battlefield *and* per campaign theme. The theme files
+    # feed the world map (`LevelSelectUI`); the per-map ones let the War Room
+    # show the ground a mode actually boots, which is the whole point of giving
+    # every mode its own layout.
+    map_themes = dict(MAP_THEMES)
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh", "ashen"):
+        map_themes.setdefault(theme, (theme, theme))
+    # `map_themes` now maps battlefield -> (battlefield, theme); build the theme
+    # list from its values so a theme never appears twice in the target list.
+    themes_seen = []
+    for _, theme in map_themes.values():
+        if theme not in themes_seen:
+            themes_seen.append(theme)
+    for theme in ("grassland", "desert", "ice", "volcanic", "crystal", "moor", "highland", "marsh", "ashen"):
+        if theme not in themes_seen:
+            themes_seen.append(theme)
+    targets = [(f"map_{theme}", theme, theme) for theme in themes_seen]
+    targets += [
+        (f"map-{map_id}", map_id, theme)
+        for map_id, (_, theme) in map_themes.items()
+        if map_id in layouts
+    ]
 
-    rock = crop(grass, gw, 848, 845, 33, 36)
-    rock_out = blank(64, 64)
-    blit(rock_out, 64, rock, 33, 36, 15, 18)
-    save(os.path.join(OUT, "tiles", "rock.png"), rock_out, 64, 64, "<- boulder prop")
+    for out_name, map_id, theme in targets:
+        layout = layouts.get(map_id) or layouts["grassland"]
+        biome_rows = biomes.get(map_id)
+        spawn = (0xB3, 0x88, 0xFF)
+        base = (0xF5, 0xC4, 0x51)
 
-    # Water: a plain, borderless lake fill taken from inside the shoreline module.
-    ww, wh, water = read_png(os.path.join(SRC, "tileset", "water.png"))
-    save(os.path.join(OUT, "tiles", "water.png"), crop(water, ww, 184, 72, 64, 64), 64, 64, "lake fill")
-
-    # Foliage: oak tree prop
-    save(os.path.join(OUT, "tiles", "foliage.png"), crop(grass, gw, 832, 384, 64, 64), 64, 64, "tree prop")
+        cols = max(len(row) for row in layout)
+        rows = len(layout)
+        width, height = cols * cell, rows * cell
+        out = blank(width, height)
+        for r, line in enumerate(layout):
+            for c, ch in enumerate(line):
+                # A mixed battlefield thumbnails its own ground: each cell is
+                # sampled from the tile set the biome overlay names, so the
+                # endless minimap shows winter, sand and fire at 6 px a cell.
+                letter = biome_rows[r][c] if biome_rows and c < len(biome_rows[r]) else None
+                pal = palette(BIOME_LETTER.get(letter, theme))
+                # The road is one material across the whole map (see
+                # GameScene.renderBattlefieldMap), so the minimap must not paint
+                # it per biome either.
+                lane_pal = palette(theme)
+                if ch == "S":
+                    colour = spawn
+                elif ch == "B":
+                    colour = base
+                elif ch == "#":
+                    colour = lane_pal["road"]
+                elif ch == "~":
+                    colour = pal["water"]
+                elif ch == "x":
+                    colour = pal["rock"]
+                else:
+                    folliage = (r * 3 + c * 5) % 9 == 0
+                    colour = pal["tree"] if folliage else pal["grass"]
+                # A touch of checker shading keeps a flat minimap from reading
+                # like a solid blob at 120 px.
+                f = 0.92 if (r + c) % 2 else 1.0
+                for y in range(r * cell, (r + 1) * cell):
+                    for x in range(c * cell, (c + 1) * cell):
+                        i = (y * width + x) * 4
+                        out[i] = min(255, round(colour[0] * f))
+                        out[i + 1] = min(255, round(colour[1] * f))
+                        out[i + 2] = min(255, round(colour[2] * f))
+                        out[i + 3] = 255
+        save(os.path.join(OUT, "ui", f"{out_name}.png"), out, width, height, "<- battlefield minimap")
 
 
 # ------------------------------------------------------------------- projectiles
@@ -536,24 +1467,82 @@ def build_projectiles():
         save(os.path.join(OUT, "projectiles", f"{key}.png"), out, tw + pad * 2, th + pad * 2,
              f"{note} ({len(runs)} frames in strip)")
 
+    # The forge lines borrow pack art that already reads correctly, under names
+    # that say which tower fires them.
+    for alias, source, note in [
+        ("proj-forge", "proj-lightning", "hammer throw (T05 impact glyph)"),
+        ("proj-rune", "proj-cannonball", "rune orb (magenta sphere)"),
+    ]:
+        dst = os.path.join(OUT, "projectiles", f"{alias}.png")
+        shutil.copyfile(os.path.join(OUT, "projectiles", f"{source}.png"), dst)
+        print(f"  {os.path.relpath(dst, ROOT):58s} alias of {source}   {note}")
+
 
 # ---------------------------------------------------------------------- enemies
+
+
+def tier_sheet(sheet, w, h, theme, tier):
+    """One (biome, tier) combo of an enemy strip.
+
+    `theme` None means the untouched grassland sheet. Every tier keeps the biome
+    hue (that is what keeps a desert scarab sandy on any wave) and then adds its
+    own escalation: saturation/lightness, plus a coloured contour that is grown
+    outwards for champions.
+    """
+    if theme is None and tier == 0:
+        return bytearray(sheet)
+    stops = ENEMY_THEME_RAMPS.get(theme) if theme else None
+    base = grade_toward(sheet, stops, 0.62) if stops else bytearray(sheet)
+    if tier == 2:
+        # Champions burn: pull the whole body toward the ember ramp first so the
+        # orange contour has something to belong to.
+        base = grade_toward(base, ENEMY_CHAMPION_STOPS, 0.22)
+    spec = ENEMY_TIERS[tier]
+    base = saturated(base, spec["saturation"], spec["lift"])
+    if spec["rim"]:
+        base = rim_light(
+            base,
+            w,
+            h,
+            rgb_tuple(spec["rim"]),
+            strength=spec["rim_strength"],
+            thickness=spec["rim_thickness"],
+        )
+    return base
 
 
 def build_enemies():
     print("enemies")
     for key, (sprite, fw, frames) in ENEMY_SOURCES.items():
-        path = os.path.join(SRC, "enemies", f"{sprite}.png")
+        path = source_path(sprite)
         w, h, sheet = read_png(path)
         fh = h // frames
         assert h % frames == 0, (path, h, frames)
-        # Copy the sheet verbatim, dropping only fully transparent padding rows
-        # is unnecessary: Phaser slices it with frameWidth/frameHeight.
+        # Copy the sheet verbatim: Phaser slices it with frameWidth/frameHeight.
         save(
             os.path.join(OUT, "enemies", f"enemy-{key}.png"),
             sheet, w, h,
             f"<- {sprite} {w // fw}x{frames} frames of {fw}x{fh}",
         )
+        for tier in (1, 2):
+            spec = ENEMY_TIERS[tier]
+            save(
+                os.path.join(OUT, "enemies", f"enemy-{key}{spec['suffix']}.png"),
+                tier_sheet(sheet, w, h, None, tier),
+                w,
+                h,
+                f"<- {sprite}, grassland {spec['suffix']}",
+            )
+        for theme, stops in ENEMY_THEME_RAMPS.items():
+            for tier in range(len(ENEMY_TIERS)):
+                spec = ENEMY_TIERS[tier]
+                save(
+                    os.path.join(OUT, "enemies", f"enemy-{key}-{theme}{spec['suffix']}.png"),
+                    tier_sheet(sheet, w, h, theme, tier),
+                    w,
+                    h,
+                    f"<- {sprite}, {theme} {spec['suffix'] or 'base'}",
+                )
 
 
 # ------------------------------------------------------------------- ui cards
@@ -585,7 +1574,7 @@ def build_ui_cards():
     print("ui cards")
     layout = read_slot_layout()
     size = 64
-    for key, slot in (("archer", "archer"), ("cannon", "cannon"), ("frost", "frost")):
+    for key, slot in [(k, k) for k in TOWER_LAYOUT]:
         v = layout[slot]
         bw, bh, base = read_png(os.path.join(OUT, "towers", v["base"]))
         ww, wh, wep = read_png(os.path.join(OUT, "towers", v["weapon"]))
@@ -643,11 +1632,24 @@ def build_effects():
     return manifest
 
 
+# Sheets whose pose-to-pose silhouette swings so far that frame 0 is a lie.
+#
+# The game scales a sprite by sqrt(artWidth * artHeight) so every creature lands
+# at its radius. The Spire sheets keep one silhouette across every frame, so
+# measuring frame 0 is exact. Flare's wyvern folds its wings on frame 0 and
+# spreads them across 108 px two frames later: measuring the folded pose made
+# the whole animation 1.8x too large and clipped the wings off-screen. For these
+# keys the manifest averages every idle/move frame instead.
+AVERAGE_MEASURE = {"thrall", "raider", "bonearcher", "ironhorn", "ashwing", "gravesworn"}
+
+
 def build_enemy_manifest():
     """Measure every enemy strip: 9 rows = idle/move/death x 3 colour variants."""
     print("enemy manifest")
     manifest = {}
-    for key, (sprite, fw, rows) in ENEMY_SOURCES.items():
+    jobs = [(key, fw, rows) for key, (sprite, fw, rows) in ENEMY_SOURCES.items()]
+    jobs += [(key, spec[1] * spec[3], spec[2]) for key, spec in BOSS_SOURCES.items()]
+    for key, fw, rows in jobs:
         path = os.path.join(OUT, "enemies", f"enemy-{key}.png")
         w, h, pix = read_png(path)
         fh = h // rows
@@ -666,30 +1668,79 @@ def build_enemy_manifest():
                 if ink:
                     n += 1
             counts.append(n)
-        # Ink bounds of the first idle frame: the game scales sprites by their
-        # drawn width, not the frame width, so a wide sheet (128 px) and a narrow
-        # one (64 px) end up the same on-screen size.
-        x0, y0, x1, y1 = fw, fh, -1, -1
-        for y in range(fh):
-            for x in range(fw):
-                if pix[(y * w + x) * 4 + 3]:
-                    x0, y0 = min(x0, x), min(y0, y)
-                    x1, y1 = max(x1, x), max(y1, y)
+        # Ink bounds: the game scales sprites by their drawn width, not the
+        # frame width, so a wide sheet (128 px) and a narrow one (64 px) end up
+        # the same on-screen size.
+        if key in AVERAGE_MEASURE:
+            widths, heights = [], []
+            for row in range(6):  # idle + move; the death sprawl is not the body
+                for col in range(cols):
+                    bx0, by0, bx1, by1 = fw, fh, -1, -1
+                    for y in range(row * fh, (row + 1) * fh):
+                        base = y * w + col * fw
+                        local_y = y - row * fh
+                        for x in range(fw):
+                            if pix[(base + x) * 4 + 3]:
+                                bx0, by0 = min(bx0, x), min(by0, local_y)
+                                bx1, by1 = max(bx1, x), max(by1, local_y)
+                    if bx1 >= 0:
+                        widths.append(bx1 - bx0 + 1)
+                        heights.append(by1 - by0 + 1)
+            # Mean pose, not the widest and not the first: a flying creature
+            # alternates folded and spread frames, and either extreme either
+            # clips the wings or shrinks the body to a dot.
+            art_w = round(sum(widths) / len(widths))
+            art_h = round(sum(heights) / len(heights))
+            x0, y0 = 0, 0
+        else:
+            x0, y0, x1, y1 = fw, fh, -1, -1
+            for y in range(fh):
+                for x in range(fw):
+                    if pix[(y * w + x) * 4 + 3]:
+                        x0, y0 = min(x0, x), min(y0, y)
+                        x1, y1 = max(x1, x), max(y1, y)
+            art_w, art_h = x1 - x0 + 1, y1 - y0 + 1
         manifest[key] = {
             "file": os.path.basename(path),
             "frameWidth": fw,
             "frameHeight": fh,
-            "artWidth": x1 - x0 + 1,
-            "artHeight": y1 - y0 + 1,
+            "artWidth": art_w,
+            "artHeight": art_h,
             "idle": counts[0],
             "move": counts[3],
             "death": counts[6],
+            # Orientation contract, read by Enemy.faceTravel().
+            "facing": ENEMY_FACING.get(key, "south"),
+            # True when rows 0/1/2 really are south / north / profile poses.
+            # Spire art is; the imported Flare creatures are single-direction.
+            "directional": ENEMY_FACING.get(key, "south") != "camera",
+            "profileFacing": ENEMY_PROFILE_FACING.get(
+                key, ENEMY_PROFILE_FACING.get(ENEMY_PROFILE_INHERITS.get(key), "east")
+            ),
         }
         print(f"  {key:16s} {fw}x{fh} idle={counts[0]} move={counts[3]} death={counts[6]}")
     return manifest
 
 
-def write_manifest(enemies, impacts):
+def build_enemy_variants():
+    """{ key: { theme: [tier0, tier1, tier2] } } texture keys per creep.
+
+    `grassland` is included so every battlefield resolves through one lookup, and
+    every entry lists all ENEMY_TIERS texture keys in order.
+    """
+    skins = {}
+    for key in ENEMY_SOURCES:
+        per_theme = {}
+        for theme in (None, *ENEMY_THEME_RAMPS):
+            stem = f"enemy-{key}" + (f"-{theme}" if theme else "")
+            per_theme[theme or "grassland"] = [
+                stem + ENEMY_TIERS[tier]["suffix"] for tier in range(len(ENEMY_TIERS))
+            ]
+        skins[key] = per_theme
+    return skins
+
+
+def write_manifest(enemies, impacts, variants=None, impact_lines=None):
     path = os.path.join(ROOT, "src", "data", "spireManifest.js")
     lines = [
         "/**",
@@ -697,7 +1748,14 @@ def write_manifest(enemies, impacts):
         " * Do not edit by hand: re-run the script after changing the source sheets.",
         " *",
         " * Frame sizes and frame counts measured from the real Foozle \"Spire\" PNGs.",
-        " * Enemy strips hold 9 rows: idle / move / death x 3 colour variants.",
+        " * Enemy strips hold 9 rows: three clip groups (idle / walk / death) of",
+        " * three DIRECTION rows each: 0 faces the camera, 1 faces away, 2 is drawn",
+        " * in profile. They are not colour variants - see ENEMY_FACING in the",
+        " * generator for the measurement that proves it.",
+        " *",
+        " * `facing` names what row 0 already does ('south' = faces the camera,",
+        " * 'camera' = single-direction imported art that may only be mirrored), and",
+        " * `directional` says whether all three rows are usable as headings.",
         " */",
         "",
         "export const ENEMY_SHEETS = {",
@@ -706,14 +1764,41 @@ def write_manifest(enemies, impacts):
         lines.append(
             f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
             f"frameHeight: {m['frameHeight']}, artWidth: {m['artWidth']}, artHeight: {m['artHeight']}, "
-            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']} }},"
+            f"idle: {m['idle']}, move: {m['move']}, death: {m['death']}, "
+            f"facing: {m.get('facing', 'south')!r}, "
+            f"directional: {'true' if m.get('directional', True) else 'false'}, "
+            f"profileFacing: {m.get('profileFacing', 'east')!r} }},"
         )
-    lines += ["};", "", "export const IMPACT_SHEETS = {"]
-    for key, m in impacts.items():
+    lines += ["};", "", "/**", " * Texture key per creep, per battlefield, per escalation tier.", " * Index into the array with `tierForWave()` (0 base / 1 elite / 2 champion).", " */", "export const ENEMY_SKINS = {"]
+    for key, per_theme in (variants or {}).items():
+        entries = ", ".join(
+            f"{theme!r}: [{', '.join(repr(name) for name in tiers)}]"
+            for theme, tiers in per_theme.items()
+        )
+        lines.append(f"  {key!r}: {{ {entries} }},")
+    lines += [
+        "};",
+        "",
+        "export const ENEMY_DIRECTIONS = 3;",
+        "/** @deprecated Rows are directions, not palettes. Kept for older imports. */",
+        "export const ENEMY_PALETTES = ENEMY_DIRECTIONS;",
+        "",
+        "/** Per-tier presentation: sprite scale and glow strength (0 = none). */",
+        "export const ENEMY_TIERS = [",
+    ]
+    for spec in ENEMY_TIERS:
         lines.append(
-            f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
-            f"frameHeight: {m['frameHeight']}, frames: {m['frames']} }},"
+            f"  {{ scale: {spec['scale']}, glow: {spec['glow']} }},"
         )
+    lines += ["];", "", "export const IMPACT_SHEETS = {"]
+    if impact_lines is not None:
+        lines += [line for line in impact_lines.splitlines() if line.strip()]
+    else:
+        for key, m in impacts.items():
+            lines.append(
+                f"  {key!r}: {{ file: {m['file']!r}, frameWidth: {m['frameWidth']}, "
+                f"frameHeight: {m['frameHeight']}, frames: {m['frames']} }},"
+            )
     lines += ["};", ""]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as fh:
@@ -721,16 +1806,45 @@ def write_manifest(enemies, impacts):
     print(f"  wrote {os.path.relpath(path, ROOT)}")
 
 
+def read_existing_impacts():
+    """Reuse the IMPACT_SHEETS block already in the manifest, verbatim.
+
+    `--manifest-only` exists so an orientation/measurement change can be
+    re-derived from the shipped PNGs without re-encoding every texture in the
+    game (which churns binary files that did not change).
+    """
+    path = os.path.join(ROOT, "src", "data", "spireManifest.js")
+    if not os.path.exists(path):
+        return None
+    src = open(path).read()
+    block = re.search(r"export const IMPACT_SHEETS = \{\n(.*?)\n\};", src, re.S)
+    return block.group(1) if block else None
+
+
 def main():
+    if "--thumbnails" in sys.argv[1:]:
+        build_map_thumbnails()
+        print("done")
+        return
+    if "--manifest-only" in sys.argv[1:]:
+        enemies = build_enemy_manifest()
+        variants = build_enemy_variants()
+        write_manifest(enemies, {}, variants, impact_lines=read_existing_impacts())
+        print("done")
+        return
     build_towers()
+    build_tower_ascension()
     build_barricade()
     build_tiles()
+    build_bosses()
     build_projectiles()
     build_enemies()
     build_ui_cards()
+    build_ui_icons()
     impacts = build_effects()
     enemies = build_enemy_manifest()
-    write_manifest(enemies, impacts)
+    variants = build_enemy_variants()
+    write_manifest(enemies, impacts, variants)
     print("done")
 
 

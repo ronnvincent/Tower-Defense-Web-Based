@@ -140,7 +140,9 @@ export function buildGridGraph(rows, cols, isWalkable) {
 
 /**
  * Re-insert a grid cell into an existing graph and reconnect it to any walkable
- * neighbours that are currently in the graph (used when a barricade is sold).
+ * neighbours that are currently in the graph. Pairs with `removeNode` for the
+ * temporary graph cuts demonstrated in the codex (the game itself no longer
+ * removes palisade cells — see PathfindingSystem).
  */
 export function restoreGridNode(graph, row, col) {
   const id = cellKey(row, col);

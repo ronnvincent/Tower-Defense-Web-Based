@@ -2,6 +2,12 @@ import { mergeSort } from '../dsa/MergeSort.js';
 import { linearSearch } from '../dsa/LinearSearch.js';
 import { getDefaultStorage, readJSON, writeJSON, removeKey } from '../utils/storage.js';
 import { LEADERBOARD_DISPLAY_LIMIT, LEADERBOARD_STORE_LIMIT, STORAGE_KEYS } from '../config/gameConfig.js';
+import {
+  LEADERBOARD_CATEGORIES,
+  categoryInfo,
+  matchesCategory,
+  normalizeCategory,
+} from '../data/leaderboardCategories.js';
 
 /**
  * Leaderboard — LOCAL high-score table stored in this browser's localStorage.
@@ -9,7 +15,13 @@ import { LEADERBOARD_DISPLAY_LIMIT, LEADERBOARD_STORE_LIMIT, STORAGE_KEYS } from
  * a backend server, which this project intentionally does not use.)
  *
  * Record shape:
- *   { id, name, score, waves, timeMs, timestamp, result }
+ *   { id, name, score, waves, timeMs, timestamp, result, mode }
+ *
+ * `mode` is the board the run belongs on: 'campaign', 'endless', 'titan',
+ * 'timeattack', 'rogue', 'anomaly', 'ascension', 'contracts', 'duel', 'coop',
+ * 'puzzle', or 'unknown' for runs recorded before the hall kept a mode. Every
+ * board is ranked on its own; `getTop()` without a board still returns the
+ * combined list, which is what the world-map champions plaque asks for.
  *
  * Ranking rule (implemented by compareRecords and applied by OUR Merge Sort):
  *   1. higher score first
@@ -62,7 +74,11 @@ export function normalizeRecord(raw) {
   if (!Number.isFinite(timestamp) || timestamp < 0) return null;
   const id = typeof raw.id === 'string' && raw.id.length > 0 ? raw.id.slice(0, 64) : `legacy-${timestamp}-${name}`;
   const result = VALID_RESULTS.has(raw.result) ? raw.result : 'defeat';
-  return { id, name, score: Math.floor(score), waves, timeMs: Math.round(timeMs), timestamp, result };
+  // A stored run from before the boards has no mode; it is unfiled, not a
+  // campaign run. Guessing would put an old Endless score on the campaign
+  // board and own it forever.
+  const mode = normalizeCategory(raw.mode);
+  return { id, name, score: Math.floor(score), waves, timeMs: Math.round(timeMs), timestamp, result, mode };
 }
 
 export class Leaderboard {
@@ -110,20 +126,34 @@ export class Leaderboard {
   }
 
   /**
-   * All records ranked with our Merge Sort. Statistics of this sort are kept
-   * in `lastSortStats` for the statistics panel.
+   * All records ranked with our Merge Sort, optionally restricted to one board.
+   *
+   * The filter runs *before* the sort, so a board's comparisons, merges and
+   * displayed rank all describe that board alone — an Endless run can never
+   * out-rank a Campaign run on the campaign table again.
+   *
+   * Statistics of this sort are kept in `lastSortStats`.
+   *
+   * @param {string} [category] a board id, or 'all' for the combined list
    */
-  getRanked() {
-    const { sorted, stats } = mergeSort(this.records, compareRecords);
+  getRanked(category = 'all') {
+    const pool = category && category !== 'all'
+      ? this.records.filter((record) => matchesCategory(record, category))
+      : this.records;
+    const { sorted, stats } = mergeSort(pool, compareRecords);
     this.lastSortStats = stats;
     this.sortsPerformed++;
     this.totalComparisons += stats.comparisons;
     return sorted;
   }
 
-  /** Top N records for display (N = 10 by default). */
-  getTop(limit = LEADERBOARD_DISPLAY_LIMIT) {
-    const ranked = this.getRanked();
+  /**
+   * Top N records for display (N = 10 by default) on one board.
+   * @param {number} [limit]
+   * @param {string} [category] a board id, or 'all'
+   */
+  getTop(limit = LEADERBOARD_DISPLAY_LIMIT, category = 'all') {
+    const ranked = this.getRanked(category);
     const top = [];
     for (let i = 0; i < ranked.length && i < limit; i++) top.push(ranked[i]);
     return top;
@@ -134,7 +164,7 @@ export class Leaderboard {
    * best LEADERBOARD_STORE_LIMIT records are kept in storage.
    * @returns {{record:object|null, rank:number, saved:boolean}} rank is 1-based (0 = not ranked)
    */
-  addRecord({ name, score, waves, timeMs, result }, now = Date.now()) {
+  addRecord({ name, score, waves, timeMs, result, mode }, now = Date.now()) {
     const record = normalizeRecord({
       id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       name,
@@ -143,6 +173,7 @@ export class Leaderboard {
       timeMs,
       timestamp: now,
       result,
+      mode,
     });
     if (!record) return { record: null, rank: 0, saved: false };
 
@@ -154,8 +185,32 @@ export class Leaderboard {
     const saved = writeJSON(this.storage, this.key, kept);
     this.loadStatus = 'ok';
 
-    const rank = this.findRank(record.id, kept);
+    // The rank a player cares about is the one on their own board: "#2 in
+    // Endless", not "#37 on everything this browser has ever played".
+    const rank = this.findRank(record.id, kept.filter((r) => matchesCategory(r, record.mode)));
+    this.lastRankCategory = record.mode;
     return { record, rank, saved };
+  }
+
+  /**
+   * How many runs sit on each board, for the hall's category chips.
+   * Every board is present, including the empty ones, so the strip never
+   * changes width as runs are added.
+   * @returns {Record<string, number>} board id -> count (plus `all`)
+   */
+  getCounts() {
+    const counts = { all: this.records.length };
+    for (const category of LEADERBOARD_CATEGORIES) counts[category.id] = 0;
+    for (const record of this.records) {
+      const id = normalizeCategory(record.mode);
+      counts[id] = (counts[id] || 0) + 1;
+    }
+    return counts;
+  }
+
+  /** The runs on one board, newest first — used by the hall's empty state. */
+  getCategoryInfo(category) {
+    return categoryInfo(category);
   }
 
   /**
