@@ -18152,11 +18152,10 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 
 /* ========================================================================== */
 /* COMPREHENSIVE RESPONSIVE MOBILE & COMPACT VIEWPORT POLISH                  */
-/* Eliminates overcrowding ('siksikan'), clipping, and awkward sizing         */
 /* ========================================================================== */
 
 @media (max-width: 900px), (max-height: 560px) {
-  /* 1. World Map Panels & Realm Ledgers */
+  /* 1. World Map Topbar & Panels */
   .wm-top {
     padding-top: calc(clamp(4px, 1vh, 10px) + var(--safe-top));
     padding-left: calc(clamp(8px, 1.5vw, 16px) + var(--safe-left));
@@ -18249,7 +18248,6 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 @media (max-width: 640px) {
-  /* Center world map panel horizontally on very narrow screens */
   .wm-panel {
     left: calc(8px + var(--safe-left));
     right: calc(8px + var(--safe-right));
@@ -18259,7 +18257,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 @media (max-width: 800px), (max-height: 560px) {
-  /* 2. Modals: Settings, Codex, Leaderboard, Achievements, Pets, Modes */
+  /* 2. Modals: General Polish */
   .modal-overlay {
     padding: calc(6px + var(--safe-top)) calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
   }
@@ -18304,61 +18302,6 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     font-size: 11px;
   }
 
-  /* Settings Modal Polish */
-  .set-card {
-    width: min(420px, 96vw);
-    max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom));
-    border-width: 14px;
-    padding: 4px 10px 10px;
-  }
-
-  .set-title {
-    font-size: 17px;
-    margin-bottom: 2px;
-  }
-
-  .set-rows {
-    gap: 2px;
-    margin: 4px 0 8px;
-  }
-
-  .set-row {
-    padding: 5px 0;
-    gap: 8px;
-  }
-
-  .set-row-label {
-    font-size: clamp(11px, 1.8vw, 13px);
-  }
-
-  .set-row-desc {
-    font-size: clamp(9px, 1.4vw, 11px);
-    line-height: 1.25;
-  }
-
-  .set-quality {
-    display: flex;
-    gap: 4px;
-    width: 100%;
-  }
-
-  .set-quality-opt {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 5px 2px;
-    font-size: clamp(9px, 1.5vw, 11px);
-    text-align: center;
-  }
-
-  .set-slider {
-    height: 22px;
-  }
-
-  .set-actions {
-    padding-top: 6px;
-  }
-
-  /* Grid layouts inside modals */
   .ach-grid,
   .modes-grid {
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -18404,7 +18347,6 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     overscroll-behavior: contain;
   }
 
-  /* Codex drawer */
   .codex-drawer {
     width: min(520px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
     top: calc(48px + var(--safe-top));
@@ -18433,64 +18375,602 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
 }
 
+/* 3. Settings Modal Polish */
+.set-card {
+  width: min(420px, 96vw);
+  max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom));
+  border-width: 14px;
+  padding: 4px 10px 10px;
+}
+
+.set-title {
+  font-size: 17px;
+  margin-bottom: 2px;
+}
+
+.set-rows {
+  gap: 2px;
+  margin: 4px 0 8px;
+}
+
+.set-row {
+  padding: 5px 0;
+  gap: 8px;
+}
+
+.set-row-label {
+  font-size: clamp(11px, 1.8vw, 13px);
+}
+
+.set-row-desc {
+  font-size: clamp(9px, 1.4vw, 11px);
+  line-height: 1.25;
+}
+
+.set-slider {
+  height: 22px;
+}
+
+.set-actions {
+  padding-top: 6px;
+}
+
+/* ========================================================================== */
+/* GRAPHICS QUALITY PRESETS: FIX OVERFLOW ('BALANCED' & 'PERFORMANCE')        */
+/* ========================================================================== */
+
+.set-quality {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  width: 100% !important;
+  margin: 6px 0 10px !important;
+  padding: 8px 0 2px !important;
+}
+
+.set-quality-title {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  margin: 0 0 4px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  color: var(--ink-strong) !important;
+}
+
+/* 2x2 Segmented Grid on Mobile so BALANCED & PERFORMANCE have abundant space */
+@media (max-width: 540px), (max-height: 520px) {
+  .set-quality-options {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .set-quality-opt {
+    min-height: 38px !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    letter-spacing: 0.6px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    text-align: center !important;
+  }
+}
+
+@media (min-width: 541px) and (min-height: 521px) {
+  .set-quality-options {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 5px !important;
+    width: 100% !important;
+  }
+
+  .set-quality-opt {
+    min-height: 32px !important;
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.5px !important;
+    white-space: nowrap !important;
+  }
+}
+
+.set-quality-opt {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(245, 196, 81, 0.3) !important;
+  background: rgba(12, 16, 24, 0.75) !important;
+  color: var(--ink-muted) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.set-quality-opt.is-on {
+  border-color: var(--gold-primary) !important;
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.28), rgba(120, 88, 26, 0.35)) !important;
+  color: #fff4d4 !important;
+  box-shadow: 0 0 10px rgba(245, 196, 81, 0.2) !important;
+}
+
+.set-quality-note {
+  margin: 4px 0 0 !important;
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+  color: var(--ink-muted) !important;
+}
+
+/* ========================================================================== */
+/* DEFENSE UPGRADE PANEL & CARDS: METHODICAL CLEANUP (SOLVES 'SOBRANG KALAT') */
+/* ========================================================================== */
+
+.hud-inspector {
+  background: linear-gradient(180deg, rgba(16, 22, 32, 0.98), rgba(10, 14, 20, 0.99)) !important;
+  border: 1px solid rgba(245, 196, 81, 0.35) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75) !important;
+  border-radius: 8px !important;
+}
+
+.inspector-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  padding: 8px 10px !important;
+}
+
+/* Header: Clean Aligned Row */
+.inspector-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding-bottom: 6px !important;
+  border-bottom: 1px solid rgba(245, 196, 81, 0.18) !important;
+  margin-bottom: 2px !important;
+}
+
+.inspector-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+
+.inspector-name {
+  font-family: var(--font-heading) !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  letter-spacing: 0.5px !important;
+  white-space: nowrap !important;
+}
+
+.inspector-level {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+  color: var(--gold-primary) !important;
+  background: rgba(245, 196, 81, 0.12) !important;
+  padding: 1px 6px !important;
+  border-radius: 3px !important;
+  border: 1px solid rgba(245, 196, 81, 0.25) !important;
+  white-space: nowrap !important;
+}
+
+.inspector-targets {
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.8px !important;
+  padding: 1px 5px !important;
+  border-radius: 3px !important;
+  white-space: nowrap !important;
+}
+
+/* A. HERO UPGRADE CARD: Level 1 to 2 or Single Next Tier */
+#btn-upgrade-tower {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  width: 100% !important;
+  min-height: auto !important;
+  padding: 7px 9px !important;
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.14), rgba(16, 20, 28, 0.92) 55%) !important;
+  border: 1px solid rgba(245, 196, 81, 0.4) !important;
+  border-left: 3px solid var(--gold-primary) !important;
+  border-radius: 6px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 8px rgba(0, 0, 0, 0.4) !important;
+  cursor: pointer !important;
+  margin-bottom: 4px !important;
+}
+
+#btn-upgrade-tower .spec-card-top {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  gap: 8px !important;
+}
+
+#btn-upgrade-tower .spec-card-ident {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1px !important;
+  margin-right: auto !important;
+}
+
+#btn-upgrade-tower .spec-card-path {
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.2px !important;
+  color: var(--gold-primary) !important;
+}
+
+#btn-upgrade-tower .spec-card-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+}
+
+#btn-upgrade-tower .spec-card-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 2px 0 !important;
+}
+
+#btn-upgrade-tower .spec-card-cta {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.35), rgba(160, 110, 20, 0.5)) !important;
+  border: 1px solid rgba(245, 196, 81, 0.6) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  margin: 0 !important;
+}
+
+#btn-upgrade-tower .spec-card-cta em {
+  font-size: 9px !important;
+  letter-spacing: 1px !important;
+  color: #fffaea !important;
+}
+
+/* B. SPECIALIZATION CHOICE: Path I vs Path II Dual Branch Cards */
+.spec-selection-block {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  margin-bottom: 4px !important;
+}
+
+.spec-choice-title {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.2px !important;
+  color: var(--gold-primary) !important;
+  padding: 0 2px !important;
+}
+
+.spec-choice-hint {
+  font-size: 8.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.5px !important;
+  color: var(--text-muted) !important;
+}
+
+.spec-cards-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+.spec-card {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding: 6px 7px 5px !important;
+  border-radius: 5px !important;
+  background: linear-gradient(180deg, rgba(20, 26, 38, 0.95), rgba(10, 14, 20, 0.98)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 3px solid var(--lane, var(--gold-primary)) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
+  transition: all 0.15s ease !important;
+}
+
+.spec-card.spec-lane-a {
+  --lane: #f5c451;
+}
+
+.spec-card.spec-lane-b {
+  --lane: #60d2ff;
+  border-color: rgba(96, 210, 255, 0.25) !important;
+}
+
+.spec-card-top {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+.spec-card-art {
+  width: 28px !important;
+  height: 32px !important;
+  flex-shrink: 0 !important;
+  object-fit: contain !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) !important;
+}
+
+.spec-card-ident {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1px !important;
+  min-width: 0 !important;
+}
+
+.spec-card-path {
+  font-size: 7.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.2px !important;
+  color: var(--lane, var(--gold-primary)) !important;
+}
+
+.spec-card-title {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.spec-card-role {
+  align-self: flex-start !important;
+  font-size: 7.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+  padding: 1px 4px !important;
+  border-radius: 2px !important;
+  color: var(--lane, var(--gold-primary)) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.spec-card-pitch {
+  font-size: 9px !important;
+  line-height: 1.25 !important;
+  color: #94a3b8 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  margin: 1px 0 !important;
+}
+
+/* Crisp Stat Chips */
+.spec-card-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 3px !important;
+  width: 100% !important;
+}
+
+.spec-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 1px 4px !important;
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  border-radius: 3px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+  white-space: nowrap !important;
+}
+
+.spec-chip-up {
+  color: #86efac !important;
+  border-color: rgba(134, 239, 172, 0.35) !important;
+}
+
+.spec-chip-up b:last-child {
+  color: #bbf7d0 !important;
+}
+
+.spec-chip-down {
+  color: #fca5a5 !important;
+  border-color: rgba(252, 165, 165, 0.35) !important;
+}
+
+/* High-Impact Unlock Button */
+.spec-card-cta {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  padding: 4px 6px !important;
+  margin-top: 2px !important;
+  border-radius: 4px !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  color: var(--lane, var(--gold-primary)) !important;
+}
+
+.spec-card-cta em {
+  font-size: 8.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1px !important;
+  color: #fff !important;
+}
+
+/* C. SEGMENTED TARGETING PRIORITY CONTROLLER */
+.inspector-targeting-group {
+  margin-bottom: 6px !important;
+}
+
+.inspector-targeting-group .lbl {
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.2px !important;
+  color: rgba(245, 196, 81, 0.8) !important;
+  margin-bottom: 3px !important;
+}
+
+.targeting-buttons {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 2px !important;
+  padding: 2px !important;
+  background: rgba(8, 12, 18, 0.7) !important;
+  border: 1px solid rgba(245, 196, 81, 0.2) !important;
+  border-radius: 5px !important;
+}
+
+.target-btn {
+  min-height: 28px !important;
+  padding: 3px 2px !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  border: none !important;
+  border-radius: 3px !important;
+  color: #94a3b8 !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  transition: all 0.12s ease !important;
+}
+
+.target-btn.active {
+  background: linear-gradient(180deg, rgba(245, 196, 81, 0.35), rgba(160, 110, 20, 0.45)) !important;
+  color: #ffebaa !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+  font-weight: 800 !important;
+}
+
+/* D. BENTO STATS CELLS */
+.inspector-stats-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 3px !important;
+  margin-bottom: 6px !important;
+}
+
+.inspector-stats-grid::before {
+  content: 'COMBAT DETAILS' !important;
+  grid-column: 1 / -1 !important;
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.2px !important;
+  color: var(--gold-primary) !important;
+  opacity: 0.85 !important;
+  padding: 2px 0 1px !important;
+}
+
+.stat-cell {
+  background: rgba(12, 16, 24, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 4px !important;
+  padding: 3px 5px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1px !important;
+}
+
+.stat-cell .lbl {
+  font-size: 7.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.8px !important;
+  color: rgba(245, 196, 81, 0.75) !important;
+}
+
+.stat-cell .val {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #f1f5f9 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.stat-cell.full-width {
+  grid-column: 1 / -1 !important;
+  background: rgba(15, 20, 30, 0.6) !important;
+  border-left: 2px solid var(--gold-primary) !important;
+}
+
+.stat-cell.full-width .lbl {
+  font-size: 7.5px !important;
+  color: var(--gold-primary) !important;
+}
+
+.stat-cell.full-width .val {
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+  color: #cbd5e1 !important;
+}
+
+/* E. DISTINCT SELL BUTTON */
+#btn-sell-tower,
+.game-btn-sell {
+  width: 100% !important;
+  min-height: 32px !important;
+  padding: 4px 10px !important;
+  margin-top: 4px !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  border-radius: 5px !important;
+  background: linear-gradient(180deg, rgba(40, 15, 18, 0.8), rgba(20, 8, 10, 0.9)) !important;
+  color: #fca5a5 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+}
+
+.max-spec-badge {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  padding: 8px !important;
+  border-radius: 5px !important;
+  background: rgba(245, 196, 81, 0.12) !important;
+  border: 1px solid rgba(245, 196, 81, 0.3) !important;
+  color: var(--gold-primary) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.2px !important;
+  margin-bottom: 4px !important;
+}
+
+/* 5. In-Game Tower Inspector & Build Dock Scale on Small Devices */
 @media (max-width: 640px), (max-height: 480px) {
-  /* 3. In-Game Tower Inspector & Specialization Cards */
   .hud-inspector {
-    width: min(320px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
-    max-height: calc(100dvh - 50px - var(--safe-top) - var(--safe-bottom));
-  }
-
-  .inspector-header {
-    padding: 5px 8px;
-    gap: 4px;
-  }
-
-  .inspector-name {
-    font-size: 13px;
-  }
-
-  .inspector-stats-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 3px;
-    margin-bottom: 5px;
-  }
-
-  .spec-cards-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-  }
-
-  .spec-card {
-    padding: 5px 6px 4px;
-    gap: 2px;
-  }
-
-  .spec-card-title {
-    font-size: 11px;
-    line-height: 1.2;
-  }
-
-  .spec-card-pitch {
-    font-size: 9px;
-    line-height: 1.25;
-    -webkit-line-clamp: 2;
-  }
-
-  .spec-card-cta {
-    min-height: 26px;
-    font-size: 10px;
-    padding: 3px 6px;
-  }
-
-  .spec-card-art {
-    width: 26px;
-    height: 30px;
+    width: min(330px, calc(100vw - 16px - var(--safe-left) - var(--safe-right))) !important;
+    max-height: calc(100dvh - 50px - var(--safe-top) - var(--safe-bottom)) !important;
   }
 }
 
 @media (max-width: 768px), (max-height: 480px) {
-  /* 4. Tower Build Dock & Build Cards */
   .hud-dock {
     max-width: calc(100vw - 12px - var(--safe-left) - var(--safe-right));
     padding: 4px 6px;
@@ -18544,7 +19024,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 @media (max-width: 680px), (max-height: 520px) {
-  /* 5. Result Screen & Epilogue */
+  /* Result Screen */
   .result-shell {
     width: min(440px, 96vw);
     max-height: calc(100dvh - 14px - var(--safe-top) - var(--safe-bottom));
@@ -18591,7 +19071,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     font-size: 11px;
   }
 
-  /* 6. Pause Card */
+  /* Pause Card */
   .pause-card {
     width: min(340px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
     max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
@@ -18613,7 +19093,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     padding: 4px 8px;
   }
 
-  /* 7. Display Gates */
+  /* Display Gates */
   .gate-card {
     max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
     max-width: min(400px, calc(100vw - 16px));
@@ -18632,7 +19112,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 @media (max-width: 768px), (max-height: 520px) {
-  /* 8. Main Menu Screen */
+  /* Main Menu Screen */
   .menu-topbar {
     padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left));
   }
@@ -18648,7 +19128,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 }
 
 @media (max-width: 768px) {
-  /* 9. Universal Text & Scroll Protections */
+  /* Universal Text & Scroll Protections */
   .wm-card-title,
   .modal-title,
   .overlay-title,
@@ -18674,7 +19154,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 /* ADVANCED MOBILE ERGONOMICS, TOUCH FEEL & NATIVE AFFORDANCES                */
 /* ========================================================================== */
 
-/* 1. Prevent Browser Long-Press Popovers, Selection Highlighting & Tap Delays */
+/* Prevent Browser Long-Press Popovers, Selection Highlighting & Tap Delays */
 #app,
 #app *,
 .modal-overlay,
@@ -18702,7 +19182,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 2. Tactile Touch Feedback: Instant arcade-grade micro-compression on press */
+/* Tactile Touch Feedback: Instant arcade-grade micro-compression on press */
 @media (pointer: coarse), (max-width: 900px) {
   .game-btn:active,
   .build-card:active,
@@ -18721,7 +19201,6 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     transition: transform 50ms ease, filter 50ms ease !important;
   }
 
-  /* Expanded 12px touch hit target for world map landmarks */
   .wm-landmark::after {
     content: '';
     position: absolute;
@@ -18730,7 +19209,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
 }
 
-/* 3. World Map Controls Safe-Area & Notch Protection */
+/* World Map Controls Safe-Area & Notch Protection */
 @media (max-width: 900px), (max-height: 560px) {
   .wm-rail,
   #world-map.has-panel .wm-rail {
@@ -18743,13 +19222,12 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     left: calc(8px + var(--safe-left));
   }
 
-  /* Screen-clamped build tooltip */
   .build-tip {
     max-width: min(260px, calc(100vw - 20px));
   }
 }
 
-/* 4. Visual Sheet Grab Handles on Mobile Bottom Sheets */
+/* Visual Sheet Grab Handles on Mobile Bottom Sheets */
 @media (max-width: 768px), (max-height: 520px) {
   .hud-inspector::before,
   .wm-panel::before {
@@ -18764,7 +19242,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
 }
 
-/* 5. Clean Desktop Keyboard Hint Suppression on Touchscreens */
+/* Clean Desktop Keyboard Hint Suppression on Touchscreens */
 @media (pointer: coarse), (max-width: 768px) {
   .menu-hintline,
   .camera-hint {
@@ -18772,7 +19250,7 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
   }
 }
 
-/* 6. Standalone PWA Dynamic Viewport Harmonization */
+/* Standalone PWA Dynamic Viewport Harmonization */
 @media (display-mode: standalone) {
   #app {
     height: 100dvh;
