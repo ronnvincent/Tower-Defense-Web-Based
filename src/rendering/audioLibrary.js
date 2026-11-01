@@ -70,6 +70,23 @@ export const AUDIO_LIBRARY = Object.freeze({
   'ui.waveStart': { file: 'ui/ui_wave_start.ogg', family: 'ui', gain: 0.7, cooldownMs: 500, pack: 'kenney-interface' },
   'ui.warning': { file: 'ui/ui_warning.ogg', family: 'ui', gain: 0.6, cooldownMs: 1500, pack: 'kenney-impact' },
 
+  /* -------------------------------------------------------------- impacts */
+  'impact.explosion': {
+    file: 'impacts/impact_explosion.ogg',
+    family: 'tower',
+    gain: 0.75,
+    cooldownMs: 60,
+    variants: ['impacts/impact_explosion.ogg', 'impacts/impact_explosion_heavy.ogg'],
+    pack: 'kenney-scifi',
+  },
+  'impact.explosionHeavy': {
+    file: 'impacts/impact_explosion_heavy.ogg',
+    family: 'tower',
+    gain: 0.85,
+    cooldownMs: 80,
+    pack: 'kenney-scifi',
+  },
+
   /* ---------------------------------------------------------------- walls */
   // Three wood hits, two stone hits and a separate break for each: a barricade
   // under a wave is hit dozens of times a second and must not machine-gun.
@@ -129,6 +146,11 @@ export const AUDIO_LIBRARY = Object.freeze({
   'boss.hit': { file: 'enemies/boss_hit.ogg', family: 'boss', gain: 0.65, cooldownMs: 180, pack: 'kenney-impact' },
 
   /* ------------------------------------------------------ victory / defeat */
+  'cue.combo_1': { file: 'cues/cue_combo_1.ogg', family: 'cue', gain: 0.65, cooldownMs: 100, pack: 'kenney-digital' },
+  'cue.combo_2': { file: 'cues/cue_combo_2.ogg', family: 'cue', gain: 0.65, cooldownMs: 100, pack: 'kenney-digital' },
+  'cue.combo_3': { file: 'cues/cue_combo_3.ogg', family: 'cue', gain: 0.7, cooldownMs: 100, pack: 'kenney-digital' },
+  'cue.callEarly': { file: 'cues/cue_call_early.ogg', family: 'cue', gain: 0.75, cooldownMs: 400, pack: 'kenney-jingles' },
+  'cue.lowHealth': { file: 'cues/cue_heartbeat.ogg', family: 'cue', gain: 0.7, cooldownMs: 1200, pack: 'opengameart' },
   'cue.victory': { file: 'cues/cue_victory.ogg', family: 'cue', pack: 'kenney-jingles' },
   'cue.defeat': { file: 'cues/cue_defeat.ogg', family: 'cue', pack: 'kenney-jingles' },
   'cue.waveClear': { file: 'cues/cue_wave_clear.ogg', family: 'cue', gain: 0.55, cooldownMs: 1200, pack: 'kenney-jingles' },

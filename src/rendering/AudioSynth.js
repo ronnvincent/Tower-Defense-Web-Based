@@ -544,6 +544,8 @@ export class AudioSynth {
 
   playExplosion(options = {}) {
     this.unlock();
+    const explosionId = options.heavy ? 'impact.explosionHeavy' : 'impact.explosion';
+    if (this.samples.play(explosionId, { pan: options.pan, jitter: 0.08 })) return;
     const g = this.#gain(0.45, options.pan);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -619,6 +621,9 @@ export class AudioSynth {
    */
   playCombo(tier = 1) {
     this.unlock();
+    const clamped = Math.max(1, Math.min(3, tier));
+    const cueId = clamped === 3 ? 'cue.combo_3' : clamped === 2 ? 'cue.combo_2' : 'cue.combo_1';
+    if (this.samples.play(cueId, { rate: 1 + (clamped - 1) * 0.08 })) return;
     const g = this.#gain(0.22);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -638,6 +643,7 @@ export class AudioSynth {
   /** Two-note "tempo" flourish for calling the next wave early. */
   playCallEarly() {
     this.unlock();
+    if (this.samples.play('cue.callEarly')) return;
     const g = this.#gain(0.25);
     if (!g) return;
     const now = this.ctx.currentTime;
@@ -724,6 +730,7 @@ export class AudioSynth {
    */
   playLowHealth() {
     this.unlock();
+    if (this.samples.play('cue.lowHealth')) return;
     const g = this.#gain(0.13);
     if (!g) return;
     const now = this.ctx.currentTime;

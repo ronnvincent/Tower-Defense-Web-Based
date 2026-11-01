@@ -21,6 +21,16 @@
 
 export const AMBIENCE_LAYERS = Object.freeze(['wind', 'water', 'fire', 'birds', 'hammer', 'portal']);
 
+/** Real CC0 sample loops for authentic background environments. */
+export const AMBIENCE_FILES = Object.freeze({
+  wind: 'ambience/ambience_wind.ogg',
+  water: 'ambience/ambience_water.ogg',
+  fire: 'ambience/ambience_fire.ogg',
+  birds: 'ambience/ambience_birds.ogg',
+  hammer: 'ambience/ambience_hammer.ogg',
+  portal: 'ambience/ambience_portal.ogg',
+});
+
 /** Which layers a place wants. Keyed by world-map panel id (plus `menu`). */
 export const AMBIENCE_FOR = Object.freeze({
   menu: ['fire'],
@@ -150,20 +160,22 @@ export class AmbienceDirector {
     this.layers.set(name, layer);
 
     try {
-      if (name === 'wind') this.#bed(layer, { type: 'lowpass', frequency: 420, q: 0.5, lfo: 0.07 });
-      else if (name === 'water') this.#bed(layer, { type: 'bandpass', frequency: 900, q: 1.1, lfo: 0.33 });
-      else if (name === 'fire') {
-        this.#bed(layer, { type: 'lowpass', frequency: 1400, q: 0.6, lfo: 1.7, lfoDepth: 0.35 });
-        layer.next = ctx.currentTime + 0.3;
-        layer.timer = setInterval(() => this.#crackle(layer), 320);
-      } else if (name === 'portal') {
-        this.#portal(layer);
-      } else if (name === 'birds') {
-        layer.next = ctx.currentTime + 2.5;
-        layer.timer = setInterval(() => this.#chirp(layer), 1000);
-      } else if (name === 'hammer') {
-        layer.next = ctx.currentTime + 1.2;
-        layer.timer = setInterval(() => this.#hammer(layer), 520);
+      if (!this.#playSampleBed(layer, name)) {
+        if (name === 'wind') this.#bed(layer, { type: 'lowpass', frequency: 420, q: 0.5, lfo: 0.07 });
+        else if (name === 'water') this.#bed(layer, { type: 'bandpass', frequency: 900, q: 1.1, lfo: 0.33 });
+        else if (name === 'fire') {
+          this.#bed(layer, { type: 'lowpass', frequency: 1400, q: 0.6, lfo: 1.7, lfoDepth: 0.35 });
+          layer.next = ctx.currentTime + 0.3;
+          layer.timer = setInterval(() => this.#crackle(layer), 320);
+        } else if (name === 'portal') {
+          this.#portal(layer);
+        } else if (name === 'birds') {
+          layer.next = ctx.currentTime + 2.5;
+          layer.timer = setInterval(() => this.#chirp(layer), 1000);
+        } else if (name === 'hammer') {
+          layer.next = ctx.currentTime + 1.2;
+          layer.timer = setInterval(() => this.#hammer(layer), 520);
+        }
       }
     } catch {
       /* a context that closed mid-build leaves a silent layer, not a crash */
@@ -192,6 +204,35 @@ export class AmbienceDirector {
         /* already gone */
       }
     }, (seconds + 0.3) * 1000);
+  }
+
+  #playSampleBed(layer, name) {
+    const file = AMBIENCE_FILES[name];
+    if (!file || !this.synth?.samples) return false;
+    const buffer = this.synth.samples.buffers.get(file);
+    if (!buffer) {
+      this.synth.samples.load(file).then((buf) => {
+        if (!buf || this.disposed || !this.layers.has(name)) return;
+        const ctx = this.synth.ctx;
+        if (!ctx || ctx.state !== 'running') return;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(layer.gain);
+        src.start();
+        layer.nodes.push(src);
+      }).catch(() => {});
+      return false;
+    }
+    const ctx = this.synth.ctx;
+    if (!ctx) return false;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.connect(layer.gain);
+    src.start();
+    layer.nodes.push(src);
+    return true;
   }
 
   /** A looping noise bed through a filter, with a slow swell on its level. */

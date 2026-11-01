@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tower Defense: DSALGO Bastion — Quick & Direct Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-page: #f3f4f6;
+      --bg-slide: #ffffff;
+      --text-dark: #111827;
+      --text-muted: #4b5563;
+      --blue: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-page);
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    /* 16:9 Slide Canvas - NO CARDS, Pure Open Layout */
+    .slide-deck {
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: var(--bg-slide);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .slide {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      padding: 56px 64px;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    /* Open Typography Header */
+    .slide-kicker {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .slide-title {
+      font-size: 38px;
+      font-weight: 800;
+      color: var(--text-dark);
+      line-height: 1.2;
+      margin-bottom: 36px;
+      letter-spacing: -0.02em;
+    }
+
+    /* Clean Columns - NO BOXES / NO CARDS */
+    .columns-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      flex: 1;
+    }
+
+    .column-full {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .column-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 16px;
+    }
+
+    .bullet-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-size: 18px;
+      color: var(--text-dark);
+      line-height: 1.55;
+    }
+
+    .bullet-list li {
+      position: relative;
+      padding-left: 24px;
+    }
+
+    .bullet-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--blue);
+      font-weight: bold;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    /* Title Slide Specifics */
+    .title-slide {
+      justify-content: center;
+      align-items: flex-start;
+      padding: 80px 88px;
+    }
+
+    .title-main {
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--text-dark);
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+
+    .title-sub {
+      font-size: 24px;
+      color: var(--blue);
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 24px;
+    }
+
+    .title-desc {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.5;
+    }
+
+    /* Navigation Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 16px;
+      padding: 0 4px;
+    }
+
+    .controls-left, .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      color: var(--text-dark);
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: #f9fafb;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #ffffff;
+      border-color: var(--blue);
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .counter {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .hint {
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    kbd {
+      background: #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+    }
+
+    @media print {
+      body {
+        background: transparent;
+        padding: 0;
+      }
+      .controls {
+        display: none !important;
+      }
+      .slide-deck {
+        box-shadow: none;
+        border: none;
+        max-width: 100%;
+        border-radius: 0;
+      }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        height: 100vh;
+        padding: 56px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="slide-deck" id="presentation">
+
+    <!-- SLIDE 1: TITLE SLIDE -->
+    <div class="slide active title-slide">
+      <div class="slide-kicker">DSALGO Final Project</div>
+      <h1 class="title-main">Tower Defense: DSALGO Bastion</h1>
+      <p class="title-sub">Simple Guide: Mechanics, Strategy, & How the Code Thinks</p>
+      <p class="title-desc">A direct, no-fluff explanation designed for high school students.</p>
+    </div>
+
+    <!-- SLIDE 2: HOW THE GAME WORKS -->
+    <div class="slide">
+      <div class="slide-kicker">The Basics</div>
+      <h2 class="slide-title">How the Game Works</h2>
+      <div class="columns-2">
+        <div>
+          <h3 class="column-title">The Goal</h3>
+          <ul class="bullet-list">
+            <li>Your base sits on the right side with <strong>20 HP</strong>.</li>
+            <li>Monsters spawn on the left and march along the road to destroy your base.</li>
+            <li>If your base HP reaches 0, you lose.</li>
+            <li>Survive all <strong>6 waves</strong> to win the game!</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="column-title">The Gameplay Loop</h3>
+          <ul class="bullet-list">
+            <li>Monsters walk down the road.</li>
+            <li>Your towers shoot them down automatically.</li>
+            <li>Defeated monsters drop <strong>Gold Coins</strong>.</li>
+            <li>Use gold to buy new towers, upgrade them, or reinforce your base.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: ARSENAL & BASE -->
+    <div class="slide">
+      <div class="slide-kicker">Defenses</div>
+      <h2 class="slide-title">Your Arsenal & The Fighting Base</h2>
+      <div class="columns-2">
+        <div>
+          <h3 class="column-title">The 4 Main Towers</h3>
+          <ul class="bullet-list">
+            <li><strong>Archer:</strong> Shoots fast arrows (great against fast runners).</li>
+            <li><strong>Cannon:</strong> Fires bombs that blow up groups of enemies.</li>
+            <li><strong>Frost Spire:</strong> Freezes monsters to slow them down.</li>
+            <li><strong>Road Barricade:</strong> A roadblock that forces monsters to take the long detour.</li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="column-title">The Bastion (Your Base Attacks Too!)</h3>
+          <ul class="bullet-list">
+            <li>Your base isn't helpless—it fights back!</li>
+            <li><strong>Level 1–2:</strong> Fires arrows at ground and flying monsters.</li>
+            <li><strong>Level 3–5 Choices:</strong>
+              <br>• <em>Storm Path:</em> Strikes lightning from the sky to shock crowds.
+              <br>• <em>Fire Path:</em> Rains explosive mortar shells that leave fire on the road.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: THE 3 BEST TACTICS -->
+    <div class="slide">
+      <div class="slide-kicker">Strategy</div>
+      <h2 class="slide-title">3 Smart Tactics to Win</h2>
+      <div class="column-full">
+        <ul class="bullet-list">
+          <li><strong>1. The Detour Trap:</strong> Drop a cheap 30-gold barricade on the middle shortcut. Monsters have to walk twice as far, giving your towers double the time to shoot them!</li>
+          <li><strong>2. Freeze & Bomb Combo:</strong> Slow the front runner with a Frost tower so the monsters clump together, then blast the entire crowd with one Cannon bomb.</li>
+          <li><strong>3. Take Out the Healer:</strong> Plague Shamans heal nearby monsters. Switch your towers to target them first before they heal the boss!</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: HOW THE ALGORITHMS WORK -->
+    <div class="slide">
+      <div class="slide-kicker">Computer Science</div>
+      <h2 class="slide-title">How the Code Thinks (Algorithms Made Simple)</h2>
+      <div class="columns-2">
+        <div>
+          <h3 class="column-title">Pathfinding & Spawning</h3>
+          <ul class="bullet-list">
+            <li><strong>BFS (Monster GPS):</strong>
+              <br>Like Google Maps: Finds the fastest road to your base. If you place a barricade, it instantly finds a detour. (You cannot block the road completely!).
+            </li>
+            <li><strong>Circular Queue (The Lunch Line):</strong>
+              <br>Spawns enemies in First-In, First-Out order. Loops in a circle so the game never lags.
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="column-title">Map & Leaderboard</h3>
+          <ul class="bullet-list">
+            <li><strong>Graph (The Road Network):</strong>
+              <br>Connects road tiles like school hallways. Dropping a barricade cuts that hallway off the map.
+            </li>
+            <li><strong>Merge Sort (The Fair Leaderboard):</strong>
+              <br>Ranks high scores like sorting a deck of cards. Fast, 100% fair, and never glitches on ties.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: SUMMARY -->
+    <div class="slide">
+      <div class="slide-kicker">Conclusion</div>
+      <h2 class="slide-title">Summary: Why It Works</h2>
+      <div class="column-full">
+        <ul class="bullet-list">
+          <li><strong>Smart Strategy:</strong> Using barricades to make longer paths is the easiest way to win.</li>
+          <li><strong>Base That Fights:</strong> Upgrading your base gives you a powerful safety net against boss waves.</li>
+          <li><strong>Smooth & Lag-Free:</strong> Custom data structures keep the game running at a smooth 60 FPS.</li>
+          <li><strong>Rock-Solid Code:</strong> Built from scratch with over 1,860 automated tests proving it works!</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div class="controls">
+    <div class="controls-left">
+      <button class="btn" id="prevBtn">← Previous</button>
+      <button class="btn btn-primary" id="nextBtn">Next →</button>
+      <span class="counter" id="slideCounter">Slide 1 of 6</span>
+    </div>
+    <div class="controls-right">
+      <span class="hint">Use <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to navigate</span>
+      <button class="btn" id="fullscreenBtn">⛶ Fullscreen</button>
+      <button class="btn" id="printBtn">🖨️ Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const counter = document.getElementById('slideCounter');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const printBtn = document.getElementById('printBtn');
+    let currentIndex = 0;
+
+    function showSlide(index) {
+      if (index < 0) index = 0;
+      if (index >= slides.length) index = slides.length - 1;
+      currentIndex = index;
+
+      slides.forEach((s, i) => {
+        s.classList.toggle('active', i === currentIndex);
+      });
+
+      counter.textContent = `Slide ${currentIndex + 1} of ${slides.length}`;
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.textContent = currentIndex === slides.length - 1 ? 'Finish 🏁' : 'Next →';
+    }
+
+    prevBtn.addEventListener('click', () => showSlide(currentIndex - 1));
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex === slides.length - 1) {
+        showSlide(0);
+      } else {
+        showSlide(currentIndex + 1);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        showSlide(currentIndex + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        showSlide(currentIndex - 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        showSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        showSlide(slides.length - 1);
+      }
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+      const elem = document.getElementById('presentation');
+      if (!document.fullscreenElement) {
+        elem.requestFullscreen().catch(err => alert(`Error entering fullscreen: ${err.message}`));
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    printBtn.addEventListener('click', () => {
+      window.print();
+    });
+
+    showSlide(0);
+  </script>
+</body>
+</html>

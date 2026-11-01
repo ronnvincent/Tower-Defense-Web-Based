@@ -284,6 +284,13 @@ export const PRELOAD_IDS = Object.freeze([
   'cue.victory',
   'cue.defeat',
   'cue.waveClear',
+  'cue.combo_1',
+  'cue.combo_2',
+  'cue.combo_3',
+  'cue.callEarly',
+  'cue.lowHealth',
+  'impact.explosion',
+  'impact.explosionHeavy',
   // Combat essentials. A destruction sound plays once per structure, so if its
   // file is not already decoded the first — and only — break is silent. The
   // whole wall + enemy set is ~125 KB encoded, cheaper than one music bar.

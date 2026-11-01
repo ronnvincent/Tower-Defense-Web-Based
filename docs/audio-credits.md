@@ -40,16 +40,17 @@ the official `kenney.nl` download host is unreachable from this sandbox
 The upstream file path is given for each recording. All of them live in public
 GitHub repositories, so the link opens the real file.
 
-### Music (6 loops)
+### Music (CC0 loops)
 
-| In game | Pack | Upstream file | Source |
+| In game | Pack / Author | Upstream file | Source |
 | --- | --- | --- | --- |
-| `music/music_menu.ogg` | Royalty Free Music Pack (Efface Studios) | `Cinemato.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/Cinemato.mp3) |
-| `music/music_prep.ogg` | Royalty Free Music Pack (Efface Studios) | `The Templer.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/The%20Templer.mp3) |
-| `music/music_battle.ogg` | Royalty Free Music Pack (Efface Studios) | `Fury.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/Fury.mp3) |
+| `music/music_menu.ogg` | RandomMind (OpenGameArt CC0) | `The Old Tower Inn` | [link](https://opengameart.org/content/medieval-the-old-tower-inn) |
+| `music/music_prep.ogg` | RandomMind (OpenGameArt CC0) | `Exploration` | [link](https://opengameart.org/content/medieval-exploration) |
+| `music/music_battle.ogg` | RandomMind (OpenGameArt CC0) | `Medieval Battle` | [link](https://opengameart.org/content/medieval-battle) |
 | `music/music_intense.ogg` | Royalty Free Music Pack (Efface Studios) | `alarming.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/alarming.mp3) |
-| `music/music_boss.ogg` | Royalty Free Music Pack (Efface Studios) | `Worship Me.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/Worship%20Me.mp3) |
-| `music/music_victory.ogg` | Royalty Free Music Pack (Efface Studios) | `The Champion.mp3` | [link](https://github.com/effacestudios/Royalty-Free-Music-Pack/blob/HEAD/The%20Champion.mp3) |
+| `music/music_boss.ogg` | Juhani Junkala (OpenGameArt CC0) | `Epic Boss Battle` | [link](https://opengameart.org/content/boss-battle-music) |
+| `music/music_victory.ogg` | RandomMind (OpenGameArt CC0) | `Medieval Victory Theme` | [link](https://opengameart.org/content/medieval-victory-theme) |
+| `music/music_defeat.ogg` | RandomMind (OpenGameArt CC0) | `Medieval Defeat Theme` | [link](https://opengameart.org/content/medieval-defeat-theme) |
 
 ### Interface and economy (13)
 
@@ -122,13 +123,38 @@ GitHub repositories, so the link opens the real file.
 | `enemies/enemy_step_2.ogg` | Kenney — Impact Sounds | `addons/kenney impact sounds/footstep_grass_002.ogg` | [link](https://github.com/Boyquotes/kenney-impact-sounds-for-godot/blob/HEAD/addons/kenney%20impact%20sounds/footstep_grass_002.ogg) |
 | `enemies/enemy_step_3.ogg` | Kenney — Impact Sounds | `addons/kenney impact sounds/footstep_wood_001.ogg` | [link](https://github.com/Boyquotes/kenney-impact-sounds-for-godot/blob/HEAD/addons/kenney%20impact%20sounds/footstep_wood_001.ogg) |
 
-### Result and wave stings (3)
+### Result and gameplay cues
 
 | In game | Pack | Upstream file | Source |
 | --- | --- | --- | --- |
 | `cues/cue_defeat.ogg` | Kenney — Music Jingles | `addons/kenney music jingles/Steel jingles/jingles_steel_7.ogg` | [link](https://github.com/Boyquotes/kenney-music-jingles-for-godot/blob/HEAD/addons/kenney%20music%20jingles/Steel%20jingles/jingles_steel_7.ogg) |
 | `cues/cue_victory.ogg` | Kenney — Music Jingles | `addons/kenney music jingles/Pizzicato jingles/jingles_pizzi_2.ogg` | [link](https://github.com/Boyquotes/kenney-music-jingles-for-godot/blob/HEAD/addons/kenney%20music%20jingles/Pizzicato%20jingles/jingles_pizzi_2.ogg) |
 | `cues/cue_wave_clear.ogg` | Kenney — Music Jingles | `addons/kenney music jingles/Hit jingles/jingles_hit_3.ogg` | [link](https://github.com/Boyquotes/kenney-music-jingles-for-godot/blob/HEAD/addons/kenney%20music%20jingles/Hit%20jingles/jingles_hit_3.ogg) |
+| `cues/cue_combo_1.ogg` | Kenney — Digital Audio | `addons/kenney digital audio/power_up_1.ogg` | [link](https://github.com/Boyquotes/kenney-digital-audio-for-godot/blob/HEAD/addons/kenney%20digital%20audio/power_up_1.ogg) |
+| `cues/cue_combo_2.ogg` | Kenney — Digital Audio | `addons/kenney digital audio/power_up_2.ogg` | [link](https://github.com/Boyquotes/kenney-digital-audio-for-godot/blob/HEAD/addons/kenney%20digital%20audio/power_up_2.ogg) |
+| `cues/cue_combo_3.ogg` | Kenney — Digital Audio | `addons/kenney digital audio/power_up_3.ogg` | [link](https://github.com/Boyquotes/kenney-digital-audio-for-godot/blob/HEAD/addons/kenney%20digital%20audio/power_up_3.ogg) |
+| `cues/cue_call_early.ogg` | Kenney — Music Jingles | `addons/kenney music jingles/Hit jingles/jingles_hit_1.ogg` | [link](https://github.com/Boyquotes/kenney-music-jingles-for-godot/blob/HEAD/addons/kenney%20music%20jingles/Hit%20jingles/jingles_hit_1.ogg) |
+| `cues/cue_heartbeat.ogg` | OpenGameArt CC0 | `heartbeat_slow_0.wav` | [link](https://opengameart.org/content/heartbeat-sounds) |
+
+### Explosions & Impacts (replacing synthetic white noise)
+
+| In game | Pack | Upstream file | Source |
+| --- | --- | --- | --- |
+| `impacts/impact_explosion.ogg` | Kenney — Sci-Fi Sounds | `explosion_crunch_000.ogg` | [link](https://github.com/Boyquotes/kenney-sci-fi-sounds-for-godot/blob/HEAD/addons/kenney%20sci-fi%20sounds/explosion_crunch_000.ogg) |
+| `impacts/impact_explosion_heavy.ogg` | Kenney — Sci-Fi Sounds | `low_frequency_explosion_000.ogg` | [link](https://github.com/Boyquotes/kenney-sci-fi-sounds-for-godot/blob/HEAD/addons/kenney%20sci-fi%20sounds/low_frequency_explosion_000.ogg) |
+| `towers/tower_cannon.ogg` | Kenney — Sci-Fi Sounds | `low_frequency_explosion_001.ogg` | [link](https://github.com/Boyquotes/kenney-sci-fi-sounds-for-godot/blob/HEAD/addons/kenney%20sci-fi%20sounds/low_frequency_explosion_001.ogg) |
+| `towers/tower_mortar.ogg` | Kenney — Sci-Fi Sounds | `explosion_crunch_002.ogg` | [link](https://github.com/Boyquotes/kenney-sci-fi-sounds-for-godot/blob/HEAD/addons/kenney%20sci-fi%20sounds/explosion_crunch_002.ogg) |
+
+### Real Ambience Loops (replacing synthetic filtered noise)
+
+| In game | Pack / Author | Upstream file | Source |
+| --- | --- | --- | --- |
+| `ambience/ambience_wind.ogg` | OpenGameArt CC0 | `wind woosh loop.ogg` | [link](https://opengameart.org/content/wind-whoosh-loop) |
+| `ambience/ambience_water.ogg` | OpenGameArt CC0 | `VistulaShort.mp3` | [link](https://opengameart.org/content/sea-and-river-wave-sounds) |
+| `ambience/ambience_fire.ogg` | OpenGameArt CC0 | `fire.wav` | [link](https://opengameart.org/content/fireplace-sound-loop) |
+| `ambience/ambience_birds.ogg` | Isaiah658 (OpenGameArt CC0) | `birds-isaiah658.ogg` | [link](https://opengameart.org/content/ambient-bird-sounds) |
+| `ambience/ambience_hammer.ogg` | OpenGameArt CC0 | `blacksmithhammer.mp3` | [link](https://opengameart.org/content/blacksmiths-hammer) |
+| `ambience/ambience_portal.ogg` | OpenGameArt CC0 | `teleport.wav` | [link](https://opengameart.org/content/teleport-spell) |
 
 ## Verification
 
