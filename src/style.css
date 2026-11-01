@@ -18669,3 +18669,118 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
     overscroll-behavior: contain;
   }
 }
+
+/* ========================================================================== */
+/* ADVANCED MOBILE ERGONOMICS, TOUCH FEEL & NATIVE AFFORDANCES                */
+/* ========================================================================== */
+
+/* 1. Prevent Browser Long-Press Popovers, Selection Highlighting & Tap Delays */
+#app,
+#app *,
+.modal-overlay,
+.modal-card,
+.display-gate,
+.wm-stage {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.game-btn,
+.build-card,
+.wm-btn,
+.wm-difficulty,
+.dock-tab,
+.pet-card-btn,
+.mode-card,
+.spec-card,
+.menu-play,
+.menu-icon,
+.cam-btn,
+.wm-rail-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 2. Tactile Touch Feedback: Instant arcade-grade micro-compression on press */
+@media (pointer: coarse), (max-width: 900px) {
+  .game-btn:active,
+  .build-card:active,
+  .wm-btn:active,
+  .wm-difficulty:active,
+  .dock-tab:active,
+  .pet-card-btn:active,
+  .mode-card:active,
+  .spec-card:active,
+  .menu-play:active,
+  .menu-icon:active,
+  .cam-btn:active,
+  .wm-rail-btn:active {
+    transform: scale(0.96) !important;
+    filter: brightness(1.2) !important;
+    transition: transform 50ms ease, filter 50ms ease !important;
+  }
+
+  /* Expanded 12px touch hit target for world map landmarks */
+  .wm-landmark::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    pointer-events: auto;
+  }
+}
+
+/* 3. World Map Controls Safe-Area & Notch Protection */
+@media (max-width: 900px), (max-height: 560px) {
+  .wm-rail,
+  #world-map.has-panel .wm-rail {
+    top: calc(52px + var(--safe-top));
+    left: calc(8px + var(--safe-left));
+  }
+
+  .wm-toast {
+    bottom: calc(8px + var(--safe-bottom));
+    left: calc(8px + var(--safe-left));
+  }
+
+  /* Screen-clamped build tooltip */
+  .build-tip {
+    max-width: min(260px, calc(100vw - 20px));
+  }
+}
+
+/* 4. Visual Sheet Grab Handles on Mobile Bottom Sheets */
+@media (max-width: 768px), (max-height: 520px) {
+  .hud-inspector::before,
+  .wm-panel::before {
+    content: '';
+    display: block;
+    width: 38px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(245, 196, 81, 0.45);
+    margin: 0 auto 6px;
+    flex-shrink: 0;
+  }
+}
+
+/* 5. Clean Desktop Keyboard Hint Suppression on Touchscreens */
+@media (pointer: coarse), (max-width: 768px) {
+  .menu-hintline,
+  .camera-hint {
+    display: none !important;
+  }
+}
+
+/* 6. Standalone PWA Dynamic Viewport Harmonization */
+@media (display-mode: standalone) {
+  #app {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .display-gate {
+    padding-top: calc(14px + var(--safe-top));
+    padding-bottom: calc(14px + var(--safe-bottom));
+  }
+}
