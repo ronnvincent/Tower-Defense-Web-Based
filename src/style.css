@@ -18149,3 +18149,523 @@ body.wm-paused .wm-landmark--banner .wm-landmark-art {
 .tut-hand.is-side-right {
   transform: rotate(-90deg);
 }
+
+/* ========================================================================== */
+/* COMPREHENSIVE RESPONSIVE MOBILE & COMPACT VIEWPORT POLISH                  */
+/* Eliminates overcrowding ('siksikan'), clipping, and awkward sizing         */
+/* ========================================================================== */
+
+@media (max-width: 900px), (max-height: 560px) {
+  /* 1. World Map Panels & Realm Ledgers */
+  .wm-top {
+    padding-top: calc(clamp(4px, 1vh, 10px) + var(--safe-top));
+    padding-left: calc(clamp(8px, 1.5vw, 16px) + var(--safe-left));
+    padding-right: calc(clamp(8px, 1.5vw, 16px) + var(--safe-right));
+  }
+
+  .wm-panel {
+    top: calc(50px + var(--safe-top));
+    bottom: calc(8px + var(--safe-bottom));
+    left: auto;
+    right: calc(8px + var(--safe-right));
+    width: min(380px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
+    max-width: 100%;
+    max-height: calc(100dvh - 58px - var(--safe-top) - var(--safe-bottom));
+    margin: 0;
+    padding: 8px 12px 14px;
+    border-width: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .wm-card-head {
+    gap: 4px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+
+  .wm-card-title {
+    font-size: clamp(14px, 2.6vw, 18px);
+    line-height: 1.2;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .wm-card-subhead,
+  .wm-card-blurb {
+    font-size: clamp(10px, 1.8vw, 12px);
+    line-height: 1.35;
+  }
+
+  .wm-difficulty-row {
+    display: flex;
+    gap: 4px;
+    margin: 6px 0 4px;
+  }
+
+  .wm-difficulty-row .wm-difficulty {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 2px;
+    font-size: clamp(9px, 1.8vw, 11px);
+    text-align: center;
+  }
+
+  .wm-board {
+    margin: 6px 0;
+    gap: 4px;
+  }
+
+  .wm-board-row {
+    padding: 4px 6px;
+    font-size: clamp(10px, 1.6vw, 12px);
+  }
+
+  .wm-objective {
+    margin-bottom: 8px;
+    padding: 7px 9px;
+  }
+
+  .wm-relic {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .wm-card-actions {
+    position: sticky;
+    bottom: -14px;
+    margin: 8px -12px -14px;
+    padding: 8px 12px calc(10px + var(--safe-bottom));
+    gap: 6px;
+  }
+
+  .wm-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: clamp(11px, 1.8vw, 13px);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Center world map panel horizontally on very narrow screens */
+  .wm-panel {
+    left: calc(8px + var(--safe-left));
+    right: calc(8px + var(--safe-right));
+    margin: 0 auto;
+    width: auto;
+  }
+}
+
+@media (max-width: 800px), (max-height: 560px) {
+  /* 2. Modals: Settings, Codex, Leaderboard, Achievements, Pets, Modes */
+  .modal-overlay {
+    padding: calc(6px + var(--safe-top)) calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
+  }
+
+  .modal-card,
+  .modal-large {
+    width: min(96vw, 620px);
+    max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom));
+    border-image-width: 14px;
+    border-width: 14px;
+  }
+
+  .modal-header {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .modal-title {
+    font-size: clamp(14px, 2.5vw, 18px);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .modal-body {
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .modal-footer {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .modal-footer .game-btn {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  /* Settings Modal Polish */
+  .set-card {
+    width: min(420px, 96vw);
+    max-height: calc(100dvh - 12px - var(--safe-top) - var(--safe-bottom));
+    border-width: 14px;
+    padding: 4px 10px 10px;
+  }
+
+  .set-title {
+    font-size: 17px;
+    margin-bottom: 2px;
+  }
+
+  .set-rows {
+    gap: 2px;
+    margin: 4px 0 8px;
+  }
+
+  .set-row {
+    padding: 5px 0;
+    gap: 8px;
+  }
+
+  .set-row-label {
+    font-size: clamp(11px, 1.8vw, 13px);
+  }
+
+  .set-row-desc {
+    font-size: clamp(9px, 1.4vw, 11px);
+    line-height: 1.25;
+  }
+
+  .set-quality {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .set-quality-opt {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 5px 2px;
+    font-size: clamp(9px, 1.5vw, 11px);
+    text-align: center;
+  }
+
+  .set-slider {
+    height: 22px;
+  }
+
+  .set-actions {
+    padding-top: 6px;
+  }
+
+  /* Grid layouts inside modals */
+  .ach-grid,
+  .modes-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 6px;
+  }
+
+  .ach-item {
+    padding: 5px 8px;
+    gap: 6px;
+  }
+
+  .ach-name {
+    font-size: 11px;
+  }
+
+  .ach-desc {
+    font-size: 9.5px;
+    line-height: 1.3;
+  }
+
+  .pet-card-btn,
+  .mode-card,
+  .relic-card {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .mode-name,
+  .pet-name {
+    font-size: 11px;
+  }
+
+  .mode-blurb,
+  .pet-desc {
+    font-size: 9.5px;
+    line-height: 1.25;
+  }
+
+  .table-scroll-frame {
+    max-height: calc(100dvh - 120px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Codex drawer */
+  .codex-drawer {
+    width: min(520px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
+    top: calc(48px + var(--safe-top));
+    bottom: calc(8px + var(--safe-bottom));
+    right: calc(8px + var(--safe-right));
+  }
+
+  .codex-header {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .codex-title {
+    font-size: 14px;
+  }
+
+  .codex-body {
+    padding: 6px 8px;
+    gap: 6px;
+    font-size: 11.5px;
+  }
+
+  .codex-body .telemetry-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 4px;
+  }
+}
+
+@media (max-width: 640px), (max-height: 480px) {
+  /* 3. In-Game Tower Inspector & Specialization Cards */
+  .hud-inspector {
+    width: min(320px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
+    max-height: calc(100dvh - 50px - var(--safe-top) - var(--safe-bottom));
+  }
+
+  .inspector-header {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+
+  .inspector-name {
+    font-size: 13px;
+  }
+
+  .inspector-stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    margin-bottom: 5px;
+  }
+
+  .spec-cards-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .spec-card {
+    padding: 5px 6px 4px;
+    gap: 2px;
+  }
+
+  .spec-card-title {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .spec-card-pitch {
+    font-size: 9px;
+    line-height: 1.25;
+    -webkit-line-clamp: 2;
+  }
+
+  .spec-card-cta {
+    min-height: 26px;
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .spec-card-art {
+    width: 26px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 768px), (max-height: 480px) {
+  /* 4. Tower Build Dock & Build Cards */
+  .hud-dock {
+    max-width: calc(100vw - 12px - var(--safe-left) - var(--safe-right));
+    padding: 4px 6px;
+  }
+
+  .dock-cards {
+    gap: 4px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+
+  .dock-cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .build-card {
+    width: clamp(56px, 11vw, 68px);
+    height: clamp(52px, 10vh, 62px);
+    padding: 4px 2px 3px;
+    flex: 0 0 auto;
+  }
+
+  .card-name {
+    font-size: clamp(8px, 1.4vw, 9.5px);
+    line-height: 1.1;
+  }
+
+  .card-cost {
+    font-size: clamp(9px, 1.5vw, 10.5px);
+  }
+
+  .card-icon-frame {
+    width: 28px;
+    height: 28px;
+    margin: 0 0 1px;
+  }
+
+  .dock-tab {
+    padding: 3px 6px;
+    font-size: 10px;
+    min-height: 26px;
+  }
+
+  .powerup-btn {
+    width: clamp(34px, 5.5vh, 40px);
+    height: clamp(34px, 5.5vh, 40px);
+  }
+}
+
+@media (max-width: 680px), (max-height: 520px) {
+  /* 5. Result Screen & Epilogue */
+  .result-shell {
+    width: min(440px, 96vw);
+    max-height: calc(100dvh - 14px - var(--safe-top) - var(--safe-bottom));
+    padding: 8px 12px;
+    gap: 4px;
+    border-width: 12px;
+  }
+
+  .result-body {
+    gap: 4px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .result-heading {
+    font-size: clamp(14px, 3vh, 18px);
+    margin: 2px 0;
+  }
+
+  .result-ribbon {
+    font-size: clamp(9.5px, 2vh, 11px);
+    padding: 2px 8px;
+  }
+
+  .result-stars {
+    gap: 4px;
+    margin: 2px 0;
+  }
+
+  .result-star-slot {
+    width: clamp(24px, 4.5vh, 30px);
+    height: clamp(24px, 4.5vh, 30px);
+  }
+
+  .result-actions {
+    gap: 4px;
+    padding-top: 2px;
+  }
+
+  .result-actions .game-btn {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  /* 6. Pause Card */
+  .pause-card {
+    width: min(340px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
+    max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
+    padding: 8px 12px;
+    border-width: 14px;
+    gap: 6px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .pause-title {
+    font-size: 13px;
+  }
+
+  .pause-card .game-btn {
+    min-height: 32px;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  /* 7. Display Gates */
+  .gate-card {
+    max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
+    max-width: min(400px, calc(100vw - 16px));
+    padding: 14px 16px;
+    border-width: 14px;
+  }
+
+  .gate-title {
+    font-size: clamp(14px, 3.2vw, 18px);
+  }
+
+  .gate-copy {
+    font-size: clamp(11px, 2.2vw, 13px);
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 768px), (max-height: 520px) {
+  /* 8. Main Menu Screen */
+  .menu-topbar {
+    padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left));
+  }
+
+  .menu-body {
+    padding-left: calc(12px + var(--safe-left));
+    padding-right: calc(12px + var(--safe-right));
+  }
+
+  .menu-play {
+    max-width: min(360px, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 768px) {
+  /* 9. Universal Text & Scroll Protections */
+  .wm-card-title,
+  .modal-title,
+  .overlay-title,
+  .result-heading {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .wm-panel,
+  .modal-body,
+  .set-card,
+  .table-scroll-frame,
+  .result-body,
+  .dock-cards,
+  .codex-body,
+  .pause-card {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
